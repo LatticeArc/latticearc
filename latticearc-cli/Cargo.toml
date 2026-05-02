@@ -17,7 +17,9 @@ path = "src/main.rs"
 [dependencies]
 # `tracing-init` enables the library's `init_tracing` helpers (subscriber
 # wiring is the binary's job; pulling them in here is correct).
-latticearc = { path = "../latticearc", version = "0.8", features = ["tracing-init"] }
+# `test-utils` exposes `pbkdf2_kat`, the legitimate KAT-replay entry
+# point routed by the `--allow-weak-iterations` flag on the `kdf` command.
+latticearc = { path = "../latticearc", version = "0.8", features = ["tracing-init", "test-utils"] }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

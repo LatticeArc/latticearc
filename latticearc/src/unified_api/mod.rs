@@ -603,8 +603,41 @@ fn run_power_up_self_tests() -> Result<()> {
         }
     }
 
-    // Test 3: Basic keypair generation
-    generate_keypair()?;
+    // Test 3: Ed25519 keypair sign/verify roundtrip plus a tamper
+    // check. Discarding `generate_keypair()`'s result (the previous
+    // behaviour) only proved that key generation didn't error and
+    // left the signing/verify hot path untested at startup. Exercise
+    // the full path so a regression in either signing or verification
+    // surfaces during init rather than under a real workload.
+    use crate::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
+    use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
+    const TEST_MESSAGE: &[u8] = b"latticearc-power-on-self-test-message-v1";
+    let keypair = Ed25519KeyPair::generate().map_err(|e| CoreError::SelfTestFailed {
+        component: "Ed25519 Keypair".to_string(),
+        status: format!("keygen failed: {e}"),
+    })?;
+    let signature = keypair.sign(TEST_MESSAGE);
+    let public_key_bytes = keypair.public_key_bytes();
+    Ed25519Signature::verify(&public_key_bytes, TEST_MESSAGE, &signature).map_err(|e| {
+        CoreError::SelfTestFailed {
+            component: "Ed25519 Sign/Verify".to_string(),
+            status: format!("valid signature was rejected at startup: {e}"),
+        }
+    })?;
+    // Negative check: a one-byte change to the message must invalidate
+    // the signature, confirming `verify()` actually checks rather than
+    // returning `Ok(())` unconditionally. `TEST_MESSAGE` is a fixed-
+    // length non-empty literal, so `get_mut(0)` is provably-Some.
+    let mut tampered = TEST_MESSAGE.to_vec();
+    if let Some(b) = tampered.get_mut(0) {
+        *b ^= 0xFF;
+    }
+    if Ed25519Signature::verify(&public_key_bytes, &tampered, &signature).is_ok() {
+        return Err(CoreError::SelfTestFailed {
+            component: "Ed25519 Sign/Verify".to_string(),
+            status: "tampered message was incorrectly accepted at startup".to_string(),
+        });
+    }
 
     // All tests passed - set self-test status
     SELF_TESTS_PASSED.store(true, Ordering::SeqCst);

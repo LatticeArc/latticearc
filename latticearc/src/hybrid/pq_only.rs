@@ -136,6 +136,21 @@ impl PqOnlyPublicKey {
 pub struct PqOnlySecretKey {
     /// The ML-KEM secret key (zeroized on drop by `MlKemSecretKey`).
     ml_kem_sk: MlKemSecretKey,
+    /// The corresponding ML-KEM public key (encapsulation key) bytes.
+    ///
+    /// Stored alongside the secret key so that the HKDF info on
+    /// decryption can bind to the recipient's static public key
+    /// (HPKE / RFC 9180 §5.1 channel binding). Without this, the only
+    /// channel binding is the KEM ciphertext itself; under that
+    /// construction an adversary who broke ML-KEM IND-CCA2 could swap
+    /// the recipient on a fresh ciphertext and the decapsulation would
+    /// still produce a usable shared secret. Binding the PK closes
+    /// that defense-in-depth gap.
+    ///
+    /// Public-key material is non-secret, so this field is a plain `Vec<u8>`
+    /// and is included in the public-API constructor signature
+    /// (`from_bytes(level, sk_bytes, pk_bytes)`).
+    ml_kem_pk_bytes: Vec<u8>,
     /// The security level this key was generated at.
     security_level: MlKemSecurityLevel,
 }
@@ -156,15 +171,48 @@ impl ConstantTimeEq for PqOnlySecretKey {
 }
 
 impl PqOnlySecretKey {
-    /// Create a `PqOnlySecretKey` from raw ML-KEM secret key bytes.
+    /// Create a `PqOnlySecretKey` from raw ML-KEM secret + public key bytes.
+    ///
+    /// Both components are required: the secret-key bytes drive
+    /// decapsulation, and the public-key bytes are folded into the
+    /// HKDF info string at decryption time so the derived AEAD key is
+    /// bound to the recipient identity (HPKE / RFC 9180 §5.1 channel
+    /// binding). Without `pk_bytes` the binding is to the KEM
+    /// ciphertext only, which depends on ML-KEM IND-CCA2 holding for
+    /// substitution resistance.
     ///
     /// # Errors
     ///
-    /// Returns an error if the key bytes are invalid for the specified security level.
-    pub fn from_bytes(level: MlKemSecurityLevel, sk_bytes: &[u8]) -> Result<Self, PqOnlyError> {
+    /// Returns [`PqOnlyError::InvalidInput`] if `sk_bytes` is malformed
+    /// for the specified security level, or if `pk_bytes` length does
+    /// not match the expected public-key size for that level.
+    pub fn from_bytes(
+        level: MlKemSecurityLevel,
+        sk_bytes: &[u8],
+        pk_bytes: &[u8],
+    ) -> Result<Self, PqOnlyError> {
         let ml_kem_sk = MlKemSecretKey::new(level, sk_bytes.to_vec())
             .map_err(|e| PqOnlyError::InvalidInput(format!("Invalid ML-KEM secret key: {e}")))?;
-        Ok(Self { ml_kem_sk, security_level: level })
+        let expected_pk_len = level.public_key_size();
+        if pk_bytes.len() != expected_pk_len {
+            return Err(PqOnlyError::InvalidInput(format!(
+                "ML-KEM public key length {} does not match expected {} for {}",
+                pk_bytes.len(),
+                expected_pk_len,
+                level.name()
+            )));
+        }
+        Ok(Self { ml_kem_sk, ml_kem_pk_bytes: pk_bytes.to_vec(), security_level: level })
+    }
+
+    /// Borrow the recipient's ML-KEM public key bytes.
+    ///
+    /// Used by the decryption path to construct the HKDF info string
+    /// with the same `(recipient_pk, kem_ciphertext)` binding that the
+    /// sender used at encryption.
+    #[must_use]
+    pub fn recipient_pk_bytes(&self) -> &[u8] {
+        &self.ml_kem_pk_bytes
     }
 
     /// Returns the ML-KEM security level.
@@ -202,9 +250,10 @@ impl PqOnlySecretKey {
 /// [`crate::unified_api::convenience::pq_kem`] so encrypt/decrypt
 /// drift across the two parallel APIs is structurally impossible
 /// (round-12 audit fix L-2 generalized to a single canonical helper).
-fn pq_only_encryption_info(kem_ciphertext: &[u8]) -> Vec<u8> {
-    crate::types::domains::hkdf_kem_info(
+fn pq_only_encryption_info(recipient_pk: &[u8], kem_ciphertext: &[u8]) -> Vec<u8> {
+    crate::types::domains::hkdf_kem_info_with_pk(
         crate::types::domains::HkdfKemLabel::PqOnlyEncryption,
+        recipient_pk,
         kem_ciphertext,
     )
 }
@@ -240,9 +289,10 @@ pub fn generate_pq_keypair_with_level(
     let (pk, sk) = MlKem::generate_keypair(level)
         .map_err(|e| PqOnlyError::KeyGenError(format!("ML-KEM keygen failed: {e}")))?;
 
+    let pk_bytes = pk.as_bytes().to_vec();
     Ok((
         PqOnlyPublicKey { ml_kem_pk: pk, security_level: level },
-        PqOnlySecretKey { ml_kem_sk: sk, security_level: level },
+        PqOnlySecretKey { ml_kem_sk: sk, ml_kem_pk_bytes: pk_bytes, security_level: level },
     ))
 }
 
@@ -351,17 +401,16 @@ pub fn encrypt_pq_only_with_aad(
         PqOnlyError::KemError("encapsulation failed".to_string())
     })?;
 
-    // Round-12 audit fix (L-2): bind the KEM ciphertext into the HKDF
-    // info string per RFC 9180 §5.1 (HPKE channel binding). The hybrid
-    // path uses `DerivationBinding{recipient_pk, ephemeral_pk,
-    // kem_ciphertext}` (round-7 fix #54); for PQ-only we bind just the
-    // ciphertext because `PqOnlySecretKey` does not carry the recipient
-    // PK (would require an API break). Ciphertext-binding alone gives
-    // the desired property: an adversary substituting `kem_ct` produces
-    // a different AEAD key, so the AEAD tag fails. Without it, if
-    // ML-KEM IND-CCA2 ever degraded the adversary could swap ciphertext
-    // halves freely.
-    let info = pq_only_encryption_info(kem_ct.as_bytes());
+    // HPKE / RFC 9180 §5.1 channel binding. Bind both:
+    //   - the recipient's static public key (so an adversary who
+    //     substitutes the recipient cannot reuse the ciphertext), and
+    //   - the KEM ciphertext (so an adversary who finds two ciphertexts
+    //     decapsulating to the same shared secret cannot swap them).
+    //
+    // The decryption path constructs the same info from
+    // `sk.recipient_pk_bytes()` and the wire `kem_ciphertext`. Both
+    // paths agree byte-for-byte on the transcript.
+    let info = pq_only_encryption_info(pk.ml_kem_pk_bytes(), kem_ct.as_bytes());
     let hkdf_result = hkdf(shared_secret.expose_secret(), None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "HKDF failed");
         PqOnlyError::KdfError("KDF failed".to_string())
@@ -456,9 +505,11 @@ pub fn decrypt_pq_only_with_aad(
     })?;
 
     // HKDF params must match encrypt_pq_only (salt=None, identical info).
-    // Round-12 audit fix (L-2): info string binds the KEM ciphertext
-    // (mirroring the encrypt path).
-    let info = pq_only_encryption_info(kem_ciphertext);
+    // The encrypt path binds both `recipient_pk` and `kem_ciphertext`
+    // into the info string (HPKE / RFC 9180 §5.1). The recipient PK
+    // comes from the secret key — a substituted recipient cannot
+    // produce a colliding info string, so the AEAD tag fails.
+    let info = pq_only_encryption_info(sk.recipient_pk_bytes(), kem_ciphertext);
     let hkdf_result = hkdf(shared_secret.expose_secret(), None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "HKDF failed");
         opaque()
@@ -613,8 +664,22 @@ mod tests {
 
     #[test]
     fn test_pq_only_secret_key_from_bytes_wrong_length_fails() {
-        let result = PqOnlySecretKey::from_bytes(MlKemSecurityLevel::MlKem768, &[0u8; 10]);
+        // Bad SK length, valid PK length → SK error.
+        let pk_len = MlKemSecurityLevel::MlKem768.public_key_size();
+        let pk_bytes = vec![0u8; pk_len];
+        let result =
+            PqOnlySecretKey::from_bytes(MlKemSecurityLevel::MlKem768, &[0u8; 10], &pk_bytes);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pq_only_secret_key_from_bytes_wrong_pk_length_fails() {
+        // Use a real keypair so the SK bytes are valid; pass a bogus PK
+        // length so the constructor refuses for the PK reason.
+        let (_pk, sk) = generate_pq_keypair().unwrap();
+        let sk_bytes = sk.expose_secret().to_vec();
+        let result = PqOnlySecretKey::from_bytes(sk.security_level(), &sk_bytes, &[0u8; 10]);
+        assert!(matches!(result, Err(PqOnlyError::InvalidInput(_))));
     }
 
     #[test]

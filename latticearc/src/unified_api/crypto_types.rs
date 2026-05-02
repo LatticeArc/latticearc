@@ -311,7 +311,23 @@ pub struct EncryptedOutput {
 
 impl EncryptedOutput {
     /// Create a new `EncryptedOutput` with all fields specified.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TypeError::ConfigurationError`] when the
+    /// `scheme` ⇄ `hybrid_data` shape disagrees with the documented
+    /// invariants (see the type-level docs):
+    ///
+    ///   * `scheme.requires_hybrid_key()` requires `hybrid_data.is_some()`
+    ///     with non-empty `ecdh_ephemeral_pk`.
+    ///   * `scheme.requires_pq_key()` requires `hybrid_data.is_some()`
+    ///     with **empty** `ecdh_ephemeral_pk`.
+    ///   * `scheme.requires_symmetric_key()` requires `hybrid_data.is_none()`.
+    ///
+    /// These checks run in both debug and release builds — the
+    /// previously-used `debug_assert!` was stripped under `--release`,
+    /// silently accepting structurally-broken `EncryptedOutput`s in
+    /// production.
     pub fn new(
         scheme: EncryptionScheme,
         ciphertext: Vec<u8>,
@@ -320,14 +336,43 @@ impl EncryptedOutput {
         hybrid_data: Option<HybridComponents>,
         timestamp: u64,
         key_id: Option<String>,
-    ) -> Self {
-        // Enforce PQ-only invariant: ecdh_ephemeral_pk must be empty
-        debug_assert!(
-            !scheme.requires_pq_key()
-                || hybrid_data.as_ref().is_some_and(|h| h.ecdh_ephemeral_pk.is_empty()),
-            "PQ-only scheme must have hybrid_data with empty ecdh_ephemeral_pk"
-        );
-        Self { scheme, ciphertext, nonce, tag, hybrid_data, timestamp, key_id }
+    ) -> Result<Self, crate::types::error::TypeError> {
+        Self::validate_shape(&scheme, hybrid_data.as_ref())?;
+        Ok(Self { scheme, ciphertext, nonce, tag, hybrid_data, timestamp, key_id })
+    }
+
+    fn validate_shape(
+        scheme: &EncryptionScheme,
+        hybrid_data: Option<&HybridComponents>,
+    ) -> Result<(), crate::types::error::TypeError> {
+        if scheme.requires_hybrid_key() {
+            let h = hybrid_data.ok_or_else(|| {
+                crate::types::error::TypeError::ConfigurationError(format!(
+                    "scheme {scheme} requires hybrid components but none were provided"
+                ))
+            })?;
+            if h.ecdh_ephemeral_pk.is_empty() {
+                return Err(crate::types::error::TypeError::ConfigurationError(format!(
+                    "scheme {scheme} requires a non-empty ECDH ephemeral public key"
+                )));
+            }
+        } else if scheme.requires_pq_key() {
+            let h = hybrid_data.ok_or_else(|| {
+                crate::types::error::TypeError::ConfigurationError(format!(
+                    "scheme {scheme} requires ML-KEM ciphertext but none was provided"
+                ))
+            })?;
+            if !h.ecdh_ephemeral_pk.is_empty() {
+                return Err(crate::types::error::TypeError::ConfigurationError(format!(
+                    "scheme {scheme} (PQ-only) must not carry an ECDH ephemeral public key"
+                )));
+            }
+        } else if hybrid_data.is_some() {
+            return Err(crate::types::error::TypeError::ConfigurationError(format!(
+                "scheme {scheme} is symmetric-only and must not carry hybrid components"
+            )));
+        }
+        Ok(())
     }
 
     /// Return the encryption scheme used.
@@ -444,45 +489,87 @@ impl EncryptedOutput {
 
 use crate::types::types::{CryptoPayload, EncryptedData, EncryptedMetadata};
 
-/// Convert `EncryptedOutput` to legacy `EncryptedData` for serialization.
-///
-/// The `ciphertext` field (which contains nonce || ct || tag for symmetric schemes)
-/// is stored directly in `EncryptedData.data`.
+/// Convert `EncryptedOutput` to `EncryptedData`. Hybrid components, when
+/// present, ride along on the metadata so the inverse `TryFrom` round-trips
+/// the full payload — dropping `hybrid_data` here would render any hybrid
+/// or PQ-only ciphertext permanently undecryptable.
 impl From<EncryptedOutput> for EncryptedData {
     fn from(output: EncryptedOutput) -> Self {
-        let EncryptedOutput { scheme, ciphertext, nonce, tag, hybrid_data: _, timestamp, key_id } =
+        let EncryptedOutput { scheme, ciphertext, nonce, tag, hybrid_data, timestamp, key_id } =
             output;
-        CryptoPayload {
-            data: ciphertext,
-            metadata: EncryptedMetadata {
-                nonce,
-                tag: if tag.is_empty() { None } else { Some(tag) },
-                key_id,
-            },
-            scheme: scheme.to_string(),
-            timestamp,
-        }
+        let tag_opt = if tag.is_empty() { None } else { Some(tag) };
+        let metadata = match hybrid_data {
+            None => EncryptedMetadata::symmetric(nonce, tag_opt, key_id),
+            Some(h) => {
+                let (ml_kem_ct, ecdh_pk) = h.into_parts();
+                if ecdh_pk.is_empty() {
+                    EncryptedMetadata::pq_only(nonce, tag_opt, key_id, ml_kem_ct)
+                } else {
+                    EncryptedMetadata::hybrid(nonce, tag_opt, key_id, ml_kem_ct, ecdh_pk)
+                }
+            }
+        };
+        CryptoPayload { data: ciphertext, metadata, scheme: scheme.to_string(), timestamp }
     }
 }
 
-/// Convert legacy `EncryptedData` to `EncryptedOutput` for decryption.
-///
-/// The scheme string is parsed into an `EncryptionScheme` enum.
-/// Returns an error for unrecognized schemes instead of silently defaulting.
+/// Convert `EncryptedData` to `EncryptedOutput` for decryption. The scheme
+/// string is parsed into an `EncryptionScheme` enum and the hybrid
+/// components reattached when present. Returns an error for unrecognized
+/// schemes, or when the metadata's hybrid shape disagrees with the scheme
+/// requirements (e.g. a hybrid scheme without an ECDH ephemeral key, or a
+/// symmetric-only scheme carrying ML-KEM material).
 impl TryFrom<EncryptedData> for EncryptedOutput {
     type Error = crate::types::error::TypeError;
 
     fn try_from(data: EncryptedData) -> Result<Self, Self::Error> {
         let scheme = EncryptionScheme::parse_str(&data.scheme)
             .ok_or_else(|| crate::types::error::TypeError::UnknownScheme(data.scheme.clone()))?;
+        let EncryptedData { data: ciphertext, metadata, timestamp, .. } = data;
+        let EncryptedMetadata { nonce, tag, key_id, ml_kem_ciphertext, ecdh_ephemeral_pk, .. } =
+            metadata;
+
+        let hybrid_data = match (ml_kem_ciphertext, ecdh_ephemeral_pk) {
+            (None, None) => {
+                if scheme.requires_hybrid_key() || scheme.requires_pq_key() {
+                    return Err(crate::types::error::TypeError::ConfigurationError(format!(
+                        "scheme {scheme} requires post-quantum components but \
+                         EncryptedData metadata carries none"
+                    )));
+                }
+                None
+            }
+            (Some(ml_kem_ct), Some(ecdh_pk)) => {
+                if !scheme.requires_hybrid_key() {
+                    return Err(crate::types::error::TypeError::ConfigurationError(format!(
+                        "scheme {scheme} does not accept ECDH ephemeral key in metadata"
+                    )));
+                }
+                Some(HybridComponents::new(ml_kem_ct, ecdh_pk))
+            }
+            (Some(ml_kem_ct), None) => {
+                if !scheme.requires_pq_key() {
+                    return Err(crate::types::error::TypeError::ConfigurationError(format!(
+                        "scheme {scheme} carries ML-KEM ciphertext but is not a PQ-only scheme"
+                    )));
+                }
+                Some(HybridComponents::new(ml_kem_ct, Vec::new()))
+            }
+            (None, Some(_)) => {
+                return Err(crate::types::error::TypeError::ConfigurationError(
+                    "ECDH ephemeral key present without ML-KEM ciphertext".to_string(),
+                ));
+            }
+        };
+
         Ok(Self {
             scheme,
-            ciphertext: data.data,
-            nonce: data.metadata.nonce,
-            tag: data.metadata.tag.unwrap_or_default(),
-            hybrid_data: None,
-            timestamp: data.timestamp,
-            key_id: data.metadata.key_id,
+            ciphertext,
+            nonce,
+            tag: tag.unwrap_or_default(),
+            hybrid_data,
+            timestamp,
+            key_id,
         })
     }
 }
@@ -629,7 +716,8 @@ mod tests {
             }),
             1700000000,
             Some("pq-key-001".to_string()),
-        );
+        )
+        .expect("valid PQ-only shape");
         // Convert to legacy EncryptedData and back
         let legacy: EncryptedData = output.into();
         assert_eq!(legacy.scheme, "pq-ml-kem-768-aes-256-gcm");
@@ -643,6 +731,136 @@ mod tests {
             HybridComponents { ml_kem_ciphertext: vec![1, 2, 3], ecdh_ephemeral_pk: vec![4, 5, 6] };
         let b = a.clone();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_encrypted_output_legacy_roundtrip_preserves_hybrid_components() {
+        // Hybrid: both ML-KEM ct and ECDH ephemeral PK must round-trip.
+        let original = EncryptedOutput::new(
+            EncryptionScheme::HybridMlKem768Aes256Gcm,
+            vec![0xAA; 32],
+            vec![0xBB; 12],
+            vec![0xCC; 16],
+            Some(HybridComponents {
+                ml_kem_ciphertext: vec![0xDD; 1088],
+                ecdh_ephemeral_pk: vec![0xEE; 32],
+            }),
+            1_700_000_000,
+            Some("hybrid-roundtrip".to_string()),
+        )
+        .expect("valid hybrid shape");
+
+        let legacy: EncryptedData = original.clone().into();
+        let restored = EncryptedOutput::try_from(legacy).expect("hybrid round-trip");
+        let h = restored.hybrid_data().expect("hybrid_data must survive round-trip");
+        assert_eq!(h.ml_kem_ciphertext(), &vec![0xDD; 1088]);
+        assert_eq!(h.ecdh_ephemeral_pk(), &vec![0xEE; 32]);
+        assert_eq!(restored.scheme(), original.scheme());
+        assert_eq!(restored.ciphertext(), original.ciphertext());
+        assert_eq!(restored.nonce(), original.nonce());
+        assert_eq!(restored.tag(), original.tag());
+    }
+
+    #[test]
+    fn test_encrypted_output_legacy_roundtrip_preserves_pq_only_components() {
+        // PQ-only: ML-KEM ct must survive; ECDH ephemeral PK must remain
+        // empty on the round-trip.
+        let original = EncryptedOutput::new(
+            EncryptionScheme::PqMlKem768Aes256Gcm,
+            vec![0xAA; 32],
+            vec![0xBB; 12],
+            vec![0xCC; 16],
+            Some(HybridComponents {
+                ml_kem_ciphertext: vec![0xDD; 1088],
+                ecdh_ephemeral_pk: Vec::new(),
+            }),
+            1_700_000_000,
+            None,
+        )
+        .expect("valid PQ-only shape");
+
+        let legacy: EncryptedData = original.into();
+        let restored = EncryptedOutput::try_from(legacy).expect("pq-only round-trip");
+        let h = restored.hybrid_data().expect("pq-only must keep ML-KEM ct");
+        assert_eq!(h.ml_kem_ciphertext(), &vec![0xDD; 1088]);
+        assert!(h.ecdh_ephemeral_pk().is_empty());
+    }
+
+    #[test]
+    fn test_encrypted_output_new_rejects_invalid_shape() {
+        // Hybrid scheme without hybrid_data
+        assert!(
+            EncryptedOutput::new(
+                EncryptionScheme::HybridMlKem768Aes256Gcm,
+                vec![],
+                vec![],
+                vec![],
+                None,
+                0,
+                None,
+            )
+            .is_err()
+        );
+
+        // Hybrid scheme with empty ECDH ephemeral key
+        assert!(
+            EncryptedOutput::new(
+                EncryptionScheme::HybridMlKem768Aes256Gcm,
+                vec![],
+                vec![],
+                vec![],
+                Some(HybridComponents { ml_kem_ciphertext: vec![1], ecdh_ephemeral_pk: vec![] }),
+                0,
+                None,
+            )
+            .is_err()
+        );
+
+        // PQ-only scheme with non-empty ECDH ephemeral key
+        assert!(
+            EncryptedOutput::new(
+                EncryptionScheme::PqMlKem768Aes256Gcm,
+                vec![],
+                vec![],
+                vec![],
+                Some(HybridComponents { ml_kem_ciphertext: vec![1], ecdh_ephemeral_pk: vec![1] }),
+                0,
+                None,
+            )
+            .is_err()
+        );
+
+        // Symmetric scheme with hybrid_data
+        assert!(
+            EncryptedOutput::new(
+                EncryptionScheme::Aes256Gcm,
+                vec![],
+                vec![],
+                vec![],
+                Some(HybridComponents { ml_kem_ciphertext: vec![1], ecdh_ephemeral_pk: vec![] }),
+                0,
+                None,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test_encrypted_data_to_output_rejects_shape_mismatch() {
+        // Hybrid scheme without ECDH PK in metadata is a contract violation.
+        let mismatched = EncryptedData {
+            data: vec![0xAA; 32],
+            metadata: EncryptedMetadata::pq_only(
+                vec![0xBB; 12],
+                Some(vec![0xCC; 16]),
+                None,
+                vec![0xDD; 1088],
+            ),
+            scheme: "hybrid-ml-kem-768-aes-256-gcm".to_string(),
+            timestamp: 1_700_000_000,
+        };
+        let err = EncryptedOutput::try_from(mismatched).expect_err("must reject shape mismatch");
+        assert!(matches!(err, crate::types::error::TypeError::ConfigurationError(_)));
     }
 
     #[test]

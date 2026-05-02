@@ -208,6 +208,13 @@ impl MlDsaPublicKey {
         signature: &MlDsaSignature,
         context: &[u8],
     ) -> Result<bool, MlDsaError> {
+        // DoS bound on the verify hot path. ML-DSA verify hashes the
+        // entire message, so an attacker who can submit arbitrary
+        // bytes through any verify entry point can force unbounded
+        // hashing work. The guard mirrors the one in `sign()`.
+        crate::primitives::resource_limits::validate_signature_size(message.len())
+            .map_err(|_e| MlDsaError::MessageTooLong)?;
+
         if self.parameter_set() != signature.parameter_set() {
             // Parameter-set mismatch is a configuration bug, not a
             // forgery. Callers that branch on `Ok(false)` for "invalid

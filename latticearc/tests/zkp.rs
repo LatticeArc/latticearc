@@ -10,7 +10,7 @@
 
 use latticearc::zkp::{
     DlogEqualityProof, DlogEqualityStatement, HashCommitment, HashOpening, PedersenCommitment,
-    PedersenOpening, SchnorrProof, SchnorrProver, SchnorrVerifier,
+    PedersenOpening, SchnorrProof, SchnorrProver, SchnorrVerifier, ZkpError,
 };
 
 // ============================================================================
@@ -259,13 +259,14 @@ mod pedersen_commitment_tests {
     }
 
     #[test]
-    fn test_pedersen_commitment_zero_succeeds() {
+    fn test_pedersen_commitment_zero_value_rejected() {
+        // Committing to value = 0 collapses C = v*G + r*H to C = r*H,
+        // which exposes the auxiliary generator's blinding share.
+        // `commit()` draws blinding from a CSPRNG, so the blinding is
+        // non-zero with overwhelming probability — only the zero value
+        // input must trigger the rejection.
         let value: [u8; 32] = [0u8; 32];
-        let (commitment, opening) =
-            PedersenCommitment::commit(&value).expect("commit should succeed");
-
-        let result = commitment.verify(&opening).expect("verify should succeed");
-        assert!(result, "Zero value commitment should verify");
+        assert!(matches!(PedersenCommitment::commit(&value), Err(ZkpError::InvalidScalar)));
     }
 
     #[test]
@@ -396,6 +397,31 @@ mod pedersen_commitment_tests {
             tag == 0x02 || tag == 0x03,
             "SEC1-compressed prefix MUST be 0x02 or 0x03, got 0x{tag:02x}"
         );
+    }
+
+    #[test]
+    fn test_pedersen_commit_with_blinding_rejects_zero_scalars() {
+        // Zero blinding collapses C = v*G + r*H to C = v*G (loss of
+        // hiding). Zero value collapses to C = r*H (exposes blinding
+        // share). Both must be refused.
+        let zero = [0u8; 32];
+        let nonzero = [1u8; 32];
+
+        assert!(matches!(
+            PedersenCommitment::commit_with_blinding(&nonzero, &zero),
+            Err(ZkpError::InvalidScalar)
+        ));
+        assert!(matches!(
+            PedersenCommitment::commit_with_blinding(&zero, &nonzero),
+            Err(ZkpError::InvalidScalar)
+        ));
+        assert!(matches!(
+            PedersenCommitment::commit_with_blinding(&zero, &zero),
+            Err(ZkpError::InvalidScalar)
+        ));
+
+        // Sanity: non-zero on both sides still succeeds.
+        assert!(PedersenCommitment::commit_with_blinding(&nonzero, &nonzero).is_ok());
     }
 }
 
@@ -606,7 +632,9 @@ mod integration_tests {
     fn test_concurrent_pedersen_commitments_succeeds() {
         use std::thread;
 
-        let handles: Vec<_> = (0..4)
+        // Iterate from 1 so that no thread tries to commit to value = 0
+        // (rejected by `commit_with_blinding`'s zero-scalar guard).
+        let handles: Vec<_> = (1..=4u8)
             .map(|i| {
                 thread::spawn(move || {
                     let mut value = [0u8; 32];

@@ -215,7 +215,17 @@ impl From<[u8; 32]> for HashOutput {
 }
 
 /// Metadata associated with encrypted data.
+///
+/// The `ml_kem_ciphertext` and `ecdh_ephemeral_pk` fields carry hybrid
+/// scheme components when the payload was produced by a hybrid or PQ-only
+/// scheme. They are `None` for symmetric-only ciphertexts. Decryption of
+/// a hybrid payload requires both, so dropping or zeroing them on the way
+/// in or out of this struct makes the ciphertext permanently undecryptable.
+///
+/// Marked `#[non_exhaustive]` so that adding further metadata-bound fields
+/// later is not a breaking change.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct EncryptedMetadata {
     /// The nonce/IV used for encryption.
     pub nonce: Vec<u8>,
@@ -223,6 +233,55 @@ pub struct EncryptedMetadata {
     pub tag: Option<Vec<u8>>,
     /// Optional key identifier for key management.
     pub key_id: Option<String>,
+    /// ML-KEM ciphertext for hybrid / PQ-only schemes. `None` for
+    /// symmetric-only payloads.
+    pub ml_kem_ciphertext: Option<Vec<u8>>,
+    /// Ephemeral ECDH public key for hybrid schemes. `None` for both
+    /// symmetric-only and PQ-only payloads.
+    pub ecdh_ephemeral_pk: Option<Vec<u8>>,
+}
+
+impl EncryptedMetadata {
+    /// Symmetric-only constructor — no hybrid components.
+    #[must_use]
+    pub fn symmetric(nonce: Vec<u8>, tag: Option<Vec<u8>>, key_id: Option<String>) -> Self {
+        Self { nonce, tag, key_id, ml_kem_ciphertext: None, ecdh_ephemeral_pk: None }
+    }
+
+    /// Hybrid-scheme constructor — both ML-KEM and ECDH components present.
+    #[must_use]
+    pub fn hybrid(
+        nonce: Vec<u8>,
+        tag: Option<Vec<u8>>,
+        key_id: Option<String>,
+        ml_kem_ciphertext: Vec<u8>,
+        ecdh_ephemeral_pk: Vec<u8>,
+    ) -> Self {
+        Self {
+            nonce,
+            tag,
+            key_id,
+            ml_kem_ciphertext: Some(ml_kem_ciphertext),
+            ecdh_ephemeral_pk: Some(ecdh_ephemeral_pk),
+        }
+    }
+
+    /// PQ-only constructor — ML-KEM ciphertext present, ECDH absent.
+    #[must_use]
+    pub fn pq_only(
+        nonce: Vec<u8>,
+        tag: Option<Vec<u8>>,
+        key_id: Option<String>,
+        ml_kem_ciphertext: Vec<u8>,
+    ) -> Self {
+        Self {
+            nonce,
+            tag,
+            key_id,
+            ml_kem_ciphertext: Some(ml_kem_ciphertext),
+            ecdh_ephemeral_pk: None,
+        }
+    }
 }
 
 /// Metadata associated with signed data.
@@ -825,11 +884,11 @@ mod tests {
 
     #[test]
     fn test_encrypted_metadata_with_tag_sets_fields_succeeds() {
-        let meta = EncryptedMetadata {
-            nonce: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-            tag: Some(vec![0xAA; 16]),
-            key_id: Some("key-001".to_string()),
-        };
+        let meta = EncryptedMetadata::symmetric(
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            Some(vec![0xAA; 16]),
+            Some("key-001".to_string()),
+        );
         assert_eq!(meta.nonce.len(), 12);
         assert!(meta.tag.is_some());
         assert_eq!(meta.key_id.as_deref(), Some("key-001"));
@@ -837,14 +896,14 @@ mod tests {
 
     #[test]
     fn test_encrypted_metadata_without_tag_sets_none_tag_succeeds() {
-        let meta = EncryptedMetadata { nonce: vec![0u8; 12], tag: None, key_id: None };
+        let meta = EncryptedMetadata::symmetric(vec![0u8; 12], None, None);
         assert!(meta.tag.is_none());
         assert!(meta.key_id.is_none());
     }
 
     #[test]
     fn test_encrypted_metadata_eq_compares_all_fields_succeeds() {
-        let meta1 = EncryptedMetadata { nonce: vec![1, 2, 3], tag: None, key_id: None };
+        let meta1 = EncryptedMetadata::symmetric(vec![1, 2, 3], None, None);
         let meta2 = meta1.clone();
         assert_eq!(meta1, meta2);
     }
@@ -873,7 +932,7 @@ mod tests {
     fn test_crypto_payload_clone_eq_work_correctly_succeeds() {
         let payload: CryptoPayload<EncryptedMetadata> = CryptoPayload {
             data: vec![1, 2, 3],
-            metadata: EncryptedMetadata { nonce: vec![0u8; 12], tag: None, key_id: None },
+            metadata: EncryptedMetadata::symmetric(vec![0u8; 12], None, None),
             scheme: "AES-256-GCM".to_string(),
             timestamp: 1234567890,
         };

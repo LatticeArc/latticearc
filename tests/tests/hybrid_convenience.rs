@@ -314,7 +314,8 @@ mod encrypt {
             encrypted.hybrid_data().cloned(),
             encrypted.timestamp(),
             encrypted.key_id().map(str::to_owned),
-        );
+        )
+        .expect("re-wrap with same shape as original");
 
         let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
         assert!(result.is_err(), "Tampered symmetric ciphertext should be detected");
@@ -342,7 +343,8 @@ mod encrypt {
             tampered_hybrid,
             encrypted.timestamp(),
             encrypted.key_id().map(str::to_owned),
-        );
+        )
+        .expect("re-wrap with same shape as original");
 
         let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
         assert!(result.is_err(), "Tampered KEM ciphertext should be detected");
@@ -370,7 +372,8 @@ mod encrypt {
             tampered_hybrid,
             encrypted.timestamp(),
             encrypted.key_id().map(str::to_owned),
-        );
+        )
+        .expect("re-wrap with same shape as original");
 
         let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
         assert!(result.is_err(), "Tampered ECDH ephemeral PK should be detected");
@@ -395,7 +398,8 @@ mod encrypt {
             encrypted.hybrid_data().cloned(),
             encrypted.timestamp(),
             encrypted.key_id().map(str::to_owned),
-        );
+        )
+        .expect("re-wrap with same shape as original");
 
         let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
         assert!(result.is_err(), "Tampered nonce should be detected");
@@ -420,7 +424,8 @@ mod encrypt {
             encrypted.hybrid_data().cloned(),
             encrypted.timestamp(),
             encrypted.key_id().map(str::to_owned),
-        );
+        )
+        .expect("re-wrap with same shape as original");
 
         let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
         assert!(result.is_err(), "Tampered tag should be detected");

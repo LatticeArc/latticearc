@@ -265,7 +265,8 @@ fn derive_hkdf_with_input(
         latticearc::SecurityMode::Unverified,
     )
     .map_err(|e| anyhow::anyhow!("HKDF derivation failed: {e}"))?;
-    Ok(zeroize::Zeroizing::new(derived))
+    // `derive_key_with_info` now returns Zeroizing<Vec<u8>> directly.
+    Ok(derived)
 }
 
 /// OWASP 2023 minimum iteration count for PBKDF2-HMAC-SHA256.
@@ -310,8 +311,22 @@ fn derive_pbkdf2_with_input(
         .iterations(args.iterations)
         .key_length(args.length);
 
-    let result = latticearc::primitives::kdf::pbkdf2(&password, &params)
-        .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))?;
+    // The library `pbkdf2()` rejects iteration counts below the per-PRF
+    // OWASP 2023 floor (600 k for HMAC-SHA256, 210 k for HMAC-SHA512)
+    // — that's the right policy for typical callers. The CLI's
+    // `--allow-weak-iterations` flag exists specifically for KAT
+    // replay, where lower counts are required to match published test
+    // vectors (RFC 6070 uses iterations as low as 1). When the flag
+    // is set, we route through `pbkdf2_kat` so the legitimate KAT
+    // path actually works; the operator already saw the
+    // "KAT replay only — not for production" warning above.
+    let result = if args.allow_weak_iterations && args.iterations < OWASP_PBKDF2_MIN_ITERATIONS {
+        latticearc::primitives::kdf::pbkdf2_kat(&password, &params)
+            .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))?
+    } else {
+        latticearc::primitives::kdf::pbkdf2(&password, &params)
+            .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))?
+    };
 
     Ok(zeroize::Zeroizing::new(result.expose_secret().to_vec()))
 }

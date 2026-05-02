@@ -539,13 +539,18 @@ pub fn verify_cmac_192(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     // Compute CMAC regardless of tag length validation (timing-safe)
     let expected_tag_result = cmac_192(key, data);
 
-    // Constant-time comparison: valid only if tag length valid AND CMAC computation succeeded AND tags match
-    match expected_tag_result {
-        Ok(cmac) => {
-            let tags_match: bool = cmac.tag.ct_eq(tag).into();
-            tag_valid & tags_match
-        }
-        Err(_) => false,
+    if let Ok(cmac) = expected_tag_result {
+        let tags_match: bool = cmac.tag.ct_eq(tag).into();
+        tag_valid & tags_match
+    } else {
+        // Err arm parallels verify_cmac_128: do the equivalent constant-
+        // time work against a zeroed dummy tag so the function's runtime
+        // profile does not vary by whether the key length passed
+        // cmac_192's check. The result is unconditionally `false`.
+        let dummy = [0u8; 16];
+        let _: bool = dummy.ct_eq(&dummy).into();
+        let _: bool = dummy[..].ct_eq(tag).into();
+        false
     }
 }
 
@@ -589,13 +594,18 @@ pub fn verify_cmac_256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     // Compute CMAC regardless of tag length validation (timing-safe)
     let expected_tag_result = cmac_256(key, data);
 
-    // Constant-time comparison: valid only if tag length valid AND CMAC computation succeeded AND tags match
-    match expected_tag_result {
-        Ok(cmac) => {
-            let tags_match: bool = cmac.tag.ct_eq(tag).into();
-            tag_valid & tags_match
-        }
-        Err(_) => false,
+    if let Ok(cmac) = expected_tag_result {
+        let tags_match: bool = cmac.tag.ct_eq(tag).into();
+        tag_valid & tags_match
+    } else {
+        // Err arm parallels verify_cmac_128/192: do the equivalent
+        // constant-time work against a zeroed dummy tag so the function's
+        // runtime profile does not vary by whether the key length passed
+        // cmac_256's check.
+        let dummy = [0u8; 16];
+        let _: bool = dummy.ct_eq(&dummy).into();
+        let _: bool = dummy[..].ct_eq(tag).into();
+        false
     }
 }
 

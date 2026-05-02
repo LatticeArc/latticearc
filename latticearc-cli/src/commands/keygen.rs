@@ -340,12 +340,21 @@ fn generate_ml_kem(
     let sk_path = args.output.join(format!("{alg_name}.sec.json"));
 
     // SK first — see fix #1/#4 explanation above.
-    keyfile::write_key_protected(
+    //
+    // The PQ-only decryption path requires the recipient's ML-KEM
+    // public key at HKDF-info construction time (HPKE / RFC 9180 §5.1
+    // channel binding). Bundle the PK into the SK file's metadata so
+    // the decryption path is self-contained — it never needs to
+    // re-load the `.pub.json` separately. This mirrors the hybrid-KEM
+    // bundling pattern in `key_format::from_hybrid_keypair`.
+    let pk_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, pk.as_ref());
+    keyfile::write_key_protected_with_metadata(
         &sk_path,
         alg,
         KeyType::Secret,
         sk.expose_secret(),
         args.label.clone(),
+        &[("ml_kem_pk", serde_json::Value::String(pk_b64))],
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
     keyfile::write_key(&pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())?;

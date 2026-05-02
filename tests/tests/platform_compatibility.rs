@@ -125,7 +125,7 @@ fn test_endianness_nonce_handling_is_compatible_succeeds() {
     // Nonces must be consistent across platforms
     let nonce: [u8; 12] = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b];
 
-    let metadata = EncryptedMetadata { nonce: nonce.to_vec(), tag: None, key_id: None };
+    let metadata = EncryptedMetadata::symmetric(nonce.to_vec(), None, None);
 
     // Verify nonce is stored as raw bytes
     assert_eq!(metadata.nonce.as_slice(), &nonce);

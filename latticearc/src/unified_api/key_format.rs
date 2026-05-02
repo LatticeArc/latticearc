@@ -1240,7 +1240,10 @@ impl PortableKey {
             ));
         }
 
-        let (ml_kem_sk, ecdh_seed_vec) = self.key_data.decode_composite()?;
+        // Use the zeroizing decoder so the ML-KEM secret-key bytes and
+        // the X25519 seed are wiped from heap memory when this scope
+        // ends, regardless of which downstream branch we take.
+        let (ml_kem_sk, ecdh_seed_vec) = self.key_data.decode_composite_zeroized()?;
 
         // Extract ML-KEM public key from metadata (stored at keygen time)
         let ml_kem_pk = self
@@ -1388,12 +1391,15 @@ impl PortableKey {
             ));
         }
 
-        let (pq_bytes, classical_bytes) = self.key_data.decode_composite()?;
+        // Use the zeroizing decoder so the ML-DSA secret-key bytes and
+        // Ed25519 seed are never held as bare `Vec<u8>` between decode
+        // and `Zeroizing` wrapping.
+        let (pq_bytes, classical_bytes) = self.key_data.decode_composite_zeroized()?;
 
         Ok(crate::hybrid::sig_hybrid::HybridSigSecretKey::new(
             parameter_set,
-            zeroize::Zeroizing::new(pq_bytes),
-            zeroize::Zeroizing::new(classical_bytes),
+            pq_bytes,
+            classical_bytes,
         ))
     }
 
@@ -1597,8 +1603,12 @@ impl PortableKey {
                 "ML-KEM secret key requires Secret key type".to_string(),
             ));
         }
-        let bytes = self.key_data.decode_raw()?;
-        crate::primitives::kem::ml_kem::MlKemSecretKey::new(level, bytes)
+        // Use the zeroizing decoder so the ML-KEM secret-key bytes are
+        // wiped from heap memory when this scope exits, even on the
+        // error path where `MlKemSecretKey::new` rejects malformed
+        // material before consuming the bytes.
+        let bytes = self.key_data.decode_raw_zeroized()?;
+        crate::primitives::kem::ml_kem::MlKemSecretKey::new(level, bytes.to_vec())
             .map_err(|e| CoreError::InvalidKey(format!("ML-KEM secret key: {e}")))
     }
 
@@ -1953,7 +1963,8 @@ impl PortableKey {
             PBKDF2_DEFAULT_ITERATIONS,
             &salt,
             AES_GCM_AEAD_ID,
-        );
+            &self.metadata,
+        )?;
         let (nonce, mut ct, tag) = cipher
             .seal(&plaintext, Some(&aad))
             .map_err(|e| CoreError::InvalidKey(format!("AES-256-GCM sealing failed: {e}")))?;
@@ -2058,8 +2069,19 @@ impl PortableKey {
         let kdf_params = crate::primitives::kdf::pbkdf2::Pbkdf2Params::with_salt(&salt)
             .iterations(kdf_iterations)
             .key_length(AES_256_KEY_LEN);
-        let derived = crate::primitives::kdf::pbkdf2::pbkdf2(passphrase, &kdf_params)
-            .map_err(|e| CoreError::InvalidKey(format!("PBKDF2 derivation failed: {e}")))?;
+        // Use the legacy load-side floor (PBKDF2_MIN_ITERATIONS = 100k)
+        // rather than the public OWASP 2023 floor: the iteration count
+        // here is integrity-protected by the envelope AAD, so a count
+        // below 600k means the legitimate keyholder wrote it under
+        // OWASP 2018 guidance. Refusing to load it would strand
+        // historical keys; the caller already saw a re-protect warning
+        // in `validate_encrypted_envelope_fields` above.
+        let derived = crate::primitives::kdf::pbkdf2::pbkdf2_with_floor(
+            passphrase,
+            &kdf_params,
+            PBKDF2_MIN_ITERATIONS,
+        )
+        .map_err(|e| CoreError::InvalidKey(format!("PBKDF2 derivation failed: {e}")))?;
 
         // Decrypt. A wrong passphrase produces a wrong AES key, which causes
         // AEAD authentication to fail with an opaque error — we do NOT leak
@@ -2080,7 +2102,8 @@ impl PortableKey {
             kdf_iterations,
             &salt,
             AES_GCM_AEAD_ID,
-        );
+            &self.metadata,
+        )?;
         let plaintext = cipher
             .decrypt(&nonce_array, ct_bytes, &tag_array, Some(&aad))
             .map_err(|_e| {
@@ -2101,7 +2124,21 @@ impl PortableKey {
             ));
         }
 
-        self.key_data = new_key_data;
+        // Stage the new KeyData and run the same coherence check that
+        // `from_json`/`load_from_file` apply on entry. An attacker who
+        // crafted an envelope where the AEAD-bound metadata declares one
+        // algorithm but the decrypted KeyData payload describes another
+        // would otherwise install a structurally-incoherent PortableKey
+        // that the rest of the API would only catch much later (or, in
+        // some paths, not at all). Run validation before mutating self
+        // so a failed decrypt leaves the receiver untouched.
+        let original = std::mem::replace(&mut self.key_data, new_key_data);
+        if let Err(e) = self.validate() {
+            // Restore the original encrypted envelope on validation
+            // failure so the caller can retry, inspect, or re-wrap.
+            self.key_data = original;
+            return Err(e);
+        }
         Ok(())
     }
 
@@ -2136,6 +2173,7 @@ impl PortableKey {
     /// adjacent variable-length fields. The salt is included as its raw
     /// (base64-decoded) bytes, not the base64 string, so an attacker
     /// cannot use base64 non-canonical encodings to get past the check.
+    #[allow(clippy::too_many_arguments)] // 8 fields are inherent to the AAD layout; bundling into a struct adds indirection without simplifying the call sites.
     fn encryption_aad(
         enc: u32,
         algorithm: KeyAlgorithm,
@@ -2144,12 +2182,30 @@ impl PortableKey {
         kdf_iterations: u32,
         kdf_salt: &[u8],
         aead: &str,
-    ) -> Vec<u8> {
+        metadata: &BTreeMap<String, serde_json::Value>,
+    ) -> Result<Vec<u8>> {
         let algorithm_name = algorithm.canonical_name();
         let key_type_name = key_type.canonical_name();
 
+        // Canonical metadata serialization: BTreeMap iterates in
+        // lexicographic key order, so `serde_json::to_vec` produces
+        // deterministic bytes for flat string→string maps (the actual
+        // shape used by this format — `ml_kem_pk` and friends are
+        // base64 strings). Length-prefix the result so a metadata
+        // append/truncate cannot collide with an adjacent AAD field.
+        let metadata_bytes = serde_json::to_vec(metadata).map_err(|e| {
+            CoreError::SerializationError(format!(
+                "Failed to canonicalize key-format metadata for AEAD AAD: {e}"
+            ))
+        })?;
+        let metadata_len_u32 = u32::try_from(metadata_bytes.len()).map_err(|_e| {
+            CoreError::SerializationError(
+                "Encrypted-envelope metadata exceeds u32::MAX bytes".to_string(),
+            )
+        })?;
+
         let mut aad = Vec::with_capacity(
-            b"latticearc-lpk-v1-enc"
+            b"latticearc-lpk-v2-enc"
                 .len()
                 .saturating_add(1) // null
                 .saturating_add(4) // enc
@@ -2162,9 +2218,16 @@ impl PortableKey {
                 .saturating_add(4) // kdf_iterations
                 .saturating_add(4) // salt len
                 .saturating_add(kdf_salt.len())
-                .saturating_add(aead.len()),
+                .saturating_add(aead.len())
+                .saturating_add(4) // metadata len
+                .saturating_add(metadata_bytes.len()),
         );
-        aad.extend_from_slice(b"latticearc-lpk-v1-enc");
+        // Label bumped to v2 to mark the metadata-binding format change.
+        // v1 envelopes will fail AEAD authentication under v2 AAD; the
+        // mismatch surfaces as an opaque "wrong passphrase or corrupted
+        // envelope" error at the decrypt site, which is the correct
+        // behaviour because v1 envelopes lacked metadata integrity.
+        aad.extend_from_slice(b"latticearc-lpk-v2-enc");
         aad.push(0);
         aad.extend_from_slice(&enc.to_be_bytes());
         aad.extend_from_slice(algorithm_name.as_bytes());
@@ -2178,7 +2241,9 @@ impl PortableKey {
         aad.extend_from_slice(&salt_len_u32.to_be_bytes());
         aad.extend_from_slice(kdf_salt);
         aad.extend_from_slice(aead.as_bytes());
-        aad
+        aad.extend_from_slice(&metadata_len_u32.to_be_bytes());
+        aad.extend_from_slice(&metadata_bytes);
+        Ok(aad)
     }
 
     // --- JSON serialization ---
@@ -2811,6 +2876,7 @@ mod tests {
     #[test]
     fn test_encryption_aad_byte_layout_is_stable() {
         let salt = [0xAA_u8; 16];
+        let metadata: BTreeMap<String, serde_json::Value> = BTreeMap::new();
         let aad = PortableKey::encryption_aad(
             1,
             KeyAlgorithm::Aes256,
@@ -2819,10 +2885,16 @@ mod tests {
             600_000,
             &salt,
             "AES-256-GCM",
-        );
+            &metadata,
+        )
+        .unwrap();
+
+        // Empty BTreeMap canonicalizes to "{}" in JSON.
+        let metadata_json = serde_json::to_vec(&metadata).unwrap();
+        assert_eq!(&metadata_json, b"{}");
 
         let mut expected: Vec<u8> = Vec::new();
-        expected.extend_from_slice(b"latticearc-lpk-v1-enc");
+        expected.extend_from_slice(b"latticearc-lpk-v2-enc");
         expected.push(0);
         expected.extend_from_slice(&1u32.to_be_bytes());
         expected.extend_from_slice(b"aes-256");
@@ -2835,8 +2907,45 @@ mod tests {
         expected.extend_from_slice(&16u32.to_be_bytes());
         expected.extend_from_slice(&salt);
         expected.extend_from_slice(b"AES-256-GCM");
+        expected.extend_from_slice(&u32::try_from(metadata_json.len()).unwrap().to_be_bytes());
+        expected.extend_from_slice(&metadata_json);
 
         assert_eq!(aad, expected);
+    }
+
+    #[test]
+    fn test_encryption_aad_metadata_change_breaks_aad() {
+        // The whole point of binding metadata into the AAD: a change to
+        // any metadata field must produce a different AAD, which in turn
+        // makes the AEAD tag fail. This test pins that property.
+        let salt = [0xAA_u8; 16];
+        let mut a: BTreeMap<String, serde_json::Value> = BTreeMap::new();
+        a.insert("ml_kem_pk".to_string(), serde_json::Value::String("AAAAAA".to_string()));
+        let mut b: BTreeMap<String, serde_json::Value> = BTreeMap::new();
+        b.insert("ml_kem_pk".to_string(), serde_json::Value::String("BBBBBB".to_string()));
+        let aad_a = PortableKey::encryption_aad(
+            1,
+            KeyAlgorithm::HybridMlKem768X25519,
+            KeyType::Secret,
+            "PBKDF2-HMAC-SHA256",
+            600_000,
+            &salt,
+            "AES-256-GCM",
+            &a,
+        )
+        .unwrap();
+        let aad_b = PortableKey::encryption_aad(
+            1,
+            KeyAlgorithm::HybridMlKem768X25519,
+            KeyType::Secret,
+            "PBKDF2-HMAC-SHA256",
+            600_000,
+            &salt,
+            "AES-256-GCM",
+            &b,
+        )
+        .unwrap();
+        assert_ne!(aad_a, aad_b, "swapping ml_kem_pk in metadata must change AAD");
     }
 
     /// Pin every `KeyAlgorithm` and `KeyType` canonical name against its

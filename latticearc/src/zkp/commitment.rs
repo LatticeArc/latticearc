@@ -236,7 +236,16 @@ impl PedersenCommitment {
     /// Create a commitment with specific blinding factor
     ///
     /// # Errors
-    /// Returns an error if the value or blinding factor is not a valid scalar.
+    /// Returns [`ZkpError::InvalidScalar`] if `value` or `blinding` is not
+    /// a valid secp256k1 scalar, or if either is the zero scalar. The
+    /// zero-rejection is required because:
+    ///   * `blinding = 0` collapses `C = v*G + r*H` to `C = v*G`, which
+    ///     leaks the committed value (the hiding property is gone), and
+    ///   * `value = 0` collapses to `C = r*H`, which exposes the
+    ///     auxiliary generator's blinding share.
+    ///
+    /// Unreachable through [`Self::commit`], which draws `blinding` from a
+    /// CSPRNG; this guard exists for callers who pass both inputs themselves.
     ///
     /// # Elliptic Curve Arithmetic
     /// Uses secp256k1 scalar multiplication and point addition.
@@ -254,6 +263,13 @@ impl PedersenCommitment {
         let v = v.ok_or(ZkpError::InvalidScalar)?;
         let r = r.ok_or(ZkpError::InvalidScalar)?;
 
+        // Reject zero scalars: zero blinding removes hiding (C = v*G);
+        // zero value exposes the H-component (C = r*H). `Scalar::is_zero`
+        // returns a constant-time `Choice`.
+        if bool::from(v.is_zero()) || bool::from(r.is_zero()) {
+            return Err(ZkpError::InvalidScalar);
+        }
+
         // C = v*G + r*H
         let g = ProjectivePoint::GENERATOR;
         let h = Self::generator_h()?;
@@ -268,10 +284,17 @@ impl PedersenCommitment {
         Ok((Self { commitment }, PedersenOpening::new(*value, *blinding)))
     }
 
-    /// Verify an opening
+    /// Verify an opening.
     ///
     /// # Errors
-    /// Returns an error if the opening contains invalid scalars or the commitment point is invalid.
+    ///
+    /// Returns [`ZkpError::VerificationFailed`] for any structurally
+    /// invalid input (out-of-field scalar, zero scalar, malformed
+    /// commitment encoding, off-curve point). The error variant is
+    /// uniform regardless of which sub-check rejected, so an attacker
+    /// crafting a hostile opening cannot use the variant tag to learn
+    /// the proof's structural shape. The specific cause is logged via
+    /// `tracing::debug!` at the rejection site for developer diagnosis.
     ///
     /// # Elliptic Curve Arithmetic
     /// Uses secp256k1 scalar multiplication and point addition.
@@ -281,22 +304,53 @@ impl PedersenCommitment {
         let r: Option<Scalar> =
             Scalar::from_repr(*FieldBytes::from_slice(opening.blinding())).into();
 
-        let v = v.ok_or(ZkpError::InvalidScalar)?;
-        let r = r.ok_or(ZkpError::InvalidScalar)?;
+        let v = match v {
+            Some(scalar) => scalar,
+            None => {
+                tracing::debug!("Pedersen verify: opening.value out of field");
+                return Err(ZkpError::VerificationFailed);
+            }
+        };
+        let r = match r {
+            Some(scalar) => scalar,
+            None => {
+                tracing::debug!("Pedersen verify: opening.blinding out of field");
+                return Err(ZkpError::VerificationFailed);
+            }
+        };
+
+        if bool::from(v.is_zero()) || bool::from(r.is_zero()) {
+            tracing::debug!("Pedersen verify: zero scalar in opening");
+            return Err(ZkpError::VerificationFailed);
+        }
 
         // Recompute C = v*G + r*H
         let g = ProjectivePoint::GENERATOR;
-        let h = Self::generator_h()?;
+        let h = Self::generator_h().map_err(|e| {
+            tracing::debug!("Pedersen verify: generator_h failed: {e}");
+            ZkpError::VerificationFailed
+        })?;
         let expected = g * v + h * r;
 
         // Parse stored commitment
         use k256::EncodedPoint;
         use k256::elliptic_curve::sec1::FromEncodedPoint;
 
-        let encoded = EncodedPoint::from_bytes(self.commitment)
-            .map_err(|e| ZkpError::InvalidCommitment(format!("Invalid point encoding: {}", e)))?;
+        let encoded = match EncodedPoint::from_bytes(self.commitment) {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::debug!("Pedersen verify: invalid commitment encoding: {e}");
+                return Err(ZkpError::VerificationFailed);
+            }
+        };
         let stored: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded).into();
-        let stored = stored.ok_or(ZkpError::InvalidCommitment("Invalid point".into()))?;
+        let stored = match stored {
+            Some(p) => p,
+            None => {
+                tracing::debug!("Pedersen verify: stored commitment not on curve");
+                return Err(ZkpError::VerificationFailed);
+            }
+        };
 
         let expected_bytes = expected.to_affine().to_encoded_point(true);
         let stored_bytes = stored.to_affine().to_encoded_point(true);

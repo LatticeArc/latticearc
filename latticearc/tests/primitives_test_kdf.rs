@@ -1,15 +1,22 @@
-#![deny(unsafe_code)]
-// Test files use unwrap() for simplicity - test failures will show clear panics
-#![allow(clippy::unwrap_used)]
-// Test files use indexing for test vector access
-#![allow(clippy::indexing_slicing)]
-
 //! Comprehensive tests for Key Derivation Functions
 //!
 //! This test module validates all KDF implementations:
 //! - PBKDF2 (NIST SP 800-132)
 //! - HKDF (NIST SP 800-56C / RFC 5869)
 //! - SP 800-108 Counter-based KDF
+
+// Several PBKDF2 cases call `pbkdf2_kat` (the test-only KAT entry point
+// that bypasses the OWASP iteration floor) so RFC 6070 / sub-floor
+// vectors stay fast in CI. `pbkdf2_kat` is gated `cfg(any(test, feature
+// = "test-utils"))`; integration tests link against the library
+// compiled without `cfg(test)`, so the entire file is gated on
+// `test-utils` to match what's actually visible.
+#![cfg(feature = "test-utils")]
+#![deny(unsafe_code)]
+// Test files use unwrap() for simplicity - test failures will show clear panics
+#![allow(clippy::unwrap_used)]
+// Test files use indexing for test vector access
+#![allow(clippy::indexing_slicing)]
 
 use latticearc::primitives::kdf::*;
 
@@ -46,8 +53,11 @@ mod pbkdf2_tests {
         let salt = b"test salt 123456";
         let params = Pbkdf2Params::with_salt(salt).iterations(10000).key_length(32);
 
-        let result1 = pbkdf2(password, &params).unwrap();
-        let result2 = pbkdf2(password, &params).unwrap();
+        // `pbkdf2_kat` bypasses the per-PRF OWASP iteration floor that
+        // the public `pbkdf2()` enforces; the floor would reject the
+        // sub-OWASP iteration count this test uses to keep CI fast.
+        let result1 = pbkdf2_kat(password, &params).unwrap();
+        let result2 = pbkdf2_kat(password, &params).unwrap();
 
         assert_eq!(result1.expose_secret(), result2.expose_secret());
     }
@@ -57,8 +67,8 @@ mod pbkdf2_tests {
         let salt = b"common_salt_16by"; // bumped to 16 bytes for SP 800-132 §5.1
         let params = Pbkdf2Params::with_salt(salt).iterations(5000).key_length(32);
 
-        let result1 = pbkdf2(b"password1", &params).unwrap();
-        let result2 = pbkdf2(b"password2", &params).unwrap();
+        let result1 = pbkdf2_kat(b"password1", &params).unwrap();
+        let result2 = pbkdf2_kat(b"password2", &params).unwrap();
 
         assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
@@ -69,8 +79,8 @@ mod pbkdf2_tests {
         let params1 = Pbkdf2Params::with_salt(b"test_salt_16by01").iterations(5000).key_length(32);
         let params2 = Pbkdf2Params::with_salt(b"test_salt_16by02").iterations(5000).key_length(32);
 
-        let result1 = pbkdf2(password, &params1).unwrap();
-        let result2 = pbkdf2(password, &params2).unwrap();
+        let result1 = pbkdf2_kat(password, &params1).unwrap();
+        let result2 = pbkdf2_kat(password, &params2).unwrap();
 
         assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
@@ -82,8 +92,8 @@ mod pbkdf2_tests {
         let params1 = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
         let params2 = Pbkdf2Params::with_salt(salt).iterations(2000).key_length(32);
 
-        let result1 = pbkdf2(password, &params1).unwrap();
-        let result2 = pbkdf2(password, &params2).unwrap();
+        let result1 = pbkdf2_kat(password, &params1).unwrap();
+        let result2 = pbkdf2_kat(password, &params2).unwrap();
 
         assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
@@ -99,8 +109,8 @@ mod pbkdf2_tests {
         let params_sha512 =
             Pbkdf2Params::with_salt(salt).iterations(1000).key_length(64).prf(PrfType::HmacSha512);
 
-        let result_sha256 = pbkdf2(password, &params_sha256).unwrap();
-        let result_sha512 = pbkdf2(password, &params_sha512).unwrap();
+        let result_sha256 = pbkdf2_kat(password, &params_sha256).unwrap();
+        let result_sha512 = pbkdf2_kat(password, &params_sha512).unwrap();
 
         assert_eq!(result_sha256.expose_secret().len(), 32);
         assert_eq!(result_sha512.expose_secret().len(), 64);
@@ -151,7 +161,7 @@ mod pbkdf2_tests {
         let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
 
-        let result = pbkdf2(password, &params).unwrap();
+        let result = pbkdf2_kat(password, &params).unwrap();
 
         // The key should be accessible and have correct length before drop
         assert_eq!(result.expose_secret().len(), 32);
@@ -470,12 +480,13 @@ mod integration_tests {
         let password = b"password";
         let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
 
-        // All KDFs should be deterministic
+        // All KDFs should be deterministic. Use `pbkdf2_kat` so the test
+        // can pin a sub-OWASP iteration count and stay fast.
         let pbkdf2_result1 =
-            pbkdf2(password, &Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32))
+            pbkdf2_kat(password, &Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32))
                 .unwrap();
         let pbkdf2_result2 =
-            pbkdf2(password, &Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32))
+            pbkdf2_kat(password, &Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32))
                 .unwrap();
         assert_eq!(pbkdf2_result1.expose_secret(), pbkdf2_result2.expose_secret());
 
@@ -493,9 +504,11 @@ mod integration_tests {
         let ikm = b"input key material";
         let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
 
-        // Different KDFs with same inputs should produce different outputs
+        // Different KDFs with same inputs should produce different outputs.
+        // `pbkdf2_kat` lets the test pin a sub-OWASP count for speed.
         let pbkdf2_result =
-            pbkdf2(ikm, &Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32)).unwrap();
+            pbkdf2_kat(ikm, &Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32))
+                .unwrap();
         let hkdf_result = hkdf(ikm, Some(salt), None, 32).unwrap();
         let counter_result = counter_kdf(ikm, &CounterKdfParams::new(b"Label"), 32).unwrap();
 

@@ -20,7 +20,16 @@ pub type Result<T> = std::result::Result<T, LatticeArcError>;
 ///
 /// This enum covers all possible error conditions that can occur during
 /// cryptographic operations, key management, serialization, and I/O.
-#[derive(Debug, Error, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+///
+/// `Serialize` is kept so that error variants can be emitted to outbound
+/// audit / observability sinks. `Deserialize` is intentionally **not**
+/// derived — errors are always produced internally by this crate, never
+/// received over the wire from an untrusted source. Allowing arbitrary
+/// `LatticeArcError` values to be deserialized would let an attacker who
+/// controls a deserialization input inject sensitive variants
+/// (`SecurityViolation`, `PinLocked`, `ComplianceViolation`, etc.) into
+/// local error-handling logic.
+#[derive(Debug, Error, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub enum LatticeArcError {
     /// Encryption operation failed
@@ -303,54 +312,51 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_serialization_fails() {
+    fn test_lattice_arc_error_serializes_outbound() {
+        // Serialization is kept for outbound audit / observability sinks.
+        // Deserialization is deliberately NOT supported (see the type-level
+        // doc comment).
         let err = LatticeArcError::InvalidInput("bad data".to_string());
         let json = serde_json::to_string(&err).unwrap();
         assert!(json.contains("InvalidInput"));
-
-        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
-        assert_eq!(err, deserialized);
+        assert!(json.contains("bad data"));
     }
 
     #[test]
-    fn test_lattice_arc_error_serialization_unit_variants_fails() {
-        let variants = vec![
+    fn test_lattice_arc_error_serializes_unit_variants() {
+        for err in [
             LatticeArcError::RandomError,
             LatticeArcError::CircuitBreakerOpen,
             LatticeArcError::ResourceExhausted,
             LatticeArcError::PinIncorrect,
             LatticeArcError::PinLocked,
             LatticeArcError::InvalidPoint,
-        ];
-
-        for err in variants {
+        ] {
             let json = serde_json::to_string(&err).unwrap();
-            let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
-            assert_eq!(err, deserialized);
+            assert!(!json.is_empty());
         }
     }
 
     #[test]
-    fn test_lattice_arc_error_serialization_structured_fails() {
+    fn test_lattice_arc_error_serializes_structured_variants() {
         let err = LatticeArcError::InvalidKeyLength { expected: 32, actual: 16 };
         let json = serde_json::to_string(&err).unwrap();
-        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
-        assert_eq!(err, deserialized);
+        assert!(json.contains("32"));
+        assert!(json.contains("16"));
 
         let err = LatticeArcError::InvalidSignatureLength { expected: 64, got: 48 };
         let json = serde_json::to_string(&err).unwrap();
-        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
-        assert_eq!(err, deserialized);
+        assert!(json.contains("64"));
+        assert!(json.contains("48"));
     }
 
     #[test]
-    fn test_lattice_arc_error_unsupported_version_displays_and_serializes_correctly_fails() {
+    fn test_lattice_arc_error_unsupported_version_displays_and_serializes_correctly() {
         let err = LatticeArcError::UnsupportedVersion(42);
         assert_eq!(format!("{err}"), "Unsupported version: 42");
 
         let json = serde_json::to_string(&err).unwrap();
-        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
-        assert_eq!(err, deserialized);
+        assert!(json.contains("42"));
     }
 
     #[test]

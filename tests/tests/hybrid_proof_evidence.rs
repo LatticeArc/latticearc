@@ -911,6 +911,7 @@ fn proof_negative_corrupted_ml_kem_ct_fails() {
             enc.timestamp(),
             enc.key_id().map(str::to_owned),
         )
+        .expect("re-wrap with same shape as original")
     });
 }
 
@@ -933,6 +934,7 @@ fn proof_negative_corrupted_ecdh_pk_fails() {
             enc.timestamp(),
             enc.key_id().map(str::to_owned),
         )
+        .expect("re-wrap with same shape as original")
     });
 }
 
@@ -952,6 +954,7 @@ fn proof_negative_corrupted_symmetric_ct_fails() {
             enc.timestamp(),
             enc.key_id().map(str::to_owned),
         )
+        .expect("re-wrap with same shape as original")
     });
 }
 
@@ -971,6 +974,7 @@ fn proof_negative_corrupted_nonce_fails() {
             enc.timestamp(),
             enc.key_id().map(str::to_owned),
         )
+        .expect("re-wrap with same shape as original")
     });
 }
 
@@ -990,6 +994,7 @@ fn proof_negative_corrupted_tag_fails() {
             enc.timestamp(),
             enc.key_id().map(str::to_owned),
         )
+        .expect("re-wrap with same shape as original")
     });
 }
 

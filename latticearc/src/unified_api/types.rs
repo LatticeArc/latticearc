@@ -441,10 +441,19 @@ fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
         // Maximum-configured server doesn't accept it.
         Some(SecurityLevel::Standard)
     } else if s == "aes-256-gcm" || s == "chacha20-poly1305" {
-        // Symmetric-only schemes don't have an asymmetric strength
-        // floor; treat them as Maximum so the level check doesn't
-        // gate a configuration that's already legitimately symmetric.
-        Some(SecurityLevel::Maximum)
+        // Symmetric-only schemes carry no post-quantum component. Map
+        // them to `Standard` (the lowest tier) rather than `Maximum`:
+        // a caller who explicitly pinned `SecurityLevel::Maximum` is
+        // demanding NIST Category 5 PQ strength, and a symmetric AEAD
+        // does not provide it. The previous "treat as Maximum" mapping
+        // silently passed AES-256-GCM and ChaCha20-Poly1305 through the
+        // level gate at any configured level, which let a Maximum-
+        // configured server accept a wire-supplied symmetric-only
+        // scheme. Callers who genuinely want a symmetric-only fallback
+        // must lower the configured level (or drive the scheme via the
+        // explicit dispatch path that doesn't go through the level
+        // gate at all).
+        Some(SecurityLevel::Standard)
     } else {
         None
     }

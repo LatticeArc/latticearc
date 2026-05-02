@@ -131,6 +131,7 @@ impl SerializableHybridEncrypted {
             chrono::Utc::now().timestamp().unsigned_abs(),
             None,
         )
+        .expect("hybrid scheme + populated hybrid_data is a valid shape")
     }
 }
 

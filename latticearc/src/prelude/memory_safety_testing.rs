@@ -171,14 +171,17 @@ impl UtilityMemorySafetyTester {
         ];
 
         for error in errors {
-            // Test serialization roundtrip — should not panic or leak memory
+            // `LatticeArcError` is serialize-only by design. The memory-
+            // safety check here is that the outbound serialization path
+            // does not panic or leak; round-trip-via-deserialize is not
+            // possible (no Deserialize derive — see the type-level docs).
             let json = serde_json::to_string(&error)?;
-            let deserialized: LatticeArcError = serde_json::from_str(&json)?;
-            if error != deserialized {
+            if json.is_empty() {
                 return Err(LatticeArcError::ValidationError {
-                    message: "Deserialized error should match original".to_string(),
+                    message: "Error JSON serialization produced empty output".to_string(),
                 });
             }
+            let _value: serde_json::Value = serde_json::from_str(&json)?;
         }
 
         Ok(())

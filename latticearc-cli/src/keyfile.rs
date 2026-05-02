@@ -233,6 +233,35 @@ pub(crate) fn write_composite_key(
     write_composite_key_protected(path, algorithm, key_type, pq_bytes, classical_bytes, label, None)
 }
 
+/// Variant of [`write_key_protected`] that stores additional metadata
+/// (key/value pairs) on the resulting `PortableKey` *before* optional
+/// passphrase encryption. Used to bundle the ML-KEM public key into the
+/// PQ-only secret key file so the decryption path can construct a
+/// `PqOnlySecretKey` with the recipient PK without a separate
+/// `.pub.json` lookup.
+///
+/// Metadata is bound into the AEAD AAD when a passphrase is supplied,
+/// so a tampered metadata field invalidates the AEAD tag.
+pub(crate) fn write_key_protected_with_metadata(
+    path: &std::path::Path,
+    algorithm: KeyAlgorithm,
+    key_type: LpkKeyType,
+    key_bytes: &[u8],
+    label: Option<String>,
+    metadata: &[(&str, serde_json::Value)],
+    passphrase: Option<&[u8]>,
+) -> Result<()> {
+    let mut key = PortableKey::new(algorithm, key_type, KeyData::from_raw(key_bytes));
+    if let Some(l) = label {
+        key.set_label(l);
+    }
+    for (k, v) in metadata {
+        key.set_metadata((*k).to_string(), v.clone());
+    }
+    encrypt_if_secret(&mut key, key_type, passphrase)?;
+    key.write_to_file(path).with_context(|| format!("Failed to write {}", path.display()))
+}
+
 /// Composite-key counterpart to [`write_key_protected`].
 pub(crate) fn write_composite_key_protected(
     path: &std::path::Path,

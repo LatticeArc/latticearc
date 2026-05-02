@@ -179,16 +179,23 @@ impl CryptoPolicyEngine {
 
     /// Selects encryption scheme based on data, config, and optional use case.
     ///
-    /// When `hardware_acceleration` is `false` and no use case is specified,
-    /// prefers `chacha20-poly1305` (fast in software without AES-NI).
+    /// When `hardware_acceleration` is `false` and no use case is specified:
+    ///   * `SecurityLevel::Standard` callers receive `chacha20-poly1305`
+    ///     (fast in software without AES-NI). This is symmetric-only.
+    ///   * `SecurityLevel::High` or `Maximum` callers receive
+    ///     `Err(ConfigurationError)` — refusing to silently substitute a
+    ///     symmetric-only scheme for a caller-declared post-quantum tier.
     ///
     /// When data is provided, analyzes data characteristics to optimize
     /// scheme selection for the data's entropy and size patterns.
     ///
     /// # Errors
     ///
-    /// This function currently does not return errors, but returns `Result`
-    /// for future compatibility with validation logic.
+    /// Returns `TypeError::ConfigurationError` when:
+    ///   * `hardware_acceleration = false` and `security_level != Standard`
+    ///     (refusal of silent post-quantum strip), or
+    ///   * the caller declared `SecurityLevel::High` and the data-aware
+    ///     branch would otherwise downgrade ML-KEM-768 to ML-KEM-512.
     pub fn select_encryption_scheme(
         data: &[u8],
         config: &CoreConfig,
@@ -198,9 +205,25 @@ impl CryptoPolicyEngine {
             return Self::recommend_scheme(use_case, config);
         }
 
-        // When hardware acceleration is disabled, prefer ChaCha20-Poly1305
-        // which is fast in pure software (no AES-NI needed)
+        // `hardware_acceleration = false` opts into a software-only AEAD
+        // fallback (ChaCha20-Poly1305). That scheme is symmetric-only:
+        // `EncryptionScheme::ChaCha20Poly1305.requires_symmetric_key()` is
+        // `true` and there is no ML-KEM component. Returning it to a caller
+        // that declared `SecurityLevel::High` or `Maximum` would silently
+        // substitute non-PQ for PQ, so refuse those configurations and
+        // require the caller to lower the level (or use the typed selector
+        // which doesn't consult this flag).
         if !config.hardware_acceleration {
+            if !matches!(config.security_level, SecurityLevel::Standard) {
+                return Err(TypeError::ConfigurationError(
+                    "hardware_acceleration = false with SecurityLevel::High or \
+                     Maximum would substitute symmetric-only ChaCha20-Poly1305 \
+                     for the requested hybrid ML-KEM scheme; lower \
+                     security_level to Standard to opt into the symmetric \
+                     fallback, or use select_encryption_scheme_typed."
+                        .to_string(),
+                ));
+            }
             return Ok(CHACHA20_POLY1305.to_string());
         }
 
@@ -307,16 +330,20 @@ impl CryptoPolicyEngine {
         let characteristics = Self::analyze_data_characteristics(data);
         let base_scheme = Self::select_encryption_scheme(data, config, None)?;
 
-        // Runtime-pressure adjustments. The Memory branch keeps the
-        // caller's L3 (ML-KEM-768) pin — no security weakening, just
-        // a no-op pass-through. The Speed branch USED to downgrade
-        // L3 → L1 (ML-KEM-512) when measured encryption was slow on
-        // repetitive data; post-85e2bd79e L3 audit refused that
-        // silent weakening (caller-declared L3 is contract, not
-        // optimization advice). Now returns Err under the same
-        // trigger, mirroring the `select_encryption_scheme` refusal
-        // at lines ~218–251. `Maximum` is unaffected (no downgrade
-        // path ever existed for it).
+        // Runtime-pressure adjustments. Important: the small-data
+        // `(Memory, High)` case never reaches this match — it is
+        // already rejected upstream by the `select_encryption_scheme`
+        // call at the top of this function (the `(Memory, _) if data.len()
+        // < ML_KEM_DOWNGRADE_REFUSAL_THRESHOLD` branch in
+        // `select_encryption_scheme`). The Memory arm here therefore only
+        // fires for data ≥ threshold, where it preserves the caller's
+        // L3 pin (`ML-KEM-768`) and is a true no-op pass-through — no
+        // security weakening.
+        //
+        // The Speed branch refuses with `Err` when measured encryption
+        // is slow on repetitive data at L3, mirroring the refusal in
+        // `select_encryption_scheme`. `Maximum` is unaffected; no
+        // downgrade path was ever wired for it.
         match (&config.performance_preference, performance_metrics) {
             (PerformancePreference::Memory, metrics)
                 if metrics.memory_usage_mb > 500.0
@@ -972,11 +999,40 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_hardware_acceleration_false_selects_chacha20_scheme_succeeds() {
-        let config = CoreConfig::new().with_hardware_acceleration(false);
+    fn test_hardware_acceleration_false_standard_selects_chacha20_scheme_succeeds() {
+        // The symmetric-only ChaCha20-Poly1305 fallback is gated on
+        // `SecurityLevel::Standard`; higher levels refuse. `CoreConfig::new()`
+        // defaults to `SecurityLevel::High`, so the test lowers explicitly.
+        let config = CoreConfig::new()
+            .with_hardware_acceleration(false)
+            .with_security_level(SecurityLevel::Standard);
         let scheme =
             CryptoPolicyEngine::select_encryption_scheme(b"test data", &config, None).unwrap();
         assert_eq!(scheme, CHACHA20_POLY1305);
+    }
+
+    #[test]
+    fn test_hardware_acceleration_false_high_refuses_silent_pq_strip() {
+        let config = CoreConfig::new()
+            .with_hardware_acceleration(false)
+            .with_security_level(SecurityLevel::High);
+        let result = CryptoPolicyEngine::select_encryption_scheme(b"test data", &config, None);
+        assert!(matches!(result, Err(TypeError::ConfigurationError(_))));
+        let err_msg = result.err().unwrap().to_string();
+        assert!(
+            err_msg.contains("symmetric") || err_msg.contains("ChaCha20"),
+            "error must explain the PQ-strip refusal, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_hardware_acceleration_false_maximum_refuses_silent_pq_strip() {
+        let config = CoreConfig::new()
+            .with_hardware_acceleration(false)
+            .with_security_level(SecurityLevel::Maximum);
+        let result = CryptoPolicyEngine::select_encryption_scheme(b"test data", &config, None);
+        assert!(matches!(result, Err(TypeError::ConfigurationError(_))));
     }
 
     #[test]
@@ -1142,21 +1198,30 @@ mod tests {
 
     #[test]
     fn test_hardware_acceleration_influences_encryption_scheme_succeeds() {
+        // At `SecurityLevel::High`, the `hardware_acceleration = false`
+        // branch refuses; the two outputs differ by `Result` variant, which
+        // counts as the parameter having influence.
         let data = b"test data for hardware influence";
 
         let config_a = CoreConfig::new()
             .with_hardware_acceleration(false)
             .with_security_level(SecurityLevel::High);
-        let result_a = CryptoPolicyEngine::select_encryption_scheme(data, &config_a, None).unwrap();
+        let result_a = CryptoPolicyEngine::select_encryption_scheme(data, &config_a, None);
 
         let config_b = CoreConfig::new()
             .with_hardware_acceleration(true)
             .with_security_level(SecurityLevel::High);
-        let result_b = CryptoPolicyEngine::select_encryption_scheme(data, &config_b, None).unwrap();
+        let result_b = CryptoPolicyEngine::select_encryption_scheme(data, &config_b, None);
 
-        assert_ne!(
-            result_a, result_b,
-            "hardware_acceleration must influence encryption scheme selection"
+        assert!(
+            matches!(result_a, Err(TypeError::ConfigurationError(_))),
+            "hw_accel = false + High must refuse silent PQ-strip"
+        );
+        assert!(result_b.is_ok(), "hw_accel = true + High must succeed");
+        assert_eq!(
+            result_b.unwrap(),
+            HYBRID_ENCRYPTION_768,
+            "hw_accel = true + High must select ML-KEM-768"
         );
     }
 

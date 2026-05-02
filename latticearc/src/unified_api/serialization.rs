@@ -333,15 +333,8 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
             })
             .transpose()?;
 
-        Ok(EncryptedOutput::new(
-            scheme,
-            ciphertext,
-            nonce,
-            tag,
-            hybrid_data,
-            ser.timestamp,
-            ser.key_id,
-        ))
+        EncryptedOutput::new(scheme, ciphertext, nonce, tag, hybrid_data, ser.timestamp, ser.key_id)
+            .map_err(|e| CoreError::SerializationError(e.to_string()))
     }
 }
 
@@ -568,6 +561,7 @@ mod tests {
             1_700_000_000,
             Some("key-001".to_string()),
         )
+        .expect("valid symmetric shape")
     }
 
     fn make_encrypted_output_hybrid() -> EncryptedOutput {
@@ -580,6 +574,7 @@ mod tests {
             1_700_000_001,
             None,
         )
+        .expect("valid hybrid shape")
     }
 
     #[test]
@@ -699,7 +694,8 @@ mod tests {
                 },
                 42,
                 None,
-            );
+            )
+            .expect("valid shape for each scheme above");
             let json = serialize_encrypted_output(&output).unwrap();
             let restored = deserialize_encrypted_output(&json).unwrap();
             assert_eq!(output.scheme(), restored.scheme(), "scheme mismatch for {:?}", scheme);

@@ -934,11 +934,8 @@ fn test_crypto_config_default_trait_returns_expected_succeeds() {
 
 #[test]
 fn test_encrypted_metadata_returns_expected_succeeds() {
-    let meta = EncryptedMetadata {
-        nonce: vec![1, 2, 3],
-        tag: Some(vec![4, 5, 6]),
-        key_id: Some("key-1".to_string()),
-    };
+    let meta =
+        EncryptedMetadata::symmetric(vec![1, 2, 3], Some(vec![4, 5, 6]), Some("key-1".to_string()));
     let meta2 = meta.clone();
     assert_eq!(meta, meta2);
     assert_eq!(meta.nonce, vec![1, 2, 3]);
@@ -946,7 +943,7 @@ fn test_encrypted_metadata_returns_expected_succeeds() {
     assert_eq!(meta.key_id, Some("key-1".to_string()));
 
     // Without optional fields
-    let meta3 = EncryptedMetadata { nonce: vec![], tag: None, key_id: None };
+    let meta3 = EncryptedMetadata::symmetric(vec![], None, None);
     assert_ne!(meta, meta3);
 }
 
@@ -969,7 +966,7 @@ fn test_signed_metadata_returns_expected_succeeds() {
 fn test_encrypted_data_type_alias_returns_expected_succeeds() {
     let encrypted = EncryptedData {
         data: vec![10, 20, 30],
-        metadata: EncryptedMetadata { nonce: vec![1], tag: None, key_id: None },
+        metadata: EncryptedMetadata::symmetric(vec![1], None, None),
         scheme: "aes-256-gcm".to_string(),
         timestamp: 1234567890,
     };
@@ -1429,7 +1426,8 @@ fn test_decrypt_with_short_key_fails_returns_expected_fails() {
         None,
         0,
         None,
-    );
+    )
+    .expect("valid symmetric shape");
     let short_key = vec![0x42u8; 16];
 
     let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());

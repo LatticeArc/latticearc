@@ -140,6 +140,41 @@ pub(crate) fn hkdf_kem_info(label: HkdfKemLabel, kem_ciphertext: &[u8]) -> Vec<u
     info
 }
 
+/// Build the HKDF `info` string with both recipient public key and KEM
+/// ciphertext binding (HPKE / RFC 9180 §5.1 channel binding).
+///
+/// Encodes
+/// `label || 0x00 || pk_len_be32 || recipient_pk || ct_len_be32 || kem_ciphertext`.
+/// Length-prefixing both fields prevents prefix-free ambiguity between
+/// adjacent variable-length values. Distinct from [`hkdf_kem_info`] so
+/// callers explicitly opt into PK binding — paths that legitimately do
+/// not have the recipient PK on hand (legacy v1 PQ-only ciphertexts)
+/// can still use the ciphertext-only form.
+pub(crate) fn hkdf_kem_info_with_pk(
+    label: HkdfKemLabel,
+    recipient_pk: &[u8],
+    kem_ciphertext: &[u8],
+) -> Vec<u8> {
+    let label_bytes = label.as_bytes();
+    let cap = label_bytes
+        .len()
+        .saturating_add(1)
+        .saturating_add(4)
+        .saturating_add(recipient_pk.len())
+        .saturating_add(4)
+        .saturating_add(kem_ciphertext.len());
+    let mut info = Vec::with_capacity(cap);
+    info.extend_from_slice(label_bytes);
+    info.push(0x00); // domain separator between label and the PK || ct payload
+    let pk_len_u32 = u32::try_from(recipient_pk.len()).unwrap_or(u32::MAX);
+    info.extend_from_slice(&pk_len_u32.to_be_bytes());
+    info.extend_from_slice(recipient_pk);
+    let ct_len_u32 = u32::try_from(kem_ciphertext.len()).unwrap_or(u32::MAX);
+    info.extend_from_slice(&ct_len_u32.to_be_bytes());
+    info.extend_from_slice(kem_ciphertext);
+    info
+}
+
 #[cfg(test)]
 mod hkdf_kem_label_tests {
     use super::*;

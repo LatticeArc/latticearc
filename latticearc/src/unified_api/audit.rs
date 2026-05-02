@@ -391,11 +391,27 @@ impl AuditConfig {
         self
     }
 
-    /// Set the retention period in days.
-    #[must_use]
-    pub fn with_retention_days(mut self, days: u32) -> Self {
+    /// Set the retention period in days. Returns the previous value.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError::InvalidInput`] if `days == 0`. A retention
+    /// of zero days makes the cleanup pass treat every file as
+    /// already-expired and delete the entire audit history on the
+    /// next startup. The minimum sensible retention is one day; if
+    /// retention is genuinely undesired the operator should either
+    /// (a) point `storage_path` somewhere ephemeral or (b) skip
+    /// constructing `FileAuditStorage` altogether.
+    pub fn with_retention_days(mut self, days: u32) -> Result<Self> {
+        if days == 0 {
+            return Err(CoreError::InvalidInput(
+                "AuditConfig::with_retention_days requires days >= 1; \
+                 zero would purge the entire audit history on next startup"
+                    .to_string(),
+            ));
+        }
         self.retention_days = days;
-        self
+        Ok(self)
     }
 
     /// Get the storage path.
@@ -421,6 +437,22 @@ impl AuditConfig {
     pub fn retention_days(&self) -> u32 {
         self.retention_days
     }
+}
+
+/// Parse the timestamp embedded in an audit-log filename.
+///
+/// Audit logs are named `audit-YYYY-MM-DDTHH-MM-SS.jsonl` (created by
+/// `FileAuditStorage::create_new_file`). This helper inverts that
+/// formatting and returns the embedded creation time. Used by the
+/// retention sweep so cleanup decisions don't depend on filesystem
+/// `mtime`, which a privileged attacker can rewrite with `touch`.
+fn parse_audit_filename_timestamp(file_name: &str) -> Option<DateTime<Utc>> {
+    let stem = file_name.strip_prefix("audit-")?.strip_suffix(".jsonl")?;
+    // The format string mirrors `create_new_file`'s
+    // `now.format("%Y-%m-%dT%H-%M-%S")`. Treat the parsed `NaiveDateTime`
+    // as UTC since the producer writes UTC clock readings.
+    let naive = chrono::NaiveDateTime::parse_from_str(stem, "%Y-%m-%dT%H-%M-%S").ok()?;
+    Some(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc))
 }
 
 /// Trait for audit storage implementations.
@@ -468,14 +500,44 @@ pub struct FileAuditStorage {
     previous_hash: RwLock<String>,
 }
 
+/// Filename for the per-storage genesis anchor.
+///
+/// The genesis anchor is the `previous_hash` value used for the very first
+/// audit event in a storage. It is derived from a domain label, a fresh
+/// random nonce, and the creation timestamp, and is persisted alongside
+/// the audit log so that:
+///
+///   * a truncate-only attack (delete log entries, leave genesis intact)
+///     is detectable: the next event chains from `genesis`, not from the
+///     deleted entry's hash, and any verifier replaying the chain spots
+///     the gap.
+///   * an attacker who deletes both the log and the genesis to fabricate
+///     a "fresh storage" ends up with a different genesis on the next
+///     create — an external pinning store (HSM, write-once log) can spot
+///     the genesis change. Total erasure with no external state is
+///     fundamentally undetectable; this fix closes the
+///     truncate-and-restart-only path the empty-genesis behaviour left
+///     wide open.
+const AUDIT_GENESIS_FILENAME: &str = "genesis";
+
+/// Domain-separation label baked into the genesis hash. Distinct from
+/// every other transcript prefix in the crate so a genesis bytestring
+/// cannot collide with any other artifact.
+const AUDIT_GENESIS_DOMAIN_LABEL: &[u8] = b"latticearc-audit-genesis-v1";
+
 impl FileAuditStorage {
     /// Create a new file-based audit storage.
     ///
-    /// Creates the storage directory if it doesn't exist.
+    /// Creates the storage directory if it doesn't exist, and ensures a
+    /// persisted genesis anchor file exists (creating one with a fresh
+    /// random nonce on first run, reading the existing one on subsequent
+    /// runs).
     ///
     /// # Errors
     ///
-    /// Returns an error if the storage directory cannot be created.
+    /// Returns an error if the storage directory cannot be created, the
+    /// genesis file cannot be read or written, or the random nonce
+    /// generation for a new genesis fails.
     pub fn new(config: AuditConfig) -> Result<Arc<Self>> {
         // Create storage directory if it doesn't exist
         fs::create_dir_all(&config.storage_path).map_err(|e| {
@@ -486,16 +548,111 @@ impl FileAuditStorage {
             ))
         })?;
 
+        let genesis = Self::load_or_create_genesis(&config.storage_path)?;
+
         let storage = Arc::new(Self {
             config,
             file_state: Mutex::new(None),
-            previous_hash: RwLock::new(String::new()),
+            previous_hash: RwLock::new(genesis),
         });
 
         // Clean up old files based on retention policy
         storage.cleanup_old_files()?;
 
         Ok(storage)
+    }
+
+    /// Read the on-disk genesis if it exists, otherwise create one.
+    ///
+    /// The created genesis is `SHA-256(domain_label || nonce || timestamp)`
+    /// hex-encoded, where `nonce` is 32 bytes from the system CSPRNG and
+    /// `timestamp` is the RFC 3339 creation time.
+    fn load_or_create_genesis(storage_path: &std::path::Path) -> Result<String> {
+        let genesis_path = storage_path.join(AUDIT_GENESIS_FILENAME);
+
+        match fs::read_to_string(&genesis_path) {
+            Ok(existing) => {
+                let trimmed = existing.trim().to_string();
+                if trimmed.is_empty() {
+                    return Err(CoreError::AuditError(format!(
+                        "Audit genesis file '{}' exists but is empty; refusing to start \
+                         with an empty chain anchor",
+                        genesis_path.display()
+                    )));
+                }
+                Ok(trimmed)
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let nonce = crate::primitives::rand::csprng::random_bytes(32);
+                let timestamp = Utc::now().to_rfc3339();
+                let mut buf = Vec::with_capacity(
+                    AUDIT_GENESIS_DOMAIN_LABEL
+                        .len()
+                        .saturating_add(4)
+                        .saturating_add(nonce.len())
+                        .saturating_add(4)
+                        .saturating_add(timestamp.len()),
+                );
+                buf.extend_from_slice(AUDIT_GENESIS_DOMAIN_LABEL);
+                let nonce_len = u32::try_from(nonce.len()).map_err(|_e| {
+                    CoreError::AuditError("Genesis nonce length exceeds u32::MAX".to_string())
+                })?;
+                buf.extend_from_slice(&nonce_len.to_be_bytes());
+                buf.extend_from_slice(&nonce);
+                let ts_len = u32::try_from(timestamp.len()).map_err(|_e| {
+                    CoreError::AuditError("Genesis timestamp length exceeds u32::MAX".to_string())
+                })?;
+                buf.extend_from_slice(&ts_len.to_be_bytes());
+                buf.extend_from_slice(timestamp.as_bytes());
+
+                let digest = crate::primitives::hash::sha2::sha256(&buf).map_err(|e| {
+                    CoreError::AuditError(format!("Failed to hash genesis material: {e}"))
+                })?;
+                let hex = hex::encode(digest);
+
+                // Persist atomically with restrictive permissions on Unix.
+                #[cfg(unix)]
+                {
+                    use std::io::Write as _;
+                    use std::os::unix::fs::OpenOptionsExt;
+                    let mut f = OpenOptions::new()
+                        .create_new(true) // refuse to overwrite — race-safe
+                        .write(true)
+                        .mode(0o600)
+                        .open(&genesis_path)
+                        .map_err(|err| {
+                            CoreError::AuditError(format!(
+                                "Failed to create audit genesis file '{}': {}",
+                                genesis_path.display(),
+                                err
+                            ))
+                        })?;
+                    f.write_all(hex.as_bytes()).map_err(|err| {
+                        CoreError::AuditError(format!(
+                            "Failed to write audit genesis file '{}': {}",
+                            genesis_path.display(),
+                            err
+                        ))
+                    })?;
+                }
+                #[cfg(not(unix))]
+                {
+                    fs::write(&genesis_path, hex.as_bytes()).map_err(|err| {
+                        CoreError::AuditError(format!(
+                            "Failed to write audit genesis file '{}': {}",
+                            genesis_path.display(),
+                            err
+                        ))
+                    })?;
+                }
+                Ok(hex)
+            }
+            Err(e) => Err(CoreError::AuditError(format!(
+                "Failed to read audit genesis file '{}': {}",
+                genesis_path.display(),
+                e
+            ))),
+        }
     }
 
     /// Get the configuration for this storage instance.
@@ -690,6 +847,18 @@ impl FileAuditStorage {
 
     /// Clean up old audit files based on retention policy.
     fn cleanup_old_files(&self) -> Result<()> {
+        // Belt-and-braces: even with `with_retention_days` rejecting
+        // `0`, a `Default` or struct-literal construction could still
+        // land here with `retention_days = 0`. Fail closed instead of
+        // wiping the directory.
+        if self.config.retention_days == 0 {
+            return Err(CoreError::AuditError(
+                "AuditConfig.retention_days = 0 would delete every audit file on \
+                 cleanup; refusing to proceed (set with_retention_days(>= 1))"
+                    .to_string(),
+            ));
+        }
+
         let retention_duration = chrono::Duration::days(i64::from(self.config.retention_days));
         let Some(cutoff) = Utc::now().checked_sub_signed(retention_duration) else {
             return Err(CoreError::AuditError(format!(
@@ -716,15 +885,25 @@ impl FileAuditStorage {
                 continue;
             }
 
-            // Check file modification time
-            let Ok(metadata) = fs::metadata(&path) else { continue };
-
-            let modified = match metadata.modified() {
-                Ok(t) => DateTime::<Utc>::from(t),
-                Err(_) => continue,
+            // Use the timestamp embedded in the filename
+            // (`audit-YYYY-MM-DDTHH-MM-SS.jsonl`, set by
+            // `create_new_file`) instead of the filesystem mtime,
+            // which a privileged attacker can rewrite with `touch`.
+            // The filename is set at file creation by this process and
+            // is not modifiable without also changing the file's name,
+            // which is observable in directory listings and recorded
+            // in the audit-genesis chain. Files whose names don't
+            // parse — including operator-imported logs from another
+            // tool — are skipped rather than deleted.
+            let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            let Some(created_at) = parse_audit_filename_timestamp(file_name) else {
+                tracing::debug!("Audit cleanup: skipping non-conforming filename '{}'", file_name);
+                continue;
             };
 
-            if modified < cutoff {
+            if created_at < cutoff {
                 // Delete old file
                 if let Err(e) = fs::remove_file(&path) {
                     tracing::warn!("Failed to remove old audit file '{}': {}", path.display(), e);
@@ -922,7 +1101,8 @@ mod tests {
         let config = AuditConfig::new(std::env::temp_dir().join("audit"))
             .with_max_file_size(50 * 1024 * 1024)
             .with_max_file_age(Duration::from_secs(12 * 60 * 60))
-            .with_retention_days(30);
+            .with_retention_days(30)
+            .expect("retention_days = 30 is positive");
 
         assert_eq!(config.max_file_size_bytes, 50 * 1024 * 1024);
         assert_eq!(config.max_file_age, Duration::from_secs(12 * 60 * 60));
@@ -1043,7 +1223,8 @@ mod tests {
         let config = AuditConfig::new(test_path.clone())
             .with_max_file_size(1024)
             .with_max_file_age(Duration::from_secs(60))
-            .with_retention_days(7);
+            .with_retention_days(7)
+            .expect("retention_days = 7 is positive");
 
         assert_eq!(config.storage_path(), &test_path);
         assert_eq!(config.max_file_size_bytes(), 1024);
@@ -1079,7 +1260,9 @@ mod tests {
         let temp_dir = TempDir::new();
         if let Ok(dir) = temp_dir {
             let temp_path = dir.path().to_path_buf();
-            let config = AuditConfig::new(temp_path.clone()).with_retention_days(30);
+            let config = AuditConfig::new(temp_path.clone())
+                .with_retention_days(30)
+                .expect("retention_days = 30 is positive");
             if let Ok(storage) = FileAuditStorage::new(config) {
                 assert_eq!(storage.config().storage_path(), &temp_path);
                 assert_eq!(storage.config().retention_days(), 30);
@@ -1108,10 +1291,16 @@ mod tests {
 
                 storage.flush().expect("Flush should succeed");
 
-                // Read back and verify the file has content
-                let entries: Vec<_> =
-                    fs::read_dir(&temp_path).unwrap().filter_map(|e| e.ok()).collect();
-                assert_eq!(entries.len(), 1, "Should have one audit file");
+                // Read back and verify the file has content. Filter to
+                // `.jsonl` so the persisted genesis-anchor file (added
+                // for chain-truncation detection) is not counted as an
+                // event log.
+                let entries: Vec<_> = fs::read_dir(&temp_path)
+                    .unwrap()
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+                    .collect();
+                assert_eq!(entries.len(), 1, "Should have one audit jsonl file");
 
                 let content = fs::read_to_string(entries[0].path()).unwrap();
                 let lines: Vec<&str> = content.lines().collect();
@@ -1284,13 +1473,25 @@ mod tests {
             // We need retention_days=0 which means cutoff = now, so nothing is "older" than now.
             // Actually, let's just verify the cleanup doesn't error with valid dir.
 
-            let config = AuditConfig::new(temp_path.clone()).with_retention_days(36500); // 100 years
+            let config = AuditConfig::new(temp_path.clone())
+                .with_retention_days(36500) // 100 years
+                .expect("retention_days = 36500 is positive");
             let storage = FileAuditStorage::new(config);
             assert!(storage.is_ok());
 
             // Old file should still exist (not older than 100 years)
             assert!(old_file.exists());
         }
+    }
+
+    #[test]
+    fn test_with_retention_days_zero_rejected() {
+        // Zero retention would purge every audit file on next startup;
+        // the builder must reject it so bad configs surface at
+        // construction rather than at the next cleanup pass.
+        let temp_path = std::env::temp_dir().join("latticearc_audit_zero_retention");
+        let result = AuditConfig::new(temp_path).with_retention_days(0);
+        assert!(matches!(result, Err(CoreError::InvalidInput(_))));
     }
 
     #[test]
@@ -1303,7 +1504,13 @@ mod tests {
             let txt_file = temp_path.join("notes.txt");
             fs::write(&txt_file, "not an audit file\n").unwrap();
 
-            let config = AuditConfig::new(temp_path).with_retention_days(0);
+            // Use a positive retention; the cleanup pass operates only
+            // on files whose names parse as audit-{timestamp}.jsonl,
+            // so a foreign .txt file is skipped regardless of how long
+            // we keep audit logs.
+            let config = AuditConfig::new(temp_path)
+                .with_retention_days(1)
+                .expect("retention_days = 1 is positive");
             let storage = FileAuditStorage::new(config);
             assert!(storage.is_ok());
 
@@ -1328,9 +1535,14 @@ mod tests {
                 storage.write(&event).unwrap();
                 storage.flush().unwrap();
 
-                // Read back and verify integrity_hash is set
-                let entries: Vec<_> =
-                    fs::read_dir(&temp_path).unwrap().filter_map(|e| e.ok()).collect();
+                // Read back and verify integrity_hash is set. Filter to
+                // `.jsonl` so the persisted genesis-anchor file is not
+                // picked up as an event log.
+                let entries: Vec<_> = fs::read_dir(&temp_path)
+                    .unwrap()
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+                    .collect();
                 let content = fs::read_to_string(entries[0].path()).unwrap();
                 let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
                 let hash = parsed["integrity_hash"].as_str().unwrap();
@@ -1358,9 +1570,14 @@ mod tests {
                 }
                 storage.flush().unwrap();
 
-                // Read all events and verify hashes form a chain
-                let entries: Vec<_> =
-                    fs::read_dir(&temp_path).unwrap().filter_map(|e| e.ok()).collect();
+                // Read all events and verify hashes form a chain.
+                // Filter to `.jsonl` so the persisted genesis-anchor
+                // file is not picked up as event-log lines.
+                let entries: Vec<_> = fs::read_dir(&temp_path)
+                    .unwrap()
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+                    .collect();
                 let content = fs::read_to_string(entries[0].path()).unwrap();
                 let events: Vec<AuditEvent> =
                     content.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
@@ -1506,8 +1723,11 @@ mod tests {
         // retention_days is consumed by cleanup_old_files() which computes a cutoff
         // as (now - retention_days). Different values produce different cutoffs.
         // We verify the field value is read via the accessor and differs between configs.
-        let config_short = AuditConfig::default().with_retention_days(1);
-        let config_long = AuditConfig::default().with_retention_days(365);
+        let config_short =
+            AuditConfig::default().with_retention_days(1).expect("retention_days = 1 is positive");
+        let config_long = AuditConfig::default()
+            .with_retention_days(365)
+            .expect("retention_days = 365 is positive");
 
         assert_ne!(
             config_short.retention_days(),
@@ -1515,20 +1735,19 @@ mod tests {
             "retention_days must influence the cleanup cutoff"
         );
 
-        // Verify that a storage created with retention_days=0 (aggressive cleanup) does not
-        // delete a newly written file (its mtime is "now", not before the cutoff).
+        // Verify that retention_days = 0 is rejected at config time so
+        // an operator cannot accidentally configure aggressive cleanup
+        // that would purge the entire audit history on next startup.
         let temp_dir = TempDir::new();
         if let Ok(dir) = temp_dir {
             let temp_path = dir.path().to_path_buf();
             let new_file = temp_path.join("current.jsonl");
             fs::write(&new_file, "fresh event\n").unwrap();
 
-            // retention_days=0 means cutoff = now; files modified before now are removed.
-            // A just-written file should not be removed (its mtime is at or after cutoff).
-            let config = AuditConfig::new(temp_path).with_retention_days(0);
-            let storage = FileAuditStorage::new(config);
-            assert!(storage.is_ok(), "Storage creation with retention_days=0 must succeed");
-            // The just-created file may or may not survive (OS mtime resolution) but no panic/error.
+            let result = AuditConfig::new(temp_path).with_retention_days(0);
+            assert!(result.is_err(), "with_retention_days(0) must be rejected at the builder");
+            // The pre-existing file is untouched because no storage was constructed.
+            assert!(new_file.exists());
         }
     }
 

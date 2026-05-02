@@ -192,10 +192,22 @@ pub struct FiatShamir<P: SigmaProtocol> {
 }
 
 impl<P: SigmaProtocol> FiatShamir<P> {
-    /// Create a new Fiat-Shamir wrapper
-    #[must_use]
-    pub fn new(protocol: P, domain_separator: &[u8]) -> Self {
-        Self { protocol, domain_separator: domain_separator.to_vec() }
+    /// Create a new Fiat-Shamir wrapper.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZkpError::InvalidDomainSeparator`] if `domain_separator`
+    /// is empty. The Fiat-Shamir transform's challenge is
+    /// `H(domain_separator || statement || commitment || context)`;
+    /// without a non-empty domain separator, two distinct protocols that
+    /// happen to share the same statement / commitment shape can produce
+    /// colliding challenges, defeating the cross-protocol separation
+    /// the wrapper is supposed to provide.
+    pub fn new(protocol: P, domain_separator: &[u8]) -> Result<Self> {
+        if domain_separator.is_empty() {
+            return Err(ZkpError::InvalidDomainSeparator);
+        }
+        Ok(Self { protocol, domain_separator: domain_separator.to_vec() })
     }
 
     /// Generate a non-interactive proof
@@ -885,7 +897,7 @@ mod tests {
 
     #[test]
     fn test_fiat_shamir_prove_verify_roundtrip_succeeds() {
-        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain");
+        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain").unwrap();
         let statement = vec![1u8; 32];
         let witness = vec![42u8; 16];
 
@@ -902,7 +914,7 @@ mod tests {
 
     #[test]
     fn test_fiat_shamir_wrong_context_fails() {
-        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain");
+        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain").unwrap();
         let statement = vec![1u8; 32];
         let witness = vec![42u8; 16];
 
@@ -914,7 +926,7 @@ mod tests {
 
     #[test]
     fn test_fiat_shamir_tampered_challenge_fails() {
-        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain");
+        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain").unwrap();
         let statement = vec![1u8; 32];
         let witness = vec![42u8; 16];
 
@@ -927,8 +939,8 @@ mod tests {
 
     #[test]
     fn test_fiat_shamir_different_domain_separators_produce_different_proofs_succeeds() {
-        let fs1 = FiatShamir::new(MockSigmaProtocol, b"domain-1");
-        let fs2 = FiatShamir::new(MockSigmaProtocol, b"domain-2");
+        let fs1 = FiatShamir::new(MockSigmaProtocol, b"domain-1").unwrap();
+        let fs2 = FiatShamir::new(MockSigmaProtocol, b"domain-2").unwrap();
         let statement = vec![1u8; 32];
         let witness = vec![42u8; 16];
 
@@ -940,7 +952,7 @@ mod tests {
 
     #[test]
     fn test_fiat_shamir_different_statements_produce_different_proofs_succeeds() {
-        let fs = FiatShamir::new(MockSigmaProtocol, b"domain");
+        let fs = FiatShamir::new(MockSigmaProtocol, b"domain").unwrap();
         let statement1 = vec![1u8; 32];
         let statement2 = vec![2u8; 32];
         let witness = vec![42u8; 16];
@@ -952,8 +964,18 @@ mod tests {
     }
 
     #[test]
-    fn test_fiat_shamir_empty_domain_and_context_succeeds() {
-        let fs = FiatShamir::new(MockSigmaProtocol, b"");
+    fn test_fiat_shamir_empty_domain_separator_rejected() {
+        // Empty domain separator defeats cross-protocol challenge
+        // separation; constructor must refuse it.
+        let result = FiatShamir::new(MockSigmaProtocol, b"");
+        assert!(matches!(result, Err(ZkpError::InvalidDomainSeparator)));
+    }
+
+    #[test]
+    fn test_fiat_shamir_empty_context_succeeds() {
+        // Empty `context` is fine — the domain separator carries the
+        // cross-protocol uniqueness; per-call context is optional.
+        let fs = FiatShamir::new(MockSigmaProtocol, b"empty-context-test").unwrap();
         let statement = vec![0u8; 32];
         let witness = vec![0u8; 8];
 

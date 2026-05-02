@@ -362,6 +362,16 @@ impl VerifyingKey {
     /// backends) a non-breaking addition.
     #[instrument(level = "debug", skip(self, message, signature), fields(security_level = ?self.security_level, message_len = message.len(), signature_len = signature.len()))]
     pub fn verify(&self, message: &[u8], signature: &Signature) -> Result<bool> {
+        // DoS bound on the verify hot path. The fn-dsa crate hashes the
+        // entire message during verification; without this guard a caller
+        // can submit arbitrary-length input through any verify entry
+        // point. Mirrors the bound applied in `sign_with_rng()`. The
+        // size-limit error is folded into `LatticeArcError` (the public
+        // Result type) via the existing `From<FnDsaError>` impl.
+        if crate::primitives::resource_limits::validate_signature_size(message.len()).is_err() {
+            return Err(FnDsaError::MessageTooLong);
+        }
+
         let valid = self.inner.verify(signature.as_ref(), &DOMAIN_NONE, &HASH_ID_RAW, message);
         Ok(valid)
     }

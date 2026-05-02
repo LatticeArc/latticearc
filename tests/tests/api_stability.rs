@@ -675,11 +675,11 @@ fn test_core_config_field_accessibility_is_stable() {
 /// Test 2.17: Struct field accessibility - EncryptedMetadata
 #[test]
 fn test_encrypted_metadata_field_accessibility_is_stable() {
-    let metadata = EncryptedMetadata {
-        nonce: vec![0u8; 12],
-        tag: Some(vec![0u8; 16]),
-        key_id: Some("key-123".to_string()),
-    };
+    let metadata = EncryptedMetadata::symmetric(
+        vec![0u8; 12],
+        Some(vec![0u8; 16]),
+        Some("key-123".to_string()),
+    );
 
     // Fields should be accessible
     assert_eq!(metadata.nonce.len(), 12);

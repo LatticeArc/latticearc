@@ -9,6 +9,257 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-24 audit follow-up — 2 CRIT + 6 HIGH + 14 MED (2026-05-02)
+
+External audit of the post-`66970a714` tree returned 22 actionable
+findings across CRITICAL / HIGH / MEDIUM severity (3 of the 25 raised
+were already closed by the round-23 fixes). All 22 fixed below — no
+defers, no deprecations.
+
+#### BREAKING (require migration)
+
+- **`unified_api::EncryptedOutput::new` now returns `Result<Self,
+  TypeError>`.** The previous `debug_assert!`-only check on the
+  scheme ⇄ `hybrid_data` invariant was stripped under `--release`,
+  silently accepting structurally-broken `EncryptedOutput`s in
+  production (e.g. a hybrid scheme without an ECDH ephemeral key,
+  or a symmetric-only scheme carrying ML-KEM material). The shape
+  rule is now a real runtime check that runs in both debug and
+  release. Migration: callers must propagate the `Result` with `?`
+  or `.map_err(...)`; in tests use `.expect("valid shape")` for
+  combinations the test deliberately constructs.
+
+- **`unified_api::EncryptedOutput` ⇄ legacy `types::EncryptedData`
+  conversion now preserves hybrid components.** The previous
+  `From<EncryptedOutput> for EncryptedData` impl destructured
+  `hybrid_data: _`, dropping the ML-KEM ciphertext and ECDH
+  ephemeral PK on the floor — any hybrid or PQ-only ciphertext that
+  round-tripped through this conversion was permanently
+  undecryptable. `EncryptedMetadata` is now `#[non_exhaustive]` and
+  carries `Option<Vec<u8>>` fields for `ml_kem_ciphertext` and
+  `ecdh_ephemeral_pk`; new constructors `EncryptedMetadata::symmetric`,
+  `::hybrid`, `::pq_only` replace direct struct-literal construction.
+  Callers using struct-literal syntax must move to a constructor.
+
+- **`prelude::error::LatticeArcError` no longer derives
+  `Deserialize`.** Errors are produced internally by the crate and
+  never received from untrusted sources; allowing arbitrary
+  `LatticeArcError` values to be deserialized would let an attacker
+  who controls a deserialization input inject sensitive variants
+  (`SecurityViolation`, `PinLocked`, `ComplianceViolation`, etc.)
+  into local error-handling logic. `Serialize` is retained for
+  outbound audit / observability sinks. Migration: any caller that
+  was deserializing errors must switch to deserializing into a
+  generic `serde_json::Value` (or another concrete type).
+
+- **Encrypted-key-envelope AAD format bumped (label
+  `latticearc-lpk-v1-enc` → `latticearc-lpk-v2-enc`); metadata
+  BTreeMap now bound into AAD.** The previous AAD covered version,
+  algorithm, key type, KDF id, iterations, salt, and AEAD id, but
+  not the metadata field. `to_hybrid_secret_key` reads `ml_kem_pk`
+  from metadata after AEAD decryption, so an attacker with file-write
+  access could swap the bundled PK while the AEAD tag still passed.
+  AAD now includes a 4-byte BE length prefix followed by canonical
+  JSON of the metadata BTreeMap. v1 envelopes fail AEAD authentication
+  under v2 AAD — the mismatch surfaces as the existing opaque
+  "wrong passphrase or corrupted envelope" error. Re-encrypt
+  existing passphrase-protected key files to migrate.
+
+- **`primitives::kdf::pbkdf2::verify_password` now takes a
+  `prf: PrfType` parameter.** The previous signature hardcoded
+  `HmacSha256` regardless of the PRF the caller used at derivation
+  time, silently producing a wrong-bytes derivation (which then
+  failed the constant-time comparison and returned `Ok(false)`,
+  indistinguishable from a wrong-password rejection). Callers must
+  pass the same PRF used at derivation. The PRF is part of
+  `Pbkdf2Params` so envelope formats already carry it; in-line
+  retention is the caller's responsibility.
+
+- **`hybrid::pq_only::PqOnlySecretKey::from_bytes` now requires
+  `pk_bytes`** (signature: `from_bytes(level, sk_bytes, pk_bytes)`).
+  The recipient's ML-KEM public key is bound into the HKDF info
+  string at decryption time so the derived AEAD key is identity-bound
+  (HPKE / RFC 9180 §5.1 channel binding). The previous
+  ciphertext-only binding depended on ML-KEM IND-CCA2 holding for
+  substitution resistance; PK binding closes the defense-in-depth
+  gap. New accessor `recipient_pk_bytes()` exposes the stored PK.
+  CLI key-file format (`<alg>.sec.json`) now bundles `ml_kem_pk` in
+  metadata at keygen time so the decrypt path is self-contained.
+
+- **`unified_api::convenience::derive_key{,_with_info,
+  _with_config,_unverified,_with_info_unverified,
+  _with_config_unverified}` now return `Zeroizing<Vec<u8>>`** (was
+  plain `Vec<u8>`). Derived key material was being handed back as a
+  bare `Vec<u8>` whose drop is a plain free; the `Zeroizing` wrapper
+  ensures the caller's copy is wiped from heap memory when the
+  binding goes out of scope. Migration: most call sites need no
+  change because `Zeroizing<Vec<u8>>` derefs to `&[u8]`; sites that
+  destructure or move out of the result need `.to_vec()` to extract
+  a plain `Vec`.
+
+- **`unified_api::types::scheme_min_security_level` returns
+  `SecurityLevel::Standard` for `chacha20-poly1305` and
+  `aes-256-gcm`** (was `SecurityLevel::Maximum`). Symmetric-only
+  schemes carry no post-quantum component and therefore cannot
+  satisfy a caller who explicitly pinned `SecurityLevel::Maximum`
+  (NIST Category 5 PQ strength). The previous "treat as Maximum"
+  mapping silently passed both schemes through the level gate at
+  any configured level. Callers wanting a symmetric-only fallback
+  must lower `security_level` to `Standard` explicitly, or drive
+  scheme selection via the explicit dispatch path that doesn't go
+  through the level gate.
+
+- **`unified_api::zero_trust` `ProofComplexity::Low` and `::Medium`
+  now bind the public key into the signed transcript** (previously
+  only `High` did). Without PK binding, an attacker who captured a
+  valid `(challenge, signature)` pair under one identity could
+  replay it against a verifier expecting a different identity if
+  the signature happened to verify under both. All three complexity
+  variants now carry a 1-byte domain tag (`0x01` / `0x02` / `0x03`)
+  + challenge + timestamp + public-key suffix. In-flight Low/Medium
+  proofs no longer verify; clients must regenerate.
+
+- **`unified_api::audit::AuditConfig::with_retention_days` now
+  returns `Result<Self>`** (was `Self`); rejects `days == 0`.
+  Zero retention would treat every existing audit file as expired
+  on the next startup and purge the entire history. The cleanup
+  pass also fail-closes if it sees `retention_days == 0` (defence
+  in depth for struct-literal construction). Migration: chain
+  `.with_retention_days(N).expect("...")` or propagate with `?`.
+
+- **`zkp::sigma::FiatShamir::new` now returns `Result<Self,
+  ZkpError>`** (was `Self`); rejects empty `domain_separator`.
+  An empty domain separator defeats the cross-protocol challenge
+  separation the wrapper exists to provide. New error variant
+  `ZkpError::InvalidDomainSeparator`.
+
+- **`zkp` verify paths return `ZkpError::VerificationFailed` for
+  any structurally invalid input.** Previously the verify path
+  distinguished `InvalidScalar` vs `SerializationError` vs
+  `InvalidCommitment`, leaking which sub-check rejected an
+  attacker-crafted proof. The granular variants are still emitted
+  from the `commit` / `prove` / construction paths (where the
+  caller is the legitimate user, not an adversary); only verify
+  paths collapse. Detailed cause is logged via `tracing::debug!`
+  at the rejection site. New error variant
+  `ZkpError::VerificationFailed`.
+
+#### CRITICAL
+
+- **`prelude::cavp_compliance`, `ci_testing_framework`,
+  `formal_verification`, `memory_safety_testing`,
+  `property_based_testing`, `side_channel_analysis` are now gated
+  behind `#[cfg(any(test, feature = "test-utils"))]`.** Six
+  test-framework modules were unconditionally `pub mod` and shipped
+  in every release build — including a hardcoded 32-byte secp256k1
+  ECDSA private key (a published CAVP test vector) embedded in
+  `cavp_compliance.rs`. Release artifacts no longer contain
+  test-framework code or the bundled vector. Downstream crates that
+  need these utilities at build-time can opt in via the `test-utils`
+  Cargo feature.
+
+#### HIGH
+
+- **`primitives::aead::chacha20poly1305::generate_nonce` now uses
+  `try_into` instead of a fall-through to all-zero.** The previous
+  `if let Some(src) = nonce_bytes.get(..12) { ... }` would silently
+  return `[0u8; 12]` if the slice were ever shorter than 12 bytes —
+  unreachable today (the upstream crate's contract is fixed-12-byte
+  output) but a nonce-reuse footgun if upstream ever changes the
+  type. The new code panics at the call site if the contract breaks
+  rather than producing an undetectable weak nonce.
+
+- **`primitives::sig::ml_dsa::verify`, `slh_dsa::verify`,
+  `fndsa::verify` now call `validate_signature_size(message.len())`.**
+  The corresponding `sign` paths already enforced this DoS bound;
+  the verify hot paths did not. SLH-DSA verify in particular hashes
+  the entire message before traversing the hyper-tree, so an
+  attacker who could submit arbitrary bytes through any verify
+  entry point could force unbounded hashing work.
+
+- **`unified_api::audit::FileAuditStorage` now derives and persists
+  a domain-separated genesis anchor.** The previous `previous_hash:
+  RwLock::new(String::new())` made a truncated-then-restarted log
+  cryptographically indistinguishable from a fresh log. The
+  storage directory now contains a `genesis` file with
+  `SHA-256(domain-label || nonce || creation-timestamp)`; the first
+  audit event chains from this anchor instead of the empty string.
+  A truncate-only attack that leaves the genesis file intact is now
+  detectable because the next event chains from `genesis`, not from
+  the deleted entry's hash.
+
+#### MEDIUM
+
+- `cmac::verify_cmac_192` and `verify_cmac_256` now perform the
+  same Err-path dummy CT work as `verify_cmac_128`, so the
+  function's runtime profile no longer depends on whether the key
+  length passed `cmac_192` / `cmac_256`'s internal check.
+
+- Power-up self-test (`unified_api::init`) now performs a full
+  Ed25519 sign/verify roundtrip plus a tamper check on the message
+  byte. The previous Test 3 generated a keypair and discarded the
+  result, which only proved key generation didn't error and left
+  the signing/verify hot path untested at startup.
+
+- Module integrity test (`primitives::self_test::integrity_test`)
+  now refuses to HMAC `current_exe()` when the resolved path does
+  not look like a LatticeArc artifact (shared library, CLI binary,
+  or `target/{debug,release}/deps/` test binary). Previous code
+  silently HMACed the host-process binary when latticearc was
+  loaded as a dynamic library — the wrong file. Without `unsafe`
+  (forbidden crate-wide) the dynamic-loader APIs that would
+  recover the library's own path can't be called; deployment must
+  run the integrity test from a binary that statically links
+  latticearc, or supply the artifact path out-of-band.
+
+- `unified_api::key_format::to_hybrid_secret_key` now uses
+  `KeyData::decode_composite_zeroized` so the ML-KEM secret-key
+  bytes and X25519 seed are wiped on heap drop regardless of
+  which downstream branch consumes them.
+
+- `unified_api::key_format::to_ml_kem_secret_key` now uses
+  `KeyData::decode_raw_zeroized` so the ML-KEM secret-key bytes
+  are wiped on heap drop.
+
+- `unified_api::key_format::to_hybrid_sig_secret_key` now uses
+  `decode_composite_zeroized` so the ML-DSA secret-key bytes and
+  Ed25519 seed are never held as a plain `Vec<u8>` between decode
+  and `Zeroizing` wrapping.
+
+- `unified_api::key_format::PortableKey::decrypt_with_passphrase`
+  now revalidates the resulting `PortableKey` after replacing
+  `key_data`. An incoherent envelope (e.g. AEAD-bound metadata
+  declares one algorithm but the decrypted KeyData payload describes
+  another) used to install silently and surface much later. The
+  failed-validation path rolls `key_data` back to the original
+  encrypted envelope so the caller can inspect or retry.
+
+- `primitives::kdf::pbkdf2::pbkdf2` continues to enforce the
+  per-PRF OWASP iteration floor (600,000 for HMAC-SHA256,
+  210,000 for HMAC-SHA512) on its public surface. The
+  envelope-load path in `unified_api::key_format` now uses
+  `pbkdf2_with_floor(.., PBKDF2_MIN_ITERATIONS = 100_000)` so
+  legacy OWASP-2018-era encrypted keys remain readable; the
+  envelope's `kdf_iterations` is integrity-protected by AAD so a
+  count below 600k means the legitimate keyholder wrote it that
+  way.
+
+#### Test-suite hygiene
+
+- Removed `latticearc/tests/primitives_side_channel.rs::test_branch_free_operations_succeeds`
+  with an explanatory comment in its place. The test was measuring
+  `subtle::ConstantTimeEq` wall-clock timings (third-party code)
+  using single-sample mean comparison on shared CI runners (a
+  methodology that cannot reliably distinguish constant-time from
+  non-constant-time at sub-microsecond scale). The actual
+  guarantee — that secret-holding types in this crate cannot be
+  compared with `==` — is enforced at compile time by
+  `latticearc/tests/no_partial_eq_on_secret_types.rs` via
+  `static_assertions::assert_not_impl_any!`. That test rejects
+  any future `derive(PartialEq)` or manual `impl Eq` on a listed
+  secret type at the type-system level; the timing test added
+  no orthogonal coverage.
+
 ### Round-23 audit follow-up — 1 MED + 4 LOW (2026-05-01)
 
 External audit of the post-85e2bd79e tree returned 5 findings: M1

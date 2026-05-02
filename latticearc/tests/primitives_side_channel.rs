@@ -1581,87 +1581,47 @@ fn test_constant_time_operation_correctness_succeeds() {
     assert!(!bool::from(sk1.ct_eq(&sk3)), "Different secret keys should compare unequal");
 }
 
-/// Test branch-free operation behavior
-///
-/// NOTE: This test verifies constant-time comparison using the subtle crate.
-/// Due to system scheduling and CPU caching, measured timing may vary.
-/// The actual constant-time guarantees come from the subtle crate implementation.
-#[test]
-fn test_branch_free_operations_succeeds() {
-    const ITERATIONS: usize = 1000;
-    const WARMUP: usize = 100;
-
-    // Test that comparison doesn't short-circuit
-    let base = vec![0x00u8; 32];
-    let same = vec![0x00u8; 32];
-    let diff_early = {
-        let mut v = vec![0x00u8; 32];
-        v[0] = 0xFF;
-        v
-    };
-    let diff_late = {
-        let mut v = vec![0x00u8; 32];
-        v[31] = 0xFF;
-        v
-    };
-
-    // Using subtle crate's constant-time comparison
-    let timing_same = measure_operation(
-        || {
-            let _ = base.ct_eq(&same);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    let timing_diff_early = measure_operation(
-        || {
-            let _ = base.ct_eq(&diff_early);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    let timing_diff_late = measure_operation(
-        || {
-            let _ = base.ct_eq(&diff_late);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    // All should have similar timing (no early exit)
-    // Use very permissive thresholds (0.1x to 10x) because sub-microsecond
-    // operations are dominated by system noise. Real timing leaks show >5x
-    // consistent difference; we're verifying subtle's ct_eq doesn't short-circuit.
-    let ratio1 = timing_ratio(&timing_same, &timing_diff_early);
-    let ratio2 = timing_ratio(&timing_same, &timing_diff_late);
-    let ratio3 = timing_ratio(&timing_diff_early, &timing_diff_late);
-
-    // Log timing for analysis
-    println!(
-        "Branch-free timings: same={:.2}us, diff_early={:.2}us, diff_late={:.2}us",
-        timing_same.mean_ns / 1000.0,
-        timing_diff_early.mean_ns / 1000.0,
-        timing_diff_late.mean_ns / 1000.0
-    );
-
-    assert!(
-        ratio1 > 0.05 && ratio1 < 20.0,
-        "Same vs diff_early timing ratio out of bounds: {:.2}",
-        ratio1
-    );
-    assert!(
-        ratio2 > 0.05 && ratio2 < 20.0,
-        "Same vs diff_late timing ratio out of bounds: {:.2}",
-        ratio2
-    );
-    assert!(
-        ratio3 > 0.05 && ratio3 < 20.0,
-        "diff_early vs diff_late timing ratio out of bounds: {:.2}",
-        ratio3
-    );
-}
+// `test_branch_free_operations_succeeds` (removed):
+//
+// The previous test here measured the wall-clock time of
+// `subtle::ConstantTimeEq::ct_eq` on three input pairs (same / differ-
+// at-byte-0 / differ-at-byte-31), 1000 iterations each, and asserted
+// the pairwise mean-time ratios fell within a window. The intent was
+// "catch a regression if `ct_eq` short-circuits". The methodology
+// could not deliver on that intent:
+//
+//   * `ct_eq` is a third-party constant-time primitive. The constant-
+//     time guarantee comes from `subtle`'s formal review and audit,
+//     not from a 1000-sample mean comparison in our test suite.
+//
+//   * Sub-microsecond timing measurements on shared CI hardware are
+//     dominated by scheduler / cache / SMT noise. A single-sample
+//     mean comparison cannot reliably distinguish constant-time from
+//     non-constant-time at this measurement scale; properly doing so
+//     requires dudect-style statistical analysis (100k+ iterations,
+//     percentile clipping, Welch's t-test).
+//
+//   * The test was flaky in CI — observed ratio = 0.05, exactly the
+//     previous strict lower bound. Widening the bound paper-fixes the
+//     symptom but the test still tells us nothing about whether the
+//     comparison is actually constant-time.
+//
+// What we *can* verify, deterministically and structurally, is that
+// our own secret-holding types never expose a non-constant-time
+// equality operator at all: `latticearc/tests/no_partial_eq_on_secret_types.rs`
+// asserts at compile time (via `static_assertions::assert_not_impl_any!`)
+// that every public secret type implements neither `PartialEq` nor
+// `Eq`. Any future contributor who derives or implements either trait
+// on a listed type causes that test crate to fail to compile, and CI
+// rejects the change. That is a stronger guarantee than any timing
+// measurement: `==` literally cannot be written against these types,
+// so the short-circuit-on-first-differing-byte case the timing test
+// was reaching for is impossible by construction.
+//
+// If the constant-time guarantees of `subtle::ct_eq` itself ever
+// need to be re-validated (e.g. after a major version bump), do it
+// out-of-band with a proper dudect harness on dedicated hardware,
+// not with mean-time comparison in the workspace test suite.
 
 /// Test that zeroization is complete and verifiable
 #[test]

@@ -758,7 +758,8 @@ mod direct {
             None,
             encrypted.timestamp(),
             None,
-        );
+        )
+        .expect("symmetric scheme + None hybrid_data is a valid shape");
 
         let result = decrypt(&rewrapped, DecryptKey::Symmetric(&key), config);
         assert!(result.is_err(), "chacha20-poly1305 decryption of AES-GCM ciphertext should fail");
@@ -797,8 +798,9 @@ mod direct {
         )
         .unwrap();
 
-        // Construct an EncryptedOutput with a hybrid scheme while providing a symmetric key —
-        // the type-safe API rejects the key-scheme mismatch before attempting decryption.
+        // Constructing an EncryptedOutput with a hybrid scheme but
+        // `hybrid_data: None` is structurally invalid; the shape check in
+        // `EncryptedOutput::new` rejects it before any decrypt attempt.
         let rewrapped = EncryptedOutput::new(
             EncryptionScheme::HybridMlKem768Aes256Gcm,
             encrypted.ciphertext().to_vec(),
@@ -809,8 +811,11 @@ mod direct {
             None,
         );
 
-        let result = decrypt(&rewrapped, DecryptKey::Symmetric(&key), config);
-        assert!(result.is_err(), "Hybrid scheme with symmetric key should be rejected by decrypt");
+        assert!(
+            rewrapped.is_err(),
+            "Hybrid scheme without hybrid_data must be rejected at construction"
+        );
+        let _ = config; // keep the variable to mirror the original test shape
     }
 
     // ============================================================

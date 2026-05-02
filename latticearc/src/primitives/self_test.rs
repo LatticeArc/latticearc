@@ -1026,60 +1026,134 @@ pub fn kat_fn_dsa() -> Result<()> {
 // Integrity Test
 // =============================================================================
 
+/// Heuristic: does the file at `path` look like a LatticeArc artifact?
+///
+/// `current_exe()` returns the path to the running executable; when
+/// LatticeArc is loaded as a dynamic library by a host (Python, Node,
+/// JVM, etc.) that path is the host interpreter, not the library. This
+/// helper recognises three kinds of legitimate LatticeArc-on-disk
+/// artifacts:
+///   * the platform-specific shared library (`liblatticearc.so` /
+///     `liblatticearc.dylib` / `latticearc.dll`)
+///   * the LatticeArc CLI binary (`latticearc-cli` / `latticearc-cli.exe`)
+///   * any other binary whose file name contains `latticearc` (covers
+///     statically-linked downstream binaries that have re-exported the
+///     name into their own image).
+///
+/// Anything else is treated as an unverifiable host process and the
+/// integrity test refuses to HMAC it.
+fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
+    let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    let lower = file_name.to_ascii_lowercase();
+    let candidate_names = [
+        "liblatticearc.so",
+        "liblatticearc.dylib",
+        "latticearc.dll",
+        "latticearc-cli",
+        "latticearc-cli.exe",
+    ];
+    if candidate_names.iter().any(|n| lower == *n) {
+        return true;
+    }
+    if lower.starts_with("latticearc") || lower.starts_with("liblatticearc") {
+        return true;
+    }
+    // Cargo test binaries live in `target/{debug,release}/deps/` and
+    // are named after the test target with a 16-char hex suffix
+    // (e.g. `round21_behavior-3a9c1b2d4e5f6071`). They statically
+    // link the latticearc lib, so HMAC-ing them is a meaningful
+    // integrity check; the heuristic accepts that path.
+    if let Some(parent) = path.parent()
+        && parent.file_name().and_then(|n| n.to_str()) == Some("deps")
+        && parent
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .is_some_and(|s| s == "debug" || s == "release")
+    {
+        return true;
+    }
+    false
+}
+
 /// Software/Firmware Integrity Test
 ///
-/// FIPS 140-3 Software/Firmware Load Test (Section 9.2.2)
+/// FIPS 140-3 Software/Firmware Load Test (Section 9.2.2).
 ///
-/// Verifies the integrity of the cryptographic module at power-up by computing
-/// and comparing an HMAC-SHA256 digest of critical module components.
+/// Verifies the integrity of the cryptographic module at power-up by
+/// computing an HMAC-SHA256 digest of the on-disk module artifact and
+/// comparing it against the build-time-recorded expected value.
 ///
-/// # FIPS 140-3 Requirement
+/// # Module location
 ///
-/// Per FIPS 140-3 Section 9.2.2: "The module shall perform a software/firmware
-/// load test to verify the integrity of the software or firmware code. The test
-/// shall be executed when the module is powered up and shall use a cryptographic
-/// algorithm from Appendix C or an approved authentication technique."
-///
-/// # Current Implementation
-///
-/// This implementation uses HMAC-SHA256 to verify the integrity of the compiled
-/// module by reading the module's executable/library file and computing its hash.
-/// The expected HMAC value is embedded during the build process.
-///
-/// # Known Limitations
-///
-/// - **Hardcoded HMAC key:** The integrity key is compiled into the binary;
-///   production FIPS requires HSM/TPM key storage.
-/// - **`current_exe()` returns the host binary, not this library:** When latticearc
-///   is loaded as a shared library, the HMAC covers the wrong file. A platform-specific
-///   `/proc/self/maps` or `dl_iterate_phdr` approach is needed.
-/// - **Debug builds skip the check:** Returns `Ok(())` when `PRODUCTION_HMAC.txt` is absent,
-///   which is intentional for development but must be enforced in certified builds.
-///
-/// **For FIPS Certification:** This implementation needs enhancement to:
-/// - Use a hardware security module (HSM) or TPM for key storage
-/// - Implement secure boot chain verification
-/// - Generate HMAC in a separate trusted build environment
-/// - Store HMAC in tamper-evident storage
+/// The module path is resolved via `std::env::current_exe()` and then
+/// cross-checked with [`path_looks_like_latticearc_module`]. If the
+/// resolved path does not look like a LatticeArc shared library or
+/// LatticeArc-bearing binary (e.g. when the library is loaded by a
+/// host interpreter and `current_exe()` returns the interpreter
+/// itself), the test returns an explicit "cannot locate" error rather
+/// than HMACing the wrong file. Without `unsafe`, which the workspace
+/// `unsafe_code` lint forbids, there is no portable way to call the
+/// platform dynamic-loader APIs (`dladdr`, `dl_iterate_phdr`,
+/// `GetModuleFileName`) that would recover the library's path
+/// directly; the dynamic-load case must be handled by the deployment
+/// (e.g. by also shipping a static-link CLI that runs the integrity
+/// test out-of-band).
 ///
 /// # Errors
 ///
 /// Returns error if:
-/// - Unable to locate or read the module binary
+/// - `current_exe()` is unavailable
+/// - The resolved path does not look like a LatticeArc artifact
+/// - The artifact cannot be read
 /// - HMAC computation fails
-/// - Computed HMAC does not match expected value (integrity violation)
+/// - The computed HMAC does not match the build-time expected value
 pub fn integrity_test() -> Result<()> {
     // FIPS requires using a cryptographic key for HMAC
     // For a self-contained integrity test, we use a deterministic key derived
     // from the module identity. In production FIPS, this would come from HSM/TPM.
     const INTEGRITY_KEY: &[u8] = crate::types::domains::MODULE_INTEGRITY_HMAC_KEY;
 
-    // Attempt to get the current executable/library path
-    // For libraries loaded dynamically, this gets the main executable,
-    // but the principle of integrity verification is demonstrated
+    // Locate the latticearc module binary on disk.
+    //
+    // `std::env::current_exe()` returns the path to the *host* binary,
+    // which is correct only when latticearc is statically linked into
+    // that binary. When latticearc is loaded as a `.so`/`.dylib`/`.dll`
+    // (e.g. from a Python or Node.js extension), `current_exe()` points
+    // at the host interpreter, and HMACing it would silently verify
+    // the wrong file.
+    //
+    // Without `unsafe` (forbidden crate-wide) we cannot call
+    // platform dynamic-loader APIs (`dladdr`, `dl_iterate_phdr`,
+    // `GetModuleFileName`) to recover the library's own path. Instead
+    // we read `current_exe()`, then check whether the resolved file
+    // name matches one of the LatticeArc artifact names compiled
+    // into this build (`liblatticearc.so`, `liblatticearc.dylib`,
+    // `latticearc.dll`, or any binary that links them statically).
+    // If the path looks like a host-process executable rather than the
+    // LatticeArc library, return an explicit "cannot locate" error so
+    // FIPS callers see the integrity gap rather than a silent
+    // false-positive verification of the wrong file.
     let module_path = std::env::current_exe().map_err(|e| LatticeArcError::ValidationError {
         message: format!("Integrity test: cannot locate module binary: {}", e),
     })?;
+
+    if !path_looks_like_latticearc_module(&module_path) {
+        return Err(LatticeArcError::ValidationError {
+            message: format!(
+                "Integrity test: current_exe() = {:?} does not appear to be a \
+                 LatticeArc library or a binary that statically links it. \
+                 This build cannot verify dynamic-library integrity without \
+                 platform dynamic-loader APIs (forbidden by the workspace \
+                 `unsafe_code` lint). Run the integrity test from a binary \
+                 that statically links latticearc, or supply an external \
+                 library path via the FIPS deployment manifest.",
+                module_path,
+            ),
+        });
+    }
 
     // Read the module binary
     let module_bytes =

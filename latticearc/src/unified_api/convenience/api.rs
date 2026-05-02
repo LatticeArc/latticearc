@@ -482,6 +482,7 @@ pub fn encrypt_with_aad(
                 timestamp,
                 None,
             )
+            .map_err(|e| CoreError::EncryptionFailed(e.to_string()))?
         }
         // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
         (EncryptKey::PqOnly(pk), _) if scheme.requires_pq_key() => {
@@ -499,6 +500,7 @@ pub fn encrypt_with_aad(
                 timestamp,
                 None,
             )
+            .map_err(|e| CoreError::EncryptionFailed(e.to_string()))?
         }
         // This arm should be unreachable due to validate_key_matches_scheme above
         _ => {
@@ -537,7 +539,8 @@ fn symmetric_bytes_to_output(
 
     let timestamp = current_timestamp();
 
-    Ok(EncryptedOutput::new(scheme, encrypted.to_vec(), nonce, tag, None, timestamp, None))
+    EncryptedOutput::new(scheme, encrypted.to_vec(), nonce, tag, None, timestamp, None)
+        .map_err(|e| CoreError::EncryptionFailed(e.to_string()))
 }
 
 /// Decrypt data encrypted by `encrypt()`.
@@ -1443,7 +1446,8 @@ mod tests {
             None,
             0,
             None,
-        );
+        )
+        .expect("symmetric scheme + None hybrid_data is a valid shape");
 
         // Empty ciphertext should be rejected (too short for nonce)
         let result = decrypt(&empty_encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
@@ -1640,7 +1644,8 @@ mod tests {
             None,
             0,
             None,
-        );
+        )
+        .expect("symmetric scheme + None hybrid_data is a valid shape");
         let short_key = vec![0x42u8; 16]; // Too short
 
         let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());
@@ -1648,24 +1653,24 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_unknown_scheme_returns_error() {
-        // EncryptionScheme is an enum so there are no "unknown" schemes.
-        // Instead, test that a key-scheme mismatch is rejected:
-        // use a HybridMlKem768 scheme but provide a symmetric key → should error.
-        let encrypted = EncryptedOutput::new(
+    fn test_encrypted_output_rejects_hybrid_scheme_without_hybrid_data() {
+        // Constructing a hybrid-scheme `EncryptedOutput` without the
+        // ML-KEM ciphertext + ECDH ephemeral PK is structurally broken —
+        // the decryption path has no way to recover. The shape check in
+        // `EncryptedOutput::new` rejects it before any decrypt attempt.
+        let result = EncryptedOutput::new(
             EncryptionScheme::HybridMlKem768Aes256Gcm,
             vec![0x12u8; 40],
             vec![0u8; 12],
             vec![0u8; 16],
-            None, // missing hybrid_data — decryption must fail
+            None, // missing hybrid_data
             0,
             None,
         );
-        let key = vec![0x42u8; 32];
-
-        // Symmetric key with hybrid scheme → key-scheme mismatch, must error
-        let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
-        assert!(result.is_err(), "Key-scheme mismatch should be rejected");
+        assert!(
+            result.is_err(),
+            "hybrid scheme without hybrid_data must be rejected at construction"
+        );
     }
 
     // === SLH-DSA sign/verify roundtrip tests ===
@@ -2244,7 +2249,8 @@ mod tests {
             None,
             0,
             None,
-        );
+        )
+        .expect("symmetric scheme + None hybrid_data is a valid shape");
         let short_key = vec![0x42u8; 16]; // Too short for AES-256-GCM
         let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());
         assert!(result.is_err());
@@ -2252,8 +2258,11 @@ mod tests {
 
     #[test]
     fn test_decrypt_short_key_ml_kem_scheme_returns_error() {
-        // Test: EncryptedOutput with HybridMlKem768 scheme + DecryptKey::Symmetric → mismatch error.
-        let encrypted = EncryptedOutput::new(
+        // Hybrid scheme with no hybrid_data is structurally invalid; the
+        // shape guard in `EncryptedOutput::new` rejects it. The
+        // key-scheme-mismatch case is exercised at decrypt time only when
+        // the EncryptedOutput is well-formed.
+        let result = EncryptedOutput::new(
             EncryptionScheme::HybridMlKem768Aes256Gcm,
             vec![1, 2, 3, 4],
             vec![0u8; 12],
@@ -2262,9 +2271,6 @@ mod tests {
             0,
             None,
         );
-        let key = vec![0x42u8; 32];
-        // Symmetric key with hybrid scheme → key-scheme mismatch, must error
-        let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
         assert!(result.is_err());
     }
 
@@ -2777,7 +2783,8 @@ mod tests {
             None,
             0,
             None,
-        );
+        )
+        .expect("symmetric scheme + None hybrid_data is a valid shape");
 
         let result = decrypt(&output, DecryptKey::Symmetric(&key), CryptoConfig::new());
         assert!(result.is_err(), "ChaCha20 should be rejected in FIPS mode");

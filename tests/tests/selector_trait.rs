@@ -21,9 +21,11 @@ use latticearc::unified_api::{
 
 #[test]
 fn test_scheme_selector_select_encryption_scheme_succeeds() {
+    // `hardware_acceleration = false` only succeeds at `Standard`;
+    // higher levels refuse the symmetric-only fallback.
     let engine = CryptoPolicyEngine::new();
     let ctx = CryptoContext {
-        security_level: SecurityLevel::High,
+        security_level: SecurityLevel::Standard,
         performance_preference: PerformancePreference::Balanced,
         use_case: None,
         hardware_acceleration: false,

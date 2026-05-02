@@ -79,11 +79,19 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
 
     fn generate_nonce() -> Nonce {
         let nonce_bytes = ChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let mut result = [0u8; 12];
-        if let Some(src) = nonce_bytes.get(..12) {
-            result.copy_from_slice(src);
-        }
-        result
+        // The chacha20poly1305 crate returns a fixed 12-byte nonce
+        // (`<ChaCha20Poly1305 as KeyInit>::NonceSize` = U12). A
+        // best-effort `if let Some(src) = nonce_bytes.get(..12)` would
+        // silently fall back to all-zero bytes if the slice were ever
+        // shorter — a nonce-reuse vulnerability waiting to happen if
+        // upstream changes the type. Use `try_into` so a shape change
+        // becomes a panic at the call site instead of an undetectable
+        // weak nonce.
+        let bytes: [u8; 12] = nonce_bytes
+            .as_slice()
+            .try_into()
+            .expect("chacha20poly1305::generate_nonce contract: returns 12 bytes");
+        bytes
     }
 
     fn encrypt(

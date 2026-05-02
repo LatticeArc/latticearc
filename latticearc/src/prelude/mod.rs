@@ -36,9 +36,16 @@
 //!   `Result<T> = Result<T, LatticeArcError>` alias for legacy callers; new code
 //!   should use `Result<T, CoreError>` directly).
 //!
-//! Test infrastructure modules (`cavp_compliance`, `formal_verification`, etc.)
-//! remain available via explicit `latticearc::prelude::cavp_compliance` paths
-//! but are NOT glob-imported, since they're not what user code typically wants.
+//! Test infrastructure modules (`cavp_compliance`, `formal_verification`,
+//! `ci_testing_framework`, `memory_safety_testing`,
+//! `property_based_testing`, `side_channel_analysis`) are gated behind
+//! `cfg(any(test, feature = "test-utils"))`. They contain hardcoded
+//! reference vectors, KAT seeds, and validation harnesses that have no
+//! place in a release build of the cryptographic library — shipping them
+//! unconditionally was bloating release artifacts and embedding
+//! non-product code in deployed binaries. Downstream crates that need
+//! these utilities at build-time should opt in via the `test-utils`
+//! Cargo feature.
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
@@ -46,18 +53,24 @@
 #![deny(clippy::panic)]
 
 /// CAVP (Cryptographic Algorithm Validation Program) compliance testing.
+#[cfg(any(test, feature = "test-utils"))]
 pub mod cavp_compliance;
 /// CI/CD testing framework and automation.
+#[cfg(any(test, feature = "test-utils"))]
 pub mod ci_testing_framework;
 /// Comprehensive error handling and recovery systems.
 pub mod error;
 /// Formal verification infrastructure using Kani model checker.
+#[cfg(any(test, feature = "test-utils"))]
 pub mod formal_verification;
 /// Memory safety testing and validation utilities.
+#[cfg(any(test, feature = "test-utils"))]
 pub mod memory_safety_testing;
 /// Property-based testing using proptest framework.
+#[cfg(any(test, feature = "test-utils"))]
 pub mod property_based_testing;
 /// Side-channel timing analysis for cryptographic operations.
+#[cfg(any(test, feature = "test-utils"))]
 pub mod side_channel_analysis;
 
 // Re-export common error types (legacy prelude shape)

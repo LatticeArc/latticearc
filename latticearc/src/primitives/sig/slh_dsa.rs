@@ -310,6 +310,13 @@ impl VerifyingKey {
         signature: &[u8],
         context: &[u8],
     ) -> Result<bool, SlhDsaError> {
+        // SLH-DSA verify hashes the entire message before traversing the
+        // hyper-tree; an attacker who can submit arbitrary bytes through
+        // any verify entry point can force unbounded hashing work. The
+        // bound here mirrors the one in `sign()`.
+        crate::primitives::resource_limits::validate_signature_size(message.len())
+            .map_err(|_e| SlhDsaError::MessageTooLong)?;
+
         let ctx = context;
 
         // Validate context length

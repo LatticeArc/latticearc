@@ -54,22 +54,22 @@ proptest! {
     }
 }
 
-// Property: Error serialization/deserialization round-trip
+// Property: Error serialization is well-formed for outbound logging.
+// Errors are deliberately not deserializable (see LatticeArcError doc).
 #[cfg(test)]
 proptest! {
     #[test]
-    fn prop_error_serialization_roundtrip(error in arb_quantum_shield_error()) {
-        // Serialize to JSON
+    fn prop_error_serialization_well_formed(error in arb_quantum_shield_error()) {
         let json: String = serde_json::to_string(&error)?;
         prop_assert!(!json.is_empty());
 
-        // Deserialize back
-        let deserialized: LatticeArcError = serde_json::from_str(&json)?;
+        // Sanity: re-parsing the JSON as untyped Value must succeed,
+        // confirming the emitted bytes are well-formed JSON.
+        let _value: serde_json::Value = serde_json::from_str(&json)?;
 
-        // Should be equal
-        prop_assert_eq!(error.clone(), deserialized.clone());
-
-        prop_assert_eq!(format!("{}", error), format!("{}", deserialized));
+        // Display impl is independent of serde and must always succeed.
+        let display = format!("{}", error);
+        prop_assert!(!display.is_empty());
     }
 }
 
@@ -267,11 +267,16 @@ mod tests {
     }
 
     #[test]
-    fn test_error_serialization_fails() {
+    fn test_error_serializes_to_well_formed_json() {
         let error = LatticeArcError::InvalidInput("test".to_string());
         let json = serde_json::to_string(&error).unwrap();
-        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
-        assert_eq!(error, deserialized);
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        // Must mention the variant name and the payload string.
+        assert!(json.contains("InvalidInput"));
+        assert!(json.contains("test"));
+        // JSON parses back to a structured value (untyped) — no Deserialize
+        // derive on LatticeArcError itself.
+        assert!(!value.is_null());
     }
 
     #[test]

@@ -32,9 +32,15 @@ use crate::unified_api::zero_trust::SecurityMode;
 
 /// Internal implementation of HKDF key derivation.
 ///
-/// Delegates to `primitives::kdf::hkdf::hkdf()` so all callers benefit from
-/// the same zeroization and hardening (audit H1).
-fn derive_key_hkdf(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>> {
+/// Returns `Zeroizing<Vec<u8>>` so the derived key material is wiped on
+/// drop. The previous `Vec<u8>` return left the caller's copy as plain
+/// heap memory; with `Zeroizing` the wipe happens automatically once the
+/// caller's binding goes out of scope.
+fn derive_key_hkdf(
+    password: &[u8],
+    salt: &[u8],
+    length: usize,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     let result = crate::primitives::kdf::hkdf::hkdf(
         password,
         Some(salt),
@@ -42,22 +48,19 @@ fn derive_key_hkdf(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8
         length,
     )
     .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF failed: {e}")))?;
-    Ok(result.expose_secret().to_vec())
+    Ok(zeroize::Zeroizing::new(result.expose_secret().to_vec()))
 }
 
 /// Internal implementation of HKDF key derivation with caller-supplied info string.
-///
-/// Delegates to `primitives::kdf::hkdf::hkdf()` so all callers benefit from
-/// the same zeroization and hardening (audit H1).
 fn derive_key_hkdf_with_info(
     password: &[u8],
     salt: &[u8],
     length: usize,
     info: &[u8],
-) -> Result<Vec<u8>> {
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     let result = crate::primitives::kdf::hkdf::hkdf(password, Some(salt), Some(info), length)
         .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF failed: {e}")))?;
-    Ok(result.expose_secret().to_vec())
+    Ok(zeroize::Zeroizing::new(result.expose_secret().to_vec()))
 }
 
 /// Internal implementation of key derivation with caller-supplied info string.
@@ -66,7 +69,7 @@ fn derive_key_with_info_internal(
     salt: &[u8],
     length: usize,
     info: &[u8],
-) -> Result<Vec<u8>> {
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     crate::log_crypto_operation_start!(
         "key_derivation_info",
         algorithm = "HKDF-SHA256",
@@ -122,7 +125,11 @@ fn derive_key_with_info_internal(
 }
 
 /// Internal implementation of key derivation.
-fn derive_key_internal(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>> {
+fn derive_key_internal(
+    password: &[u8],
+    salt: &[u8],
+    length: usize,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     crate::log_crypto_operation_start!(
         "key_derivation",
         algorithm = "HKDF-SHA256",
@@ -298,7 +305,12 @@ pub fn hash_data(data: &[u8]) -> [u8; 32] {
 /// - The salt is empty
 /// - The requested length is zero
 /// - The HKDF expansion operation fails
-pub fn derive_key(ikm: &[u8], salt: &[u8], length: usize, mode: SecurityMode) -> Result<Vec<u8>> {
+pub fn derive_key(
+    ikm: &[u8],
+    salt: &[u8],
+    length: usize,
+    mode: SecurityMode,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     mode.validate()?;
     derive_key_internal(ikm, salt, length)
 }
@@ -397,7 +409,7 @@ pub fn derive_key_with_config(
     length: usize,
     config: &CoreConfig,
     mode: SecurityMode,
-) -> Result<Vec<u8>> {
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     mode.validate()?;
     config.validate()?;
     derive_key_internal(password, salt, length)
@@ -471,7 +483,7 @@ pub fn derive_key_with_info(
     length: usize,
     info: &[u8],
     mode: SecurityMode,
-) -> Result<Vec<u8>> {
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     mode.validate()?;
     derive_key_with_info_internal(password, salt, length, info)
 }
@@ -500,7 +512,7 @@ pub fn derive_key_with_info_unverified(
     salt: &[u8],
     length: usize,
     info: &[u8],
-) -> Result<Vec<u8>> {
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     derive_key_with_info(password, salt, length, info, SecurityMode::Unverified)
 }
 
@@ -516,7 +528,11 @@ pub fn derive_key_with_info_unverified(
 /// - The salt is empty
 /// - The requested length is zero
 /// - The HKDF expansion operation fails
-pub fn derive_key_unverified(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>> {
+pub fn derive_key_unverified(
+    password: &[u8],
+    salt: &[u8],
+    length: usize,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     derive_key(password, salt, length, SecurityMode::Unverified)
 }
 
@@ -565,7 +581,7 @@ pub fn derive_key_with_config_unverified(
     salt: &[u8],
     length: usize,
     config: &CoreConfig,
-) -> Result<Vec<u8>> {
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     derive_key_with_config(password, salt, length, config, SecurityMode::Unverified)
 }
 

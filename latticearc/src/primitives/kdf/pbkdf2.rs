@@ -40,7 +40,13 @@ pub struct Pbkdf2Params {
     /// Salt value (minimum 16 bytes recommended)
     /// Consumer: pbkdf2()
     pub salt: Vec<u8>,
-    /// Iteration count (minimum 1000, default 600,000 per OWASP 2023 for HMAC-SHA256)
+    /// Iteration count.
+    ///
+    /// Floor enforced at derivation time, scaled by PRF (OWASP 2023
+    /// Password Storage Cheat Sheet):
+    ///   * `HmacSha256` → [`Pbkdf2Params::MIN_ITERATIONS_SHA256`] (600,000)
+    ///   * `HmacSha512` → [`Pbkdf2Params::MIN_ITERATIONS_SHA512`] (210,000)
+    ///
     /// Consumer: pbkdf2()
     pub iterations: u32,
     /// Desired key length in bytes
@@ -62,6 +68,33 @@ impl Pbkdf2Params {
     /// rather than warn, matching the rest of the v0.8.0 strict-by-default
     /// posture (AEAD `WeakKey`, X25519 low-order rejection, etc.).
     pub const MIN_SALT_LEN: usize = 16;
+
+    /// OWASP 2023 minimum iteration count for PBKDF2-HMAC-SHA256
+    /// (Password Storage Cheat Sheet).
+    ///
+    /// Enforced at [`pbkdf2`] derivation time when
+    /// `params.prf == PrfType::HmacSha256`. Inputs below this floor are
+    /// rejected with [`LatticeArcError::InvalidParameter`]. KAT-vector
+    /// checks that need a lower count must use the test-only
+    /// [`pbkdf2_kat`] entry point.
+    pub const MIN_ITERATIONS_SHA256: u32 = 600_000;
+
+    /// OWASP 2023 minimum iteration count for PBKDF2-HMAC-SHA512
+    /// (Password Storage Cheat Sheet). Lower than the SHA-256 floor
+    /// because each SHA-512 PRF call is roughly 2× the cost.
+    ///
+    /// Enforced at [`pbkdf2`] derivation time when
+    /// `params.prf == PrfType::HmacSha512`.
+    pub const MIN_ITERATIONS_SHA512: u32 = 210_000;
+
+    /// Returns the OWASP 2023 minimum iteration count for the given PRF.
+    #[must_use]
+    pub const fn min_iterations(prf: PrfType) -> u32 {
+        match prf {
+            PrfType::HmacSha256 => Self::MIN_ITERATIONS_SHA256,
+            PrfType::HmacSha512 => Self::MIN_ITERATIONS_SHA512,
+        }
+    }
 
     /// Create PBKDF2 parameters with a securely generated random salt.
     ///
@@ -231,12 +264,50 @@ impl Pbkdf2Result {
 ///
 /// # Security Considerations
 /// - Use at least 16 bytes of random salt
-/// - Use at least 10,000 iterations (higher for better security)
+/// - Iteration count is floored per PRF at OWASP 2023 minimums
+///   (600,000 for HMAC-SHA256, 210,000 for HMAC-SHA512)
 /// - Store salt alongside derived key for password verification
 ///
 /// # Errors
-/// Returns an error if parameters are invalid (empty salt, too few iterations, or zero key length).
+/// Returns an error if parameters are invalid (short salt, all-zero salt,
+/// iteration count below the per-PRF OWASP floor, iteration count above
+/// the 10,000,000 DoS cap, or zero key length).
 pub fn pbkdf2(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
+    pbkdf2_with_floor(password, params, Pbkdf2Params::min_iterations(params.prf))
+}
+
+/// PBKDF2 entry point that bypasses the OWASP iteration floor.
+///
+/// Intended for KAT-vector validation only (NIST/RFC test vectors use
+/// counts as low as 1 or 4096 iterations). The salt-length, all-zero,
+/// DoS cap, and key-length checks remain in force.
+///
+/// # Errors
+/// Returns an error for the same conditions as [`pbkdf2`] except the
+/// per-PRF iteration floor is replaced by an absolute minimum of 1.
+#[cfg(any(test, feature = "test-utils"))]
+#[doc(hidden)]
+pub fn pbkdf2_kat(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
+    pbkdf2_with_floor(password, params, 1)
+}
+
+/// PBKDF2 derivation against an explicit iteration floor.
+///
+/// `pbkdf2()` calls this with the per-PRF OWASP 2023 floor; envelope-load
+/// paths (e.g. [`crate::unified_api::key_format`]) call it with their own
+/// integrity-protected legacy floor so historical keys remain readable.
+/// Test-only [`pbkdf2_kat`] passes `1` to disable the floor entirely.
+///
+/// All other validation (salt length, all-zero salt, DoS cap, key length)
+/// is shared and unconditional.
+///
+/// # Errors
+/// Returns [`LatticeArcError::InvalidParameter`] for any failed check.
+pub(crate) fn pbkdf2_with_floor(
+    password: &[u8],
+    params: &Pbkdf2Params,
+    min_iterations: u32,
+) -> Result<Pbkdf2Result> {
     // Validate parameters per SP 800-132 §5.1: salt MUST be at least 128 bits
     // (16 bytes). Enforced as a hard floor — fail-closed defence in depth,
     // matching the rest of the v0.8.0 strict-by-default posture.
@@ -260,10 +331,11 @@ pub fn pbkdf2(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
         ));
     }
 
-    if params.iterations < 1000 {
-        return Err(LatticeArcError::InvalidParameter(
-            "Iteration count must be at least 1000".to_string(),
-        ));
+    if params.iterations < min_iterations {
+        return Err(LatticeArcError::InvalidParameter(format!(
+            "Iteration count {} below OWASP 2023 minimum of {} for {:?}",
+            params.iterations, min_iterations, params.prf,
+        )));
     }
 
     // Cap iterations to prevent denial-of-service via excessive computation
@@ -390,20 +462,29 @@ pub fn pbkdf2_simple(password: &[u8]) -> Result<Pbkdf2Result> {
     pbkdf2(password, &params)
 }
 
-/// Verify a password against a previously derived key
+/// Verify a password against a previously derived key.
+///
+/// `prf` MUST match the PRF used at derivation time — calling
+/// `verify_password` with the wrong PRF derives different bytes from the
+/// same password and the comparison will (correctly) return `false`,
+/// indistinguishable from a wrong-password rejection. Storing the PRF
+/// alongside the derived key is the caller's responsibility (the
+/// envelope formats in `unified_api::key_format` carry it explicitly;
+/// see also `Pbkdf2Result::params()` for inline retention).
 ///
 /// # Errors
-/// Returns an error if the password derivation fails.
+///
+/// Returns an error if the parameters are invalid (short salt, weak
+/// iterations, etc.); see [`pbkdf2`] for the exhaustive list.
 pub fn verify_password(
     password: &[u8],
     derived_key: &[u8],
     salt: &[u8],
     iterations: u32,
+    prf: PrfType,
 ) -> Result<bool> {
-    let params = Pbkdf2Params::with_salt(salt)
-        .iterations(iterations)
-        .key_length(derived_key.len())
-        .prf(PrfType::HmacSha256);
+    let params =
+        Pbkdf2Params::with_salt(salt).iterations(iterations).key_length(derived_key.len()).prf(prf);
 
     let result = pbkdf2(password, &params)?;
     let len_eq = derived_key.len().ct_eq(&result.key.len());
@@ -420,6 +501,7 @@ use super::get_random_bytes;
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
 #[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
 #[allow(clippy::indexing_slicing)] // Tests use slice indexing for verification
+#[allow(clippy::panic)] // `let Else { ... panic!(...) }` is the canonical error-extraction shape under deny(expect_used)
 mod tests {
     use super::*;
 
@@ -429,11 +511,11 @@ mod tests {
         let salt = b"salt123456789012"; // 16 bytes
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
 
-        let result = pbkdf2(password, &params)?;
+        let result = pbkdf2_kat(password, &params)?;
         assert_eq!(result.key.len(), 32);
 
         // Verify deterministic output
-        let result2 = pbkdf2(password, &params)?;
+        let result2 = pbkdf2_kat(password, &params)?;
         assert_eq!(result.key, result2.key);
 
         Ok(())
@@ -445,8 +527,8 @@ mod tests {
         let salt = b"salt123456789012";
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
 
-        let result1 = pbkdf2(b"password1", &params)?;
-        let result2 = pbkdf2(b"password2", &params)?;
+        let result1 = pbkdf2_kat(b"password1", &params)?;
+        let result2 = pbkdf2_kat(b"password2", &params)?;
 
         assert_ne!(result1.key, result2.key);
         Ok(())
@@ -458,8 +540,8 @@ mod tests {
         let params1 = Pbkdf2Params::with_salt(b"salt123456789012").iterations(1000).key_length(32);
         let params2 = Pbkdf2Params::with_salt(b"salt223456789012").iterations(1000).key_length(32);
 
-        let result1 = pbkdf2(b"password", &params1)?;
-        let result2 = pbkdf2(b"password", &params2)?;
+        let result1 = pbkdf2_kat(b"password", &params1)?;
+        let result2 = pbkdf2_kat(b"password", &params2)?;
 
         assert_ne!(result1.key, result2.key);
         Ok(())
@@ -472,8 +554,8 @@ mod tests {
         let params1 = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
         let params2 = Pbkdf2Params::with_salt(salt).iterations(2000).key_length(32);
 
-        let result1 = pbkdf2(password, &params1).unwrap();
-        let result2 = pbkdf2(password, &params2).unwrap();
+        let result1 = pbkdf2_kat(password, &params1).unwrap();
+        let result2 = pbkdf2_kat(password, &params2).unwrap();
 
         assert_ne!(result1.key, result2.key);
     }
@@ -505,48 +587,104 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_password_function_is_correct() {
-        let password = b"testpass";
+    fn test_verify_password_function_rejects_below_owasp_floor() {
+        // `verify_password()` is the public ergonomic helper around
+        // `pbkdf2()`. Calls below the per-PRF OWASP floor must propagate
+        // the floor error rather than silently derive with weak params.
         let salt = b"1234567890123456"; // 16 bytes
-
-        let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
-
-        let derived = pbkdf2(password, &params).unwrap();
-
-        // Should verify correctly
-        assert!(verify_password(password, &derived.key, salt, 1000).unwrap());
-
-        // Should not verify with wrong password
-        assert!(!verify_password(b"wrongpass", &derived.key, salt, 1000).unwrap());
-
-        // Should not verify with wrong salt (must satisfy NIST SP 800-132
-        // §5.1 minimum of 16 bytes — `verify_password` enforces it).
-        assert!(!verify_password(password, &derived.key, b"wrongsalt1234567", 1000).unwrap());
-
-        // Should not verify with wrong iterations
-        assert!(!verify_password(password, &derived.key, salt, 2000).unwrap());
+        let derived_key = vec![0u8; 32]; // shape only — never reached
+        for weak in [1u32, 1000, 100_000, Pbkdf2Params::MIN_ITERATIONS_SHA256 - 1] {
+            let result =
+                verify_password(b"testpass", &derived_key, salt, weak, PrfType::HmacSha256);
+            assert!(
+                result.is_err(),
+                "verify_password must reject {weak} iterations (below OWASP floor)"
+            );
+        }
     }
 
     #[test]
     fn test_pbkdf2_validation_fails_for_invalid_params_fails() {
         let password = b"pass";
-        let salt = b"salt";
+        let salt = b"salt123456789012"; // 16 bytes for cases that need a valid salt
 
-        // Empty salt should fail
-        let params_empty_salt = Pbkdf2Params::with_salt(b"").iterations(1000).key_length(32);
+        // Empty salt fails the SP 800-132 §5.1 length check.
+        let params_empty_salt = Pbkdf2Params::with_salt(b"").iterations(600_000).key_length(32);
         assert!(pbkdf2(password, &params_empty_salt).is_err());
 
-        // All-zero salt should fail
-        let params_zero_salt = Pbkdf2Params::with_salt(&[0u8; 16]).iterations(1000).key_length(32);
+        // All-zero salt fails the entropy check.
+        let params_zero_salt =
+            Pbkdf2Params::with_salt(&[0u8; 16]).iterations(600_000).key_length(32);
         assert!(pbkdf2(password, &params_zero_salt).is_err());
 
-        // Too few iterations should fail
+        // Iterations below the per-PRF OWASP floor fail.
         let params_low_iter = Pbkdf2Params::with_salt(salt).iterations(500).key_length(32);
         assert!(pbkdf2(password, &params_low_iter).is_err());
 
-        // Zero key length should fail
-        let params_zero_len = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(0);
+        // Zero key length fails.
+        let params_zero_len = Pbkdf2Params::with_salt(salt).iterations(600_000).key_length(0);
         assert!(pbkdf2(password, &params_zero_len).is_err());
+    }
+
+    #[test]
+    fn test_pbkdf2_iteration_floor_sha256() {
+        // At the floor: accepted. One below: rejected.
+        let salt = b"salt123456789012";
+        let at_floor = Pbkdf2Params::with_salt(salt)
+            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA256)
+            .key_length(32)
+            .prf(PrfType::HmacSha256);
+        // We use pbkdf2_kat for the positive boundary check to keep the
+        // test fast; `pbkdf2()` would do the same work but takes ~1s.
+        // The boundary itself (the floor constant) is exercised below.
+        assert!(pbkdf2_kat(b"pw", &at_floor).is_ok());
+
+        let below = Pbkdf2Params::with_salt(salt)
+            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA256 - 1)
+            .key_length(32)
+            .prf(PrfType::HmacSha256);
+        let result = pbkdf2(b"pw", &below);
+        let Err(err) = result else {
+            panic!("below floor must error");
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("OWASP") && msg.contains("HmacSha256"),
+            "error must name OWASP and the PRF, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_pbkdf2_iteration_floor_sha512() {
+        let salt = b"salt123456789012";
+        let below = Pbkdf2Params::with_salt(salt)
+            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA512 - 1)
+            .key_length(64)
+            .prf(PrfType::HmacSha512);
+        let result = pbkdf2(b"pw", &below);
+        let Err(err) = result else {
+            panic!("below floor must error");
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("OWASP") && msg.contains("HmacSha512"),
+            "error must name OWASP and the PRF, got: {msg}"
+        );
+
+        // Sanity: SHA-512 floor is strictly less than SHA-256 floor.
+        const _: () =
+            assert!(Pbkdf2Params::MIN_ITERATIONS_SHA512 < Pbkdf2Params::MIN_ITERATIONS_SHA256);
+    }
+
+    #[test]
+    fn test_pbkdf2_kat_bypasses_owasp_floor() {
+        // KAT entry point must accept counts below the public-API floor —
+        // RFC/NIST PBKDF2 test vectors use 1, 2, or 4096 iterations.
+        let salt = b"salt123456789012";
+        let params = Pbkdf2Params::with_salt(salt).iterations(1).key_length(32);
+        assert!(pbkdf2_kat(b"pw", &params).is_ok());
+        // But the public surface must still reject the same input.
+        assert!(pbkdf2(b"pw", &params).is_err());
     }
 
     #[test]
@@ -562,8 +700,8 @@ mod tests {
             .key_length(64) // Longer key for SHA512
             .prf(PrfType::HmacSha512);
 
-        let result_sha256 = pbkdf2(password, &params_sha256).unwrap();
-        let result_sha512 = pbkdf2(password, &params_sha512).unwrap();
+        let result_sha256 = pbkdf2_kat(password, &params_sha256).unwrap();
+        let result_sha512 = pbkdf2_kat(password, &params_sha512).unwrap();
 
         assert_eq!(result_sha256.key.len(), 32);
         assert_eq!(result_sha512.key.len(), 64);
@@ -580,7 +718,7 @@ mod tests {
 
         // Create result in a block to test drop behavior
         let key_bytes = {
-            let result = pbkdf2(password, &params).unwrap();
+            let result = pbkdf2_kat(password, &params).unwrap();
             let key_copy = result.key.clone();
             // Result should be zeroized when dropped
             drop(result);
@@ -660,7 +798,7 @@ mod tests {
         let salt = b"salt123456789012";
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(64);
 
-        let result = pbkdf2(password, &params).unwrap();
+        let result = pbkdf2_kat(password, &params).unwrap();
         assert_eq!(result.key.len(), 64);
     }
 
@@ -672,7 +810,7 @@ mod tests {
         let params =
             Pbkdf2Params::with_salt(salt).iterations(1000).key_length(128).prf(PrfType::HmacSha512);
 
-        let result = pbkdf2(password, &params).unwrap();
+        let result = pbkdf2_kat(password, &params).unwrap();
         assert_eq!(result.key.len(), 128);
     }
 
@@ -682,7 +820,7 @@ mod tests {
         let salt = b"salt123456789012";
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
 
-        let result = pbkdf2(password, &params).unwrap();
+        let result = pbkdf2_kat(password, &params).unwrap();
         assert_eq!(result.expose_secret(), &result.key[..]);
         assert_eq!(result.expose_secret().len(), 32);
     }

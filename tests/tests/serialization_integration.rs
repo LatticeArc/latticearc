@@ -538,6 +538,7 @@ mod encrypted_output_roundtrip {
         )
             .prop_map(|(ct, nonce, tag, ts, key_id)| {
                 EncryptedOutput::new(EncryptionScheme::Aes256Gcm, ct, nonce, tag, None, ts, key_id)
+                    .expect("Aes256Gcm + None hybrid_data is always a valid shape")
             })
     }
 
@@ -562,6 +563,7 @@ mod encrypted_output_roundtrip {
                     ts,
                     key_id,
                 )
+                .expect("HybridMlKem768Aes256Gcm + populated hybrid_data is a valid shape")
             })
     }
 

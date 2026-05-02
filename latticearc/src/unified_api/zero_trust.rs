@@ -1042,34 +1042,32 @@ impl ZeroTrustAuth {
         // signed only `challenge`, making `(challenge, signature)`
         // pairs replayable indefinitely until session expiry. Replay
         // protection is no longer opt-in.
+        // Every variant binds the public key into the signed transcript
+        // so a verifier holding pk can be sure the proof was produced
+        // *for that pk* and not relayed from a session under a different
+        // identity. Without PK binding, an attacker who captured a
+        // valid (challenge, signature) pair under pk_A could replay it
+        // against a verifier expecting pk_B if the signature happened
+        // to verify under pk_B too (catastrophic if a verifier holds
+        // multiple registered keys). The 1-byte domain tag separates
+        // the three complexity levels so a Low proof cannot satisfy a
+        // Medium or High verifier and vice versa.
         let message_to_sign = match self.config.proof_complexity {
             ProofComplexity::Low => {
-                // Low: challenge + timestamp (replay protection mandatory)
-                let mut msg = challenge.to_vec();
+                let mut msg = vec![0x01];
+                msg.extend_from_slice(challenge);
                 msg.extend_from_slice(&timestamp);
+                msg.extend_from_slice(self.public_key.as_slice());
                 msg
             }
             ProofComplexity::Medium => {
-                // Medium: domain-separated from Low. Round-20 audit fix
-                // #6: previously Medium produced byte-identical signed
-                // messages to Low ("kept for API compatibility"), so a
-                // Low proof verified as Medium and apps gating
-                // privilege on level couldn't tell them apart. We add a
-                // 1-byte domain tag (0x02) at the front so the signed
-                // message differs at the first byte for any non-Low
-                // level. Tag-byte placement mirrors HPKE-style label
-                // prefixing. Verified by
-                // tests/round20_behavior.rs::round20_fix6_low_proof_does_not_verify_as_medium —
-                // that test fails on un-tagged Medium with `Ok(true)`.
                 let mut msg = vec![0x02];
                 msg.extend_from_slice(challenge);
                 msg.extend_from_slice(&timestamp);
+                msg.extend_from_slice(self.public_key.as_slice());
                 msg
             }
             ProofComplexity::High => {
-                // High: domain-separated tag (0x03) + timestamp +
-                // public key binding. Round-20 audit fix #6 also
-                // applies here for symmetry.
                 let mut msg = vec![0x03];
                 msg.extend_from_slice(challenge);
                 msg.extend_from_slice(&timestamp);
@@ -1144,8 +1142,10 @@ impl ZeroTrustAuth {
                     return Ok(false);
                 }
 
-                let mut message = challenge.to_vec();
+                let mut message = vec![0x01];
+                message.extend_from_slice(challenge);
                 message.extend_from_slice(&timestamp_bytes);
+                message.extend_from_slice(self.public_key.as_slice());
                 crate::unified_api::convenience::ed25519::verify_ed25519_internal(
                     &message,
                     signature,
@@ -1192,13 +1192,14 @@ impl ZeroTrustAuth {
                     return Ok(false);
                 }
 
-                // Reconstruct signed message. Round-20 audit fix #6:
-                // Medium prepends a 0x02 domain tag so it is byte-
-                // distinguishable from Low (a Low proof now fails to
-                // verify against a Medium config and vice versa).
+                // Reconstruct signed message. The 0x02 domain tag
+                // distinguishes Medium from Low/High; the public-key
+                // suffix binds the signature to this specific
+                // verifier identity (HPKE-style channel binding).
                 let mut message = vec![0x02];
                 message.extend_from_slice(challenge);
                 message.extend_from_slice(&timestamp_bytes);
+                message.extend_from_slice(self.public_key.as_slice());
 
                 crate::unified_api::convenience::ed25519::verify_ed25519_internal(
                     &message,
