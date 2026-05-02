@@ -340,309 +340,318 @@
 <a href=#340 id=340 data-nosnippet>340</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.sec.json"</span>));
 <a href=#341 id=341 data-nosnippet>341</a>
 <a href=#342 id=342 data-nosnippet>342</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
-<a href=#343 id=343 data-nosnippet>343</a>    </span>keyfile::write_key_protected(
-<a href=#344 id=344 data-nosnippet>344</a>        <span class="kw-2">&amp;</span>sk_path,
-<a href=#345 id=345 data-nosnippet>345</a>        alg,
-<a href=#346 id=346 data-nosnippet>346</a>        KeyType::Secret,
-<a href=#347 id=347 data-nosnippet>347</a>        sk.expose_secret(),
-<a href=#348 id=348 data-nosnippet>348</a>        args.label.clone(),
-<a href=#349 id=349 data-nosnippet>349</a>        passphrase.as_ref().map(|p| p.as_bytes()),
-<a href=#350 id=350 data-nosnippet>350</a>    )<span class="question-mark">?</span>;
-<a href=#351 id=351 data-nosnippet>351</a>    keyfile::write_key(<span class="kw-2">&amp;</span>pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())<span class="question-mark">?</span>;
-<a href=#352 id=352 data-nosnippet>352</a>
-<a href=#353 id=353 data-nosnippet>353</a>    print_keypair_report(alg_name, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
-<a href=#354 id=354 data-nosnippet>354</a>    <span class="prelude-val">Ok</span>(())
-<a href=#355 id=355 data-nosnippet>355</a>}
-<a href=#356 id=356 data-nosnippet>356</a>
-<a href=#357 id=357 data-nosnippet>357</a><span class="kw">fn </span>generate_ml_dsa(
-<a href=#358 id=358 data-nosnippet>358</a>    args: <span class="kw-2">&amp;</span>KeygenArgs,
-<a href=#359 id=359 data-nosnippet>359</a>    param_set: latticearc::primitives::sig::ml_dsa::MlDsaParameterSet,
-<a href=#360 id=360 data-nosnippet>360</a>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#361 id=361 data-nosnippet>361</a>    <span class="kw">let </span>(alg_name, alg) = <span class="kw">match </span>param_set {
-<a href=#362 id=362 data-nosnippet>362</a>        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44 =&gt; {
-<a href=#363 id=363 data-nosnippet>363</a>            (<span class="string">"ml-dsa-44"</span>, KeyAlgorithm::MlDsa44)
-<a href=#364 id=364 data-nosnippet>364</a>        }
-<a href=#365 id=365 data-nosnippet>365</a>        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65 =&gt; {
-<a href=#366 id=366 data-nosnippet>366</a>            (<span class="string">"ml-dsa-65"</span>, KeyAlgorithm::MlDsa65)
-<a href=#367 id=367 data-nosnippet>367</a>        }
-<a href=#368 id=368 data-nosnippet>368</a>        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87 =&gt; {
-<a href=#369 id=369 data-nosnippet>369</a>            (<span class="string">"ml-dsa-87"</span>, KeyAlgorithm::MlDsa87)
-<a href=#370 id=370 data-nosnippet>370</a>        }
-<a href=#371 id=371 data-nosnippet>371</a>        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow::anyhow!</span>(<span class="string">"Unsupported ML-DSA parameter set"</span>)),
-<a href=#372 id=372 data-nosnippet>372</a>    };
-<a href=#373 id=373 data-nosnippet>373</a>
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
-<a href=#375 id=375 data-nosnippet>375</a>    <span class="kw">let </span>(pk, sk) = latticearc::generate_ml_dsa_keypair(param_set)
-<a href=#376 id=376 data-nosnippet>376</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#377 id=377 data-nosnippet>377</a>
-<a href=#378 id=378 data-nosnippet>378</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.pub.json"</span>));
-<a href=#379 id=379 data-nosnippet>379</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.sec.json"</span>));
-<a href=#380 id=380 data-nosnippet>380</a>
-<a href=#381 id=381 data-nosnippet>381</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
-<a href=#382 id=382 data-nosnippet>382</a>    </span>keyfile::write_key_protected(
-<a href=#383 id=383 data-nosnippet>383</a>        <span class="kw-2">&amp;</span>sk_path,
-<a href=#384 id=384 data-nosnippet>384</a>        alg,
-<a href=#385 id=385 data-nosnippet>385</a>        KeyType::Secret,
-<a href=#386 id=386 data-nosnippet>386</a>        sk.expose_secret(),
-<a href=#387 id=387 data-nosnippet>387</a>        args.label.clone(),
-<a href=#388 id=388 data-nosnippet>388</a>        passphrase.as_ref().map(|p| p.as_bytes()),
-<a href=#389 id=389 data-nosnippet>389</a>    )<span class="question-mark">?</span>;
-<a href=#390 id=390 data-nosnippet>390</a>    keyfile::write_key(<span class="kw-2">&amp;</span>pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())<span class="question-mark">?</span>;
-<a href=#391 id=391 data-nosnippet>391</a>
-<a href=#392 id=392 data-nosnippet>392</a>    print_keypair_report(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{alg_name} signing"</span>), <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
-<a href=#393 id=393 data-nosnippet>393</a>    <span class="prelude-val">Ok</span>(())
-<a href=#394 id=394 data-nosnippet>394</a>}
-<a href=#395 id=395 data-nosnippet>395</a>
-<a href=#396 id=396 data-nosnippet>396</a><span class="kw">fn </span>generate_slh_dsa(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#397 id=397 data-nosnippet>397</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
-<a href=#398 id=398 data-nosnippet>398</a>    <span class="kw">let </span>level = latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s;
-<a href=#399 id=399 data-nosnippet>399</a>    <span class="kw">let </span>(pk, sk) = latticearc::generate_slh_dsa_keypair(level)
-<a href=#400 id=400 data-nosnippet>400</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#401 id=401 data-nosnippet>401</a>
-<a href=#402 id=402 data-nosnippet>402</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"slh-dsa-shake-128s.pub.json"</span>);
-<a href=#403 id=403 data-nosnippet>403</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"slh-dsa-shake-128s.sec.json"</span>);
+<a href=#343 id=343 data-nosnippet>343</a>    //
+<a href=#344 id=344 data-nosnippet>344</a>    // The PQ-only decryption path requires the recipient's ML-KEM
+<a href=#345 id=345 data-nosnippet>345</a>    // public key at HKDF-info construction time (HPKE / RFC 9180 §5.1
+<a href=#346 id=346 data-nosnippet>346</a>    // channel binding). Bundle the PK into the SK file's metadata so
+<a href=#347 id=347 data-nosnippet>347</a>    // the decryption path is self-contained — it never needs to
+<a href=#348 id=348 data-nosnippet>348</a>    // re-load the `.pub.json` separately. This mirrors the hybrid-KEM
+<a href=#349 id=349 data-nosnippet>349</a>    // bundling pattern in `key_format::from_hybrid_keypair`.
+<a href=#350 id=350 data-nosnippet>350</a>    </span><span class="kw">let </span>pk_b64 = base64::Engine::encode(<span class="kw-2">&amp;</span>base64::engine::general_purpose::STANDARD, pk.as_ref());
+<a href=#351 id=351 data-nosnippet>351</a>    keyfile::write_key_protected_with_metadata(
+<a href=#352 id=352 data-nosnippet>352</a>        <span class="kw-2">&amp;</span>sk_path,
+<a href=#353 id=353 data-nosnippet>353</a>        alg,
+<a href=#354 id=354 data-nosnippet>354</a>        KeyType::Secret,
+<a href=#355 id=355 data-nosnippet>355</a>        sk.expose_secret(),
+<a href=#356 id=356 data-nosnippet>356</a>        args.label.clone(),
+<a href=#357 id=357 data-nosnippet>357</a>        <span class="kw-2">&amp;</span>[(<span class="string">"ml_kem_pk"</span>, serde_json::Value::String(pk_b64))],
+<a href=#358 id=358 data-nosnippet>358</a>        passphrase.as_ref().map(|p| p.as_bytes()),
+<a href=#359 id=359 data-nosnippet>359</a>    )<span class="question-mark">?</span>;
+<a href=#360 id=360 data-nosnippet>360</a>    keyfile::write_key(<span class="kw-2">&amp;</span>pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())<span class="question-mark">?</span>;
+<a href=#361 id=361 data-nosnippet>361</a>
+<a href=#362 id=362 data-nosnippet>362</a>    print_keypair_report(alg_name, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
+<a href=#363 id=363 data-nosnippet>363</a>    <span class="prelude-val">Ok</span>(())
+<a href=#364 id=364 data-nosnippet>364</a>}
+<a href=#365 id=365 data-nosnippet>365</a>
+<a href=#366 id=366 data-nosnippet>366</a><span class="kw">fn </span>generate_ml_dsa(
+<a href=#367 id=367 data-nosnippet>367</a>    args: <span class="kw-2">&amp;</span>KeygenArgs,
+<a href=#368 id=368 data-nosnippet>368</a>    param_set: latticearc::primitives::sig::ml_dsa::MlDsaParameterSet,
+<a href=#369 id=369 data-nosnippet>369</a>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#370 id=370 data-nosnippet>370</a>    <span class="kw">let </span>(alg_name, alg) = <span class="kw">match </span>param_set {
+<a href=#371 id=371 data-nosnippet>371</a>        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44 =&gt; {
+<a href=#372 id=372 data-nosnippet>372</a>            (<span class="string">"ml-dsa-44"</span>, KeyAlgorithm::MlDsa44)
+<a href=#373 id=373 data-nosnippet>373</a>        }
+<a href=#374 id=374 data-nosnippet>374</a>        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65 =&gt; {
+<a href=#375 id=375 data-nosnippet>375</a>            (<span class="string">"ml-dsa-65"</span>, KeyAlgorithm::MlDsa65)
+<a href=#376 id=376 data-nosnippet>376</a>        }
+<a href=#377 id=377 data-nosnippet>377</a>        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87 =&gt; {
+<a href=#378 id=378 data-nosnippet>378</a>            (<span class="string">"ml-dsa-87"</span>, KeyAlgorithm::MlDsa87)
+<a href=#379 id=379 data-nosnippet>379</a>        }
+<a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow::anyhow!</span>(<span class="string">"Unsupported ML-DSA parameter set"</span>)),
+<a href=#381 id=381 data-nosnippet>381</a>    };
+<a href=#382 id=382 data-nosnippet>382</a>
+<a href=#383 id=383 data-nosnippet>383</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
+<a href=#384 id=384 data-nosnippet>384</a>    <span class="kw">let </span>(pk, sk) = latticearc::generate_ml_dsa_keypair(param_set)
+<a href=#385 id=385 data-nosnippet>385</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#386 id=386 data-nosnippet>386</a>
+<a href=#387 id=387 data-nosnippet>387</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.pub.json"</span>));
+<a href=#388 id=388 data-nosnippet>388</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.sec.json"</span>));
+<a href=#389 id=389 data-nosnippet>389</a>
+<a href=#390 id=390 data-nosnippet>390</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#391 id=391 data-nosnippet>391</a>    </span>keyfile::write_key_protected(
+<a href=#392 id=392 data-nosnippet>392</a>        <span class="kw-2">&amp;</span>sk_path,
+<a href=#393 id=393 data-nosnippet>393</a>        alg,
+<a href=#394 id=394 data-nosnippet>394</a>        KeyType::Secret,
+<a href=#395 id=395 data-nosnippet>395</a>        sk.expose_secret(),
+<a href=#396 id=396 data-nosnippet>396</a>        args.label.clone(),
+<a href=#397 id=397 data-nosnippet>397</a>        passphrase.as_ref().map(|p| p.as_bytes()),
+<a href=#398 id=398 data-nosnippet>398</a>    )<span class="question-mark">?</span>;
+<a href=#399 id=399 data-nosnippet>399</a>    keyfile::write_key(<span class="kw-2">&amp;</span>pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())<span class="question-mark">?</span>;
+<a href=#400 id=400 data-nosnippet>400</a>
+<a href=#401 id=401 data-nosnippet>401</a>    print_keypair_report(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{alg_name} signing"</span>), <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
+<a href=#402 id=402 data-nosnippet>402</a>    <span class="prelude-val">Ok</span>(())
+<a href=#403 id=403 data-nosnippet>403</a>}
 <a href=#404 id=404 data-nosnippet>404</a>
-<a href=#405 id=405 data-nosnippet>405</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
-<a href=#406 id=406 data-nosnippet>406</a>    </span>keyfile::write_key_protected(
-<a href=#407 id=407 data-nosnippet>407</a>        <span class="kw-2">&amp;</span>sk_path,
-<a href=#408 id=408 data-nosnippet>408</a>        KeyAlgorithm::SlhDsaShake128s,
-<a href=#409 id=409 data-nosnippet>409</a>        KeyType::Secret,
-<a href=#410 id=410 data-nosnippet>410</a>        sk.expose_secret(),
-<a href=#411 id=411 data-nosnippet>411</a>        args.label.clone(),
-<a href=#412 id=412 data-nosnippet>412</a>        passphrase.as_ref().map(|p| p.as_bytes()),
-<a href=#413 id=413 data-nosnippet>413</a>    )<span class="question-mark">?</span>;
-<a href=#414 id=414 data-nosnippet>414</a>    keyfile::write_key(
-<a href=#415 id=415 data-nosnippet>415</a>        <span class="kw-2">&amp;</span>pk_path,
-<a href=#416 id=416 data-nosnippet>416</a>        KeyAlgorithm::SlhDsaShake128s,
-<a href=#417 id=417 data-nosnippet>417</a>        KeyType::Public,
-<a href=#418 id=418 data-nosnippet>418</a>        pk.as_ref(),
-<a href=#419 id=419 data-nosnippet>419</a>        args.label.clone(),
-<a href=#420 id=420 data-nosnippet>420</a>    )<span class="question-mark">?</span>;
-<a href=#421 id=421 data-nosnippet>421</a>
-<a href=#422 id=422 data-nosnippet>422</a>    print_keypair_report(<span class="string">"SLH-DSA-SHAKE-128s signing"</span>, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
-<a href=#423 id=423 data-nosnippet>423</a>    <span class="prelude-val">Ok</span>(())
-<a href=#424 id=424 data-nosnippet>424</a>}
-<a href=#425 id=425 data-nosnippet>425</a>
-<a href=#426 id=426 data-nosnippet>426</a><span class="kw">fn </span>generate_fn_dsa(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#427 id=427 data-nosnippet>427</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
-<a href=#428 id=428 data-nosnippet>428</a>    <span class="kw">let </span>(pk, sk) =
-<a href=#429 id=429 data-nosnippet>429</a>        latticearc::generate_fn_dsa_keypair().map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#405 id=405 data-nosnippet>405</a><span class="kw">fn </span>generate_slh_dsa(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#406 id=406 data-nosnippet>406</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
+<a href=#407 id=407 data-nosnippet>407</a>    <span class="kw">let </span>level = latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s;
+<a href=#408 id=408 data-nosnippet>408</a>    <span class="kw">let </span>(pk, sk) = latticearc::generate_slh_dsa_keypair(level)
+<a href=#409 id=409 data-nosnippet>409</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#410 id=410 data-nosnippet>410</a>
+<a href=#411 id=411 data-nosnippet>411</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"slh-dsa-shake-128s.pub.json"</span>);
+<a href=#412 id=412 data-nosnippet>412</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"slh-dsa-shake-128s.sec.json"</span>);
+<a href=#413 id=413 data-nosnippet>413</a>
+<a href=#414 id=414 data-nosnippet>414</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#415 id=415 data-nosnippet>415</a>    </span>keyfile::write_key_protected(
+<a href=#416 id=416 data-nosnippet>416</a>        <span class="kw-2">&amp;</span>sk_path,
+<a href=#417 id=417 data-nosnippet>417</a>        KeyAlgorithm::SlhDsaShake128s,
+<a href=#418 id=418 data-nosnippet>418</a>        KeyType::Secret,
+<a href=#419 id=419 data-nosnippet>419</a>        sk.expose_secret(),
+<a href=#420 id=420 data-nosnippet>420</a>        args.label.clone(),
+<a href=#421 id=421 data-nosnippet>421</a>        passphrase.as_ref().map(|p| p.as_bytes()),
+<a href=#422 id=422 data-nosnippet>422</a>    )<span class="question-mark">?</span>;
+<a href=#423 id=423 data-nosnippet>423</a>    keyfile::write_key(
+<a href=#424 id=424 data-nosnippet>424</a>        <span class="kw-2">&amp;</span>pk_path,
+<a href=#425 id=425 data-nosnippet>425</a>        KeyAlgorithm::SlhDsaShake128s,
+<a href=#426 id=426 data-nosnippet>426</a>        KeyType::Public,
+<a href=#427 id=427 data-nosnippet>427</a>        pk.as_ref(),
+<a href=#428 id=428 data-nosnippet>428</a>        args.label.clone(),
+<a href=#429 id=429 data-nosnippet>429</a>    )<span class="question-mark">?</span>;
 <a href=#430 id=430 data-nosnippet>430</a>
-<a href=#431 id=431 data-nosnippet>431</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"fn-dsa-512.pub.json"</span>);
-<a href=#432 id=432 data-nosnippet>432</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"fn-dsa-512.sec.json"</span>);
-<a href=#433 id=433 data-nosnippet>433</a>
-<a href=#434 id=434 data-nosnippet>434</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
-<a href=#435 id=435 data-nosnippet>435</a>    </span>keyfile::write_key_protected(
-<a href=#436 id=436 data-nosnippet>436</a>        <span class="kw-2">&amp;</span>sk_path,
-<a href=#437 id=437 data-nosnippet>437</a>        KeyAlgorithm::FnDsa512,
-<a href=#438 id=438 data-nosnippet>438</a>        KeyType::Secret,
-<a href=#439 id=439 data-nosnippet>439</a>        sk.expose_secret(),
-<a href=#440 id=440 data-nosnippet>440</a>        args.label.clone(),
-<a href=#441 id=441 data-nosnippet>441</a>        passphrase.as_ref().map(|p| p.as_bytes()),
-<a href=#442 id=442 data-nosnippet>442</a>    )<span class="question-mark">?</span>;
-<a href=#443 id=443 data-nosnippet>443</a>    keyfile::write_key(
-<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw-2">&amp;</span>pk_path,
-<a href=#445 id=445 data-nosnippet>445</a>        KeyAlgorithm::FnDsa512,
-<a href=#446 id=446 data-nosnippet>446</a>        KeyType::Public,
-<a href=#447 id=447 data-nosnippet>447</a>        pk.as_ref(),
-<a href=#448 id=448 data-nosnippet>448</a>        args.label.clone(),
-<a href=#449 id=449 data-nosnippet>449</a>    )<span class="question-mark">?</span>;
-<a href=#450 id=450 data-nosnippet>450</a>
-<a href=#451 id=451 data-nosnippet>451</a>    print_keypair_report(<span class="string">"FN-DSA-512 signing"</span>, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
-<a href=#452 id=452 data-nosnippet>452</a>    <span class="prelude-val">Ok</span>(())
-<a href=#453 id=453 data-nosnippet>453</a>}
-<a href=#454 id=454 data-nosnippet>454</a>
-<a href=#455 id=455 data-nosnippet>455</a><span class="kw">fn </span>generate_ed25519(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#456 id=456 data-nosnippet>456</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
-<a href=#457 id=457 data-nosnippet>457</a>    <span class="kw">let </span>(pk, sk) =
-<a href=#458 id=458 data-nosnippet>458</a>        latticearc::generate_keypair().map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#431 id=431 data-nosnippet>431</a>    print_keypair_report(<span class="string">"SLH-DSA-SHAKE-128s signing"</span>, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
+<a href=#432 id=432 data-nosnippet>432</a>    <span class="prelude-val">Ok</span>(())
+<a href=#433 id=433 data-nosnippet>433</a>}
+<a href=#434 id=434 data-nosnippet>434</a>
+<a href=#435 id=435 data-nosnippet>435</a><span class="kw">fn </span>generate_fn_dsa(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#436 id=436 data-nosnippet>436</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
+<a href=#437 id=437 data-nosnippet>437</a>    <span class="kw">let </span>(pk, sk) =
+<a href=#438 id=438 data-nosnippet>438</a>        latticearc::generate_fn_dsa_keypair().map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#439 id=439 data-nosnippet>439</a>
+<a href=#440 id=440 data-nosnippet>440</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"fn-dsa-512.pub.json"</span>);
+<a href=#441 id=441 data-nosnippet>441</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"fn-dsa-512.sec.json"</span>);
+<a href=#442 id=442 data-nosnippet>442</a>
+<a href=#443 id=443 data-nosnippet>443</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#444 id=444 data-nosnippet>444</a>    </span>keyfile::write_key_protected(
+<a href=#445 id=445 data-nosnippet>445</a>        <span class="kw-2">&amp;</span>sk_path,
+<a href=#446 id=446 data-nosnippet>446</a>        KeyAlgorithm::FnDsa512,
+<a href=#447 id=447 data-nosnippet>447</a>        KeyType::Secret,
+<a href=#448 id=448 data-nosnippet>448</a>        sk.expose_secret(),
+<a href=#449 id=449 data-nosnippet>449</a>        args.label.clone(),
+<a href=#450 id=450 data-nosnippet>450</a>        passphrase.as_ref().map(|p| p.as_bytes()),
+<a href=#451 id=451 data-nosnippet>451</a>    )<span class="question-mark">?</span>;
+<a href=#452 id=452 data-nosnippet>452</a>    keyfile::write_key(
+<a href=#453 id=453 data-nosnippet>453</a>        <span class="kw-2">&amp;</span>pk_path,
+<a href=#454 id=454 data-nosnippet>454</a>        KeyAlgorithm::FnDsa512,
+<a href=#455 id=455 data-nosnippet>455</a>        KeyType::Public,
+<a href=#456 id=456 data-nosnippet>456</a>        pk.as_ref(),
+<a href=#457 id=457 data-nosnippet>457</a>        args.label.clone(),
+<a href=#458 id=458 data-nosnippet>458</a>    )<span class="question-mark">?</span>;
 <a href=#459 id=459 data-nosnippet>459</a>
-<a href=#460 id=460 data-nosnippet>460</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"ed25519.pub.json"</span>);
-<a href=#461 id=461 data-nosnippet>461</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"ed25519.sec.json"</span>);
-<a href=#462 id=462 data-nosnippet>462</a>
-<a href=#463 id=463 data-nosnippet>463</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
-<a href=#464 id=464 data-nosnippet>464</a>    </span>keyfile::write_key_protected(
-<a href=#465 id=465 data-nosnippet>465</a>        <span class="kw-2">&amp;</span>sk_path,
-<a href=#466 id=466 data-nosnippet>466</a>        KeyAlgorithm::Ed25519,
-<a href=#467 id=467 data-nosnippet>467</a>        KeyType::Secret,
-<a href=#468 id=468 data-nosnippet>468</a>        sk.expose_secret(),
-<a href=#469 id=469 data-nosnippet>469</a>        args.label.clone(),
-<a href=#470 id=470 data-nosnippet>470</a>        passphrase.as_ref().map(|p| p.as_bytes()),
-<a href=#471 id=471 data-nosnippet>471</a>    )<span class="question-mark">?</span>;
-<a href=#472 id=472 data-nosnippet>472</a>    keyfile::write_key(
-<a href=#473 id=473 data-nosnippet>473</a>        <span class="kw-2">&amp;</span>pk_path,
-<a href=#474 id=474 data-nosnippet>474</a>        KeyAlgorithm::Ed25519,
-<a href=#475 id=475 data-nosnippet>475</a>        KeyType::Public,
-<a href=#476 id=476 data-nosnippet>476</a>        pk.as_ref(),
-<a href=#477 id=477 data-nosnippet>477</a>        args.label.clone(),
-<a href=#478 id=478 data-nosnippet>478</a>    )<span class="question-mark">?</span>;
-<a href=#479 id=479 data-nosnippet>479</a>
-<a href=#480 id=480 data-nosnippet>480</a>    print_keypair_report(<span class="string">"Ed25519 signing"</span>, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
-<a href=#481 id=481 data-nosnippet>481</a>    <span class="prelude-val">Ok</span>(())
-<a href=#482 id=482 data-nosnippet>482</a>}
-<a href=#483 id=483 data-nosnippet>483</a>
-<a href=#484 id=484 data-nosnippet>484</a><span class="kw">fn </span>generate_hybrid_kem(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#485 id=485 data-nosnippet>485</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
-<a href=#486 id=486 data-nosnippet>486</a>    <span class="kw">let </span>(pk, sk) =
-<a href=#487 id=487 data-nosnippet>487</a>        latticearc::generate_hybrid_keypair().map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#460 id=460 data-nosnippet>460</a>    print_keypair_report(<span class="string">"FN-DSA-512 signing"</span>, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
+<a href=#461 id=461 data-nosnippet>461</a>    <span class="prelude-val">Ok</span>(())
+<a href=#462 id=462 data-nosnippet>462</a>}
+<a href=#463 id=463 data-nosnippet>463</a>
+<a href=#464 id=464 data-nosnippet>464</a><span class="kw">fn </span>generate_ed25519(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#465 id=465 data-nosnippet>465</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
+<a href=#466 id=466 data-nosnippet>466</a>    <span class="kw">let </span>(pk, sk) =
+<a href=#467 id=467 data-nosnippet>467</a>        latticearc::generate_keypair().map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#468 id=468 data-nosnippet>468</a>
+<a href=#469 id=469 data-nosnippet>469</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"ed25519.pub.json"</span>);
+<a href=#470 id=470 data-nosnippet>470</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"ed25519.sec.json"</span>);
+<a href=#471 id=471 data-nosnippet>471</a>
+<a href=#472 id=472 data-nosnippet>472</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#473 id=473 data-nosnippet>473</a>    </span>keyfile::write_key_protected(
+<a href=#474 id=474 data-nosnippet>474</a>        <span class="kw-2">&amp;</span>sk_path,
+<a href=#475 id=475 data-nosnippet>475</a>        KeyAlgorithm::Ed25519,
+<a href=#476 id=476 data-nosnippet>476</a>        KeyType::Secret,
+<a href=#477 id=477 data-nosnippet>477</a>        sk.expose_secret(),
+<a href=#478 id=478 data-nosnippet>478</a>        args.label.clone(),
+<a href=#479 id=479 data-nosnippet>479</a>        passphrase.as_ref().map(|p| p.as_bytes()),
+<a href=#480 id=480 data-nosnippet>480</a>    )<span class="question-mark">?</span>;
+<a href=#481 id=481 data-nosnippet>481</a>    keyfile::write_key(
+<a href=#482 id=482 data-nosnippet>482</a>        <span class="kw-2">&amp;</span>pk_path,
+<a href=#483 id=483 data-nosnippet>483</a>        KeyAlgorithm::Ed25519,
+<a href=#484 id=484 data-nosnippet>484</a>        KeyType::Public,
+<a href=#485 id=485 data-nosnippet>485</a>        pk.as_ref(),
+<a href=#486 id=486 data-nosnippet>486</a>        args.label.clone(),
+<a href=#487 id=487 data-nosnippet>487</a>    )<span class="question-mark">?</span>;
 <a href=#488 id=488 data-nosnippet>488</a>
-<a href=#489 id=489 data-nosnippet>489</a>    <span class="comment">// Use PortableKey composite format — no more bespoke length-prefix encoding
-<a href=#490 id=490 data-nosnippet>490</a>    </span><span class="kw">let </span>(portable_pk, <span class="kw-2">mut </span>portable_sk) = latticearc::PortableKey::from_hybrid_kem_keypair(
-<a href=#491 id=491 data-nosnippet>491</a>        latticearc::types::types::UseCase::SecureMessaging,
-<a href=#492 id=492 data-nosnippet>492</a>        <span class="kw-2">&amp;</span>pk,
-<a href=#493 id=493 data-nosnippet>493</a>        <span class="kw-2">&amp;</span>sk,
-<a href=#494 id=494 data-nosnippet>494</a>    )
-<a href=#495 id=495 data-nosnippet>495</a>    .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Key export failed: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#496 id=496 data-nosnippet>496</a>
-<a href=#497 id=497 data-nosnippet>497</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(pp) = passphrase.as_ref() {
-<a href=#498 id=498 data-nosnippet>498</a>        portable_sk
-<a href=#499 id=499 data-nosnippet>499</a>            .encrypt_with_passphrase(pp.as_bytes())
-<a href=#500 id=500 data-nosnippet>500</a>            .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Failed to encrypt secret key: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#501 id=501 data-nosnippet>501</a>    }
-<a href=#502 id=502 data-nosnippet>502</a>
-<a href=#503 id=503 data-nosnippet>503</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"hybrid-kem.pub.json"</span>);
-<a href=#504 id=504 data-nosnippet>504</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"hybrid-kem.sec.json"</span>);
+<a href=#489 id=489 data-nosnippet>489</a>    print_keypair_report(<span class="string">"Ed25519 signing"</span>, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
+<a href=#490 id=490 data-nosnippet>490</a>    <span class="prelude-val">Ok</span>(())
+<a href=#491 id=491 data-nosnippet>491</a>}
+<a href=#492 id=492 data-nosnippet>492</a>
+<a href=#493 id=493 data-nosnippet>493</a><span class="kw">fn </span>generate_hybrid_kem(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#494 id=494 data-nosnippet>494</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
+<a href=#495 id=495 data-nosnippet>495</a>    <span class="kw">let </span>(pk, sk) =
+<a href=#496 id=496 data-nosnippet>496</a>        latticearc::generate_hybrid_keypair().map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#497 id=497 data-nosnippet>497</a>
+<a href=#498 id=498 data-nosnippet>498</a>    <span class="comment">// Use PortableKey composite format — no more bespoke length-prefix encoding
+<a href=#499 id=499 data-nosnippet>499</a>    </span><span class="kw">let </span>(portable_pk, <span class="kw-2">mut </span>portable_sk) = latticearc::PortableKey::from_hybrid_kem_keypair(
+<a href=#500 id=500 data-nosnippet>500</a>        latticearc::types::types::UseCase::SecureMessaging,
+<a href=#501 id=501 data-nosnippet>501</a>        <span class="kw-2">&amp;</span>pk,
+<a href=#502 id=502 data-nosnippet>502</a>        <span class="kw-2">&amp;</span>sk,
+<a href=#503 id=503 data-nosnippet>503</a>    )
+<a href=#504 id=504 data-nosnippet>504</a>    .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Key export failed: {e}"</span>))<span class="question-mark">?</span>;
 <a href=#505 id=505 data-nosnippet>505</a>
-<a href=#506 id=506 data-nosnippet>506</a>    <span class="comment">// SK first — see fix #4 explanation in `generate_signing` above.
-<a href=#507 id=507 data-nosnippet>507</a>    </span>portable_sk.write_to_file(<span class="kw-2">&amp;</span>sk_path).map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Write SK: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#508 id=508 data-nosnippet>508</a>    portable_pk.write_to_file(<span class="kw-2">&amp;</span>pk_path).map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Write PK: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#509 id=509 data-nosnippet>509</a>
-<a href=#510 id=510 data-nosnippet>510</a>    print_keypair_report(<span class="string">"Hybrid ML-KEM-768 + X25519"</span>, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
-<a href=#511 id=511 data-nosnippet>511</a>    <span class="prelude-val">Ok</span>(())
-<a href=#512 id=512 data-nosnippet>512</a>}
-<a href=#513 id=513 data-nosnippet>513</a>
-<a href=#514 id=514 data-nosnippet>514</a><span class="kw">fn </span>generate_hybrid_sign(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#515 id=515 data-nosnippet>515</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
-<a href=#516 id=516 data-nosnippet>516</a>    <span class="kw">let </span>(pk, sk) =
-<a href=#517 id=517 data-nosnippet>517</a>        latticearc::generate_hybrid_signing_keypair(latticearc::SecurityMode::Unverified)
-<a href=#518 id=518 data-nosnippet>518</a>            .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#519 id=519 data-nosnippet>519</a>
-<a href=#520 id=520 data-nosnippet>520</a>    <span class="comment">// Use PortableKey composite format — no more bespoke length-prefix encoding
-<a href=#521 id=521 data-nosnippet>521</a>    </span><span class="kw">let </span>pk_path = args.output.join(<span class="string">"hybrid-sign.pub.json"</span>);
-<a href=#522 id=522 data-nosnippet>522</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"hybrid-sign.sec.json"</span>);
-<a href=#523 id=523 data-nosnippet>523</a>
-<a href=#524 id=524 data-nosnippet>524</a>    <span class="comment">// SK first — round-9 audit fix #1 (extending round-8 fix #4 to the
-<a href=#525 id=525 data-nosnippet>525</a>    // 4th keygen site that was missed). SK-write failure no longer
-<a href=#526 id=526 data-nosnippet>526</a>    // orphans a PK on disk that retry would refuse-to-overwrite.
-<a href=#527 id=527 data-nosnippet>527</a>    </span>keyfile::write_composite_key_protected(
-<a href=#528 id=528 data-nosnippet>528</a>        <span class="kw-2">&amp;</span>sk_path,
-<a href=#529 id=529 data-nosnippet>529</a>        KeyAlgorithm::HybridMlDsa65Ed25519,
-<a href=#530 id=530 data-nosnippet>530</a>        KeyType::Secret,
-<a href=#531 id=531 data-nosnippet>531</a>        sk.expose_ml_dsa_secret(),
-<a href=#532 id=532 data-nosnippet>532</a>        sk.expose_ed25519_secret(),
-<a href=#533 id=533 data-nosnippet>533</a>        args.label.clone(),
-<a href=#534 id=534 data-nosnippet>534</a>        passphrase.as_ref().map(|p| p.as_bytes()),
-<a href=#535 id=535 data-nosnippet>535</a>    )<span class="question-mark">?</span>;
-<a href=#536 id=536 data-nosnippet>536</a>    keyfile::write_composite_key(
-<a href=#537 id=537 data-nosnippet>537</a>        <span class="kw-2">&amp;</span>pk_path,
+<a href=#506 id=506 data-nosnippet>506</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(pp) = passphrase.as_ref() {
+<a href=#507 id=507 data-nosnippet>507</a>        portable_sk
+<a href=#508 id=508 data-nosnippet>508</a>            .encrypt_with_passphrase(pp.as_bytes())
+<a href=#509 id=509 data-nosnippet>509</a>            .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Failed to encrypt secret key: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#510 id=510 data-nosnippet>510</a>    }
+<a href=#511 id=511 data-nosnippet>511</a>
+<a href=#512 id=512 data-nosnippet>512</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"hybrid-kem.pub.json"</span>);
+<a href=#513 id=513 data-nosnippet>513</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"hybrid-kem.sec.json"</span>);
+<a href=#514 id=514 data-nosnippet>514</a>
+<a href=#515 id=515 data-nosnippet>515</a>    <span class="comment">// SK first — see fix #4 explanation in `generate_signing` above.
+<a href=#516 id=516 data-nosnippet>516</a>    </span>portable_sk.write_to_file(<span class="kw-2">&amp;</span>sk_path).map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Write SK: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#517 id=517 data-nosnippet>517</a>    portable_pk.write_to_file(<span class="kw-2">&amp;</span>pk_path).map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Write PK: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#518 id=518 data-nosnippet>518</a>
+<a href=#519 id=519 data-nosnippet>519</a>    print_keypair_report(<span class="string">"Hybrid ML-KEM-768 + X25519"</span>, <span class="kw-2">&amp;</span>pk_path, <span class="kw-2">&amp;</span>sk_path, passphrase.is_some());
+<a href=#520 id=520 data-nosnippet>520</a>    <span class="prelude-val">Ok</span>(())
+<a href=#521 id=521 data-nosnippet>521</a>}
+<a href=#522 id=522 data-nosnippet>522</a>
+<a href=#523 id=523 data-nosnippet>523</a><span class="kw">fn </span>generate_hybrid_sign(args: <span class="kw-2">&amp;</span>KeygenArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#524 id=524 data-nosnippet>524</a>    <span class="kw">let </span>passphrase = resolve_keygen_passphrase(args)<span class="question-mark">?</span>;
+<a href=#525 id=525 data-nosnippet>525</a>    <span class="kw">let </span>(pk, sk) =
+<a href=#526 id=526 data-nosnippet>526</a>        latticearc::generate_hybrid_signing_keypair(latticearc::SecurityMode::Unverified)
+<a href=#527 id=527 data-nosnippet>527</a>            .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Keygen failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#528 id=528 data-nosnippet>528</a>
+<a href=#529 id=529 data-nosnippet>529</a>    <span class="comment">// Use PortableKey composite format — no more bespoke length-prefix encoding
+<a href=#530 id=530 data-nosnippet>530</a>    </span><span class="kw">let </span>pk_path = args.output.join(<span class="string">"hybrid-sign.pub.json"</span>);
+<a href=#531 id=531 data-nosnippet>531</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"hybrid-sign.sec.json"</span>);
+<a href=#532 id=532 data-nosnippet>532</a>
+<a href=#533 id=533 data-nosnippet>533</a>    <span class="comment">// SK first — round-9 audit fix #1 (extending round-8 fix #4 to the
+<a href=#534 id=534 data-nosnippet>534</a>    // 4th keygen site that was missed). SK-write failure no longer
+<a href=#535 id=535 data-nosnippet>535</a>    // orphans a PK on disk that retry would refuse-to-overwrite.
+<a href=#536 id=536 data-nosnippet>536</a>    </span>keyfile::write_composite_key_protected(
+<a href=#537 id=537 data-nosnippet>537</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#538 id=538 data-nosnippet>538</a>        KeyAlgorithm::HybridMlDsa65Ed25519,
-<a href=#539 id=539 data-nosnippet>539</a>        KeyType::Public,
-<a href=#540 id=540 data-nosnippet>540</a>        pk.ml_dsa_pk(),
-<a href=#541 id=541 data-nosnippet>541</a>        pk.ed25519_pk(),
+<a href=#539 id=539 data-nosnippet>539</a>        KeyType::Secret,
+<a href=#540 id=540 data-nosnippet>540</a>        sk.expose_ml_dsa_secret(),
+<a href=#541 id=541 data-nosnippet>541</a>        sk.expose_ed25519_secret(),
 <a href=#542 id=542 data-nosnippet>542</a>        args.label.clone(),
-<a href=#543 id=543 data-nosnippet>543</a>    )<span class="question-mark">?</span>;
-<a href=#544 id=544 data-nosnippet>544</a>
-<a href=#545 id=545 data-nosnippet>545</a>    print_keypair_report(
-<a href=#546 id=546 data-nosnippet>546</a>        <span class="string">"Hybrid ML-DSA-65 + Ed25519 signing"</span>,
-<a href=#547 id=547 data-nosnippet>547</a>        <span class="kw-2">&amp;</span>pk_path,
-<a href=#548 id=548 data-nosnippet>548</a>        <span class="kw-2">&amp;</span>sk_path,
-<a href=#549 id=549 data-nosnippet>549</a>        passphrase.is_some(),
-<a href=#550 id=550 data-nosnippet>550</a>    );
-<a href=#551 id=551 data-nosnippet>551</a>    <span class="prelude-val">Ok</span>(())
-<a href=#552 id=552 data-nosnippet>552</a>}
+<a href=#543 id=543 data-nosnippet>543</a>        passphrase.as_ref().map(|p| p.as_bytes()),
+<a href=#544 id=544 data-nosnippet>544</a>    )<span class="question-mark">?</span>;
+<a href=#545 id=545 data-nosnippet>545</a>    keyfile::write_composite_key(
+<a href=#546 id=546 data-nosnippet>546</a>        <span class="kw-2">&amp;</span>pk_path,
+<a href=#547 id=547 data-nosnippet>547</a>        KeyAlgorithm::HybridMlDsa65Ed25519,
+<a href=#548 id=548 data-nosnippet>548</a>        KeyType::Public,
+<a href=#549 id=549 data-nosnippet>549</a>        pk.ml_dsa_pk(),
+<a href=#550 id=550 data-nosnippet>550</a>        pk.ed25519_pk(),
+<a href=#551 id=551 data-nosnippet>551</a>        args.label.clone(),
+<a href=#552 id=552 data-nosnippet>552</a>    )<span class="question-mark">?</span>;
 <a href=#553 id=553 data-nosnippet>553</a>
-<a href=#554 id=554 data-nosnippet>554</a><span class="doccomment">/// Map a scheme name string (from `generate_signing_keypair`) to a `KeyAlgorithm`.
-<a href=#555 id=555 data-nosnippet>555</a>///
-<a href=#556 id=556 data-nosnippet>556</a>/// Accepts both the canonical name and the `pq-` / `ml-dsa-*-hybrid-ed25519`
-<a href=#557 id=557 data-nosnippet>557</a>/// aliases that the library's scheme selector can emit.
-<a href=#558 id=558 data-nosnippet>558</a></span><span class="kw">fn </span>parse_scheme_to_algorithm(scheme: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;KeyAlgorithm&gt; {
-<a href=#559 id=559 data-nosnippet>559</a>    <span class="kw">match </span>scheme {
-<a href=#560 id=560 data-nosnippet>560</a>        <span class="string">"hybrid-ml-dsa-44-ed25519" </span>| <span class="string">"ml-dsa-44-hybrid-ed25519" </span>=&gt; {
-<a href=#561 id=561 data-nosnippet>561</a>            <span class="prelude-val">Ok</span>(KeyAlgorithm::HybridMlDsa44Ed25519)
-<a href=#562 id=562 data-nosnippet>562</a>        }
-<a href=#563 id=563 data-nosnippet>563</a>        <span class="string">"hybrid-ml-dsa-65-ed25519" </span>| <span class="string">"ml-dsa-65-hybrid-ed25519" </span>=&gt; {
-<a href=#564 id=564 data-nosnippet>564</a>            <span class="prelude-val">Ok</span>(KeyAlgorithm::HybridMlDsa65Ed25519)
-<a href=#565 id=565 data-nosnippet>565</a>        }
-<a href=#566 id=566 data-nosnippet>566</a>        <span class="string">"hybrid-ml-dsa-87-ed25519" </span>| <span class="string">"ml-dsa-87-hybrid-ed25519" </span>=&gt; {
-<a href=#567 id=567 data-nosnippet>567</a>            <span class="prelude-val">Ok</span>(KeyAlgorithm::HybridMlDsa87Ed25519)
-<a href=#568 id=568 data-nosnippet>568</a>        }
-<a href=#569 id=569 data-nosnippet>569</a>        <span class="string">"ml-dsa-44" </span>| <span class="string">"pq-ml-dsa-44" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::MlDsa44),
-<a href=#570 id=570 data-nosnippet>570</a>        <span class="string">"ml-dsa-65" </span>| <span class="string">"pq-ml-dsa-65" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::MlDsa65),
-<a href=#571 id=571 data-nosnippet>571</a>        <span class="string">"ml-dsa-87" </span>| <span class="string">"pq-ml-dsa-87" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::MlDsa87),
-<a href=#572 id=572 data-nosnippet>572</a>        <span class="string">"slh-dsa-shake-128s" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::SlhDsaShake128s),
-<a href=#573 id=573 data-nosnippet>573</a>        <span class="string">"fn-dsa" </span>| <span class="string">"fn-dsa-512" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::FnDsa512),
-<a href=#574 id=574 data-nosnippet>574</a>        <span class="string">"fn-dsa-1024" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::FnDsa1024),
-<a href=#575 id=575 data-nosnippet>575</a>        <span class="string">"ed25519" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::Ed25519),
-<a href=#576 id=576 data-nosnippet>576</a>        other =&gt; <span class="macro">bail!</span>(
-<a href=#577 id=577 data-nosnippet>577</a>            <span class="string">"Unrecognized scheme '{other}' — the library selected a scheme the CLI \
-<a href=#578 id=578 data-nosnippet>578</a>             cannot serialize. This is a CLI bug; please file an issue."
-<a href=#579 id=579 data-nosnippet>579</a>        </span>),
-<a href=#580 id=580 data-nosnippet>580</a>    }
-<a href=#581 id=581 data-nosnippet>581</a>}
-<a href=#582 id=582 data-nosnippet>582</a>
-<a href=#583 id=583 data-nosnippet>583</a><span class="doccomment">/// Returns `true` if `scheme` is a hybrid ML-DSA + Ed25519 signing scheme.
-<a href=#584 id=584 data-nosnippet>584</a>///
-<a href=#585 id=585 data-nosnippet>585</a>/// Accepts both the canonical and the `ml-dsa-*-hybrid-ed25519` aliases.
-<a href=#586 id=586 data-nosnippet>586</a></span><span class="kw">fn </span>is_hybrid_ml_dsa_scheme(scheme: <span class="kw-2">&amp;</span>str) -&gt; bool {
-<a href=#587 id=587 data-nosnippet>587</a>    <span class="macro">matches!</span>(
-<a href=#588 id=588 data-nosnippet>588</a>        scheme,
-<a href=#589 id=589 data-nosnippet>589</a>        <span class="string">"hybrid-ml-dsa-44-ed25519"
-<a href=#590 id=590 data-nosnippet>590</a>            </span>| <span class="string">"ml-dsa-44-hybrid-ed25519"
-<a href=#591 id=591 data-nosnippet>591</a>            </span>| <span class="string">"hybrid-ml-dsa-65-ed25519"
-<a href=#592 id=592 data-nosnippet>592</a>            </span>| <span class="string">"ml-dsa-65-hybrid-ed25519"
-<a href=#593 id=593 data-nosnippet>593</a>            </span>| <span class="string">"hybrid-ml-dsa-87-ed25519"
-<a href=#594 id=594 data-nosnippet>594</a>            </span>| <span class="string">"ml-dsa-87-hybrid-ed25519"
-<a href=#595 id=595 data-nosnippet>595</a>    </span>)
-<a href=#596 id=596 data-nosnippet>596</a>}
-<a href=#597 id=597 data-nosnippet>597</a>
-<a href=#598 id=598 data-nosnippet>598</a><span class="doccomment">/// Reconstruct split `HybridSigPublicKey` / `HybridSigSecretKey` objects
-<a href=#599 id=599 data-nosnippet>599</a>/// from the raw `pq_bytes || ed25519_bytes` concatenation returned by
-<a href=#600 id=600 data-nosnippet>600</a>/// `latticearc::generate_signing_keypair`, and wrap them in `PortableKey`s
-<a href=#601 id=601 data-nosnippet>601</a>/// via the library's canonical factory. The factory auto-detects the
-<a href=#602 id=602 data-nosnippet>602</a>/// ML-DSA parameter set from the public-key length and preserves the
-<a href=#603 id=603 data-nosnippet>603</a>/// originating `use_case` in the serialized key file.
-<a href=#604 id=604 data-nosnippet>604</a></span><span class="kw">fn </span>build_hybrid_sig_portable_keys(
-<a href=#605 id=605 data-nosnippet>605</a>    use_case: latticearc::types::types::UseCase,
-<a href=#606 id=606 data-nosnippet>606</a>    scheme: <span class="kw-2">&amp;</span>str,
-<a href=#607 id=607 data-nosnippet>607</a>    pk_bytes: <span class="kw-2">&amp;</span>[u8],
-<a href=#608 id=608 data-nosnippet>608</a>    sk_bytes: <span class="kw-2">&amp;</span>[u8],
-<a href=#609 id=609 data-nosnippet>609</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(latticearc::PortableKey, latticearc::PortableKey)&gt; {
-<a href=#610 id=610 data-nosnippet>610</a>    <span class="kw">use </span>latticearc::hybrid::sig_hybrid::{HybridSigPublicKey, HybridSigSecretKey};
-<a href=#611 id=611 data-nosnippet>611</a>    <span class="kw">use </span>latticearc::primitives::ec::ed25519::{ED25519_PUBLIC_KEY_LEN, ED25519_SECRET_KEY_LEN};
-<a href=#612 id=612 data-nosnippet>612</a>    <span class="kw">use </span>latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
-<a href=#613 id=613 data-nosnippet>613</a>
-<a href=#614 id=614 data-nosnippet>614</a>    <span class="kw">let </span>params = <span class="kw">match </span>scheme {
-<a href=#615 id=615 data-nosnippet>615</a>        <span class="string">"hybrid-ml-dsa-44-ed25519" </span>| <span class="string">"ml-dsa-44-hybrid-ed25519" </span>=&gt; MlDsaParameterSet::MlDsa44,
-<a href=#616 id=616 data-nosnippet>616</a>        <span class="string">"hybrid-ml-dsa-65-ed25519" </span>| <span class="string">"ml-dsa-65-hybrid-ed25519" </span>=&gt; MlDsaParameterSet::MlDsa65,
-<a href=#617 id=617 data-nosnippet>617</a>        <span class="string">"hybrid-ml-dsa-87-ed25519" </span>| <span class="string">"ml-dsa-87-hybrid-ed25519" </span>=&gt; MlDsaParameterSet::MlDsa87,
-<a href=#618 id=618 data-nosnippet>618</a>        other =&gt; <span class="macro">bail!</span>(<span class="string">"Not a hybrid ML-DSA + Ed25519 signing scheme: {other}"</span>),
-<a href=#619 id=619 data-nosnippet>619</a>    };
-<a href=#620 id=620 data-nosnippet>620</a>
-<a href=#621 id=621 data-nosnippet>621</a>    <span class="kw">let </span>pq_pk_len = params.public_key_size();
-<a href=#622 id=622 data-nosnippet>622</a>    <span class="kw">let </span>pq_sk_len = params.secret_key_size();
-<a href=#623 id=623 data-nosnippet>623</a>    <span class="kw">let </span>expected_pk = pq_pk_len
-<a href=#624 id=624 data-nosnippet>624</a>        .checked_add(ED25519_PUBLIC_KEY_LEN)
-<a href=#625 id=625 data-nosnippet>625</a>        .ok_or_else(|| <span class="macro">anyhow::anyhow!</span>(<span class="string">"hybrid PK length overflow"</span>))<span class="question-mark">?</span>;
-<a href=#626 id=626 data-nosnippet>626</a>    <span class="kw">let </span>expected_sk = pq_sk_len
-<a href=#627 id=627 data-nosnippet>627</a>        .checked_add(ED25519_SECRET_KEY_LEN)
-<a href=#628 id=628 data-nosnippet>628</a>        .ok_or_else(|| <span class="macro">anyhow::anyhow!</span>(<span class="string">"hybrid SK length overflow"</span>))<span class="question-mark">?</span>;
-<a href=#629 id=629 data-nosnippet>629</a>    <span class="kw">if </span>pk_bytes.len() != expected_pk {
-<a href=#630 id=630 data-nosnippet>630</a>        <span class="macro">bail!</span>(<span class="string">"hybrid {scheme} PK length: expected {expected_pk}, got {}"</span>, pk_bytes.len());
-<a href=#631 id=631 data-nosnippet>631</a>    }
-<a href=#632 id=632 data-nosnippet>632</a>    <span class="kw">if </span>sk_bytes.len() != expected_sk {
-<a href=#633 id=633 data-nosnippet>633</a>        <span class="macro">bail!</span>(<span class="string">"hybrid {scheme} SK length: expected {expected_sk}, got {}"</span>, sk_bytes.len());
-<a href=#634 id=634 data-nosnippet>634</a>    }
-<a href=#635 id=635 data-nosnippet>635</a>
-<a href=#636 id=636 data-nosnippet>636</a>    <span class="kw">let </span>(pq_pk, ed_pk) = pk_bytes.split_at(pq_pk_len);
-<a href=#637 id=637 data-nosnippet>637</a>    <span class="kw">let </span>(pq_sk, ed_sk) = sk_bytes.split_at(pq_sk_len);
-<a href=#638 id=638 data-nosnippet>638</a>
-<a href=#639 id=639 data-nosnippet>639</a>    <span class="kw">let </span>hybrid_pk = HybridSigPublicKey::new(params, pq_pk.to_vec(), ed_pk.to_vec());
-<a href=#640 id=640 data-nosnippet>640</a>    <span class="kw">let </span>hybrid_sk = HybridSigSecretKey::new(
-<a href=#641 id=641 data-nosnippet>641</a>        params,
-<a href=#642 id=642 data-nosnippet>642</a>        zeroize::Zeroizing::new(pq_sk.to_vec()),
-<a href=#643 id=643 data-nosnippet>643</a>        zeroize::Zeroizing::new(ed_sk.to_vec()),
-<a href=#644 id=644 data-nosnippet>644</a>    );
-<a href=#645 id=645 data-nosnippet>645</a>    latticearc::PortableKey::from_hybrid_sig_keypair(use_case, <span class="kw-2">&amp;</span>hybrid_pk, <span class="kw-2">&amp;</span>hybrid_sk)
-<a href=#646 id=646 data-nosnippet>646</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid signing key export failed: {e}"</span>))
-<a href=#647 id=647 data-nosnippet>647</a>}
+<a href=#554 id=554 data-nosnippet>554</a>    print_keypair_report(
+<a href=#555 id=555 data-nosnippet>555</a>        <span class="string">"Hybrid ML-DSA-65 + Ed25519 signing"</span>,
+<a href=#556 id=556 data-nosnippet>556</a>        <span class="kw-2">&amp;</span>pk_path,
+<a href=#557 id=557 data-nosnippet>557</a>        <span class="kw-2">&amp;</span>sk_path,
+<a href=#558 id=558 data-nosnippet>558</a>        passphrase.is_some(),
+<a href=#559 id=559 data-nosnippet>559</a>    );
+<a href=#560 id=560 data-nosnippet>560</a>    <span class="prelude-val">Ok</span>(())
+<a href=#561 id=561 data-nosnippet>561</a>}
+<a href=#562 id=562 data-nosnippet>562</a>
+<a href=#563 id=563 data-nosnippet>563</a><span class="doccomment">/// Map a scheme name string (from `generate_signing_keypair`) to a `KeyAlgorithm`.
+<a href=#564 id=564 data-nosnippet>564</a>///
+<a href=#565 id=565 data-nosnippet>565</a>/// Accepts both the canonical name and the `pq-` / `ml-dsa-*-hybrid-ed25519`
+<a href=#566 id=566 data-nosnippet>566</a>/// aliases that the library's scheme selector can emit.
+<a href=#567 id=567 data-nosnippet>567</a></span><span class="kw">fn </span>parse_scheme_to_algorithm(scheme: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;KeyAlgorithm&gt; {
+<a href=#568 id=568 data-nosnippet>568</a>    <span class="kw">match </span>scheme {
+<a href=#569 id=569 data-nosnippet>569</a>        <span class="string">"hybrid-ml-dsa-44-ed25519" </span>| <span class="string">"ml-dsa-44-hybrid-ed25519" </span>=&gt; {
+<a href=#570 id=570 data-nosnippet>570</a>            <span class="prelude-val">Ok</span>(KeyAlgorithm::HybridMlDsa44Ed25519)
+<a href=#571 id=571 data-nosnippet>571</a>        }
+<a href=#572 id=572 data-nosnippet>572</a>        <span class="string">"hybrid-ml-dsa-65-ed25519" </span>| <span class="string">"ml-dsa-65-hybrid-ed25519" </span>=&gt; {
+<a href=#573 id=573 data-nosnippet>573</a>            <span class="prelude-val">Ok</span>(KeyAlgorithm::HybridMlDsa65Ed25519)
+<a href=#574 id=574 data-nosnippet>574</a>        }
+<a href=#575 id=575 data-nosnippet>575</a>        <span class="string">"hybrid-ml-dsa-87-ed25519" </span>| <span class="string">"ml-dsa-87-hybrid-ed25519" </span>=&gt; {
+<a href=#576 id=576 data-nosnippet>576</a>            <span class="prelude-val">Ok</span>(KeyAlgorithm::HybridMlDsa87Ed25519)
+<a href=#577 id=577 data-nosnippet>577</a>        }
+<a href=#578 id=578 data-nosnippet>578</a>        <span class="string">"ml-dsa-44" </span>| <span class="string">"pq-ml-dsa-44" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::MlDsa44),
+<a href=#579 id=579 data-nosnippet>579</a>        <span class="string">"ml-dsa-65" </span>| <span class="string">"pq-ml-dsa-65" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::MlDsa65),
+<a href=#580 id=580 data-nosnippet>580</a>        <span class="string">"ml-dsa-87" </span>| <span class="string">"pq-ml-dsa-87" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::MlDsa87),
+<a href=#581 id=581 data-nosnippet>581</a>        <span class="string">"slh-dsa-shake-128s" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::SlhDsaShake128s),
+<a href=#582 id=582 data-nosnippet>582</a>        <span class="string">"fn-dsa" </span>| <span class="string">"fn-dsa-512" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::FnDsa512),
+<a href=#583 id=583 data-nosnippet>583</a>        <span class="string">"fn-dsa-1024" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::FnDsa1024),
+<a href=#584 id=584 data-nosnippet>584</a>        <span class="string">"ed25519" </span>=&gt; <span class="prelude-val">Ok</span>(KeyAlgorithm::Ed25519),
+<a href=#585 id=585 data-nosnippet>585</a>        other =&gt; <span class="macro">bail!</span>(
+<a href=#586 id=586 data-nosnippet>586</a>            <span class="string">"Unrecognized scheme '{other}' — the library selected a scheme the CLI \
+<a href=#587 id=587 data-nosnippet>587</a>             cannot serialize. This is a CLI bug; please file an issue."
+<a href=#588 id=588 data-nosnippet>588</a>        </span>),
+<a href=#589 id=589 data-nosnippet>589</a>    }
+<a href=#590 id=590 data-nosnippet>590</a>}
+<a href=#591 id=591 data-nosnippet>591</a>
+<a href=#592 id=592 data-nosnippet>592</a><span class="doccomment">/// Returns `true` if `scheme` is a hybrid ML-DSA + Ed25519 signing scheme.
+<a href=#593 id=593 data-nosnippet>593</a>///
+<a href=#594 id=594 data-nosnippet>594</a>/// Accepts both the canonical and the `ml-dsa-*-hybrid-ed25519` aliases.
+<a href=#595 id=595 data-nosnippet>595</a></span><span class="kw">fn </span>is_hybrid_ml_dsa_scheme(scheme: <span class="kw-2">&amp;</span>str) -&gt; bool {
+<a href=#596 id=596 data-nosnippet>596</a>    <span class="macro">matches!</span>(
+<a href=#597 id=597 data-nosnippet>597</a>        scheme,
+<a href=#598 id=598 data-nosnippet>598</a>        <span class="string">"hybrid-ml-dsa-44-ed25519"
+<a href=#599 id=599 data-nosnippet>599</a>            </span>| <span class="string">"ml-dsa-44-hybrid-ed25519"
+<a href=#600 id=600 data-nosnippet>600</a>            </span>| <span class="string">"hybrid-ml-dsa-65-ed25519"
+<a href=#601 id=601 data-nosnippet>601</a>            </span>| <span class="string">"ml-dsa-65-hybrid-ed25519"
+<a href=#602 id=602 data-nosnippet>602</a>            </span>| <span class="string">"hybrid-ml-dsa-87-ed25519"
+<a href=#603 id=603 data-nosnippet>603</a>            </span>| <span class="string">"ml-dsa-87-hybrid-ed25519"
+<a href=#604 id=604 data-nosnippet>604</a>    </span>)
+<a href=#605 id=605 data-nosnippet>605</a>}
+<a href=#606 id=606 data-nosnippet>606</a>
+<a href=#607 id=607 data-nosnippet>607</a><span class="doccomment">/// Reconstruct split `HybridSigPublicKey` / `HybridSigSecretKey` objects
+<a href=#608 id=608 data-nosnippet>608</a>/// from the raw `pq_bytes || ed25519_bytes` concatenation returned by
+<a href=#609 id=609 data-nosnippet>609</a>/// `latticearc::generate_signing_keypair`, and wrap them in `PortableKey`s
+<a href=#610 id=610 data-nosnippet>610</a>/// via the library's canonical factory. The factory auto-detects the
+<a href=#611 id=611 data-nosnippet>611</a>/// ML-DSA parameter set from the public-key length and preserves the
+<a href=#612 id=612 data-nosnippet>612</a>/// originating `use_case` in the serialized key file.
+<a href=#613 id=613 data-nosnippet>613</a></span><span class="kw">fn </span>build_hybrid_sig_portable_keys(
+<a href=#614 id=614 data-nosnippet>614</a>    use_case: latticearc::types::types::UseCase,
+<a href=#615 id=615 data-nosnippet>615</a>    scheme: <span class="kw-2">&amp;</span>str,
+<a href=#616 id=616 data-nosnippet>616</a>    pk_bytes: <span class="kw-2">&amp;</span>[u8],
+<a href=#617 id=617 data-nosnippet>617</a>    sk_bytes: <span class="kw-2">&amp;</span>[u8],
+<a href=#618 id=618 data-nosnippet>618</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(latticearc::PortableKey, latticearc::PortableKey)&gt; {
+<a href=#619 id=619 data-nosnippet>619</a>    <span class="kw">use </span>latticearc::hybrid::sig_hybrid::{HybridSigPublicKey, HybridSigSecretKey};
+<a href=#620 id=620 data-nosnippet>620</a>    <span class="kw">use </span>latticearc::primitives::ec::ed25519::{ED25519_PUBLIC_KEY_LEN, ED25519_SECRET_KEY_LEN};
+<a href=#621 id=621 data-nosnippet>621</a>    <span class="kw">use </span>latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
+<a href=#622 id=622 data-nosnippet>622</a>
+<a href=#623 id=623 data-nosnippet>623</a>    <span class="kw">let </span>params = <span class="kw">match </span>scheme {
+<a href=#624 id=624 data-nosnippet>624</a>        <span class="string">"hybrid-ml-dsa-44-ed25519" </span>| <span class="string">"ml-dsa-44-hybrid-ed25519" </span>=&gt; MlDsaParameterSet::MlDsa44,
+<a href=#625 id=625 data-nosnippet>625</a>        <span class="string">"hybrid-ml-dsa-65-ed25519" </span>| <span class="string">"ml-dsa-65-hybrid-ed25519" </span>=&gt; MlDsaParameterSet::MlDsa65,
+<a href=#626 id=626 data-nosnippet>626</a>        <span class="string">"hybrid-ml-dsa-87-ed25519" </span>| <span class="string">"ml-dsa-87-hybrid-ed25519" </span>=&gt; MlDsaParameterSet::MlDsa87,
+<a href=#627 id=627 data-nosnippet>627</a>        other =&gt; <span class="macro">bail!</span>(<span class="string">"Not a hybrid ML-DSA + Ed25519 signing scheme: {other}"</span>),
+<a href=#628 id=628 data-nosnippet>628</a>    };
+<a href=#629 id=629 data-nosnippet>629</a>
+<a href=#630 id=630 data-nosnippet>630</a>    <span class="kw">let </span>pq_pk_len = params.public_key_size();
+<a href=#631 id=631 data-nosnippet>631</a>    <span class="kw">let </span>pq_sk_len = params.secret_key_size();
+<a href=#632 id=632 data-nosnippet>632</a>    <span class="kw">let </span>expected_pk = pq_pk_len
+<a href=#633 id=633 data-nosnippet>633</a>        .checked_add(ED25519_PUBLIC_KEY_LEN)
+<a href=#634 id=634 data-nosnippet>634</a>        .ok_or_else(|| <span class="macro">anyhow::anyhow!</span>(<span class="string">"hybrid PK length overflow"</span>))<span class="question-mark">?</span>;
+<a href=#635 id=635 data-nosnippet>635</a>    <span class="kw">let </span>expected_sk = pq_sk_len
+<a href=#636 id=636 data-nosnippet>636</a>        .checked_add(ED25519_SECRET_KEY_LEN)
+<a href=#637 id=637 data-nosnippet>637</a>        .ok_or_else(|| <span class="macro">anyhow::anyhow!</span>(<span class="string">"hybrid SK length overflow"</span>))<span class="question-mark">?</span>;
+<a href=#638 id=638 data-nosnippet>638</a>    <span class="kw">if </span>pk_bytes.len() != expected_pk {
+<a href=#639 id=639 data-nosnippet>639</a>        <span class="macro">bail!</span>(<span class="string">"hybrid {scheme} PK length: expected {expected_pk}, got {}"</span>, pk_bytes.len());
+<a href=#640 id=640 data-nosnippet>640</a>    }
+<a href=#641 id=641 data-nosnippet>641</a>    <span class="kw">if </span>sk_bytes.len() != expected_sk {
+<a href=#642 id=642 data-nosnippet>642</a>        <span class="macro">bail!</span>(<span class="string">"hybrid {scheme} SK length: expected {expected_sk}, got {}"</span>, sk_bytes.len());
+<a href=#643 id=643 data-nosnippet>643</a>    }
+<a href=#644 id=644 data-nosnippet>644</a>
+<a href=#645 id=645 data-nosnippet>645</a>    <span class="kw">let </span>(pq_pk, ed_pk) = pk_bytes.split_at(pq_pk_len);
+<a href=#646 id=646 data-nosnippet>646</a>    <span class="kw">let </span>(pq_sk, ed_sk) = sk_bytes.split_at(pq_sk_len);
+<a href=#647 id=647 data-nosnippet>647</a>
+<a href=#648 id=648 data-nosnippet>648</a>    <span class="kw">let </span>hybrid_pk = HybridSigPublicKey::new(params, pq_pk.to_vec(), ed_pk.to_vec());
+<a href=#649 id=649 data-nosnippet>649</a>    <span class="kw">let </span>hybrid_sk = HybridSigSecretKey::new(
+<a href=#650 id=650 data-nosnippet>650</a>        params,
+<a href=#651 id=651 data-nosnippet>651</a>        zeroize::Zeroizing::new(pq_sk.to_vec()),
+<a href=#652 id=652 data-nosnippet>652</a>        zeroize::Zeroizing::new(ed_sk.to_vec()),
+<a href=#653 id=653 data-nosnippet>653</a>    );
+<a href=#654 id=654 data-nosnippet>654</a>    latticearc::PortableKey::from_hybrid_sig_keypair(use_case, <span class="kw-2">&amp;</span>hybrid_pk, <span class="kw-2">&amp;</span>hybrid_sk)
+<a href=#655 id=655 data-nosnippet>655</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid signing key export failed: {e}"</span>))
+<a href=#656 id=656 data-nosnippet>656</a>}
 </code></pre></div></section></main></body></html>
