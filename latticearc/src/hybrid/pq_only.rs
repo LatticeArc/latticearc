@@ -196,14 +196,15 @@ impl PqOnlySecretKey {
 /// Build the HKDF `info` string for PQ-only encryption.
 ///
 /// Thin wrapper over [`crate::types::domains::hkdf_kem_info`] that
-/// pins the domain-separation label to [`PQ_ONLY_ENCRYPTION_INFO`].
+/// pins the domain-separation label to
+/// [`HkdfKemLabel::PqOnlyEncryption`](crate::types::domains::HkdfKemLabel::PqOnlyEncryption).
 /// The shared helper is also used by
 /// [`crate::unified_api::convenience::pq_kem`] so encrypt/decrypt
 /// drift across the two parallel APIs is structurally impossible
 /// (round-12 audit fix L-2 generalized to a single canonical helper).
 fn pq_only_encryption_info(kem_ciphertext: &[u8]) -> Vec<u8> {
     crate::types::domains::hkdf_kem_info(
-        crate::types::domains::PQ_ONLY_ENCRYPTION_INFO,
+        crate::types::domains::HkdfKemLabel::PqOnlyEncryption,
         kem_ciphertext,
     )
 }

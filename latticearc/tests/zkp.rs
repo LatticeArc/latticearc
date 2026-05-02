@@ -204,8 +204,8 @@ mod hash_commitment_tests {
         let message = b"test";
         let randomness = [42u8; 32];
 
-        let c1 = HashCommitment::commit_with_randomness(message, randomness);
-        let c2 = HashCommitment::commit_with_randomness(message, randomness);
+        let c1 = HashCommitment::commit_with_randomness(message, randomness).unwrap();
+        let c2 = HashCommitment::commit_with_randomness(message, randomness).unwrap();
 
         assert_eq!(
             c1.commitment(),

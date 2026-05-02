@@ -16,32 +16,36 @@ use crate::unified_api::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme}
 // PERFORMANCE OPTIMIZATION THRESHOLDS
 // =============================================================================
 
-/// Threshold (in bytes) below which the hybrid scheme may downgrade from
-/// ML-KEM-768 to ML-KEM-512 as a runtime performance optimisation, when the
-/// caller has expressed a `Speed` or `Memory` preference and the data is
-/// high-entropy / small.
+/// Data-size threshold (in bytes) below which the legacy data-aware
+/// branch in [`CryptoPolicyEngine::select_encryption_scheme`] would
+/// have downgraded a caller-declared [`SecurityLevel::High`]
+/// (ML-KEM-768) to ML-KEM-512 under [`PerformancePreference::Memory`].
+/// Post-round-23 audit fix L3: that downgrade now **refuses** instead
+/// of silently weakening the caller's contract.
 ///
-/// **What actually happens at runtime** (see `select_for_data_pattern`):
+/// **What actually happens at runtime**:
 ///
-/// | `security_level` | `performance_preference` | data conditions       | result          |
-/// |------------------|--------------------------|-----------------------|-----------------|
-/// | `Standard`       | any                      | any                   | ML-KEM-512 (default for Standard — no override needed) |
-/// | `High`           | `Speed`                  | random pattern        | downgrade to ML-KEM-512 |
-/// | `High`           | `Memory`                 | data size < threshold | downgrade to ML-KEM-512 |
-/// | `High`           | otherwise                | otherwise             | ML-KEM-768 (default for High) |
-/// | `Maximum`        | any                      | any                   | ML-KEM-1024 — never downgraded |
+/// | `security_level` | `performance_preference` | data conditions       | result |
+/// |------------------|--------------------------|-----------------------|--------|
+/// | `Standard`       | any                      | any                   | `Ok(ML-KEM-512)` (default for Standard — no L3 contract to honor) |
+/// | `High`           | `Speed`                  | random pattern        | `Err(ConfigurationError)` — refuses L1 silent weakening |
+/// | `High`           | `Memory`                 | data size < threshold | `Err(ConfigurationError)` — refuses L1 silent weakening |
+/// | `High`           | otherwise                | otherwise             | `Ok(ML-KEM-768)` — caller's declared level honored |
+/// | `Maximum`        | any                      | any                   | `Ok(ML-KEM-1024)` — never weakened |
 ///
-/// **Rationale**: ML-KEM ciphertext overhead is ~1000–1500 bytes depending on
-/// security level. For high-entropy or memory-constrained workloads at
-/// `SecurityLevel::High`, dropping from 768 to 512 saves ~300 bytes per
-/// ciphertext while keeping post-quantum security at NIST Level 1. The
-/// override never weakens `SecurityLevel::Maximum`, and `Standard` already
-/// uses 512 by default so there is no further downgrade to apply.
+/// **Rationale for refusal**: a caller declaring `SecurityLevel::High`
+/// has a security-relevant reason to want exactly L3. The pre-fix
+/// behavior emitted a `tracing::warn!` and returned an L1 string —
+/// observability is not contract enforcement, and operators routinely
+/// miss warn-level events. Refusing forces the caller to either drop
+/// to `Standard` explicitly (acknowledging the optimization) or use
+/// the typed alternative [`CryptoPolicyEngine::select_encryption_scheme_typed`]
+/// which has never carried the downgrade path.
 ///
-/// **Note**: this threshold governs only the in-band downgrade. It does NOT
-/// disable post-quantum protection — a hybrid (PQ + classical) scheme is
-/// still selected; only the ML-KEM parameter set may be reduced.
-pub const ML_KEM_DOWNGRADE_SIZE_THRESHOLD: usize = 4096;
+/// **Note**: this threshold gates ONLY the Memory-branch refusal in
+/// the legacy string-based selector. It has no effect on the typed
+/// API or on caller-declared `Standard` / `Maximum` levels.
+pub const ML_KEM_DOWNGRADE_REFUSAL_THRESHOLD: usize = 4096;
 
 /// Main cryptographic policy engine.
 ///
@@ -202,50 +206,57 @@ impl CryptoPolicyEngine {
 
         // Data-aware adjustments when data is non-empty.
         //
-        // The data-aware branch may downgrade `SecurityLevel::High`
-        // (NIST L3 / ML-KEM-768) to ML-KEM-512 (NIST L1) under
-        // `(Speed, Random)` or `(Memory, small)`. This downgrade was
-        // previously silent — the caller declared L3 and got L1 with no
-        // signal (round-19 audit M8). Per the audit's recommendation we
-        // now emit a `tracing::warn!` whenever the policy engine
-        // overrides the caller's declared level, so audit/observability
-        // pipelines can see when the data-aware optimization fired.
-        // `Maximum` is never downgraded (see table in
-        // `ML_KEM_DOWNGRADE_SIZE_THRESHOLD` doc).
+        // Previous behavior (round-19 M8 partial fix): under
+        // `(Speed, Random)` or `(Memory, small)` and a caller-declared
+        // `SecurityLevel::High` (NIST L3 / ML-KEM-768), the engine
+        // would silently downgrade to ML-KEM-512 (NIST L1) and emit
+        // a `tracing::warn!`. The L3 audit (post-85e2bd79e) flagged
+        // the warn-only path as a footgun — observability pipelines
+        // are not contract enforcement, and a caller declaring L3 has
+        // a security-relevant reason to want exactly L3. The function
+        // now returns `Err(ConfigurationError)` instead of returning
+        // an L1 string, refusing to silently weaken the caller's
+        // requested level. `PerformancePreference::Balanced` and
+        // `SecurityLevel::Maximum` are unaffected.
+        //
+        // Migration for existing callers that *do* want the
+        // optimization: pre-relax `config.security_level` to
+        // `SecurityLevel::Standard` before calling, OR use the typed
+        // alternative [`select_encryption_scheme_typed`] which never
+        // performs the downgrade in the first place.
         if !data.is_empty() {
             let characteristics = Self::analyze_data_characteristics(data);
 
             match (&config.performance_preference, &characteristics.pattern_type) {
-                // High-entropy data with speed preference: smaller KEM is sufficient
+                // High-entropy data with speed preference: caller would
+                // be best served by ML-KEM-512, but they declared L3.
+                // Refuse rather than silently weaken.
                 (PerformancePreference::Speed, PatternType::Random) => {
                     if matches!(config.security_level, SecurityLevel::High) {
-                        tracing::warn!(
-                            target: "latticearc::selector",
-                            from = "ML-KEM-768",
-                            to = "ML-KEM-512",
-                            reason = "data-aware-downgrade",
-                            preference = "Speed",
-                            pattern = "Random",
-                            "policy engine overrode caller-declared SecurityLevel::High"
-                        );
-                        return Ok(HYBRID_ENCRYPTION_512.to_string());
+                        return Err(TypeError::ConfigurationError(
+                            "performance_preference = Speed + Random data pattern would \
+                             require downgrading caller-declared SecurityLevel::High \
+                             (ML-KEM-768) to ML-KEM-512; use SecurityLevel::Standard \
+                             explicitly if the optimization is acceptable, or use \
+                             select_encryption_scheme_typed which never downgrades"
+                                .to_string(),
+                        ));
                     }
                 }
-                // Memory-constrained with small data: downgrade if not at maximum
+                // Memory-constrained with small data: same refusal.
                 (PerformancePreference::Memory, _)
-                    if data.len() < ML_KEM_DOWNGRADE_SIZE_THRESHOLD =>
+                    if data.len() < ML_KEM_DOWNGRADE_REFUSAL_THRESHOLD =>
                 {
                     if matches!(config.security_level, SecurityLevel::High) {
-                        tracing::warn!(
-                            target: "latticearc::selector",
-                            from = "ML-KEM-768",
-                            to = "ML-KEM-512",
-                            reason = "data-aware-downgrade",
-                            preference = "Memory",
-                            data_len = data.len(),
-                            "policy engine overrode caller-declared SecurityLevel::High"
-                        );
-                        return Ok(HYBRID_ENCRYPTION_512.to_string());
+                        return Err(TypeError::ConfigurationError(
+                            "performance_preference = Memory + small data \
+                             (< ML_KEM_DOWNGRADE_REFUSAL_THRESHOLD bytes) would require \
+                             downgrading caller-declared SecurityLevel::High (ML-KEM-768) \
+                             to ML-KEM-512; use SecurityLevel::Standard explicitly if \
+                             the optimization is acceptable, or use \
+                             select_encryption_scheme_typed which never downgrades"
+                                .to_string(),
+                        ));
                     }
                 }
                 _ => {}
@@ -296,13 +307,16 @@ impl CryptoPolicyEngine {
         let characteristics = Self::analyze_data_characteristics(data);
         let base_scheme = Self::select_encryption_scheme(data, config, None)?;
 
-        // Round-11 audit fix: only allow runtime-pressure downgrades when
-        // the caller's pinned security level is `High` (the default). A
-        // caller who explicitly opted into `SecurityLevel::Maximum` MUST
-        // get Level-5 parameters even under memory or CPU pressure —
-        // mirroring the `select_encryption_scheme` guard at lines 207–223.
-        // Same defect class as round-6 fix #10 (CNSA-2.0 downgrade
-        // prevention).
+        // Runtime-pressure adjustments. The Memory branch keeps the
+        // caller's L3 (ML-KEM-768) pin — no security weakening, just
+        // a no-op pass-through. The Speed branch USED to downgrade
+        // L3 → L1 (ML-KEM-512) when measured encryption was slow on
+        // repetitive data; post-85e2bd79e L3 audit refused that
+        // silent weakening (caller-declared L3 is contract, not
+        // optimization advice). Now returns Err under the same
+        // trigger, mirroring the `select_encryption_scheme` refusal
+        // at lines ~218–251. `Maximum` is unaffected (no downgrade
+        // path ever existed for it).
         match (&config.performance_preference, performance_metrics) {
             (PerformancePreference::Memory, metrics)
                 if metrics.memory_usage_mb > 500.0
@@ -315,7 +329,14 @@ impl CryptoPolicyEngine {
                     && matches!(characteristics.pattern_type, PatternType::Repetitive)
                     && matches!(config.security_level, SecurityLevel::High) =>
             {
-                Ok(HYBRID_ENCRYPTION_512.to_string())
+                Err(TypeError::ConfigurationError(
+                    "adaptive_selection: measured encryption_speed_ms > 1000 + repetitive \
+                     data pattern + Speed preference would require downgrading caller-declared \
+                     SecurityLevel::High (ML-KEM-768) to ML-KEM-512; use SecurityLevel::Standard \
+                     explicitly if the optimization is acceptable, or reduce the runtime \
+                     pressure before invoking adaptive_selection"
+                        .to_string(),
+                ))
             }
             _ => Ok(base_scheme),
         }
@@ -970,17 +991,44 @@ mod tests {
     }
 
     #[test]
-    fn test_data_aware_random_data_speed_selects_smaller_kem_scheme_succeeds() {
+    fn test_data_aware_random_data_speed_high_refuses_silent_downgrade() {
+        // Post-85e2bd79e L3 audit fix: caller-declared `SecurityLevel::High`
+        // (ML-KEM-768 / NIST L3) under `(Speed, Random)` MUST refuse rather
+        // than silently downgrade to ML-KEM-512 (NIST L1). Previously this
+        // returned `Ok(HYBRID_ENCRYPTION_512)` with a `tracing::warn!`,
+        // which is observability — not contract enforcement. Now returns
+        // `Err(TypeError::ConfigurationError)`. Migration for callers
+        // wanting the optimization: pre-set `SecurityLevel::Standard`,
+        // or use `select_encryption_scheme_typed` (no downgrade path).
         use crate::primitives::rand::secure_rng;
         use rand::RngCore;
-        // Need enough bytes for entropy > 7.5 (256 bytes has ~7.0 entropy)
         let mut data = vec![0u8; 8192];
         secure_rng().fill_bytes(&mut data);
         let config = CoreConfig::new()
             .with_performance_preference(PerformancePreference::Speed)
             .with_security_level(SecurityLevel::High);
+        let result = CryptoPolicyEngine::select_encryption_scheme(&data, &config, None);
+        assert!(matches!(result, Err(TypeError::ConfigurationError(_))));
+        let err_msg = result.err().unwrap().to_string();
+        assert!(
+            err_msg.contains("ML-KEM-768") && err_msg.contains("ML-KEM-512"),
+            "error must name both the requested L3 scheme and the rejected L1 downgrade target"
+        );
+    }
+
+    #[test]
+    fn test_data_aware_random_data_speed_standard_succeeds() {
+        // Companion to `_high_refuses_silent_downgrade`: when caller
+        // explicitly declares `Standard`, ML-KEM-512 is the requested
+        // level — no refusal, just normal selection.
+        use crate::primitives::rand::secure_rng;
+        use rand::RngCore;
+        let mut data = vec![0u8; 8192];
+        secure_rng().fill_bytes(&mut data);
+        let config = CoreConfig::new()
+            .with_performance_preference(PerformancePreference::Speed)
+            .with_security_level(SecurityLevel::Standard);
         let scheme = CryptoPolicyEngine::select_encryption_scheme(&data, &config, None).unwrap();
-        // Random data + Speed + High → HYBRID_ENCRYPTION_512 (data-aware optimization)
         assert_eq!(scheme, HYBRID_ENCRYPTION_512);
     }
 
@@ -1056,7 +1104,12 @@ mod tests {
     fn test_performance_preference_influences_encryption_scheme_succeeds() {
         use crate::primitives::rand::secure_rng;
         use rand::RngCore;
-        // Use random data so data-aware branch activates
+        // Use random data so data-aware branch activates. Post-L3 audit
+        // fix: caller-declared `SecurityLevel::High` + `Speed` + Random
+        // data REFUSES (was: silent downgrade to ML-KEM-512). To still
+        // prove "performance_preference influences output", compare two
+        // shapes: Speed → Err vs Balanced → Ok. The two outputs differ
+        // by Result variant, which counts as influence.
         let mut data = vec![0u8; 8192];
         secure_rng().fill_bytes(&mut data);
 
@@ -1064,19 +1117,26 @@ mod tests {
             .with_performance_preference(PerformancePreference::Speed)
             .with_security_level(SecurityLevel::High)
             .with_hardware_acceleration(true);
-        let result_a =
-            CryptoPolicyEngine::select_encryption_scheme(&data, &config_a, None).unwrap();
+        let result_a = CryptoPolicyEngine::select_encryption_scheme(&data, &config_a, None);
 
         let config_b = CoreConfig::new()
             .with_performance_preference(PerformancePreference::Balanced)
             .with_security_level(SecurityLevel::High)
             .with_hardware_acceleration(true);
-        let result_b =
-            CryptoPolicyEngine::select_encryption_scheme(&data, &config_b, None).unwrap();
+        let result_b = CryptoPolicyEngine::select_encryption_scheme(&data, &config_b, None);
 
-        assert_ne!(
-            result_a, result_b,
-            "performance_preference must influence encryption scheme for random data"
+        // Speed + High + Random must refuse; Balanced + High must succeed.
+        // Different Result variants → performance_preference influenced
+        // the output.
+        assert!(
+            matches!(result_a, Err(TypeError::ConfigurationError(_))),
+            "Speed + High + Random must refuse silent downgrade"
+        );
+        assert!(result_b.is_ok(), "Balanced + High must succeed");
+        assert_eq!(
+            result_b.unwrap(),
+            HYBRID_ENCRYPTION_768,
+            "Balanced + High must select ML-KEM-768"
         );
     }
 
@@ -1307,9 +1367,22 @@ mod tests {
 
     #[test]
     fn test_performance_preference_influences_adaptive_selection_succeeds() {
-        // adaptive_selection uses performance_preference to choose between schemes
-        // when performance metrics cross thresholds (speed > 1000ms + repetitive data).
-        let data = b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; // repetitive
+        // adaptive_selection uses performance_preference to choose between
+        // schemes when performance metrics cross thresholds. Post-L3
+        // audit fix: caller-declared High + Speed + Repetitive +
+        // slow-encryption now REFUSES (was: silent downgrade to L1).
+        // We still prove influence by comparing Result variants:
+        // Speed → Err, Memory → Ok (memory branch passes through to
+        // the L3-preserving select_encryption_scheme path).
+        // 4096 bytes of 'A': hits ML_KEM_DOWNGRADE_REFUSAL_THRESHOLD
+        // boundary so the Memory branch in select_encryption_scheme
+        // does NOT refuse (only refuses for data.len() < 4096).
+        // Chunking divides evenly into 8-byte blocks → detected as
+        // Repetitive. Previous 52-byte and 64-byte literals were
+        // either misdetected (chunk-size mismatch) or triggered the
+        // Memory refusal — both broke this test under the L3 fix.
+        let data = vec![b'A'; ML_KEM_DOWNGRADE_REFUSAL_THRESHOLD];
+        let data = data.as_slice();
 
         let config_speed = CoreConfig::new()
             .with_performance_preference(PerformancePreference::Speed)
@@ -1319,17 +1392,23 @@ mod tests {
             .with_performance_preference(PerformancePreference::Memory)
             .with_security_level(SecurityLevel::High);
 
-        // High encryption_speed_ms (>1000ms) + repetitive data activates Speed branch.
+        // High encryption_speed_ms (>1000ms) + repetitive data activates
+        // the Speed branch — which now refuses the L3→L1 silent downgrade.
         let metrics_slow = PerformanceMetrics { encryption_speed_ms: 1500.0, memory_usage_mb: 0.0 };
 
         let result_speed =
-            CryptoPolicyEngine::adaptive_selection(data, &metrics_slow, &config_speed).unwrap();
+            CryptoPolicyEngine::adaptive_selection(data, &metrics_slow, &config_speed);
         let result_memory =
-            CryptoPolicyEngine::adaptive_selection(data, &metrics_slow, &config_memory).unwrap();
+            CryptoPolicyEngine::adaptive_selection(data, &metrics_slow, &config_memory);
 
-        assert_ne!(
-            result_speed, result_memory,
-            "performance_preference must influence adaptive scheme selection when metrics cross thresholds"
+        assert!(
+            matches!(result_speed, Err(TypeError::ConfigurationError(_))),
+            "Speed + High + Repetitive + slow encryption must refuse silent downgrade"
+        );
+        assert!(
+            result_memory.is_ok(),
+            "Memory + High passes through select_encryption_scheme \
+             (no Memory-pressure metric tripped); should succeed"
         );
     }
 }

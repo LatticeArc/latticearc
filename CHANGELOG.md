@@ -9,6 +9,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-23 audit follow-up — 1 MED + 4 LOW (2026-05-01)
+
+External audit of the post-85e2bd79e tree returned 5 findings: M1
+(equalizer comment overstates code), L1 (stale "LE" doc comment), L2
+(NUL-byte ambiguity in HKDF info builder), L3 (silent L3→L1 downgrade
+in legacy selector path), L4 (length-prefix width inconsistency
+across transcripts). All 5 fixed below — no defers.
+
+#### BREAKING (require migration)
+
+- **`zkp::commitment::HashCommitment::compute_hash` length prefix:
+  u64 BE → u32 BE; domain label `arc-zkp/hash-commitment-v1` → `-v2`.**
+  L4 fix. Migration: HashCommitment values produced by 85e2bd79e or
+  earlier do not verify cross-version because (a) the length-prefix
+  width changed and (b) the v1 label is dead. Hash backend's 1 GiB
+  cap below makes the u32 ceiling unreachable in practice. Label
+  bump preserves the derivation-version-encoded-in-label discipline
+  shared with `pedersen-generator-H-v3`.
+- **`HashCommitment::commit_with_randomness` returns
+  `Result<Self, ZkpError>`** (was `Self`). The new return type makes
+  the `value.len() > u32::MAX` overflow path explicit instead of
+  silent. All in-tree callers (3 unit tests) updated to `?` /
+  `.unwrap()`.
+- **`CryptoPolicyEngine::select_encryption_scheme` and
+  `adaptive_selection` now return `Err(TypeError::ConfigurationError)`
+  when caller-declared `SecurityLevel::High` would have triggered a
+  silent downgrade to ML-KEM-512.** L3 fix. Round-19 M8's partial
+  fix added a `tracing::warn!` but kept returning `Ok(L1_scheme)` —
+  warn-level observability is not contract enforcement, and a caller
+  declaring L3 has a security-relevant reason to want exactly L3.
+  The typed alternative `select_encryption_scheme_typed` (line 393)
+  was already safe and continues to be the recommended path.
+  Migration for callers wanting the optimization: pre-set
+  `SecurityLevel::Standard`, or switch to the typed selector.
+- **`crate::types::domains::hkdf_kem_info` now takes a sealed
+  `HkdfKemLabel` enum instead of `&[u8]`.** L2 fix. The sealed enum
+  prevents future internal callers from accidentally passing a
+  NUL-containing byte string, which would break the `0x00` separator's
+  disambiguation. CI test (`all_label_variants_are_nul_free`) locks
+  the invariant on every new variant. Both in-tree callers
+  (`pq_kem_aead_key_info`, `pq_only_encryption_info`) updated.
+- **`unified_api::selector::ML_KEM_DOWNGRADE_SIZE_THRESHOLD` →
+  `ML_KEM_DOWNGRADE_REFUSAL_THRESHOLD`** (and the doc-comment table
+  rewritten). The previous name + table described the threshold as
+  governing a silent ML-KEM-768 → ML-KEM-512 downgrade, but the L3
+  fix replaced that downgrade with `Err(ConfigurationError)`
+  refusal. The constant now gates the refusal trigger, not a
+  downgrade. Migration is mechanical: rename references at call
+  sites; the value (4096) and semantics (data-size threshold below
+  which the Memory branch refuses for caller-declared
+  `SecurityLevel::High`) are unchanged.
+
+#### MEDIUM
+
+- **`sig_hybrid::verify` equalizer now runs verify against pre-parsed
+  valid material when caller bytes fail to parse** (M1 audit fix —
+  comment-vs-code drift in 85e2bd79e). Previously the comment claimed
+  "verify pipeline runs unconditionally so wall-clock cost stays
+  equal," but the code sent `from_bytes` parse failures to `Ok(false)`
+  without running verify. The equalizer survived only because the
+  zero-byte dummy of correct length happened to parse successfully
+  (today). A future `fips204` release adding content validation in
+  `from_bytes` would silently reactivate the timing oracle.
+  `verify_equalizer.rs` now caches a real ML-DSA keypair + signature
+  per parameter set (lazy init, fallible — `parsed: Option<...>`).
+  When parse fails, verify runs against the pre-parsed PK + sig over
+  the cached test message, ensuring real verify-time cost is
+  consumed. If init keygen+sign fails (extremely rare RNG/PCT path),
+  `parsed` stays `None` and the consumer falls back to the legacy
+  fast-fail behavior — equalizer degraded but correctness preserved
+  by the bitwise AND with `pq_shape_ok` and `parse_ok.is_ok()`.
+  Two new tests in `verify_equalizer.rs::tests` lock the contract.
+
+#### LOW
+
+- **L1 — `audit::compute_integrity_hash` doc comment stale.** The
+  comment said "4-byte LE length per element"; implementation
+  migrated to BE in 85e2bd79e. Comment now says "4-byte BE length
+  per element" and references the L3 transcript-convention
+  migration. Pure doc rot, no behavior change.
+
+#### Notes on the L4 BREAKING
+
+The length-prefix width inconsistency was internal — each transcript
+was self-consistent. Migrating `HashCommitment` to u32 makes the
+crate's transcript-style hashing fully uniform: all length prefixes
+are now `u32 BE`. `audit::append_lenp_field` and
+`zkp::sigma::compute_challenge` were already u32 BE.
+`hkdf_kem_info`'s NUL-separator approach is unchanged but now
+type-locked via the `HkdfKemLabel` enum (L2 fix).
+
 ### Post-audit-fix follow-up — 1 HIGH + 2 MED + 4 LOW (2026-05-01)
 
 External audit returned 5 findings on the just-pushed audit-fix tree

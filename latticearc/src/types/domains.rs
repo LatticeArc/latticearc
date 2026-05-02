@@ -77,6 +77,37 @@ pub const PQ_KEM_AEAD_KEY_INFO: &[u8] = b"LatticeArc-PqKem-AeadKey-v1";
 /// fields), while the convenience API produces a concatenated wire format.
 pub const PQ_ONLY_ENCRYPTION_INFO: &[u8] = b"LatticeArc-PqOnly-Encryption-v1";
 
+/// Domain-separation label tag for [`hkdf_kem_info`].
+///
+/// Closed enum — only crate-controlled labels can be passed to the
+/// HKDF info builder, so a future caller cannot accidentally pass an
+/// arbitrary `&[u8]` containing `0x00` and break the NUL-separator
+/// disambiguation in [`hkdf_kem_info`]. The tests below assert each
+/// variant maps to a NUL-free byte string, locking the invariant the
+/// separator depends on.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum HkdfKemLabel {
+    /// `pq_kem` convenience-API AEAD key derivation
+    /// → [`PQ_KEM_AEAD_KEY_INFO`].
+    PqKemAead,
+    /// `pq_only` hybrid-module encryption derivation
+    /// → [`PQ_ONLY_ENCRYPTION_INFO`].
+    PqOnlyEncryption,
+}
+
+impl HkdfKemLabel {
+    /// Map the variant to its canonical NUL-free domain-separation
+    /// byte string. The set of permitted labels is closed by this
+    /// match arm — adding a new variant requires reviewer attention
+    /// here.
+    fn as_bytes(self) -> &'static [u8] {
+        match self {
+            Self::PqKemAead => PQ_KEM_AEAD_KEY_INFO,
+            Self::PqOnlyEncryption => PQ_ONLY_ENCRYPTION_INFO,
+        }
+    }
+}
+
 /// Build the HKDF `info` string used by KEM-derived AEAD key derivations.
 ///
 /// Encodes `label || 0x00 || kem_ciphertext` — binding the KEM
@@ -92,19 +123,45 @@ pub const PQ_ONLY_ENCRYPTION_INFO: &[u8] = b"LatticeArc-PqOnly-Encryption-v1";
 /// guarantees they agree byte-for-byte on the channel-binding
 /// transcript.
 ///
-/// `label` MUST be a domain-separation constant from this module
-/// (e.g. [`PQ_KEM_AEAD_KEY_INFO`] or [`PQ_ONLY_ENCRYPTION_INFO`]) so
-/// the two call paths cannot accidentally produce identical info
-/// strings for distinct protocols.
-pub(crate) fn hkdf_kem_info(label: &[u8], kem_ciphertext: &[u8]) -> Vec<u8> {
+/// The label is a closed [`HkdfKemLabel`] enum rather than `&[u8]` so
+/// callers cannot accidentally pass a NUL-containing byte string,
+/// which would break the `0x00` separator's disambiguation guarantee
+/// (post-85e2bd79e L2 audit fix — closes the structural footgun
+/// against future internal callers).
+pub(crate) fn hkdf_kem_info(label: HkdfKemLabel, kem_ciphertext: &[u8]) -> Vec<u8> {
+    let label_bytes = label.as_bytes();
     // saturating_add avoids the workspace `clippy::arithmetic_side_effects`
     // lint; in practice neither term ever approaches `usize::MAX`.
-    let cap = label.len().saturating_add(1).saturating_add(kem_ciphertext.len());
+    let cap = label_bytes.len().saturating_add(1).saturating_add(kem_ciphertext.len());
     let mut info = Vec::with_capacity(cap);
-    info.extend_from_slice(label);
+    info.extend_from_slice(label_bytes);
     info.push(0x00); // domain separator between label and binding payload
     info.extend_from_slice(kem_ciphertext);
     info
+}
+
+#[cfg(test)]
+mod hkdf_kem_label_tests {
+    use super::*;
+
+    /// Locks the NUL-freeness invariant the `0x00` separator depends
+    /// on. Adding a new `HkdfKemLabel` variant whose byte string
+    /// contains `0x00` would break the separator's disambiguation
+    /// guarantee — this test catches that at CI time. See L2 audit
+    /// fix in [`hkdf_kem_info`].
+    #[test]
+    fn all_label_variants_are_nul_free() {
+        for label in [HkdfKemLabel::PqKemAead, HkdfKemLabel::PqOnlyEncryption] {
+            let bytes = label.as_bytes();
+            assert!(
+                !bytes.contains(&0u8),
+                "HkdfKemLabel::{:?} maps to a byte string containing 0x00 \
+                 ({:?}) — this breaks the NUL separator in hkdf_kem_info",
+                label,
+                bytes,
+            );
+        }
+    }
 }
 
 // Formal verification with Kani

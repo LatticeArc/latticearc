@@ -517,7 +517,9 @@ impl FileAuditStorage {
         // Length-prefix every field so prefix-collision attacks are
         // impossible (`"ab" + "c"` and `"a" + "bc"` no longer hash to the
         // same digest). The metadata caps already bound each field, but a
-        // 4-byte LE length per element is the cheap and definitive fix.
+        // 4-byte BE length per element is the cheap and definitive fix.
+        // (Encoding is BE per the L3 transcript-convention migration in
+        // 85e2bd79e — see `append_lenp_field` doc comment for details.)
         let mut buf = Vec::new();
         Self::append_lenp_field(&mut buf, previous_hash.as_bytes())?;
         Self::append_lenp_field(&mut buf, event.id.as_bytes())?;

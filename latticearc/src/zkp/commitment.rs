@@ -83,30 +83,34 @@ impl HashCommitment {
     /// Create a new hash commitment to a value
     ///
     /// # Errors
-    /// Returns an error if random number generation fails.
+    /// Returns an error if random number generation fails or the value
+    /// exceeds `u32::MAX` bytes (4 GiB).
     pub fn commit(value: &[u8]) -> Result<(Self, HashOpening)> {
         let rand_vec = crate::primitives::rand::csprng::random_bytes(32);
         let mut randomness = [0u8; 32];
         randomness.copy_from_slice(&rand_vec);
 
-        let commitment = Self::compute_hash(value, &randomness);
+        let commitment = Self::compute_hash(value, &randomness)?;
 
         Ok((Self { commitment }, HashOpening::new(value.to_vec(), randomness)))
     }
 
     /// Create a commitment with specific randomness (for deterministic tests)
-    #[must_use]
-    pub fn commit_with_randomness(value: &[u8], randomness: [u8; 32]) -> Self {
-        let commitment = Self::compute_hash(value, &randomness);
-        Self { commitment }
+    ///
+    /// # Errors
+    /// Returns an error if the value exceeds `u32::MAX` bytes (4 GiB).
+    pub fn commit_with_randomness(value: &[u8], randomness: [u8; 32]) -> Result<Self> {
+        let commitment = Self::compute_hash(value, &randomness)?;
+        Ok(Self { commitment })
     }
 
     /// Verify an opening
     ///
     /// # Errors
-    /// This function currently does not return errors but uses Result for API consistency.
+    /// Returns an error if the opening's value exceeds `u32::MAX` bytes
+    /// (4 GiB) — matches the bound on commit-side hash construction.
     pub fn verify(&self, opening: &HashOpening) -> Result<bool> {
-        let expected = Self::compute_hash(opening.value(), opening.randomness());
+        let expected = Self::compute_hash(opening.value(), opening.randomness())?;
         Ok(self.commitment.ct_eq(&expected).into())
     }
 
@@ -118,26 +122,35 @@ impl HashCommitment {
 
     /// Compute H(value || randomness)
     ///
-    /// Length prefix is `value.len() as u64` big-endian to match the
+    /// Length prefix is `value.len() as u32` big-endian to match the
     /// transcript convention used by `zkp::sigma::compute_challenge`
-    /// and `unified_api::audit::compute_integrity_hash` (round-12
-    /// audit fix L3 — the previous LE encoding was an isolated outlier
-    /// within the crate's transcript-style hashing).
-    fn compute_hash(value: &[u8], randomness: &[u8; 32]) -> [u8; 32] {
+    /// and `unified_api::audit::compute_integrity_hash` — both u32 BE.
+    /// (Post-85e2bd79e L4 audit fix: previous version used u64, which
+    /// was the only u64-width transcript prefix in the crate. Migrating
+    /// to u32 BE unifies the convention; SHA-3's 1 GiB DoS cap below
+    /// makes the u32 ceiling unreachable in practice.)
+    ///
+    /// Domain label bumped `arc-zkp/hash-commitment-v1` → `-v2` because
+    /// the derivation function changed (label-bump-on-derivation-change
+    /// discipline shared with `pedersen-generator-H-v3`).
+    fn compute_hash(value: &[u8], randomness: &[u8; 32]) -> Result<[u8; 32]> {
+        let value_len = u32::try_from(value.len()).map_err(|_e| {
+            ZkpError::SerializationError("commitment value exceeds 2^32 bytes".to_string())
+        })?;
         // Accumulate all inputs into a single buffer and route through the
         // primitives wrapper so hash backends stay swappable in one place.
         let mut buf = Vec::with_capacity(
-            b"arc-zkp/hash-commitment-v1"
+            b"arc-zkp/hash-commitment-v2"
                 .len()
-                .saturating_add(8)
+                .saturating_add(4)
                 .saturating_add(value.len())
                 .saturating_add(randomness.len()),
         );
-        buf.extend_from_slice(b"arc-zkp/hash-commitment-v1");
-        buf.extend_from_slice(&(value.len() as u64).to_be_bytes());
+        buf.extend_from_slice(b"arc-zkp/hash-commitment-v2");
+        buf.extend_from_slice(&value_len.to_be_bytes());
         buf.extend_from_slice(value);
         buf.extend_from_slice(randomness);
-        sha3_256(&buf)
+        Ok(sha3_256(&buf))
     }
 }
 
@@ -433,8 +446,8 @@ mod tests {
         let value = b"test";
         let randomness = [42u8; 32];
 
-        let c1 = HashCommitment::commit_with_randomness(value, randomness);
-        let c2 = HashCommitment::commit_with_randomness(value, randomness);
+        let c1 = HashCommitment::commit_with_randomness(value, randomness).unwrap();
+        let c2 = HashCommitment::commit_with_randomness(value, randomness).unwrap();
 
         assert_eq!(c1.commitment, c2.commitment);
     }

@@ -591,12 +591,25 @@ pub fn verify(
     };
     // Match-on-parse, never `?`-propagate: if `from_bytes` ever fails
     // (today unreachable for our zero-byte dummies of correct length,
-    // but a future fips204 release adding content validation could
+    // but a future `fips204` release adding content validation could
     // change that), we still want the verify pipeline to run so the
     // wall-clock cost stays equal between shape-fail and verify-fail.
-    // Mirrors the unified-API pattern in
-    // `unified_api::convenience::api::verify_hybrid_ml_dsa_ed25519`,
-    // which uses `verify_pq_ml_dsa_unverified(...).unwrap_or(false)`.
+    //
+    // When parse fails on the substituted bytes, we DO still run a
+    // real verify against the equalizer's pre-parsed valid material
+    // (`dummy.parsed`, post-85e2bd79e M1 audit fix). This guarantees
+    // verify-pipeline execution regardless of whether `from_bytes`
+    // adds content validation downstream. The pre-parsed PK + sig
+    // verify against an internal test message — content-dependent
+    // verify timing is content-independent of the caller, which is
+    // exactly the property we want from the equalizer.
+    //
+    // If `dummy.parsed` is `None` (init keygen+sign failed at module
+    // load — extremely rare RNG/PCT path), we fall back to the
+    // legacy `Ok(false)` skip. The bit is then computed via the
+    // shape-check AND parse-check AND verify-check, so a degraded
+    // equalizer never affects correctness — only the strength of the
+    // timing-oracle countermeasure for the degraded parameter set.
     let parse_ok =
         MlDsaPublicKey::from_bytes(pq_pk_bytes, pk.parameter_set).and_then(|parsed_pk| {
             MlDsaSignature::from_bytes(pq_sig_bytes, pk.parameter_set)
@@ -604,13 +617,26 @@ pub fn verify(
         });
     let ml_dsa_verify_result = match &parse_ok {
         Ok((parsed_pk, parsed_sig)) => parsed_pk.verify(message, parsed_sig, &[]),
-        Err(_) => Ok(false),
+        Err(_) => match &dummy.parsed {
+            // Equalizer fallback: run verify against pre-validated
+            // material so the wall-clock cost stays equal between
+            // shape-fail-then-parse-fail and shape-good-then-verify.
+            // The result is discarded by the AND with `parse_ok.is_ok()`
+            // below — its only purpose is to consume verify-time
+            // wall-clock budget.
+            Some(parsed) => parsed.pq_pk.verify(&parsed.pq_test_message, &parsed.pq_sig, &[]),
+            // Init keygen failed (extremely rare). Equalizer degraded;
+            // legacy fast-fail behavior. Documented; not a correctness
+            // regression because the bit is computed below via AND
+            // with multiple guards.
+            None => Ok(false),
+        },
     };
     // Bit is 1 only when the real input passed shape-check, both
     // `from_bytes` calls succeeded, AND the verify returned Ok(true).
-    // When shape failed, the verify still ran (against the dummy) for
-    // timing equalization; its result is discarded by the AND with
-    // `pq_shape_ok`.
+    // When shape failed, the verify still ran (against the dummy or
+    // against pre-parsed material) for timing equalization; its
+    // result is discarded by the AND with `pq_shape_ok`.
     let ml_dsa_valid: u8 =
         if pq_shape_ok && parse_ok.is_ok() && matches!(ml_dsa_verify_result, Ok(true)) {
             1u8

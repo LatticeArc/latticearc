@@ -33,14 +33,15 @@ use crate::unified_api::zero_trust::SecurityMode;
 /// `decrypt_pq_ml_kem`.
 ///
 /// Thin wrapper over [`crate::types::domains::hkdf_kem_info`] that
-/// pins the domain-separation label to [`PQ_KEM_AEAD_KEY_INFO`]. The
-/// shared helper is also used by
+/// pins the domain-separation label to
+/// [`HkdfKemLabel::PqKemAead`](crate::types::domains::HkdfKemLabel::PqKemAead).
+/// The shared helper is also used by
 /// [`crate::hybrid::pq_only::encrypt_pq_only`] (round-12 audit fix
 /// L-2) so encrypt/decrypt drift across the two parallel APIs is
 /// structurally impossible.
 fn pq_kem_aead_key_info(kem_ciphertext: &[u8]) -> Vec<u8> {
     crate::types::domains::hkdf_kem_info(
-        crate::types::domains::PQ_KEM_AEAD_KEY_INFO,
+        crate::types::domains::HkdfKemLabel::PqKemAead,
         kem_ciphertext,
     )
 }
