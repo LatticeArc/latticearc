@@ -1324,5 +1324,21 @@
 <a href=#1324 id=1324 data-nosnippet>1324</a>            generate_keypair(MlDsaParameterSet::MlDsa65).expect(<span class="string">"Key generation should succeed"</span>);
 <a href=#1325 id=1325 data-nosnippet>1325</a>        <span class="macro">assert_eq!</span>(sk.parameter_set(), MlDsaParameterSet::MlDsa65);
 <a href=#1326 id=1326 data-nosnippet>1326</a>    }
-<a href=#1327 id=1327 data-nosnippet>1327</a>}
+<a href=#1327 id=1327 data-nosnippet>1327</a>
+<a href=#1328 id=1328 data-nosnippet>1328</a>    <span class="doccomment">/// Round-27 H5 (Pattern 14): the `MessageTooLong` variant must be
+<a href=#1329 id=1329 data-nosnippet>1329</a>    /// triggerable through the public sign path. The default global
+<a href=#1330 id=1330 data-nosnippet>1330</a>    /// signature-size limit is 64 KiB; passing 64 KiB + 1 bytes exceeds
+<a href=#1331 id=1331 data-nosnippet>1331</a>    /// the cap and the signing path returns `MlDsaError::MessageTooLong`
+<a href=#1332 id=1332 data-nosnippet>1332</a>    /// before reaching the upstream `ml-dsa` crate.
+<a href=#1333 id=1333 data-nosnippet>1333</a>    </span><span class="attr">#[test]
+<a href=#1334 id=1334 data-nosnippet>1334</a>    </span><span class="kw">fn </span>test_ml_dsa_sign_oversized_message_returns_message_too_long() {
+<a href=#1335 id=1335 data-nosnippet>1335</a>        <span class="kw">let </span>(_pk, sk) =
+<a href=#1336 id=1336 data-nosnippet>1336</a>            generate_keypair(MlDsaParameterSet::MlDsa65).expect(<span class="string">"Key generation should succeed"</span>);
+<a href=#1337 id=1337 data-nosnippet>1337</a>        <span class="comment">// Default cap is 64 KiB (65,536). Use 65 KiB + 1 byte = 66,561 to
+<a href=#1338 id=1338 data-nosnippet>1338</a>        // exceed it without inflating the test memory footprint.
+<a href=#1339 id=1339 data-nosnippet>1339</a>        </span><span class="kw">let </span>oversize: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0u8</span>; (<span class="number">64 </span>* <span class="number">1024</span>) + <span class="number">1</span>];
+<a href=#1340 id=1340 data-nosnippet>1340</a>        <span class="kw">let </span>err = sk.sign(<span class="kw-2">&amp;</span>oversize, <span class="string">b""</span>).expect_err(<span class="string">"oversized message must be rejected"</span>);
+<a href=#1341 id=1341 data-nosnippet>1341</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, MlDsaError::MessageTooLong), <span class="string">"expected MessageTooLong, got {err:?}"</span>);
+<a href=#1342 id=1342 data-nosnippet>1342</a>    }
+<a href=#1343 id=1343 data-nosnippet>1343</a>}
 </code></pre></div></section></main></body></html>
