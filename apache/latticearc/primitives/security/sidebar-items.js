@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["RngHandle"],"fn":["generate_secure_random_bytes","generate_secure_random_u32","generate_secure_random_u64","get_global_secure_rng","get_memory_pool","initialize_global_secure_rng","secure_compare","secure_zeroize"],"struct":["MemoryPool"],"type":["SecureRng"]};
+window.SIDEBAR_ITEMS = {"enum":["RngHandle"],"fn":["allocate_secure_buffer","generate_secure_random_bytes","generate_secure_random_u32","generate_secure_random_u64","get_global_secure_rng","initialize_global_secure_rng","secure_compare","secure_zeroize"],"type":["SecureRng"]};

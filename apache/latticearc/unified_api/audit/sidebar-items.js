@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["AuditEventType","AuditOutcome"],"struct":["AuditConfig","AuditEvent","AuditEventBuilder","FileAuditStorage"],"trait":["AuditStorage"]};
+window.SIDEBAR_ITEMS = {"enum":["AuditEventType","AuditOutcome"],"struct":["AuditConfig","AuditEvent","AuditEventBuilder","ChainMismatch","ChainVerificationReport","FileAuditStorage"],"trait":["AuditStorage"]};

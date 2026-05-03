@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["EncryptMode"],"fn":["encrypt_chacha20","encrypt_hybrid","encrypt_pq_only_mode","encrypt_symmetric","encrypt_with_config","read_input","run","write_output"],"struct":["EncryptArgs"]};
+window.SIDEBAR_ITEMS = {"enum":["EncryptMode"],"fn":["encrypt_chacha20","encrypt_hybrid","encrypt_pq_only_mode","encrypt_symmetric","encrypt_with_config","is_pq_only_key","read_input","run","write_output"],"struct":["EncryptArgs"]};
