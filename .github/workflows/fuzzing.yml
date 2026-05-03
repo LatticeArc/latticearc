@@ -114,9 +114,12 @@ jobs:
         cd fuzz
         # No `|| true` wrapper: masking the exit code prevents the
         # `if: failure()` artifact-upload step below from firing on a
-        # real crash. libFuzzer's own `-max_total_time` ensures clean
-        # exit before the outer `timeout` fires under normal operation.
-        timeout 300s cargo fuzz run ${{ matrix.target }} -- -max_total_time=300
+        # real crash. The outer `timeout` is 360s and `-max_total_time`
+        # is 300s so libFuzzer exits cleanly first under normal
+        # operation; the extra 60s gives headroom on slow-cache runners.
+        # Build was performed in the prior step so this only governs
+        # fuzz execution. `matrix.target` is a static workflow string.
+        timeout 360s cargo fuzz run "${{ matrix.target }}" -- -max_total_time=300
 
     - name: Upload fuzz artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -173,11 +176,27 @@ jobs:
           target
         key: ${{ runner.os }}-extended-fuzz-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+    # Round-27 follow-up: pre-build the target so the outer `timeout`
+    # only governs the actual fuzz execution, not the cold-cache rebuild
+    # that `cargo fuzz run` performs on every invocation. With cache
+    # misses the build can eat 30+ min of the 60-min budget and the
+    # outer timeout fires before any meaningful fuzzing happens (exit
+    # code 124). `matrix.target` is a static workflow-defined string —
+    # not user-controllable — so direct interpolation is safe.
+    - name: Build extended fuzz target
+      run: |
+        cd fuzz
+        cargo fuzz build "${{ matrix.target }}"
+
     - name: Run extended fuzz tests
       run: |
         cd fuzz
-        # No `|| true` wrapper — see the short-duration job above.
-        timeout 3600s cargo fuzz run ${{ matrix.target }} -- -max_total_time=3600
+        # No `|| true` wrapper — see the short-duration job above. Both
+        # the outer `timeout` and `-max_total_time` are set to 3300s
+        # (55 min), leaving 5 min headroom inside the 90-min job
+        # timeout for libfuzzer cleanup, artifact upload, and step
+        # overhead.
+        timeout 3300s cargo fuzz run "${{ matrix.target }}" -- -max_total_time=3300
 
     - name: Upload extended fuzz artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -218,14 +237,23 @@ jobs:
           target
         key: ${{ runner.os }}-fuzz-coverage-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+    # Round-27 follow-up: pre-build before applying the timeout, mirroring
+    # the extended-fuzz job. Cold-cache builds can exceed the 60s budget
+    # if the timeout governs the build phase too; splitting fixes that.
+    - name: Build fuzz coverage target
+      run: |
+        cd fuzz
+        cargo fuzz build encrypt_fuzz
+
     - name: Run fuzz with coverage
       run: |
         cd fuzz
         # First, run fuzzer briefly to generate corpus inputs. No
         # `|| true` wrapper: a crash in the seed-generation phase
         # should fail the job rather than silently producing empty
-        # coverage data.
-        timeout 60s cargo fuzz run encrypt_fuzz -- -max_total_time=60
+        # coverage data. Build is in the previous step so the outer
+        # `timeout` here only governs the fuzz execution itself.
+        timeout 90s cargo fuzz run encrypt_fuzz -- -max_total_time=60
         # Then generate coverage from the corpus (may fail if corpus is empty)
         cargo fuzz coverage encrypt_fuzz -- -max_total_time=60 || echo "Fuzz coverage skipped (no corpus)"
 

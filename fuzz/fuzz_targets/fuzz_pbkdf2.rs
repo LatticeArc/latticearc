@@ -132,14 +132,23 @@ fn test_pbkdf2_with_params_succeeds(password: &[u8], salt: &[u8], iterations: u3
 }
 
 fn test_pbkdf2_simple_succeeds(password: &[u8]) {
-    // Test simple PBKDF2 (default parameters)
+    // Test simple PBKDF2 (default parameters). `pbkdf2_simple` generates a
+    // fresh random salt on every call, so two consecutive calls with the
+    // same password produce DIFFERENT derived keys — that is the correct
+    // behavior (an earlier version of this harness asserted equality and
+    // crashed when libfuzzer's corpus reached 16+ bytes; see CHANGELOG
+    // round-27). Just exercise the success path and check output shape.
     if let Ok(result) = pbkdf2_simple(password) {
-        // Should produce output with default length
         assert!(!result.expose_secret().is_empty());
+        assert_eq!(result.expose_secret().len(), 32, "pbkdf2_simple defaults to a 32-byte key");
 
-        // Verify determinism
+        // Two calls produce DIFFERENT outputs (different fresh salts).
         if let Ok(result2) = pbkdf2_simple(password) {
-            assert_eq!(result.expose_secret(), result2.expose_secret());
+            assert_ne!(
+                result.expose_secret(),
+                result2.expose_secret(),
+                "pbkdf2_simple must use a fresh random salt per call"
+            );
         }
     }
 }
