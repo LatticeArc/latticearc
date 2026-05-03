@@ -445,7 +445,11 @@ pub fn cmac_256(key: &[u8], data: &[u8]) -> Result<Cmac256, CmacError> {
 /// with the provided tag in constant-time to prevent timing attacks.
 ///
 /// # Security Notice
-/// Always use constant-time comparison for tag verification to prevent timing attacks.
+/// Tag-vs-tag comparison is constant-time via `subtle::ConstantTimeEq`.
+/// Key length is structural (public input) and is rejected fast on
+/// mismatch; this is a deliberate design choice, not a timing leak —
+/// the key length is supplied by the caller, not the adversary, and
+/// the rejection cost contains no information about the key contents.
 ///
 /// # Arguments
 /// * `key` - The AES-128 key (16 bytes)
@@ -488,13 +492,15 @@ pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
         let tags_match: bool = cmac.tag.ct_eq(tag).into();
         tag_valid & tags_match
     } else {
-        // Err arm: do equivalent constant-time work against a zeroed
-        // dummy tag so the function's runtime profile doesn't depend
-        // on whether the key length passed cmac_128's check. The mask
-        // to `false` is unconditional.
-        let dummy = [0u8; 16];
-        let _: bool = dummy.ct_eq(&dummy).into();
-        let _: bool = dummy[..].ct_eq(tag).into();
+        // Round-26 audit fix (M7): the previous "dummy CT work" two
+        // ct_eq calls did NOT equalize timing — the Ok arm runs a full
+        // CMAC computation (subkey derivation + AES rounds across the
+        // entire data buffer) plus one ct_eq, while the Err arm
+        // skipped that and only ran two trivial 16-byte compares. The
+        // claim "maintains constant-time work" was structurally false.
+        // Drop the dummy: key length is structural / public input, so
+        // its rejection is correctly fast. The doc comment now reflects
+        // this honestly.
         false
     }
 }
@@ -505,7 +511,11 @@ pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
 /// with the provided tag in constant-time to prevent timing attacks.
 ///
 /// # Security Notice
-/// Always use constant-time comparison for tag verification to prevent timing attacks.
+/// Tag-vs-tag comparison is constant-time via `subtle::ConstantTimeEq`.
+/// Key length is structural (public input) and is rejected fast on
+/// mismatch; this is a deliberate design choice, not a timing leak —
+/// the key length is supplied by the caller, not the adversary, and
+/// the rejection cost contains no information about the key contents.
 ///
 /// # Arguments
 /// * `key` - The AES-192 key (24 bytes)
@@ -560,7 +570,11 @@ pub fn verify_cmac_192(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
 /// with the provided tag in constant-time to prevent timing attacks.
 ///
 /// # Security Notice
-/// Always use constant-time comparison for tag verification to prevent timing attacks.
+/// Tag-vs-tag comparison is constant-time via `subtle::ConstantTimeEq`.
+/// Key length is structural (public input) and is rejected fast on
+/// mismatch; this is a deliberate design choice, not a timing leak —
+/// the key length is supplied by the caller, not the adversary, and
+/// the rejection cost contains no information about the key contents.
 ///
 /// # Arguments
 /// * `key` - The AES-256 key (32 bytes)

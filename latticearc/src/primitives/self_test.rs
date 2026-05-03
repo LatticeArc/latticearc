@@ -568,24 +568,44 @@ pub fn kat_hmac_sha256() -> Result<()> {
 pub fn kat_aes_256_gcm() -> Result<()> {
     use crate::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 
-    // Self-computed test vector (not from an external source):
-    // Key = 0x00..0x1f, Nonce = 0x00*12, Plaintext = "FIPS 140-3 KAT", AAD = "additional data"
-    // Expected ciphertext and tag independently verified via OpenSSL `aes-256-gcm` and AWS-LC
+    // NIST CAVP AES-GCM Known Answer Test vector. Source: NIST
+    // Cryptographic Algorithm Validation Program GCM Test Vectors
+    // (GCMVS), file `gcmEncryptExtIV256.rsp`, Count = 12. URL:
+    //   https://csrc.nist.gov/Projects/Cryptographic-Algorithm-Validation-Program/CAVP-TESTING-BLOCK-CIPHER-MODES#GCMVS
+    //
+    // Round-26 audit fix (C4) replaced the previous self-computed
+    // vector with this CAVP entry to satisfy FIPS 140-3 §10.3.1's
+    // requirement that power-up KATs use externally-attested vectors
+    // — a self-roundtrip would pass even if encrypt and decrypt shared
+    // the same bug. Count = 12 has a non-empty PT (16 bytes), so it
+    // exercises both the AES round function and the CTR-mode
+    // increment, which an empty-PT vector cannot reach.
+    //
+    //   Key   = 31bdadd96698c204aa9ce1448ea94ae1fb4a9a0b3c9d773b51bb1822666b8f22
+    //   IV    = 0d18e06c7c725ac9e362e1ce
+    //   PT    = 2db5168e932556f8089a0622981d017d
+    //   AAD   = (empty)
+    //   CT    = fa4362189661d163fcd6a56d8bf0405a
+    //   Tag   = d636ac1bbedd5cc3ee727dc2ab4a9489
     const KEY: [u8; 32] = [
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-        0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
-        0x1e, 0x1f,
+        0x31, 0xbd, 0xad, 0xd9, 0x66, 0x98, 0xc2, 0x04, 0xaa, 0x9c, 0xe1, 0x44, 0x8e, 0xa9, 0x4a,
+        0xe1, 0xfb, 0x4a, 0x9a, 0x0b, 0x3c, 0x9d, 0x77, 0x3b, 0x51, 0xbb, 0x18, 0x22, 0x66, 0x6b,
+        0x8f, 0x22,
     ];
     const NONCE: [u8; 12] =
-        [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-    const PLAINTEXT: &[u8] = b"FIPS 140-3 KAT";
-    const AAD: &[u8] = b"additional data";
+        [0x0d, 0x18, 0xe0, 0x6c, 0x7c, 0x72, 0x5a, 0xc9, 0xe3, 0x62, 0xe1, 0xce];
+    const PLAINTEXT: [u8; 16] = [
+        0x2d, 0xb5, 0x16, 0x8e, 0x93, 0x25, 0x56, 0xf8, 0x08, 0x9a, 0x06, 0x22, 0x98, 0x1d, 0x01,
+        0x7d,
+    ];
 
-    const EXPECTED_CT: [u8; 14] =
-        [0x48, 0xf5, 0xe5, 0x8d, 0x95, 0x1d, 0xb7, 0x8d, 0x25, 0x9b, 0x89, 0x7e, 0x59, 0x78];
+    const EXPECTED_CT: [u8; 16] = [
+        0xfa, 0x43, 0x62, 0x18, 0x96, 0x61, 0xd1, 0x63, 0xfc, 0xd6, 0xa5, 0x6d, 0x8b, 0xf0, 0x40,
+        0x5a,
+    ];
     const EXPECTED_TAG: [u8; 16] = [
-        0x15, 0xad, 0x41, 0x23, 0xf6, 0x60, 0x99, 0xe1, 0xad, 0xa5, 0x5b, 0xd6, 0x7d, 0xa6, 0xc5,
-        0xeb,
+        0xd6, 0x36, 0xac, 0x1b, 0xbe, 0xdd, 0x5c, 0xc3, 0xee, 0x72, 0x7d, 0xc2, 0xab, 0x4a, 0x94,
+        0x89,
     ];
 
     // Create cipher instance
@@ -593,12 +613,12 @@ pub fn kat_aes_256_gcm() -> Result<()> {
         message: format!("AES-256-GCM KAT: cipher initialization failed: {}", e),
     })?;
 
-    // Encrypt and verify ciphertext matches expected
-    let (ciphertext, tag) = cipher.encrypt(&NONCE, PLAINTEXT, Some(AAD)).map_err(|e| {
-        LatticeArcError::ValidationError {
+    // Encrypt and verify ciphertext matches expected. AAD = empty per
+    // the CAVP vector definition, so we pass `None`.
+    let (ciphertext, tag) =
+        cipher.encrypt(&NONCE, &PLAINTEXT, None).map_err(|e| LatticeArcError::ValidationError {
             message: format!("AES-256-GCM KAT: encryption failed: {}", e),
-        }
-    })?;
+        })?;
 
     if !bool::from(ciphertext.ct_eq(&EXPECTED_CT)) {
         return Err(LatticeArcError::ValidationError {
@@ -612,14 +632,16 @@ pub fn kat_aes_256_gcm() -> Result<()> {
         });
     }
 
-    // Decrypt and verify plaintext matches
-    let decrypted = cipher.decrypt(&NONCE, &ciphertext, &tag, Some(AAD)).map_err(|e| {
+    // Decrypt-side: round-trip the expected (CT, tag) back to the
+    // expected plaintext to catch encrypt/decrypt asymmetry that a
+    // pure encrypt-side check would miss.
+    let decrypted = cipher.decrypt(&NONCE, &EXPECTED_CT, &EXPECTED_TAG, None).map_err(|e| {
         LatticeArcError::ValidationError {
             message: format!("AES-256-GCM KAT: decryption failed: {}", e),
         }
     })?;
 
-    if bool::from(decrypted.ct_eq(PLAINTEXT)) {
+    if bool::from(decrypted.ct_eq(&PLAINTEXT)) {
         Ok(())
     } else {
         Err(LatticeArcError::ValidationError {
@@ -1047,33 +1069,63 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
         return false;
     };
     let lower = file_name.to_ascii_lowercase();
-    let candidate_names = [
+    // Round-26 audit fix (M12): tightened from a permissive
+    // `starts_with("latticearc")` plus a blanket `target/deps/` accept
+    // to (a) an exact list of names produced by this build, plus
+    // (b) cargo-test binary recognition via the `<crate-name>-<16-hex>`
+    // suffix shape inside `target/{debug,release}/deps/`. Previously
+    // a binary named `latticearc-evil-host` would have been HMAC-
+    // checked against the EXPECTED_HMAC, surfacing as "module
+    // integrity OK" for a non-LatticeArc image.
+    //
+    // Note: the cargo-deps shape check intentionally does NOT require
+    // a `latticearc` crate-name prefix — integration tests under
+    // `latticearc/tests/`, `tests/tests/`, and other workspace
+    // members produce binaries whose crate name reflects the test
+    // file (e.g. `primitives_self_test_conditional_kats-<hex>`),
+    // none of which start with `latticearc`. They all statically
+    // link the latticearc crate and are legitimate consumers, so
+    // the integrity test must accept them. The 16-hex-suffix shape
+    // is what excludes adversary binaries: a hand-crafted binary
+    // dropped into `deps/` to fake the integrity check would either
+    // (i) lack the 16-hex suffix (cargo always generates one) or
+    // (ii) be a real cargo-test binary, in which case the question
+    // reduces to "does the developer trust their own `target/`",
+    // which the workspace already assumes.
+    let exact_names = [
         "liblatticearc.so",
         "liblatticearc.dylib",
         "latticearc.dll",
         "latticearc-cli",
         "latticearc-cli.exe",
     ];
-    if candidate_names.iter().any(|n| lower == *n) {
+    if exact_names.iter().any(|n| lower == *n) {
         return true;
     }
-    if lower.starts_with("latticearc") || lower.starts_with("liblatticearc") {
-        return true;
-    }
-    // Cargo test binaries live in `target/{debug,release}/deps/` and
-    // are named after the test target with a 16-char hex suffix
-    // (e.g. `round21_behavior-3a9c1b2d4e5f6071`). They statically
-    // link the latticearc lib, so HMAC-ing them is a meaningful
-    // integrity check; the heuristic accepts that path.
-    if let Some(parent) = path.parent()
-        && parent.file_name().and_then(|n| n.to_str()) == Some("deps")
-        && parent
-            .parent()
-            .and_then(|p| p.file_name())
-            .and_then(|n| n.to_str())
-            .is_some_and(|s| s == "debug" || s == "release")
-    {
-        return true;
+    let parent_ok = path.parent().and_then(|p| {
+        if p.file_name().and_then(|n| n.to_str()) == Some("deps")
+            && p.parent()
+                .and_then(|pp| pp.file_name())
+                .and_then(|n| n.to_str())
+                .is_some_and(|s| s == "debug" || s == "release")
+        {
+            Some(())
+        } else {
+            None
+        }
+    });
+    if parent_ok.is_some() {
+        // Strip `.exe` if present, then split on the LAST `-` to get
+        // crate-name vs hex-suffix. Accept any 16-hex-suffix file in
+        // `target/{debug,release}/deps/` — see the comment above for
+        // why the crate-name prefix is not constrained further.
+        let stem = lower.strip_suffix(".exe").unwrap_or(&lower);
+        if let Some((_crate_name, suffix)) = stem.rsplit_once('-')
+            && suffix.len() == 16
+            && suffix.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return true;
+        }
     }
     false
 }

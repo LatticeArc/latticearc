@@ -176,6 +176,18 @@ pub enum FipsErrorCode {
     /// The key derivation function operation failed.
     KeyDerivationFailed = 0x0110,
 
+    /// Cryptographic primitive failure.
+    ///
+    /// Round-26 audit fix (M13): a generic algorithm-category bucket
+    /// for upstream library failures (e.g. aws-lc-rs returning a
+    /// non-specific error from a primitive call) that don't map
+    /// cleanly to one of the specific algorithm errors above. This is
+    /// distinct from `InternalError` (operational, non-critical) so
+    /// FIPS-monitoring consumers tracking `is_critical()` can flag
+    /// real crypto failures without mixing them with bookkeeping
+    /// errors.
+    CryptoFailure = 0x0111,
+
     // ========================================================================
     // Operational Errors (0x0200-0x02FF)
     // ========================================================================
@@ -319,6 +331,7 @@ impl FipsErrorCode {
             Self::HashFailed => "Hash operation failed",
             Self::MacFailed => "MAC operation failed",
             Self::KeyDerivationFailed => "Key derivation failed",
+            Self::CryptoFailure => "Cryptographic primitive failure",
 
             // Operational errors
             Self::RngFailure => "Random number generation failed",
@@ -618,7 +631,11 @@ impl FipsError for crate::primitives::kem::ml_kem::MlKemError {
             Self::InvalidKeyLength { .. } => FipsErrorCode::InvalidKeyLength,
             Self::InvalidCiphertextLength { .. } => FipsErrorCode::InvalidCiphertext,
             Self::UnsupportedSecurityLevel(_) => FipsErrorCode::UnsupportedAlgorithm,
-            Self::CryptoError(_) => FipsErrorCode::InternalError,
+            // Round-26 audit fix (M13): route upstream crypto-primitive
+            // failures to the dedicated algorithm-category code so they
+            // surface through `is_critical()` instead of being buried
+            // alongside non-cryptographic operational errors.
+            Self::CryptoError(_) => FipsErrorCode::CryptoFailure,
         }
     }
 }
@@ -786,7 +803,9 @@ mod tests {
 
         let ml_kem_crypto =
             crate::primitives::kem::ml_kem::MlKemError::CryptoError("test".to_string());
-        assert_eq!(ml_kem_crypto.fips_code(), FipsErrorCode::InternalError);
+        // Round-26 audit fix (M13): now `CryptoFailure` (algorithm
+        // category), not `InternalError` (operational).
+        assert_eq!(ml_kem_crypto.fips_code(), FipsErrorCode::CryptoFailure);
     }
 
     #[test]
@@ -956,7 +975,7 @@ mod tests {
                 MlKemError::UnsupportedSecurityLevel("test".into()),
                 FipsErrorCode::UnsupportedAlgorithm,
             ),
-            (MlKemError::CryptoError("test".into()), FipsErrorCode::InternalError),
+            (MlKemError::CryptoError("test".into()), FipsErrorCode::CryptoFailure),
         ];
 
         for (error, expected_code) in &cases {

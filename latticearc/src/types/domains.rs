@@ -77,12 +77,12 @@ pub const PQ_KEM_AEAD_KEY_INFO: &[u8] = b"LatticeArc-PqKem-AeadKey-v1";
 /// fields), while the convenience API produces a concatenated wire format.
 pub const PQ_ONLY_ENCRYPTION_INFO: &[u8] = b"LatticeArc-PqOnly-Encryption-v1";
 
-/// Domain-separation label tag for [`hkdf_kem_info`].
+/// Domain-separation label tag for [`hkdf_kem_info_with_pk`].
 ///
 /// Closed enum — only crate-controlled labels can be passed to the
 /// HKDF info builder, so a future caller cannot accidentally pass an
 /// arbitrary `&[u8]` containing `0x00` and break the NUL-separator
-/// disambiguation in [`hkdf_kem_info`]. The tests below assert each
+/// disambiguation in [`hkdf_kem_info_with_pk`]. The tests below assert each
 /// variant maps to a NUL-free byte string, locking the invariant the
 /// separator depends on.
 #[derive(Clone, Copy, Debug)]
@@ -108,37 +108,13 @@ impl HkdfKemLabel {
     }
 }
 
-/// Build the HKDF `info` string used by KEM-derived AEAD key derivations.
-///
-/// Encodes `label || 0x00 || kem_ciphertext` — binding the KEM
-/// ciphertext into the per-message AEAD key derivation per RFC 9180
-/// §5.1 (HPKE channel binding). Without this binding, an adversary who
-/// finds two KEM ciphertexts that decapsulate to the same shared
-/// secret could swap them on the wire and the AEAD tag would still
-/// pass.
-///
-/// Used by both [`crate::hybrid::pq_only`] and
-/// [`crate::unified_api::convenience::pq_kem`]. A single canonical
-/// helper avoids encrypt/decrypt drift between the two paths and
-/// guarantees they agree byte-for-byte on the channel-binding
-/// transcript.
-///
-/// The label is a closed [`HkdfKemLabel`] enum rather than `&[u8]` so
-/// callers cannot accidentally pass a NUL-containing byte string,
-/// which would break the `0x00` separator's disambiguation guarantee
-/// (post-85e2bd79e L2 audit fix — closes the structural footgun
-/// against future internal callers).
-pub(crate) fn hkdf_kem_info(label: HkdfKemLabel, kem_ciphertext: &[u8]) -> Vec<u8> {
-    let label_bytes = label.as_bytes();
-    // saturating_add avoids the workspace `clippy::arithmetic_side_effects`
-    // lint; in practice neither term ever approaches `usize::MAX`.
-    let cap = label_bytes.len().saturating_add(1).saturating_add(kem_ciphertext.len());
-    let mut info = Vec::with_capacity(cap);
-    info.extend_from_slice(label_bytes);
-    info.push(0x00); // domain separator between label and binding payload
-    info.extend_from_slice(kem_ciphertext);
-    info
-}
+// Round-26 audit fix (H1): the label-only `hkdf_kem_info` helper was
+// removed once `convenience::pq_kem` was migrated to the PK-binding
+// variant. Every internal KEM-AEAD path now uses
+// `hkdf_kem_info_with_pk` so encrypt/decrypt drift across parallel APIs
+// is structurally impossible. The original doc comment for that
+// function described the label-only encoding (`label || 0x00 ||
+// kem_ciphertext`) which no longer exists in the codebase.
 
 /// Build the HKDF `info` string with both recipient public key and KEM
 /// ciphertext binding (HPKE / RFC 9180 §5.1 channel binding).
@@ -146,15 +122,16 @@ pub(crate) fn hkdf_kem_info(label: HkdfKemLabel, kem_ciphertext: &[u8]) -> Vec<u
 /// Encodes
 /// `label || 0x00 || pk_len_be32 || recipient_pk || ct_len_be32 || kem_ciphertext`.
 /// Length-prefixing both fields prevents prefix-free ambiguity between
-/// adjacent variable-length values. Distinct from [`hkdf_kem_info`] so
-/// callers explicitly opt into PK binding — paths that legitimately do
-/// not have the recipient PK on hand (legacy v1 PQ-only ciphertexts)
-/// can still use the ciphertext-only form.
+/// adjacent variable-length values. The previous label-only
+/// `hkdf_kem_info` helper was removed in round-26 audit fix H1; every
+/// internal KEM-AEAD path now uses this PK-binding variant so
+/// encrypt/decrypt drift across parallel APIs is structurally
+/// impossible.
 pub(crate) fn hkdf_kem_info_with_pk(
     label: HkdfKemLabel,
     recipient_pk: &[u8],
     kem_ciphertext: &[u8],
-) -> Vec<u8> {
+) -> Result<Vec<u8>, crate::prelude::error::LatticeArcError> {
     let label_bytes = label.as_bytes();
     let cap = label_bytes
         .len()
@@ -166,13 +143,28 @@ pub(crate) fn hkdf_kem_info_with_pk(
     let mut info = Vec::with_capacity(cap);
     info.extend_from_slice(label_bytes);
     info.push(0x00); // domain separator between label and the PK || ct payload
-    let pk_len_u32 = u32::try_from(recipient_pk.len()).unwrap_or(u32::MAX);
+    // Round-26 audit fix (L1): hard-error on length-prefix overflow
+    // instead of saturating to `u32::MAX`. Saturation collapses every
+    // PK or ciphertext above 4 GiB onto the same prefix, breaking
+    // HPKE channel binding's prefix-injectivity guarantee. In
+    // practice no real KEM ciphertext or PK approaches the 4 GiB
+    // line, but the audit-grade defensive fix is to fail loudly so a
+    // future bug that introduces such inputs surfaces immediately.
+    let pk_len_u32 = u32::try_from(recipient_pk.len()).map_err(|_overflow| {
+        crate::prelude::error::LatticeArcError::InvalidInput(
+            "recipient PK exceeds 4 GiB".to_string(),
+        )
+    })?;
     info.extend_from_slice(&pk_len_u32.to_be_bytes());
     info.extend_from_slice(recipient_pk);
-    let ct_len_u32 = u32::try_from(kem_ciphertext.len()).unwrap_or(u32::MAX);
+    let ct_len_u32 = u32::try_from(kem_ciphertext.len()).map_err(|_overflow| {
+        crate::prelude::error::LatticeArcError::InvalidInput(
+            "KEM ciphertext exceeds 4 GiB".to_string(),
+        )
+    })?;
     info.extend_from_slice(&ct_len_u32.to_be_bytes());
     info.extend_from_slice(kem_ciphertext);
-    info
+    Ok(info)
 }
 
 #[cfg(test)]
@@ -183,7 +175,7 @@ mod hkdf_kem_label_tests {
     /// on. Adding a new `HkdfKemLabel` variant whose byte string
     /// contains `0x00` would break the separator's disambiguation
     /// guarantee — this test catches that at CI time. See L2 audit
-    /// fix in [`hkdf_kem_info`].
+    /// fix in [`hkdf_kem_info_with_pk`].
     #[test]
     fn all_label_variants_are_nul_free() {
         for label in [HkdfKemLabel::PqKemAead, HkdfKemLabel::PqOnlyEncryption] {
@@ -191,7 +183,7 @@ mod hkdf_kem_label_tests {
             assert!(
                 !bytes.contains(&0u8),
                 "HkdfKemLabel::{:?} maps to a byte string containing 0x00 \
-                 ({:?}) — this breaks the NUL separator in hkdf_kem_info",
+                 ({:?}) — this breaks the NUL separator in hkdf_kem_info_with_pk",
                 label,
                 bytes,
             );

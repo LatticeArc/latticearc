@@ -497,6 +497,18 @@ pub struct ZeroTrustAuth {
     session_start: DateTime<Utc>,
     /// Last successful verification timestamp.
     last_verification: RefCell<DateTime<Utc>>,
+    /// Replay cache for proofs-of-possession (round-26 audit fix M16).
+    /// Keyed on `pk || sig || ts_micros_be` (microsecond precision —
+    /// see the M16 follow-up note in `generate_pop` for why second
+    /// precision was insufficient under Ed25519's deterministic
+    /// signatures). Values are the wall-clock seconds-since-epoch at
+    /// which the entry was inserted (used to bound cache lifetime to
+    /// the 5-minute PoP freshness window). The cache is
+    /// opportunistically evicted on each `verify_pop` call and capped
+    /// at 16 KiB entries to bound memory under attack. `Mutex` rather
+    /// than `RefCell` so the type stays `Sync` for use across
+    /// async/multi-threaded callers.
+    pop_replay_cache: std::sync::Mutex<std::collections::HashMap<Vec<u8>, i64>>,
 }
 
 impl ZeroTrustAuth {
@@ -518,6 +530,7 @@ impl ZeroTrustAuth {
             config,
             session_start: now,
             last_verification: RefCell::new(now),
+            pop_replay_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
         })
     }
 
@@ -544,6 +557,7 @@ impl ZeroTrustAuth {
             config,
             session_start: now,
             last_verification: RefCell::new(now),
+            pop_replay_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
         })
     }
 
@@ -667,9 +681,17 @@ impl ProofOfPossession for ZeroTrustAuth {
     /// Returns `CoreError::InvalidInput` if the private key format is invalid.
     fn generate_pop(&self) -> Result<Self::Pop> {
         let timestamp = Utc::now();
-        // Timestamps after 1970 are always positive, use safe conversion
-        let ts_secs = u64::try_from(timestamp.timestamp()).unwrap_or(0);
-        let message = format!("proof-of-possession-{}", ts_secs);
+        // Round-26 audit fix (M16 follow-up): include microsecond precision
+        // in the signed message, not just seconds. Ed25519 signatures are
+        // deterministic, so two PoPs generated in the same second by the
+        // same key produce byte-identical wire representations — the
+        // round-26 replay cache (which keys on `pk || sig || ts_secs`)
+        // would then flag a legitimate client regenerating PoPs in a
+        // tight loop as a replay attack. Microseconds are still well
+        // within the 5-minute freshness window's resolution and make
+        // each in-second PoP byte-unique.
+        let ts_micros = timestamp.timestamp_micros();
+        let message = format!("proof-of-possession-{}", ts_micros);
 
         let signature = crate::unified_api::convenience::ed25519::sign_ed25519_internal(
             message.as_bytes(),
@@ -708,15 +730,63 @@ impl ProofOfPossession for ZeroTrustAuth {
             ));
         }
 
-        // Timestamps after 1970 are always positive, use safe conversion
-        let ts_secs = u64::try_from(pop.timestamp().timestamp()).unwrap_or(0);
-        let message = format!("proof-of-possession-{}", ts_secs);
+        // Round-26 audit fix (M16 follow-up): mirror generate_pop's use
+        // of microsecond precision in the verified message.
+        let ts_micros = pop.timestamp().timestamp_micros();
+        let message = format!("proof-of-possession-{}", ts_micros);
 
-        crate::unified_api::convenience::ed25519::verify_ed25519_internal(
+        let valid = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
             message.as_bytes(),
             pop.signature(),
             pop.public_key().as_slice(),
-        )
+        )?;
+
+        // Round-26 audit fix (M16): reject re-presentation of a
+        // verified PoP within the 5-minute acceptance window. Without
+        // a cache, an attacker who captured a single valid PoP at
+        // time T could replay it any number of times within
+        // (T, T + 5 min). The cache is keyed on (pk, sig, ts_micros);
+        // entries older than the freshness window above are
+        // self-evicting since the freshness check would already have
+        // rejected them on a re-replay attempt. The signature alone
+        // is byte-unique per timestamp under Ed25519 determinism (see
+        // `generate_pop` for why microsecond precision is necessary),
+        // so the cache key only needs to disambiguate within a single
+        // microsecond.
+        if valid {
+            let mut seen = self.pop_replay_cache.lock().map_err(|_poison| {
+                CoreError::InvalidInput("PoP replay cache poisoned".to_string())
+            })?;
+            // Evict expired entries opportunistically.
+            let now_secs = Utc::now().timestamp();
+            seen.retain(|_, ts| now_secs.saturating_sub(*ts) <= PROOF_OF_POSSESSION_MAX_AGE_SECS);
+            // Cache key combines PK + signature + microsecond timestamp;
+            // collisions require either a cryptographic break or a
+            // deliberate replay (the latter is what we're rejecting here).
+            let key_cap = pop
+                .public_key()
+                .as_slice()
+                .len()
+                .saturating_add(pop.signature().len())
+                .saturating_add(8);
+            let mut key = Vec::with_capacity(key_cap);
+            key.extend_from_slice(pop.public_key().as_slice());
+            key.extend_from_slice(pop.signature());
+            key.extend_from_slice(&ts_micros.to_be_bytes());
+            if seen.contains_key(&key) {
+                tracing::debug!(ts_micros, "PoP rejected: replay within 5-min window");
+                return Err(CoreError::InvalidInput(
+                    "Proof-of-possession replay detected".to_string(),
+                ));
+            }
+            // Soft cap on cache size to bound memory under attack.
+            const POP_CACHE_MAX: usize = 16 * 1024;
+            if seen.len() < POP_CACHE_MAX {
+                seen.insert(key, now_secs);
+            }
+        }
+
+        Ok(valid)
     }
 }
 

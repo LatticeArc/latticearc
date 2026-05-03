@@ -32,18 +32,22 @@ use crate::unified_api::zero_trust::SecurityMode;
 /// Build the HKDF `info` string for `encrypt_pq_ml_kem` /
 /// `decrypt_pq_ml_kem`.
 ///
-/// Thin wrapper over [`crate::types::domains::hkdf_kem_info`] that
-/// pins the domain-separation label to
-/// [`HkdfKemLabel::PqKemAead`](crate::types::domains::HkdfKemLabel::PqKemAead).
-/// The shared helper is also used by
-/// [`crate::hybrid::pq_only::encrypt_pq_only`] (round-12 audit fix
-/// L-2) so encrypt/decrypt drift across the two parallel APIs is
-/// structurally impossible.
-fn pq_kem_aead_key_info(kem_ciphertext: &[u8]) -> Vec<u8> {
-    crate::types::domains::hkdf_kem_info(
+/// Round-26 audit fix (H1): now binds both the recipient public key
+/// and the KEM ciphertext into the info string per RFC 9180 §5.1 (HPKE
+/// channel binding). The previous label-only variant could not detect
+/// an adversary swapping ciphertext halves if ML-KEM IND-CCA2 ever
+/// degraded — `hybrid::pq_only::encrypt_pq_only` had been using PK-
+/// binding since round-12 L-2 and convenience `pq_kem` was the
+/// asymmetric outlier. BREAKING CHANGE: 0.7.x convenience pq_kem
+/// ciphertexts cannot be decrypted by 0.8.x and vice versa. See
+/// CHANGELOG.
+fn pq_kem_aead_key_info(recipient_pk: &[u8], kem_ciphertext: &[u8]) -> Result<Vec<u8>> {
+    crate::types::domains::hkdf_kem_info_with_pk(
         crate::types::domains::HkdfKemLabel::PqKemAead,
+        recipient_pk,
         kem_ciphertext,
     )
+    .map_err(|e| CoreError::EncryptionFailed(e.to_string()))
 }
 
 use crate::primitives::resource_limits::validate_encryption_size;
@@ -88,10 +92,12 @@ fn encrypt_pq_ml_kem_internal(
         data_len = data.len()
     );
 
-    validate_encryption_size(data.len()).map_err(|e| {
+    // Round-26 audit fix (H7): opaque ResourceExceeded.
+    if let Err(e) = validate_encryption_size(data.len()) {
         log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "resource limit exceeded");
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+        tracing::debug!(error = ?e, data_len = data.len(), "pq_kem encrypt rejected: plaintext exceeds resource limit");
+        return Err(CoreError::ResourceExceeded("plaintext exceeds resource limit".to_string()));
+    }
 
     let pk =
         crate::primitives::kem::ml_kem::MlKemPublicKey::new(security_level, ml_kem_pk.to_vec())
@@ -105,13 +111,13 @@ fn encrypt_pq_ml_kem_internal(
         CoreError::EncryptionFailed(format!("ML-KEM encapsulation failed: {}", e))
     })?;
 
-    // Derive AES-256 key from ML-KEM shared secret via HKDF, binding the
-    // KEM ciphertext into the info string per RFC 9180 §5.1 (HPKE
-    // channel binding). The label-only variant of this call could not
-    // detect an adversary swapping ciphertext halves if ML-KEM IND-CCA2
-    // ever degraded.
+    // Derive AES-256 key from ML-KEM shared secret via HKDF. Round-26
+    // audit fix (H1): bind both the recipient PK and the KEM ciphertext
+    // into the info string (RFC 9180 §5.1 channel binding). Encrypt has
+    // the PK directly; decrypt extracts it from the SK's embedded `ek`
+    // slice (FIPS 203 §6.1 layout) via `embedded_public_key_bytes()`.
     let kem_ct_bytes = ciphertext.into_bytes();
-    let info = pq_kem_aead_key_info(&kem_ct_bytes);
+    let info = pq_kem_aead_key_info(pk.as_bytes(), &kem_ct_bytes)?;
     let hkdf_result =
         crate::primitives::kdf::hkdf::hkdf(shared_secret.expose_secret(), None, Some(&info), 32)
             .map_err(|e| {
@@ -188,11 +194,13 @@ fn decrypt_pq_ml_kem_internal(
         opaque()
     })?;
 
-    // Derive AES-256 key from ML-KEM shared secret via HKDF, binding
-    // the KEM ciphertext into the info string. Must match the encrypt
-    // path byte-for-byte; `pq_kem_aead_key_info(ct_bytes)` is the
-    // single canonical helper to prevent encrypt / decrypt drift.
-    let info = pq_kem_aead_key_info(ct_bytes);
+    // Derive AES-256 key from ML-KEM shared secret via HKDF. Round-26
+    // audit fix (H1): bind the recipient PK (extracted from SK's
+    // embedded `ek` per FIPS 203 §6.1) AND the KEM ciphertext. Must
+    // match the encrypt path byte-for-byte; `pq_kem_aead_key_info` is
+    // the single canonical helper to prevent encrypt / decrypt drift.
+    let info =
+        pq_kem_aead_key_info(sk.embedded_public_key_bytes(), ct_bytes).map_err(|_e| opaque())?;
     let hkdf_result =
         crate::primitives::kdf::hkdf::hkdf(shared_secret.expose_secret(), None, Some(&info), 32)
             .map_err(|_e| {

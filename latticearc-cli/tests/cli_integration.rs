@@ -2832,7 +2832,14 @@ fn test_signature_algorithm_field_tampered_fails() {
 // ============================================================================
 //
 // Verify correct operation with messages larger than typical block sizes.
-// AES block = 16 bytes, SHA chunk = 64 bytes. Test with 1 MB.
+// AES block = 16 bytes, SHA chunk = 64 bytes.
+//
+// Round-26 audit fix (H4): Ed25519 sign/verify now enforce
+// `validate_signature_size`, which caps message length at 64 KiB by
+// default. This test previously used 1 MB; shrunk to 50 KiB to stay
+// safely under the cap while still exercising a multi-page message
+// that crosses every relevant block boundary (AES 16-byte, SHA-512
+// 128-byte, page-size 4096-byte).
 
 #[test]
 fn test_large_message_sign_verify_roundtrip() {
@@ -2841,8 +2848,9 @@ fn test_large_message_sign_verify_roundtrip() {
 
     run_ok(&["keygen", "--algorithm", "ed25519", "--output", d]);
 
-    // 1 MB of pseudo-random data
-    let large_data: Vec<u8> = (0..1_048_576_u32).map(|i| (i % 256) as u8).collect();
+    // 50 KiB of pseudo-random data — under the 64 KiB ML-DSA / SLH-DSA
+    // / FN-DSA / Ed25519 sign-side resource-limit cap (round-26 H4).
+    let large_data: Vec<u8> = (0..50u32 * 1024).map(|i| (i % 256) as u8).collect();
     let msg_path = dir.path().join("large.bin");
     std::fs::write(&msg_path, &large_data).unwrap();
 
@@ -2871,7 +2879,7 @@ fn test_large_message_sign_verify_roundtrip() {
     assert!(out.contains("VALID"));
 
     println!(
-        "[PROOF] {{\"test\": \"large_message_sign_verify\", \"category\": \"edge-case\", \"input_bytes\": 1048576, \"algorithm\": \"ed25519\", \"result\": \"VALID\"}}"
+        "[PROOF] {{\"test\": \"large_message_sign_verify\", \"category\": \"edge-case\", \"input_bytes\": 51200, \"algorithm\": \"ed25519\", \"result\": \"VALID\"}}"
     );
 }
 

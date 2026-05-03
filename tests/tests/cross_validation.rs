@@ -56,7 +56,7 @@ fn test_ed25519_sign_wrapper_matches_primitives_succeeds() {
     let message = b"cross-validation test message";
 
     // Sign via primitives
-    let prim_sig = keypair.sign(message);
+    let prim_sig = keypair.sign(message).expect("Ed25519 sign should succeed in test");
     let prim_sig_bytes = Ed25519Signature::signature_bytes(&prim_sig);
 
     // Sign via convenience wrapper
@@ -95,7 +95,7 @@ fn test_ed25519_cross_verify_various_messages_succeeds() {
     ];
 
     for msg in messages {
-        let prim_sig = keypair.sign(msg);
+        let prim_sig = keypair.sign(msg).expect("Ed25519 sign should succeed in test");
         let prim_bytes = Ed25519Signature::signature_bytes(&prim_sig);
 
         let wrapper_bytes = sign_ed25519_unverified(msg, &sk_bytes).expect("wrapper sign");

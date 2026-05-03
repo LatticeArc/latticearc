@@ -231,24 +231,37 @@ impl SchnorrProver {
     /// These are modular arithmetic in a finite field.
     #[allow(clippy::arithmetic_side_effects)] // EC scalar math is modular, cannot overflow
     pub fn prove(&self, context: &[u8]) -> Result<SchnorrProof> {
+        // Round-26 audit fix (M6): wrap scalars k, x, s in `Zeroizing`
+        // so the stack-resident copies are scrubbed when the function
+        // returns. Previously `k256::Scalar` left bare on the stack
+        // would persist until overwritten by a later frame; leak of
+        // the nonce `k` retroactively recovers `x = (s − k) / c`
+        // (direct private-key compromise), and leak of `x` is direct.
+        use zeroize::Zeroizing;
+
         // Parse secret key
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.secret)).into();
-        let x = x.ok_or(ZkpError::InvalidScalar)?;
+        let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
-        // Generate random nonce k via primitives layer
+        // Generate random nonce k via primitives layer (already Zeroizing).
         let nonce_bytes = crate::primitives::rand::csprng::random_bytes(32);
-        let k = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&nonce_bytes));
+        let k = Zeroizing::new(<Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(
+            &nonce_bytes,
+        )));
 
         // Compute commitment R = k*G
-        let r_point = ProjectivePoint::GENERATOR * k;
+        let r_point = ProjectivePoint::GENERATOR * *k;
         let r_bytes: [u8; 33] = <[u8; 33]>::try_from(r_point.to_affine().to_bytes().as_slice())
             .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize R: {}", e)))?;
 
         // Compute challenge c = H(G || P || R || context)
         let c = fiat_shamir_challenge(&self.public_key, &r_bytes, context)?;
 
-        // Compute response s = k + c*x
-        let s = k + c * x;
+        // Compute response s = k + c*x. `s` is non-secret (verifier
+        // sees it), but the intermediate computation passes through
+        // the secret-laden registers — keep s in Zeroizing so any
+        // residue is scrubbed on drop.
+        let s = Zeroizing::new(*k + c * *x);
         let s_bytes: [u8; 32] = s.to_bytes().into();
 
         Ok(SchnorrProof { commitment: r_bytes, response: s_bytes })

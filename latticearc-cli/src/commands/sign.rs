@@ -36,7 +36,9 @@ pub(crate) enum SignAlgorithm {
 #[derive(Args)]
 pub(crate) struct SignArgs {
     /// Signing algorithm (expert override; prefer --use-case for automatic selection).
-    #[arg(short, long, value_enum)]
+    /// Round-26 audit fix (M20): clap-level conflicts_with surfaces the
+    /// constraint in --help.
+    #[arg(short, long, value_enum, conflicts_with = "use_case")]
     pub algorithm: Option<SignAlgorithm>,
     /// Use case for automatic algorithm selection (recommended).
     #[arg(long, value_parser = super::common::parse_use_case,
@@ -66,6 +68,10 @@ pub(crate) struct SignArgs {
     /// Public key file (required for unified API — embeds PK in SignedData).
     #[arg(long)]
     pub public_key: Option<PathBuf>,
+    /// Overwrite the output file if it already exists. Default: false.
+    /// Round-26 audit fix (H12).
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// Execute the sign command.
@@ -249,11 +255,14 @@ fn write_signature(args: &SignArgs, json: &str) -> Result<()> {
 
     // Atomic write — sig files aren't secret but partial-file-at-rest
     // is still a script-corruption hazard (round-7 audit fix #18).
+    // Round-26 audit fix (H12): only overwrite when --force is passed.
     // LINT-OK: public-write-signature (signatures are not secret)
     latticearc::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())
-        .overwrite_existing(true)
+        .overwrite_existing(args.force)
         .write(&output_path)
-        .with_context(|| format!("Failed to write {}", output_path.display()))?;
+        .with_context(|| {
+            format!("Failed to write {} (use --force to overwrite)", output_path.display())
+        })?;
 
     // Round-21 audit fix #14: path on stderr leaked to process accounting
     // (auditd, strace) and log aggregators reading the FD. Path names

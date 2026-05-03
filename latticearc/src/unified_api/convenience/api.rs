@@ -434,7 +434,14 @@ pub fn encrypt_with_aad(
     CryptoPolicyEngine::validate_key_matches_scheme(&key, &scheme)
         .map_err(|e| CoreError::ConfigurationError(e.to_string()))?;
 
-    validate_encryption_size(data.len()).map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
+    // Round-26 audit fix (H7): opaque error string. Discarding the
+    // upstream `ResourceError` on the adversary-reachable path is a
+    // Pattern-6 defense — `ResourceError::Display` interpolates
+    // `requested=N, limit=M`, leaking the configured cap.
+    if let Err(e) = validate_encryption_size(data.len()) {
+        tracing::debug!(error = ?e, data_len = data.len(), "encrypt rejected: plaintext exceeds resource limit");
+        return Err(CoreError::ResourceExceeded("plaintext exceeds resource limit".to_string()));
+    }
 
     log_crypto_operation_start!(op::ENCRYPT, scheme = %scheme, data_size = data.len());
 
@@ -898,8 +905,11 @@ pub fn sign_with_key(
     let scheme = select_signature_scheme(&config)?;
     config.validate_scheme_compliance(&scheme)?;
 
-    validate_signature_size(message.len())
-        .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
+    // Round-26 audit fix (H7): opaque ResourceExceeded error.
+    if let Err(e) = validate_signature_size(message.len()) {
+        tracing::debug!(error = ?e, msg_len = message.len(), "sign rejected: message exceeds resource limit");
+        return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
+    }
 
     log_crypto_operation_start!(op::SIGN_WITH_KEY, scheme = %scheme, message_size = message.len());
 
@@ -1027,8 +1037,13 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
 
     log_crypto_operation_start!(op::VERIFY, scheme = ?signed.scheme, message_size = signed.data.len());
 
-    validate_signature_size(signed.data.len())
-        .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
+    // Round-26 code-review follow-up: collapse to `Ok(false)` on the
+    // verify path so an adversary cannot binary-search the configured
+    // cap from the Result variant.
+    if let Err(e) = validate_signature_size(signed.data.len()) {
+        tracing::debug!(error = ?e, msg_len = signed.data.len(), "verify rejected: message exceeds resource limit");
+        return Ok(false);
+    }
 
     let result = match signed.scheme.as_str() {
         "ml-dsa-44" | "pq-ml-dsa-44" => verify_pq_ml_dsa_unverified(

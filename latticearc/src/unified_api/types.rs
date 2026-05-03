@@ -429,31 +429,66 @@ fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
     //   Category 5 (256-bit) → Maximum  (ML-KEM-1024, ML-DSA-87, SLH-DSA-256*)
     // Hybrid schemes inherit the level of their PQ component (the
     // classical sidecar contributes zero PQ security).
+    //
+    // Round-26 audit fix (M15): the previous shape used
+    // `s.contains("128")`/`"192"`/`"256"` substring matching, which
+    // accepted any future scheme name containing those literals
+    // (e.g. `sha-256`, `slh-dsa-shake-256s`, hypothetical
+    // `prefix-256xxx`) as a security-level claim regardless of actual
+    // algorithm strength. Substring matching across security-tier
+    // dispatch is a correctness footgun. Now uses an explicit
+    // allowlist of full scheme tokens, with "-" boundary matching for
+    // hybrid forms.
     let s = scheme.to_ascii_lowercase();
-    if s.contains("ml-kem-512") || s.contains("ml-dsa-44") || s.contains("128") {
+
+    // Helper: split on '-' and check if a token is present.
+    let has_token = |needle: &str| s.split('-').any(|t| t == needle);
+
+    // Standard (Category 1 / 128-bit PQ)
+    if matches!(
+        s.as_str(),
+        "ml-kem-512"
+            | "ml-dsa-44"
+            | "slh-dsa-shake-128s"
+            | "slh-dsa-shake-128f"
+            | "slh-dsa-sha2-128s"
+            | "slh-dsa-sha2-128f"
+            | "fn-dsa-512"
+            | "ed25519"
+            | "aes-256-gcm"
+            | "chacha20-poly1305"
+    ) || has_token("ml-kem-512")
+        || has_token("ml-dsa-44")
+        || (s.starts_with("hybrid-") && (s.contains("ml-kem-512") || s.contains("ml-dsa-44")))
+    {
         Some(SecurityLevel::Standard)
-    } else if s.contains("ml-kem-768") || s.contains("ml-dsa-65") || s.contains("192") {
+    } else if matches!(
+        s.as_str(),
+        "ml-kem-768"
+            | "ml-dsa-65"
+            | "slh-dsa-shake-192s"
+            | "slh-dsa-shake-192f"
+            | "slh-dsa-sha2-192s"
+            | "slh-dsa-sha2-192f"
+    ) || has_token("ml-kem-768")
+        || has_token("ml-dsa-65")
+        || (s.starts_with("hybrid-") && (s.contains("ml-kem-768") || s.contains("ml-dsa-65")))
+    {
         Some(SecurityLevel::High)
-    } else if s.contains("ml-kem-1024") || s.contains("ml-dsa-87") || s.contains("256") {
+    } else if matches!(
+        s.as_str(),
+        "ml-kem-1024"
+            | "ml-dsa-87"
+            | "slh-dsa-shake-256s"
+            | "slh-dsa-shake-256f"
+            | "slh-dsa-sha2-256s"
+            | "slh-dsa-sha2-256f"
+            | "fn-dsa-1024"
+    ) || has_token("ml-kem-1024")
+        || has_token("ml-dsa-87")
+        || (s.starts_with("hybrid-") && (s.contains("ml-kem-1024") || s.contains("ml-dsa-87")))
+    {
         Some(SecurityLevel::Maximum)
-    } else if s == "ed25519" {
-        // Ed25519: 128-bit classical security; map to Standard so a
-        // Maximum-configured server doesn't accept it.
-        Some(SecurityLevel::Standard)
-    } else if s == "aes-256-gcm" || s == "chacha20-poly1305" {
-        // Symmetric-only schemes carry no post-quantum component. Map
-        // them to `Standard` (the lowest tier) rather than `Maximum`:
-        // a caller who explicitly pinned `SecurityLevel::Maximum` is
-        // demanding NIST Category 5 PQ strength, and a symmetric AEAD
-        // does not provide it. The previous "treat as Maximum" mapping
-        // silently passed AES-256-GCM and ChaCha20-Poly1305 through the
-        // level gate at any configured level, which let a Maximum-
-        // configured server accept a wire-supplied symmetric-only
-        // scheme. Callers who genuinely want a symmetric-only fallback
-        // must lower the configured level (or drive the scheme via the
-        // explicit dispatch path that doesn't go through the level
-        // gate at all).
-        Some(SecurityLevel::Standard)
     } else {
         None
     }

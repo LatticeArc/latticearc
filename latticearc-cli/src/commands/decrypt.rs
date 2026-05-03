@@ -31,6 +31,10 @@ pub(crate) struct DecryptArgs {
     /// Key file path (symmetric key or hybrid secret key).
     #[arg(short, long)]
     pub key: PathBuf,
+    /// Overwrite the output file if it already exists. Default: false.
+    /// Round-26 audit fix (H12).
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// Execute the decrypt command.
@@ -58,7 +62,7 @@ pub(crate) fn run(args: DecryptArgs) -> Result<()> {
         _ => anyhow::bail!("Unsupported KeyType variant"),
     };
 
-    write_output(&args.output, &plaintext)
+    write_output(&args.output, &plaintext, args.force)
 }
 
 fn decrypt_symmetric(
@@ -75,7 +79,11 @@ fn decrypt_symmetric(
         latticearc::DecryptKey::Symmetric(&key_bytes),
         latticearc::CryptoConfig::new(),
     )
-    .map_err(|e| anyhow::anyhow!("Decryption failed: {e}"))
+    // Round-26 audit fix (M19): uniform "Decryption failed: <scheme>"
+    // prefix across all three branches so scripted callers cannot
+    // distinguish symmetric vs hybrid vs PQ-only failure paths from
+    // stderr.
+    .map_err(|e| anyhow::anyhow!("Decryption failed (symmetric): {e}"))
 }
 
 fn decrypt_hybrid(
@@ -95,7 +103,7 @@ fn decrypt_hybrid(
         latticearc::DecryptKey::Hybrid(&hybrid_sk),
         latticearc::CryptoConfig::new(),
     )
-    .map_err(|e| anyhow::anyhow!("Hybrid decryption failed: {e}"))
+    .map_err(|e| anyhow::anyhow!("Decryption failed (hybrid): {e}"))
 }
 
 fn decrypt_pq_only(
@@ -131,7 +139,7 @@ fn decrypt_pq_only(
         latticearc::DecryptKey::PqOnly(&pq_sk),
         latticearc::CryptoConfig::new().crypto_mode(latticearc::CryptoMode::PqOnly),
     )
-    .map_err(|e| anyhow::anyhow!("PQ-only decryption failed: {e}"))
+    .map_err(|e| anyhow::anyhow!("Decryption failed (pq-only): {e}"))
 }
 
 fn read_input_string(path: &Option<PathBuf>) -> Result<String> {
@@ -143,17 +151,21 @@ fn read_input_string(path: &Option<PathBuf>) -> Result<String> {
     )
 }
 
-fn write_output(path: &Option<PathBuf>, data: &[u8]) -> Result<()> {
+fn write_output(path: &Option<PathBuf>, data: &[u8], force: bool) -> Result<()> {
     if let Some(p) = path {
         // Atomic write with 0o600. `tempfile::NamedTempFile` already
         // creates files with mode 0o600 and `persist()` preserves that;
         // `.secret_mode()` is retained as defense-in-depth in case
         // tempfile's default ever changes.
+        // Round-26 audit fix (H12): only overwrite when --force is
+        // passed.
         latticearc::unified_api::atomic_write::AtomicWrite::new(data)
             .secret_mode()
-            .overwrite_existing(true)
+            .overwrite_existing(force)
             .write(p)
-            .with_context(|| format!("Failed to write {}", p.display()))?;
+            .with_context(|| {
+                format!("Failed to write {} (use --force to overwrite)", p.display())
+            })?;
         // Path on stderr would leak through process accounting and log
         // aggregation; route to tracing::debug! instead.
         tracing::debug!(path = %p.display(), "decrypted data written");

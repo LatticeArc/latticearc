@@ -243,19 +243,23 @@ impl PqOnlySecretKey {
 
 /// Build the HKDF `info` string for PQ-only encryption.
 ///
-/// Thin wrapper over [`crate::types::domains::hkdf_kem_info`] that
+/// Thin wrapper over [`crate::types::domains::hkdf_kem_info_with_pk`] that
 /// pins the domain-separation label to
 /// [`HkdfKemLabel::PqOnlyEncryption`](crate::types::domains::HkdfKemLabel::PqOnlyEncryption).
 /// The shared helper is also used by
 /// [`crate::unified_api::convenience::pq_kem`] so encrypt/decrypt
 /// drift across the two parallel APIs is structurally impossible
 /// (round-12 audit fix L-2 generalized to a single canonical helper).
-fn pq_only_encryption_info(recipient_pk: &[u8], kem_ciphertext: &[u8]) -> Vec<u8> {
+fn pq_only_encryption_info(
+    recipient_pk: &[u8],
+    kem_ciphertext: &[u8],
+) -> Result<Vec<u8>, PqOnlyError> {
     crate::types::domains::hkdf_kem_info_with_pk(
         crate::types::domains::HkdfKemLabel::PqOnlyEncryption,
         recipient_pk,
         kem_ciphertext,
     )
+    .map_err(|e| PqOnlyError::KdfError(e.to_string()))
 }
 
 /// Generate a PQ-only keypair at ML-KEM-768 (default security level).
@@ -410,7 +414,8 @@ pub fn encrypt_pq_only_with_aad(
     // The decryption path constructs the same info from
     // `sk.recipient_pk_bytes()` and the wire `kem_ciphertext`. Both
     // paths agree byte-for-byte on the transcript.
-    let info = pq_only_encryption_info(pk.ml_kem_pk_bytes(), kem_ct.as_bytes());
+    let info = pq_only_encryption_info(pk.ml_kem_pk_bytes(), kem_ct.as_bytes())
+        .map_err(|_e| PqOnlyError::KdfError("KDF info construction failed".to_string()))?;
     let hkdf_result = hkdf(shared_secret.expose_secret(), None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "HKDF failed");
         PqOnlyError::KdfError("KDF failed".to_string())
@@ -442,13 +447,18 @@ pub fn encrypt_pq_only_with_aad(
 /// # Algorithm
 ///
 /// 1. ML-KEM decapsulate(kem_ciphertext, secret_key) → shared_secret
-/// 2. HKDF-SHA256(shared_secret, info=`PQ_ONLY_ENCRYPTION_INFO || 0x00 || kem_ciphertext`) → 32-byte AES key
+/// 2. HKDF-SHA256(shared_secret, info=`PQ_ONLY_ENCRYPTION_INFO || 0x00 ||
+///    pk_len_be32 || recipient_pk || ct_len_be32 || kem_ciphertext`) →
+///    32-byte AES key
 /// 3. AES-256-GCM decrypt(ciphertext, nonce, tag) → plaintext
 ///
 /// `info` matches `encrypt_pq_only` byte-for-byte — both paths build
-/// it via `pq_only_encryption_info(kem_ciphertext)`. Substituting a
-/// different `kem_ciphertext` produces a different AEAD key, so the
-/// AEAD tag fails (HPKE-style channel binding, RFC 9180 §5.1).
+/// it via `pq_only_encryption_info(recipient_pk, kem_ciphertext)`.
+/// Substituting a different recipient PK or KEM ciphertext produces a
+/// different AEAD key, so the AEAD tag fails (HPKE-style channel
+/// binding, RFC 9180 §5.1). Round-26 audit fix (L25) updated this doc
+/// to reflect the round-12 PK-binding migration that the prose had
+/// stayed silent about.
 ///
 /// # Security
 ///
@@ -509,7 +519,8 @@ pub fn decrypt_pq_only_with_aad(
     // into the info string (HPKE / RFC 9180 §5.1). The recipient PK
     // comes from the secret key — a substituted recipient cannot
     // produce a colliding info string, so the AEAD tag fails.
-    let info = pq_only_encryption_info(sk.recipient_pk_bytes(), kem_ciphertext);
+    let info =
+        pq_only_encryption_info(sk.recipient_pk_bytes(), kem_ciphertext).map_err(|_e| opaque())?;
     let hkdf_result = hkdf(shared_secret.expose_secret(), None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "HKDF failed");
         opaque()

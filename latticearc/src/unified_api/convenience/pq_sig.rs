@@ -115,10 +115,12 @@ fn sign_pq_ml_dsa_internal(
 ) -> Result<Vec<u8>> {
     log_crypto_operation_start!(op::ML_DSA_SIGN, algorithm = ?parameter_set, message_len = message.len());
 
-    validate_signature_size(message.len()).map_err(|e| {
+    // Round-26 audit fix (H7): opaque ResourceExceeded — never expose
+    // the configured `max_signature_size_bytes` cap via Display.
+    if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::ML_DSA_SIGN, e);
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+        return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
+    }
 
     let sk = MlDsaSecretKey::new(parameter_set, ml_dsa_sk.to_vec()).map_err(|e| {
         log_crypto_operation_error!(op::ML_DSA_SIGN, e);
@@ -146,10 +148,17 @@ fn verify_pq_ml_dsa_internal(
 ) -> Result<bool> {
     log_crypto_operation_start!(op::ML_DSA_VERIFY, algorithm = ?parameter_set, message_len = message.len());
 
-    validate_signature_size(message.len()).map_err(|e| {
+    // Round-26 code-review follow-up: collapse "message exceeds
+    // resource limit" to `Ok(false)` on the verify path so an adversary
+    // cannot binary-search the configured cap from the Result variant.
+    // The earlier H7 fix made this `CoreError::ResourceExceeded`, which
+    // was still distinguishable from `Ok(false)` / `VerificationFailed`
+    // — re-opening the M1 oracle at the convenience layer. Sign-side
+    // resource-limit errors stay loud (caller controls input).
+    if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+        return Ok(false);
+    }
 
     let pk = MlDsaPublicKey::new(parameter_set, ml_dsa_pk.to_vec()).map_err(|e| {
         log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
@@ -188,17 +197,26 @@ fn sign_pq_slh_dsa_internal(
 ) -> Result<Vec<u8>> {
     log_crypto_operation_start!(op::SLH_DSA_SIGN, algorithm = ?security_level, message_len = message.len());
 
-    validate_signature_size(message.len()).map_err(|e| {
+    if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::SLH_DSA_SIGN, e);
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+        return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
+    }
 
     let sk = SlhDsaSigningKey::from_bytes(slh_dsa_sk, security_level).map_err(|e| {
         log_crypto_operation_error!(op::SLH_DSA_SIGN, e);
         CoreError::InvalidInput("Invalid SLH-DSA private key format".to_string())
     })?;
 
-    let signature = sk.sign(message, b"context").map_err(|e| {
+    // Round-26 audit fix (H2): use empty context to match every other
+    // signature path in this crate (ML-DSA convenience and dispatcher,
+    // hybrid SLH-DSA) and the FIPS 205 §10.2 default. The previous
+    // `b"context"` magic string produced signatures that were not
+    // verifiable by any third party following FIPS 205 default
+    // semantics, and not interoperable with this crate's other paths.
+    // BREAKING CHANGE: signatures produced by 0.7.x convenience
+    // SLH-DSA sign cannot be verified by 0.8.x convenience verify and
+    // vice versa. See CHANGELOG.
+    let signature = sk.sign(message, &[]).map_err(|e| {
         log_crypto_operation_error!(op::SLH_DSA_SIGN, e);
         CoreError::SignatureFailed(format!("SLH-DSA signing failed: {}", e))
     })?;
@@ -218,17 +236,20 @@ fn verify_pq_slh_dsa_internal(
 ) -> Result<bool> {
     log_crypto_operation_start!(op::SLH_DSA_VERIFY, algorithm = ?security_level, message_len = message.len());
 
-    validate_signature_size(message.len()).map_err(|e| {
+    // Round-26 code-review follow-up: see ML-DSA verify above for rationale.
+    if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::SLH_DSA_VERIFY, e);
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+        return Ok(false);
+    }
 
     let pk = SlhDsaVerifyingKey::from_bytes(slh_dsa_pk, security_level).map_err(|e| {
         log_crypto_operation_error!(op::SLH_DSA_VERIFY, e);
         CoreError::InvalidInput("Invalid SLH-DSA public key format".to_string())
     })?;
 
-    let result = map_verify_result(pk.verify(message, signature, b"context"), "SLH-DSA");
+    // Round-26 audit fix (H2): empty context matches FIPS 205 §10.2
+    // default, hybrid SLH-DSA, and ML-DSA convenience path.
+    let result = map_verify_result(pk.verify(message, signature, &[]), "SLH-DSA");
 
     match &result {
         Ok(valid) => {
@@ -260,10 +281,10 @@ fn sign_pq_fn_dsa_internal(
         message_len = message.len()
     );
 
-    validate_signature_size(message.len()).map_err(|e| {
+    if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::FN_DSA_SIGN, e);
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+        return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
+    }
 
     let mut sk = FnDsaSigningKey::from_bytes(fn_dsa_sk, security_level).map_err(|e| {
         log_crypto_operation_error!(op::FN_DSA_SIGN, e);
@@ -300,10 +321,11 @@ fn verify_pq_fn_dsa_internal(
         message_len = message.len()
     );
 
-    validate_signature_size(message.len()).map_err(|e| {
+    // Round-26 code-review follow-up: see ML-DSA verify above for rationale.
+    if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::FN_DSA_VERIFY, e);
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+        return Ok(false);
+    }
 
     let pk = FnDsaVerifyingKey::from_bytes(fn_dsa_pk, security_level).map_err(|e| {
         log_crypto_operation_error!(op::FN_DSA_VERIFY, e);

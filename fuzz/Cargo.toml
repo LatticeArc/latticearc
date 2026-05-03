@@ -84,7 +84,7 @@ stats_alloc = "0.1"
 
 [dependencies.latticearc]
 path = "../latticearc"
-features = ["test-utils"]
+features = ["test-utils", "kat-replay"]
 
 [dev-dependencies]
 rand = { version = "0.9.4", features = ["std_rng"] }

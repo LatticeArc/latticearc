@@ -8,14 +8,16 @@
 
 //! Coverage tests for security.rs
 //!
-//! Targets MemoryPool, RngHandle, and convenience RNG functions.
-//! (The former `SecureBytes` type has been removed; variable-length heap
-//! secret storage now lives in `types::SecretVec` and is tested there.)
+//! Targets `allocate_secure_buffer`, `RngHandle`, and convenience RNG
+//! functions. Round-26 audit fix (M26) removed the `MemoryPool` type
+//! (the no-op pool was pure mutex-contention overhead) — the
+//! corresponding tests now exercise `allocate_secure_buffer`, the
+//! direct replacement.
 
 use latticearc::primitives::security::{
-    MemoryPool, RngHandle, generate_secure_random_bytes, generate_secure_random_u32,
-    generate_secure_random_u64, get_global_secure_rng, get_memory_pool,
-    initialize_global_secure_rng, secure_compare, secure_zeroize,
+    RngHandle, allocate_secure_buffer, generate_secure_random_bytes, generate_secure_random_u32,
+    generate_secure_random_u64, get_global_secure_rng, initialize_global_secure_rng,
+    secure_compare, secure_zeroize,
 };
 
 // ============================================================================
@@ -60,73 +62,43 @@ fn test_secure_zeroize_succeeds() {
 }
 
 // ============================================================================
-// MemoryPool tests
+// allocate_secure_buffer tests (round-26 audit fix M26: replaces MemoryPool)
 // ============================================================================
 
 #[test]
-fn test_memory_pool_new_succeeds() {
-    let pool = MemoryPool::new();
-    let mem = pool.allocate(64).unwrap();
+fn test_allocate_secure_buffer_basic_succeeds() {
+    let mem = allocate_secure_buffer(64).unwrap();
     assert_eq!(mem.len(), 64);
     assert!(mem.expose_secret().iter().all(|&b| b == 0));
 }
 
 #[test]
-fn test_memory_pool_default_succeeds() {
-    let pool = MemoryPool::default();
-    let mem = pool.allocate(32).unwrap();
-    assert_eq!(mem.len(), 32);
-}
-
-#[test]
-fn test_memory_pool_allocate_reuse_succeeds() {
-    let pool = MemoryPool::new();
-
-    // Allocate and deallocate
-    let mem1 = pool.allocate(64).unwrap();
-    pool.deallocate(mem1);
-
-    // Next allocation of same size should reuse from pool
-    let mem2 = pool.allocate(64).unwrap();
-    assert_eq!(mem2.len(), 64);
-}
-
-#[test]
-fn test_memory_pool_allocate_zero_fails() {
-    let pool = MemoryPool::new();
-    let result = pool.allocate(0);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_memory_pool_allocate_too_large_fails() {
-    let pool = MemoryPool::new();
-    let result = pool.allocate(2 * 1024 * 1024); // 2MB > 1MB limit
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_memory_pool_deallocate_pool_limit_succeeds() {
-    let pool = MemoryPool::new();
-
-    // Deallocate more than MAX_POOL_SIZE (100) items
-    for _ in 0..110 {
-        let mem = pool.allocate(16).unwrap();
-        pool.deallocate(mem);
+fn test_allocate_secure_buffer_various_sizes_succeed() {
+    for size in [1, 16, 32, 64, 128, 1024] {
+        let mem = allocate_secure_buffer(size).unwrap();
+        assert_eq!(mem.len(), size);
     }
-
-    // Should still work (excess items are dropped/zeroized)
-    let mem = pool.allocate(16).unwrap();
-    assert_eq!(mem.len(), 16);
 }
 
 #[test]
-fn test_get_memory_pool_singleton_succeeds() {
-    let pool1 = get_memory_pool();
-    let pool2 = get_memory_pool();
-    // Both should point to the same pool (singleton)
-    let _mem = pool1.allocate(32).unwrap();
-    let _mem2 = pool2.allocate(32).unwrap();
+fn test_allocate_secure_buffer_zero_fails() {
+    let result = allocate_secure_buffer(0);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_allocate_secure_buffer_too_large_fails() {
+    let result = allocate_secure_buffer(2 * 1024 * 1024); // 2MB > 1MB limit
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_allocate_secure_buffer_at_boundary_succeeds() {
+    let mem = allocate_secure_buffer(1024 * 1024).unwrap();
+    assert_eq!(mem.len(), 1024 * 1024);
+
+    let result = allocate_secure_buffer(1024 * 1024 + 1);
+    assert!(result.is_err());
 }
 
 // ============================================================================

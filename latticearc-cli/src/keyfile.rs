@@ -102,18 +102,49 @@ impl KeyFile {
     /// passphrase via [`resolve_existing_passphrase`] and unwraps it before
     /// returning. Plaintext key files are returned as-is.
     pub fn read_from(path: &std::path::Path) -> Result<Self> {
-        // Round-20 audit fix #14: gate the file read behind a size
-        // ceiling. Key files are well under 100 KiB in every supported
-        // format (LPK JSON, LPK CBOR, legacy CLI v1 JSON); a 1 MiB cap
-        // is generous and bounds OOM if a symlink to /dev/zero or a
-        // sparse file ends up at this path. Verified by
-        // tests/cli_integration.rs::round20_fix14_keyfile_size_cap_rejects_oversized_input
-        // — that test fails with the unfixed code by hitting the
-        // library's downstream parser limit instead of this CLI guard.
+        use std::io::Read;
+        // Round-20 audit fix #14 + Round-26 audit fixes (H15, M17):
+        //
+        // (M17) Reject symlinks unless the operator opts in via
+        //       LATTICEARC_ALLOW_SYMLINK_KEYS=1. `metadata()` follows
+        //       symlinks by default — a `--key /home/user/.ssh/id_rsa`
+        //       symlink would silently read its target with no warning.
+        //       Match GnuPG / OpenSSH posture.
+        //
+        // (H15) Open the file once, then take metadata from the open
+        //       handle (inode-bound) and read via `Read::take` with the
+        //       cap. The previous `metadata(path)` then `read(path)`
+        //       pattern was a TOCTOU: between the two syscalls an
+        //       attacker controlling the path could swap the file via
+        //       rename, and the size cap would only check the pre-swap
+        //       file. The single-handle pattern is immune to path
+        //       swaps.
         const MAX_KEYFILE_BYTES: u64 = 1024 * 1024;
-        if let Ok(meta) = std::fs::metadata(path)
-            && meta.len() > MAX_KEYFILE_BYTES
-        {
+
+        let allow_symlinks = std::env::var("LATTICEARC_ALLOW_SYMLINK_KEYS")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        let symlink_meta = std::fs::symlink_metadata(path)
+            .with_context(|| format!("Failed to stat {} (path does not exist?)", path.display()))?;
+        if symlink_meta.file_type().is_symlink() && !allow_symlinks {
+            bail!(
+                "Refusing to read key file {} because it is a symlink. \
+                 Symlinks can silently redirect reads to unintended targets \
+                 (e.g. ~/.ssh/id_rsa). Either pass the symlink target's \
+                 canonical path directly, or set \
+                 LATTICEARC_ALLOW_SYMLINK_KEYS=1 to opt in.",
+                path.display()
+            );
+        }
+
+        // Open once. The handle's `metadata()` is inode-bound so a
+        // post-open path swap can't race the size check.
+        let file = std::fs::File::open(path)
+            .with_context(|| format!("Failed to open {}", path.display()))?;
+        let meta = file
+            .metadata()
+            .with_context(|| format!("Failed to stat open handle for {}", path.display()))?;
+        if meta.len() > MAX_KEYFILE_BYTES {
             anyhow::bail!(
                 "Key file {} is {} bytes; maximum supported size is {} bytes. \
                  This is far above any legitimate LatticeArc key encoding.",
@@ -122,10 +153,28 @@ impl KeyFile {
                 MAX_KEYFILE_BYTES
             );
         }
-        // The LINT-OK tag must sit on the same line as `std::fs::read`
-        // because `.github/workflows/lint-extras.yml` greps line-by-line.
-        let bytes = std::fs::read(path) // LINT-OK: size-gated-by-MAX_KEYFILE_BYTES (1 MiB cap above)
+
+        // Read via `take` with `MAX_KEYFILE_BYTES + 1` so a file whose
+        // inode-metadata-time size was small but which grew between
+        // `metadata` and `read` (e.g. live append) is still bounded.
+        let cap = MAX_KEYFILE_BYTES.saturating_add(1);
+        // Round-26 audit fix: use try_from to avoid `as usize` truncation
+        // warning on 32-bit targets. `MAX_KEYFILE_BYTES` is 1 MiB, well
+        // below `u32::MAX`, so this conversion never actually fails on
+        // any supported target.
+        let initial_cap = usize::try_from(meta.len()).unwrap_or(0);
+        let mut bytes = Vec::with_capacity(initial_cap);
+        // LINT-OK: size-gated-by-take (+1 sentinel checked below)
+        file.take(cap)
+            .read_to_end(&mut bytes)
             .with_context(|| format!("Failed to read {}", path.display()))?;
+        if bytes.len() as u64 > MAX_KEYFILE_BYTES {
+            anyhow::bail!(
+                "Key file {} grew beyond {} bytes between stat and read.",
+                path.display(),
+                MAX_KEYFILE_BYTES
+            );
+        }
 
         let mut inner = parse_key_bytes(&bytes)
             .with_context(|| format!("Failed to parse {}", path.display()))?;

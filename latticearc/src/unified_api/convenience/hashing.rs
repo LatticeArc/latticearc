@@ -20,7 +20,13 @@ use subtle::ConstantTimeEq;
 use crate::log_crypto_operation_error;
 use crate::primitives::hash::sha3::sha3_256 as hash_sha3_256;
 use crate::primitives::mac::hmac::hmac_sha256;
-use crate::primitives::resource_limits::validate_key_derivation_count;
+// Round-26 audit fix (M23): the previous `validate_key_derivation_count(1)`
+// no-op was removed (passing `1` to a per-call cap is structurally
+// useless — it always succeeds whenever the global limit is ≥1). The
+// real DoS bound on this path is enforced by `validate_signature_size`
+// at the AEAD/KDF entrypoints upstream. The import is no longer needed
+// at this site; a future per-process derivation counter would re-import
+// it from `resource_limits`.
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::logging::op;
@@ -48,7 +54,11 @@ fn derive_key_hkdf(
         length,
     )
     .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF failed: {e}")))?;
-    Ok(zeroize::Zeroizing::new(result.expose_secret().to_vec()))
+    // Round-26 audit fix (M22): consume the HkdfResult via
+    // `into_zeroizing` so we don't allocate an un-zeroed transient
+    // `Vec<u8>` between the `expose_secret().to_vec()` and the
+    // re-wrap.
+    Ok(result.into_zeroizing())
 }
 
 /// Internal implementation of HKDF key derivation with caller-supplied info string.
@@ -60,7 +70,11 @@ fn derive_key_hkdf_with_info(
 ) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     let result = crate::primitives::kdf::hkdf::hkdf(password, Some(salt), Some(info), length)
         .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF failed: {e}")))?;
-    Ok(zeroize::Zeroizing::new(result.expose_secret().to_vec()))
+    // Round-26 audit fix (M22): consume the HkdfResult via
+    // `into_zeroizing` so we don't allocate an un-zeroed transient
+    // `Vec<u8>` between the `expose_secret().to_vec()` and the
+    // re-wrap.
+    Ok(result.into_zeroizing())
 }
 
 /// Internal implementation of key derivation with caller-supplied info string.
@@ -77,10 +91,8 @@ fn derive_key_with_info_internal(
         info_len = info.len()
     );
 
-    validate_key_derivation_count(1).map_err(|e| {
-        log_crypto_operation_error!(op::KEY_DERIVATION_INFO, e);
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+    // Round-26 audit fix (M23): per-call no-op `validate_key_derivation_count(1)`
+    // removed. See module-level comment.
 
     if salt.is_empty() {
         let err = CoreError::InvalidInput("Salt cannot be empty".to_string());
@@ -136,10 +148,7 @@ fn derive_key_internal(
         output_len = length
     );
 
-    validate_key_derivation_count(1).map_err(|e| {
-        log_crypto_operation_error!(op::KEY_DERIVATION, e);
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
+    // Round-26 audit fix (M23): per-call no-op removed. See M23 note above.
 
     if salt.is_empty() {
         let err = CoreError::InvalidInput("Salt cannot be empty".to_string());

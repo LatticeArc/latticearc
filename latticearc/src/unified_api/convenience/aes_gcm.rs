@@ -188,13 +188,20 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
     // the only actionable signal.
     use crate::primitives::aead::AeadError;
     let cipher = AesGcm256::new(key).map_err(|e| {
+        // Round-26 audit fix (M24): collapse non-WeakKey AES init
+        // failures to the same opaque "decryption failed" string used
+        // by all other adversary-reachable decrypt errors. The
+        // previous `"AES key init failed"` was a distinct third
+        // string, observable to scripted callers grepping stderr.
+        // WeakKey remains distinguishable because it's caller-side
+        // hygiene (key was generated incorrectly), not adversary input.
         let err = match e {
             AeadError::WeakKey => CoreError::InvalidKey(
                 "All-zero key rejected by AES-256-GCM — generate a fresh key via \
                  `latticearc::primitives::security::generate_secure_random_bytes(32)`."
                     .to_string(),
             ),
-            _ => CoreError::DecryptionFailed("AES key init failed".to_string()),
+            _ => CoreError::DecryptionFailed("decryption failed".to_string()),
         };
         log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, err);
         err

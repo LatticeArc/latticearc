@@ -22,6 +22,20 @@ use std::path::PathBuf;
 
 use crate::keyfile::{KeyFile, KeyType};
 
+/// True when the key file is a pure-PQ ML-KEM public key (no classical
+/// X25519 component). Hybrid `HybridMlKem*X25519` PKs return false.
+/// Used by both the use-case-driven path and the expert-mode inference
+/// to route pure-PQ keys away from the hybrid splitter (which would
+/// misinterpret the trailing bytes as X25519 and produce garbage
+/// ciphertext). Single source of truth — round-26 simplify pass.
+fn is_pq_only_key(key_file: &KeyFile) -> bool {
+    use latticearc::unified_api::key_format::KeyAlgorithm;
+    matches!(
+        key_file.portable_key().algorithm(),
+        KeyAlgorithm::MlKem512 | KeyAlgorithm::MlKem768 | KeyAlgorithm::MlKem1024
+    )
+}
+
 /// Encryption mode.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub(crate) enum EncryptMode {
@@ -39,7 +53,10 @@ pub(crate) enum EncryptMode {
 #[derive(Args)]
 pub(crate) struct EncryptArgs {
     /// Encryption mode (expert override). Ignored when --use-case is provided.
-    #[arg(short, long, value_enum)]
+    /// Round-26 audit fix (M20): clap-level `conflicts_with` makes the
+    /// constraint visible in --help instead of just emitting a runtime
+    /// warning.
+    #[arg(short, long, value_enum, conflicts_with = "use_case")]
     pub mode: Option<EncryptMode>,
     /// Use case for automatic algorithm selection (recommended).
     #[arg(long, value_parser = super::common::parse_use_case,
@@ -62,6 +79,10 @@ pub(crate) struct EncryptArgs {
     /// Key file path (symmetric key for AES, public key for hybrid).
     #[arg(short, long)]
     pub key: PathBuf,
+    /// Overwrite the output file if it already exists. Default: false
+    /// (refuses to clobber). Round-26 audit fix (H12).
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// Execute the encrypt command.
@@ -80,7 +101,7 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
             );
         }
         let json_output = encrypt_with_config(&plaintext, &key_file, &args)?;
-        return write_output(&args.output, &json_output);
+        return write_output(&args.output, &json_output, args.force);
     }
 
     // Expert path (or default). When `--mode` is omitted, infer it from
@@ -89,10 +110,24 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
     // audit fix #12), passing a hybrid PK without `--mode hybrid`
     // produced "Expected symmetric key file, got Public" — accurate
     // but surprising for the common case.
+    //
+    // Round-26 audit fix (H13): branch on the key's algorithm so
+    // pure-PQ ML-KEM PKs are routed to `PqOnly` and hybrid
+    // `HybridMlKem*X25519` PKs to `Hybrid`. Previously we forced
+    // `Hybrid` for any `KeyType::Public`, which made the hybrid splitter
+    // treat the trailing 32 bytes of an ML-KEM-768 PK (1184 bytes) as
+    // X25519 → garbage ciphertext. The use-case path already handled
+    // this correctly via `is_pq_only`; the expert path was the gap.
     let mode = match args.mode {
         Some(m) => m,
         None => match key_file.key_type {
-            KeyType::Public => EncryptMode::Hybrid,
+            KeyType::Public => {
+                if is_pq_only_key(&key_file) {
+                    EncryptMode::PqOnly
+                } else {
+                    EncryptMode::Hybrid
+                }
+            }
             _ => EncryptMode::Aes256Gcm,
         },
     };
@@ -103,7 +138,7 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
         EncryptMode::PqOnly => encrypt_pq_only_mode(&plaintext, &key_file, &args)?,
     };
 
-    write_output(&args.output, &json_output)
+    write_output(&args.output, &json_output, args.force)
 }
 
 /// Encrypt using the library's unified API with use-case-driven config.
@@ -131,18 +166,13 @@ fn encrypt_with_config(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs)
             // would try to parse a pure-PQ key as hybrid and fail with a
             // length mismatch — the same bug class as the signing-path bug
             // fixed alongside this change.
-            use latticearc::unified_api::key_format::KeyAlgorithm;
-            let alg = key_file.portable_key().algorithm();
-            let is_pq_only = matches!(
-                alg,
-                KeyAlgorithm::MlKem512 | KeyAlgorithm::MlKem768 | KeyAlgorithm::MlKem1024
-            );
-            if is_pq_only {
+            if is_pq_only_key(key_file) {
                 // Delegate to the dedicated PQ-only path so CryptoMode and
                 // key-parsing are consistent with the algorithm.
                 return encrypt_pq_only_mode(plaintext, key_file, args);
             }
 
+            let alg = key_file.portable_key().algorithm();
             let pk_bytes = key_file.key_bytes()?;
             let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes, alg)?;
             let encrypted =
@@ -272,17 +302,22 @@ fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
     )
 }
 
-fn write_output(path: &Option<PathBuf>, data: &str) -> Result<()> {
+fn write_output(path: &Option<PathBuf>, data: &str, force: bool) -> Result<()> {
     match path {
         Some(p) => {
             // Atomic write — closes the partial-file confidentiality
             // window for decrypted material at rest. Same helper the
             // keyfile writer uses (round-7 audit fix #18).
+            // Round-26 audit fix (H12): only overwrite when --force is
+            // passed; otherwise refuse to clobber, matching keygen's
+            // default-safe behavior.
             // LINT-OK: public-write-ciphertext (encrypted data is not secret)
             latticearc::unified_api::atomic_write::AtomicWrite::new(data.as_bytes())
-                .overwrite_existing(true)
+                .overwrite_existing(force)
                 .write(p)
-                .with_context(|| format!("Failed to write {}", p.display()))?;
+                .with_context(|| {
+                    format!("Failed to write {} (use --force to overwrite)", p.display())
+                })?;
             eprintln!("Encrypted data written to: {}", p.display());
         }
         None => {

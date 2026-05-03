@@ -22,28 +22,22 @@ use crate::types::SecretVec;
 #[must_use]
 pub fn secure_compare(a: &[u8], b: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
-    use zeroize::Zeroizing;
 
-    // Round-12 audit fix (M-2): the padded copies of `a` / `b` carry
-    // secret bytes, so they must be zeroized on drop. Plain `Vec<u8>`
-    // would leave heap copies of secret material visible via core
-    // dumps or freelist scraping.
-    let max_len = a.len().max(b.len());
-    let mut padded_a = Zeroizing::new(vec![0u8; max_len]);
-    let mut padded_b = Zeroizing::new(vec![0u8; max_len]);
-
-    // Safe: padded_a/b were created with max_len = max(a.len(), b.len())
-    if let Some(dest) = padded_a.get_mut(..a.len()) {
-        dest.copy_from_slice(a);
-    }
-    if let Some(dest) = padded_b.get_mut(..b.len()) {
-        dest.copy_from_slice(b);
+    // Round-26 audit fix (M25): reject mismatched lengths early. The
+    // previous shape allocated `max(a.len(), b.len())` zeroized buffers
+    // even on the inevitable-Err path, which an attacker controlling
+    // one input length could amplify into MB-sized allocations per
+    // call. Length is structurally not secret here (the caller knows
+    // both lengths), so the early return is constant-time relative to
+    // each fixed-length comparison; comparisons across messages of
+    // *different* declared lengths are all rejected at the same cost.
+    if a.len() != b.len() {
+        return false;
     }
 
-    let len_equal = a.len().ct_eq(&b.len());
-    let content_equal = padded_a.ct_eq(&padded_b);
-
-    (len_equal & content_equal).into()
+    // Equal-length case: standard `ct_eq` over the borrowed slices is
+    // already constant-time and allocates nothing.
+    a.ct_eq(b).into()
 }
 
 /// Securely zeroize memory to prevent data recovery
@@ -52,102 +46,34 @@ pub fn secure_zeroize(data: &mut [u8]) {
     data.zeroize();
 }
 
-/// Global memory pool for secure allocations
+// Round-26 audit fix (M26): the `MemoryPool` type and `get_memory_pool`
+// helper were removed entirely. The pool's `deallocate` was a no-op
+// (it dropped the buffer rather than caching it), so every `allocate`
+// call paid mutex-lock overhead with zero cache benefit. Use
+// `SecretVec::zero(size)` directly at every call site — same semantics,
+// no lock contention.
+
+/// Allocate a zeroed `SecretVec` of `size` bytes. Round-26 audit fix
+/// (M26): replaces the `MemoryPool::allocate` API. This is a thin
+/// wrapper around `SecretVec::zero(size)` with the same per-call size
+/// validation the pool used to enforce.
 ///
-/// This provides a memory pool using platform-specific secure allocation APIs
-/// following NIST SP 800-90 for secure memory handling.
-pub fn get_memory_pool() -> &'static MemoryPool {
-    static POOL: OnceLock<MemoryPool> = OnceLock::new();
-    POOL.get_or_init(MemoryPool::new)
-}
-
-/// Memory pool for secure allocations.
-///
-/// Each pooled allocation is a [`SecretVec`] (zeroized on drop per invariant
-/// I-3). When a buffer is deallocated it returns to the pool; when the pool
-/// overflows or the allocator is dropped, the buffers are wiped automatically.
-pub struct MemoryPool {
-    pool: Mutex<std::collections::HashMap<usize, Vec<SecretVec>>>,
-}
-
-impl MemoryPool {
-    /// Create a new memory pool
-    #[must_use]
-    pub fn new() -> Self {
-        Self { pool: Mutex::new(std::collections::HashMap::new()) }
+/// # Errors
+/// Returns an error if `size` is zero or exceeds `1 MiB`.
+pub fn allocate_secure_buffer(size: usize) -> Result<SecretVec> {
+    if size == 0 {
+        return Err(crate::prelude::error::LatticeArcError::MemoryError(
+            "Cannot allocate zero-sized secure memory".to_string(),
+        ));
     }
-
-    /// Allocate secure memory from pool or create new.
-    ///
-    /// # Errors
-    /// Returns an error if the memory pool lock is poisoned or if secure memory allocation fails.
-    pub fn allocate(&self, size: usize) -> Result<SecretVec> {
-        let mut pool = self.pool.lock().map_err(|_e| {
-            crate::prelude::error::LatticeArcError::MemoryError(
-                "Memory pool lock poisoned".to_string(),
-            )
-        })?;
-
-        // Try to reuse from pool
-        if let Some(allocations) = pool.get_mut(&size)
-            && let Some(memory) = allocations.pop()
-        {
-            return Ok(memory);
-        }
-
-        // Create new allocation with platform-specific secure memory
-        Self::allocate_secure(size)
+    const MAX_SECURE_ALLOCATION_SIZE: usize = 1024 * 1024;
+    if size > MAX_SECURE_ALLOCATION_SIZE {
+        return Err(crate::prelude::error::LatticeArcError::MemoryError(format!(
+            "Secure memory allocation size {} exceeds maximum allowed size {}",
+            size, MAX_SECURE_ALLOCATION_SIZE
+        )));
     }
-
-    /// Deallocate secure memory.
-    ///
-    /// This used to push the buffer back to a per-size pool for reuse by
-    /// `allocate()`. That was unsound: `SecretVec` is `ZeroizeOnDrop` so
-    /// secrets are wiped when a buffer is *dropped*, but a pooled buffer
-    /// is held in the pool and reissued whole. A caller that wrote
-    /// secrets, deallocated, then received the same buffer via a later
-    /// `allocate()` would observe the previous holder's plaintext.
-    ///
-    /// `Vec<u8>::zeroize()` clears the buffer's length to 0, so we can't
-    /// zeroize-and-keep-pooled — the pool keys by size and would no
-    /// longer match. The optimization (avoiding allocator churn) does
-    /// not justify the cross-holder leak, so this function now simply
-    /// drops the buffer, letting `ZeroizeOnDrop` wipe it. The pool
-    /// remains for the `allocate()` path's hit/miss accounting but is
-    /// effectively never populated.
-    pub fn deallocate(&self, _memory: SecretVec) {
-        // Buffer is dropped here; `ZeroizeOnDrop` wipes the contents.
-        // No pool insertion — see method docs for rationale.
-    }
-
-    /// Allocate secure memory
-    fn allocate_secure(size: usize) -> Result<SecretVec> {
-        // Input validation: size must be reasonable for secure memory allocation
-        if size == 0 {
-            return Err(crate::prelude::error::LatticeArcError::MemoryError(
-                "Cannot allocate zero-sized secure memory".to_string(),
-            ));
-        }
-
-        // Limit maximum allocation size to prevent resource exhaustion attacks
-        const MAX_SECURE_ALLOCATION_SIZE: usize = 1024 * 1024; // 1MB limit
-        if size > MAX_SECURE_ALLOCATION_SIZE {
-            return Err(crate::prelude::error::LatticeArcError::MemoryError(format!(
-                "Secure memory allocation size {} exceeds maximum allowed size {}",
-                size, MAX_SECURE_ALLOCATION_SIZE
-            )));
-        }
-
-        // Simple secure memory allocation — zeroed buffer wrapped in SecretVec
-        // (zeroizes on drop, sealed `expose_secret` accessor per I-8).
-        Ok(SecretVec::zero(size))
-    }
-}
-
-impl Default for MemoryPool {
-    fn default() -> Self {
-        Self::new()
-    }
+    Ok(SecretVec::zero(size))
 }
 
 // Secure RNG implementation
@@ -440,52 +366,25 @@ mod tests {
         assert!(data.iter().all(|&b| b == 0));
     }
 
-    // === MemoryPool tests ===
+    // === allocate_secure_buffer tests (round-26 audit fix M26: replaces MemoryPool tests) ===
 
     #[test]
-    fn test_memory_pool_new_succeeds() {
-        let pool = MemoryPool::new();
-        let _default = MemoryPool::default();
-        // Just verifying construction works
-        let mem = pool.allocate(32).unwrap();
+    fn test_allocate_secure_buffer_basic_succeeds() {
+        let mem = allocate_secure_buffer(32).unwrap();
         assert_eq!(mem.len(), 32);
-    }
-
-    #[test]
-    fn test_memory_pool_allocate_and_deallocate_succeeds() {
-        let pool = MemoryPool::new();
-        let mem = pool.allocate(64).unwrap();
-        assert_eq!(mem.len(), 64);
         assert!(mem.expose_secret().iter().all(|&b| b == 0));
-
-        // Return to pool
-        pool.deallocate(mem);
-
-        // Allocate same size — should reuse from pool
-        let mem2 = pool.allocate(64).unwrap();
-        assert_eq!(mem2.len(), 64);
     }
 
     #[test]
-    fn test_memory_pool_zero_size_error_fails() {
-        let pool = MemoryPool::new();
-        let result = pool.allocate(0);
+    fn test_allocate_secure_buffer_zero_size_fails() {
+        let result = allocate_secure_buffer(0);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_memory_pool_too_large_error_fails() {
-        let pool = MemoryPool::new();
-        let result = pool.allocate(2 * 1024 * 1024); // 2MB > 1MB limit
+    fn test_allocate_secure_buffer_too_large_fails() {
+        let result = allocate_secure_buffer(2 * 1024 * 1024);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_memory_pool_global_succeeds() {
-        let pool1 = get_memory_pool();
-        let pool2 = get_memory_pool();
-        // Both should be the same static instance
-        assert!(std::ptr::eq(pool1, pool2));
     }
 
     // === RngHandle tests ===
@@ -598,74 +497,12 @@ mod tests {
         let _ = v;
     }
 
-    // === MemoryPool edge cases ===
-
     #[test]
-    fn test_memory_pool_deallocate_and_reuse_succeeds() {
-        let pool = MemoryPool::new();
-        // Allocate then deallocate
-        let mem = pool.allocate(16).unwrap();
-        pool.deallocate(mem);
-
-        // Re-allocate same size should reuse from pool
-        let mem2 = pool.allocate(16).unwrap();
-        assert_eq!(mem2.len(), 16);
-        // Reused buffer is always zeroed on return to the pool (ZeroizeOnDrop
-        // would fire here if the pool didn't hold it — and when it re-emerges
-        // from the pool it's still the same zeroed SecretVec).
-        assert!(mem2.expose_secret().iter().all(|&b| b == 0));
-    }
-
-    #[test]
-    fn test_memory_pool_deallocate_pool_full_succeeds() {
-        let pool = MemoryPool::new();
-
-        // Fill the pool to capacity (MAX_POOL_SIZE = 100)
-        for _ in 0..100 {
-            let mem = pool.allocate(8).unwrap();
-            pool.deallocate(mem);
-        }
-
-        // One more should still work (it just gets dropped)
-        let extra = pool.allocate(8).unwrap();
-        pool.deallocate(extra);
-
-        // Pool should still work normally
-        let mem = pool.allocate(8).unwrap();
-        assert_eq!(mem.len(), 8);
-    }
-
-    #[test]
-    fn test_memory_pool_multiple_sizes_succeeds() {
-        let pool = MemoryPool::new();
-
-        let m1 = pool.allocate(16).unwrap();
-        let m2 = pool.allocate(32).unwrap();
-        let m3 = pool.allocate(64).unwrap();
-
-        assert_eq!(m1.len(), 16);
-        assert_eq!(m2.len(), 32);
-        assert_eq!(m3.len(), 64);
-
-        pool.deallocate(m1);
-        pool.deallocate(m2);
-        pool.deallocate(m3);
-
-        // Reuse specific sizes
-        let r1 = pool.allocate(32).unwrap();
-        assert_eq!(r1.len(), 32);
-    }
-
-    #[test]
-    fn test_memory_pool_allocate_boundary_sizes_succeeds() {
-        let pool = MemoryPool::new();
-
-        // Just under the max limit
-        let mem = pool.allocate(1024 * 1024).unwrap();
+    fn test_allocate_secure_buffer_boundary_succeeds() {
+        let mem = allocate_secure_buffer(1024 * 1024).unwrap();
         assert_eq!(mem.len(), 1024 * 1024);
 
-        // Exactly over the max limit
-        let result = pool.allocate(1024 * 1024 + 1);
+        let result = allocate_secure_buffer(1024 * 1024 + 1);
         assert!(result.is_err());
     }
 

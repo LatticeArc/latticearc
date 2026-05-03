@@ -168,6 +168,27 @@ impl EncryptionScheme {
         }
     }
 
+    /// Returns the [`SecurityLevel`] this scheme provides.
+    ///
+    /// Round-26 audit fix (M14): unlike [`Self::ml_kem_level`], this
+    /// is total over the enum — symmetric AEADs map to
+    /// `SecurityLevel::Standard` rather than `None`. The typed
+    /// selector / validator gate previously used `ml_kem_level()`,
+    /// which returned `None` for symmetric and silently skipped the
+    /// tier check. With this method the gate sees a real level and
+    /// rejects symmetric-only ciphertexts under `SecurityLevel::High`
+    /// or `SecurityLevel::Maximum` configurations.
+    #[must_use]
+    pub const fn security_level(&self) -> crate::types::SecurityLevel {
+        use crate::types::SecurityLevel;
+        match self {
+            Self::HybridMlKem512Aes256Gcm | Self::PqMlKem512Aes256Gcm => SecurityLevel::Standard,
+            Self::HybridMlKem768Aes256Gcm | Self::PqMlKem768Aes256Gcm => SecurityLevel::High,
+            Self::HybridMlKem1024Aes256Gcm | Self::PqMlKem1024Aes256Gcm => SecurityLevel::Maximum,
+            Self::Aes256Gcm | Self::ChaCha20Poly1305 => SecurityLevel::Standard,
+        }
+    }
+
     /// Convert a hybrid scheme to its PQ-only equivalent at the same NIST level.
     ///
     /// Returns `None` for symmetric or already-PQ-only schemes.

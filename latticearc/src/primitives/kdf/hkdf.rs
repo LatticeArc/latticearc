@@ -53,6 +53,17 @@ impl HkdfResult {
         &self.key
     }
 
+    /// Consume `self` and return the inner `Zeroizing<Vec<u8>>`.
+    ///
+    /// Round-26 audit fix (M22): convenience callers used to do
+    /// `Zeroizing::new(result.expose_secret().to_vec())`, which
+    /// allocated an un-zeroed transient `Vec<u8>` between the borrow
+    /// and the wrap. This consuming accessor avoids the transient.
+    #[must_use]
+    pub fn into_zeroizing(self) -> Zeroizing<Vec<u8>> {
+        self.key
+    }
+
     /// Get the length of the derived key.
     #[must_use]
     pub fn key_length(&self) -> usize {

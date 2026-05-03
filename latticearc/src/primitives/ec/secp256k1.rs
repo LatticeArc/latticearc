@@ -10,6 +10,7 @@
 
 use super::traits::{EcKeyPair, EcSignature, sealed};
 use crate::prelude::error::{LatticeArcError, Result};
+use crate::primitives::resource_limits::validate_signature_size;
 use k256::ecdsa::{Signature, SigningKey, VerifyingKey, signature::Signer, signature::Verifier};
 use rand_core_0_6::OsRng; // k256 uses rand_core 0.6
 use subtle::ConstantTimeEq;
@@ -53,8 +54,13 @@ impl Secp256k1KeyPair {
     /// The returned value must not outlive `self` conceptually; callers should
     /// use it immediately and drop it.
     fn signing_key(&self) -> Result<SigningKey> {
-        SigningKey::from_bytes((&self.secret_bytes[..]).into())
-            .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))
+        // Round-26 audit fix (H9): opaque error string. Upstream k256
+        // wording is version-volatile and would leak which exact
+        // validity check failed (e.g. zero scalar vs out-of-range).
+        SigningKey::from_bytes((&self.secret_bytes[..]).into()).map_err(|e| {
+            tracing::debug!(error = ?e, "secp256k1 signing key reconstruction failed");
+            LatticeArcError::KeyGenerationError("invalid secp256k1 secret key".to_string())
+        })
     }
 }
 
@@ -70,9 +76,13 @@ impl EcKeyPair for Secp256k1KeyPair {
 
         let keypair = Self { public_key, secret_bytes };
 
-        // Pairwise Consistency Test (PCT)
-        crate::primitives::pct::pct_secp256k1(&keypair)
-            .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))?;
+        // Pairwise Consistency Test (PCT). Round-26 audit fix (H9):
+        // opaque KeyGenerationError so PctError variant wording is not
+        // relayed verbatim.
+        crate::primitives::pct::pct_secp256k1(&keypair).map_err(|e| {
+            tracing::debug!(error = ?e, "secp256k1 keygen PCT failed");
+            LatticeArcError::KeyGenerationError("secp256k1 keypair PCT failed".to_string())
+        })?;
 
         Ok(keypair)
     }
@@ -85,9 +95,12 @@ impl EcKeyPair for Secp256k1KeyPair {
             });
         }
 
-        // Validate that the bytes form a valid scalar
-        let sk = SigningKey::from_bytes(secret_key_bytes.into())
-            .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))?;
+        // Validate that the bytes form a valid scalar. Round-26 audit
+        // fix (H9): opaque error string for k256 validity failures.
+        let sk = SigningKey::from_bytes(secret_key_bytes.into()).map_err(|e| {
+            tracing::debug!(error = ?e, "secp256k1 from_secret_key parse failed");
+            LatticeArcError::InvalidKey("invalid secp256k1 secret key".to_string())
+        })?;
         let public_key = VerifyingKey::from(&sk);
         drop(sk);
 
@@ -99,8 +112,11 @@ impl EcKeyPair for Secp256k1KeyPair {
         // Round-20 audit fix #3: FIPS 140-3 IG 10.3.A — every keypair
         // entering the module (fresh generation or import) must run PCT
         // before exposure. Symmetric with `generate()` above.
-        crate::primitives::pct::pct_secp256k1(&keypair)
-            .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))?;
+        // Round-26 audit fix (H9): opaque error string.
+        crate::primitives::pct::pct_secp256k1(&keypair).map_err(|e| {
+            tracing::debug!(error = ?e, "secp256k1 from_secret_key PCT failed");
+            LatticeArcError::KeyGenerationError("secp256k1 keypair PCT failed".to_string())
+        })?;
 
         Ok(keypair)
     }
@@ -130,8 +146,57 @@ impl EcSignature for Secp256k1Signature {
     /// secp256k1 public key, or `SignatureVerificationError` if the signature
     /// is invalid. Error messages are opaque to avoid leaking internal state.
     fn verify(public_key_bytes: &[u8], message: &[u8], signature: &Self::Signature) -> Result<()> {
-        let public_key = VerifyingKey::from_sec1_bytes(public_key_bytes)
-            .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        // Round-26 audit fix (H6): bound message length before SHA-256
+        // hashes the entire payload (RFC 6979 / ECDSA pre-hash). Same
+        // DoS shape round-24 closed for ML-DSA / SLH-DSA / FN-DSA.
+        if let Err(e) = validate_signature_size(message.len()) {
+            tracing::debug!(error = ?e, msg_len = message.len(), "secp256k1 verify rejected: message exceeds resource limit");
+            return Err(LatticeArcError::SignatureVerificationError(
+                "secp256k1 verification failed".to_string(),
+            ));
+        }
+
+        // Round-26 audit fix (H5): reject high-S (non-canonical)
+        // signatures. ECDSA is malleable — k256's `Verifier::verify`
+        // accepts both `(r, s)` and `(r, n - s)` because both verify.
+        // For the BIP-146 / EIP-2 transaction-malleability surface this
+        // crate is positioned for, downstream consumers that hash the
+        // signature (txid pattern) need a canonical low-S form. Reject
+        // high-S unconditionally here; callers that need legacy
+        // behavior can re-normalize via `Signature::normalize_s` before
+        // calling.
+        if let Some(_normalized) = signature.normalize_s() {
+            // `normalize_s()` returns `Some` when the input was high-S.
+            tracing::debug!("secp256k1 verify rejected: high-S signature (BIP-146/EIP-2)");
+            return Err(LatticeArcError::SignatureVerificationError(
+                "secp256k1 verification failed".to_string(),
+            ));
+        }
+
+        // Round-26 audit fix (L20): enforce a single canonical SEC1
+        // form on the wire. `public_key_bytes()` always emits the
+        // 65-byte uncompressed form (0x04 || X || Y); a permissive
+        // `from_sec1_bytes` previously accepted compressed (33-byte,
+        // 0x02 / 0x03 prefix) and the legacy hybrid (65-byte,
+        // 0x06 / 0x07) forms, so the same key produced multiple
+        // distinct identities when downstream consumers hashed the PK
+        // bytes. Reject everything but the uncompressed form here.
+        let canonical_pk = public_key_bytes.len() == 65 && public_key_bytes.first() == Some(&0x04);
+        if !canonical_pk {
+            tracing::debug!(
+                pk_len = public_key_bytes.len(),
+                "secp256k1 verify rejected: non-canonical SEC1 encoding"
+            );
+            return Err(LatticeArcError::InvalidKey("invalid public key".to_string()));
+        }
+
+        // Round-26 audit fix (H9): opaque InvalidKey string for SEC1
+        // parse failures. k256 wording leaks which structural check
+        // failed (length vs encoding vs not-on-curve).
+        let public_key = VerifyingKey::from_sec1_bytes(public_key_bytes).map_err(|e| {
+            tracing::debug!(error = ?e, "secp256k1 verify rejected: PK parse");
+            LatticeArcError::InvalidKey("invalid public key".to_string())
+        })?;
 
         public_key.verify(message, signature).map_err(|_e| {
             // Opaque error message: avoid leaking internal verification state.
@@ -155,8 +220,26 @@ impl EcSignature for Secp256k1Signature {
             });
         }
 
-        Signature::from_bytes(bytes.into())
-            .map_err(|e| LatticeArcError::InvalidSignature(e.to_string()))
+        // Round-26 audit fix (H9): opaque parse error string.
+        let signature = Signature::from_bytes(bytes.into()).map_err(|e| {
+            tracing::debug!(error = ?e, "secp256k1 signature parse failed");
+            LatticeArcError::InvalidSignature("invalid secp256k1 signature".to_string())
+        })?;
+
+        // Round-26 audit fix (H5 / L19): reject high-S at parse time so
+        // downstream code never sees malleable signatures. `normalize_s`
+        // returns `Some` when the input was high-S; treat that as a
+        // parse failure rather than silently canonicalizing, so the
+        // wire format the producer chose is preserved or rejected (no
+        // surprise rewrite).
+        if signature.normalize_s().is_some() {
+            tracing::debug!("secp256k1 signature_from_bytes rejected: high-S (BIP-146/EIP-2)");
+            return Err(LatticeArcError::InvalidSignature(
+                "invalid secp256k1 signature".to_string(),
+            ));
+        }
+
+        Ok(signature)
     }
 }
 
@@ -167,10 +250,25 @@ impl Secp256k1KeyPair {
     /// Returns an error if the stored secret bytes cannot be reconstructed as a
     /// valid signing key (only possible if the internal state is corrupted).
     pub fn sign(&self, message: &[u8]) -> Result<Signature> {
+        // Round-26 audit fix (H6): bound message length before SHA-256
+        // hashes the payload.
+        if let Err(e) = validate_signature_size(message.len()) {
+            tracing::debug!(error = ?e, msg_len = message.len(), "secp256k1 sign rejected: message exceeds resource limit");
+            return Err(LatticeArcError::MessageTooLong);
+        }
+
         // Reconstruct a transient SigningKey from the zeroized byte buffer.
         // The SigningKey is dropped at end of function, leaving only the zeroized bytes.
         let sk = self.signing_key()?;
-        Ok(sk.sign(message))
+        let signature: Signature = sk.sign(message);
+
+        // Round-26 audit fix (H5): canonicalize the produced signature
+        // to low-S so downstream consumers (BIP-146 / EIP-2 protocols
+        // that hash the signature into a txid) see a single canonical
+        // representation. `normalize_s` returns `Some(low_s)` when the
+        // input was high-S and `None` when already low-S; either way,
+        // the result returned is canonical.
+        Ok(signature.normalize_s().unwrap_or(signature))
     }
 }
 

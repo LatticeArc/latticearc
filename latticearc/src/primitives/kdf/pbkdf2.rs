@@ -285,7 +285,7 @@ pub fn pbkdf2(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
 /// # Errors
 /// Returns an error for the same conditions as [`pbkdf2`] except the
 /// per-PRF iteration floor is replaced by an absolute minimum of 1.
-#[cfg(any(test, feature = "test-utils"))]
+#[cfg(any(test, feature = "kat-replay"))]
 #[doc(hidden)]
 pub fn pbkdf2_kat(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
     pbkdf2_with_floor(password, params, 1)

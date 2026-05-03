@@ -29,8 +29,34 @@ use clap::{Args, ValueEnum};
 pub(crate) enum KdfAlgorithm {
     /// HKDF-SHA256 (SP 800-56C). Requires --salt and --info.
     Hkdf,
-    /// PBKDF2-HMAC-SHA256. Requires --salt and --iterations.
+    /// PBKDF2 (SP 800-132). Requires --salt and --iterations. PRF
+    /// configurable via --prf (default hmac-sha256).
     Pbkdf2,
+}
+
+/// PBKDF2 PRF choice. Round-26 audit fix (H14).
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(crate) enum PbkdfPrf {
+    /// HMAC-SHA256 (OWASP 2023 floor: 600,000 iterations).
+    HmacSha256,
+    /// HMAC-SHA512 (OWASP 2023 floor: 210,000 iterations).
+    HmacSha512,
+}
+
+impl PbkdfPrf {
+    fn to_lib(self) -> latticearc::primitives::kdf::PrfType {
+        match self {
+            Self::HmacSha256 => latticearc::primitives::kdf::PrfType::HmacSha256,
+            Self::HmacSha512 => latticearc::primitives::kdf::PrfType::HmacSha512,
+        }
+    }
+
+    /// OWASP 2023 minimum iteration count for this PRF. Delegates to
+    /// the library's canonical `Pbkdf2Params::min_iterations` so the
+    /// CLI and library stay in lockstep on the per-PRF floor.
+    fn min_iterations(self) -> u32 {
+        latticearc::primitives::kdf::Pbkdf2Params::min_iterations(self.to_lib())
+    }
 }
 
 /// Arguments for the `kdf` subcommand.
@@ -67,10 +93,16 @@ pub(crate) struct KdfArgs {
     #[arg(long)]
     pub info: Option<String>,
     /// Iteration count for PBKDF2 (default 600000, OWASP 2023 minimum
-    /// for HMAC-SHA256). Values below 600,000 are rejected unless
-    /// `--allow-weak-iterations` is also passed.
+    /// for HMAC-SHA256). Values below the per-PRF OWASP floor are
+    /// rejected unless `--allow-weak-iterations` is also passed.
+    /// Per-PRF floors: HMAC-SHA256 → 600,000; HMAC-SHA512 → 210,000.
     #[arg(long, default_value = "600000")]
     pub iterations: u32,
+    /// PRF for PBKDF2 (default: hmac-sha256). Round-26 audit fix (H14).
+    /// HMAC-SHA512 was reachable from the library API but unreachable
+    /// from the CLI before this flag.
+    #[arg(long, value_enum, default_value = "hmac-sha256")]
+    pub prf: PbkdfPrf,
     /// Bypass the OWASP-2023 PBKDF2 iteration floor (600,000). Reserved
     /// for KAT replay and reproducibility against legacy fixtures.
     /// Production use is unsupported.
@@ -209,13 +241,19 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
         // `keyfile.rs::resolve_passphrase` already warns for the
         // analogous LATTICEARC_PASSPHRASE; the kdf path was missing
         // the parallel warning.
-        eprintln!(
-            "warning: reading KDF input from LATTICEARC_KDF_INPUT. \
-             Env vars are readable via /proc/<pid>/environ by processes \
-             owned by the same user. Prefer --input-stdin for genuinely \
-             secret input, and `unset LATTICEARC_KDF_INPUT` immediately \
-             after this invocation."
-        );
+        // Round-26 audit fix (M18): gate on `IsTerminal::is_terminal`
+        // so CI/Docker pipelines (where the env var is intentional)
+        // don't get spammed. Mirrors `keyfile.rs::resolve_passphrase`.
+        use std::io::IsTerminal;
+        if std::io::stdin().is_terminal() {
+            eprintln!(
+                "warning: reading KDF input from LATTICEARC_KDF_INPUT. \
+                 Env vars are readable via /proc/<pid>/environ by processes \
+                 owned by the same user. Prefer --input-stdin for genuinely \
+                 secret input, and `unset LATTICEARC_KDF_INPUT` immediately \
+                 after this invocation."
+            );
+        }
         return Ok(zeroize::Zeroizing::new(env_val));
     }
     bail!(
@@ -269,12 +307,11 @@ fn derive_hkdf_with_input(
     Ok(derived)
 }
 
-/// OWASP 2023 minimum iteration count for PBKDF2-HMAC-SHA256.
-/// Library `pbkdf2()` already enforces a hard floor of 1,000 (the
-/// SP 800-132 absolute minimum); the CLI raises that to the OWASP
-/// recommendation as the public-facing default to reflect the
-/// password-hashing use case the CLI targets.
-const OWASP_PBKDF2_MIN_ITERATIONS: u32 = 600_000;
+// Round-26 audit fix (H14): the previous hardcoded
+// `OWASP_PBKDF2_MIN_ITERATIONS = 600_000` was the floor for HMAC-SHA256
+// only, regardless of the PRF actually selected. The CLI now looks up
+// the per-PRF floor via `PbkdfPrf::min_iterations()` so HMAC-SHA512
+// callers get the correct 210,000 floor.
 
 fn derive_pbkdf2_with_input(
     args: &KdfArgs,
@@ -290,26 +327,31 @@ fn derive_pbkdf2_with_input(
         );
     }
 
-    if args.iterations < OWASP_PBKDF2_MIN_ITERATIONS && !args.allow_weak_iterations {
+    let owasp_min = args.prf.min_iterations();
+    if args.iterations < owasp_min && !args.allow_weak_iterations {
         bail!(
-            "PBKDF2 iteration count {iters} is below the OWASP 2023 minimum of {min}. \
-             Pass --allow-weak-iterations to bypass (KAT replay only — not for production).",
+            "PBKDF2 iteration count {iters} is below the OWASP 2023 minimum of {min} \
+             for the selected PRF ({prf:?}). Pass --allow-weak-iterations to bypass \
+             (KAT replay only — not for production).",
             iters = args.iterations,
-            min = OWASP_PBKDF2_MIN_ITERATIONS
+            min = owasp_min,
+            prf = args.prf,
         );
     }
-    if args.iterations < OWASP_PBKDF2_MIN_ITERATIONS {
+    if args.iterations < owasp_min {
         eprintln!(
             "warning: PBKDF2 iteration count {iters} is below the OWASP 2023 \
-             minimum ({min}); --allow-weak-iterations was passed.",
+             minimum ({min}) for {prf:?}; --allow-weak-iterations was passed.",
             iters = args.iterations,
-            min = OWASP_PBKDF2_MIN_ITERATIONS
+            min = owasp_min,
+            prf = args.prf,
         );
     }
 
     let params = latticearc::primitives::kdf::Pbkdf2Params::with_salt(salt)
         .iterations(args.iterations)
-        .key_length(args.length);
+        .key_length(args.length)
+        .prf(args.prf.to_lib());
 
     // The library `pbkdf2()` rejects iteration counts below the per-PRF
     // OWASP 2023 floor (600 k for HMAC-SHA256, 210 k for HMAC-SHA512)
@@ -320,7 +362,7 @@ fn derive_pbkdf2_with_input(
     // is set, we route through `pbkdf2_kat` so the legitimate KAT
     // path actually works; the operator already saw the
     // "KAT replay only — not for production" warning above.
-    let result = if args.allow_weak_iterations && args.iterations < OWASP_PBKDF2_MIN_ITERATIONS {
+    let result = if args.allow_weak_iterations && args.iterations < owasp_min {
         latticearc::primitives::kdf::pbkdf2_kat(&password, &params)
             .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))?
     } else {

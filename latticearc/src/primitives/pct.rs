@@ -418,18 +418,30 @@ pub fn pct_fn_dsa_keypair(keypair: &mut crate::primitives::sig::fndsa::KeyPair) 
 pub fn pct_ed25519(keypair: &crate::primitives::ec::ed25519::Ed25519KeyPair) -> PctResult<()> {
     use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 
-    // Sign the test message (Ed25519 signing is infallible)
-    let signature = keypair.sign(PCT_TEST_MESSAGE);
+    // Round-26 audit fix (M11): mirror the pct_ml_dsa / pct_slh_dsa
+    // pattern — explicit Ok(false) handling and pct_finalize so a
+    // genuine Ed25519 pairwise inconsistency enters the FIPS 140-3 IG
+    // 10.3.A error state instead of returning an ad-hoc error code.
+    // Round-26 audit fix (H4) made `Ed25519KeyPair::sign` fallible
+    // (validate_signature_size); the 24-byte PCT message is well under
+    // the cap, so this path never trips the new gate, but using `?`
+    // keeps the surface honest if the cap is ever lowered.
+    let signature =
+        keypair.sign(PCT_TEST_MESSAGE).map_err(|e| PctError::SigningFailed(e.to_string()))?;
 
-    // Verify the signature
-    crate::primitives::ec::ed25519::Ed25519Signature::verify(
+    let verify_result = crate::primitives::ec::ed25519::Ed25519Signature::verify(
         &keypair.public_key_bytes(),
         PCT_TEST_MESSAGE,
         &signature,
-    )
-    .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
-
-    Ok(())
+    );
+    let is_valid = match verify_result {
+        Ok(()) => true,
+        Err(e) => {
+            tracing::debug!(error = ?e, "Ed25519 PCT verify rejected");
+            false
+        }
+    };
+    pct_finalize(is_valid)
 }
 
 // =============================================================================
@@ -461,19 +473,26 @@ pub fn pct_secp256k1(
 ) -> PctResult<()> {
     use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 
-    // Sign the test message
+    // Round-26 audit fix (M11): align with pct_ml_dsa / pct_slh_dsa via
+    // pct_finalize so genuine pairwise inconsistencies enter the FIPS
+    // 140-3 IG 10.3.A error state instead of producing an ad-hoc error
+    // code that callers downstream of `enter_pct_error_state` never see.
     let signature =
         keypair.sign(PCT_TEST_MESSAGE).map_err(|e| PctError::SigningFailed(e.to_string()))?;
 
-    // Verify the signature
-    crate::primitives::ec::secp256k1::Secp256k1Signature::verify(
+    let verify_result = crate::primitives::ec::secp256k1::Secp256k1Signature::verify(
         &keypair.public_key_bytes(),
         PCT_TEST_MESSAGE,
         &signature,
-    )
-    .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
-
-    Ok(())
+    );
+    let is_valid = match verify_result {
+        Ok(()) => true,
+        Err(e) => {
+            tracing::debug!(error = ?e, "secp256k1 PCT verify rejected");
+            false
+        }
+    };
+    pct_finalize(is_valid)
 }
 
 // =============================================================================

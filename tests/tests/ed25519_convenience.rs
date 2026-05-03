@@ -329,50 +329,60 @@ fn test_ed25519_with_config_unverified_succeeds() -> Result<()> {
 }
 
 // ============================================================================
-// Stress Tests with Large Messages (1MB+)
+// Stress Tests with Messages Crossing Block Boundaries
+//
+// Round-26 audit fix (H4): Ed25519 sign/verify now enforce
+// `validate_signature_size`, which caps message length at 64 KiB by
+// default. The MB-scale fixtures these tests previously used now
+// exceed the cap. Sizes were chosen at 8 KiB / 16 KiB / 32 KiB / 50
+// KiB to stay safely under the cap while still crossing the SHA-512
+// 128-byte block boundary, page-size 4096-byte boundary, and the
+// `vec!` allocator's small-vector / heap threshold. The sizes are
+// distinct so each test exercises a different multi-block path
+// instead of all signing the same shape.
 // ============================================================================
 
 #[test]
-fn test_ed25519_1mb_message_succeeds() -> Result<()> {
-    let message = vec![0xABu8; 1_048_576]; // 1 MB
+fn test_ed25519_8kib_message_succeeds() -> Result<()> {
+    let message = vec![0xABu8; 8 * 1024]; // 8 KiB
     let (pk, sk) = generate_keypair()?;
 
     let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     assert_eq!(signature.len(), 64, "Signature should be 64 bytes regardless of message size");
 
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
-    assert!(is_valid, "1MB message signature should verify");
+    assert!(is_valid, "8 KiB message signature should verify");
 
     Ok(())
 }
 
 #[test]
-fn test_ed25519_2mb_message_succeeds() -> Result<()> {
-    let message = vec![0xCDu8; 2_097_152]; // 2 MB
+fn test_ed25519_16kib_message_succeeds() -> Result<()> {
+    let message = vec![0xCDu8; 16 * 1024]; // 16 KiB
     let (pk, sk) = generate_keypair()?;
 
     let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
-    assert!(is_valid, "2MB message signature should verify");
+    assert!(is_valid, "16 KiB message signature should verify");
 
     Ok(())
 }
 
 #[test]
-fn test_ed25519_5mb_message_succeeds() -> Result<()> {
-    let message = vec![0xEFu8; 5_242_880]; // 5 MB
+fn test_ed25519_32kib_message_succeeds() -> Result<()> {
+    let message = vec![0xEFu8; 32 * 1024]; // 32 KiB
     let (pk, sk) = generate_keypair()?;
 
     let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
-    assert!(is_valid, "5MB message signature should verify");
+    assert!(is_valid, "32 KiB message signature should verify");
 
     Ok(())
 }
 
 #[test]
 fn test_ed25519_large_message_with_verified_session_succeeds() -> Result<()> {
-    let message = vec![0x42u8; 1_048_576]; // 1 MB
+    let message = vec![0x42u8; 50 * 1024]; // 50 KiB — under 64 KiB cap
     let (pk, sk) = generate_keypair()?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
@@ -568,10 +578,17 @@ fn test_ed25519_single_null_byte_succeeds() -> Result<()> {
 
 // ============================================================================
 // Cross-Keypair Verification Failures
+//
+// Round-26 audit fix (H10): verify_ed25519_unverified collapses
+// adversary-reachable failures (wrong PK, wrong message, tampered
+// signature) to `Ok(false)` instead of `Err(VerificationFailed)` so
+// a probing attacker cannot distinguish reject reasons from the
+// Result shape. Tests assert `Some(false)` on `result.ok()` rather
+// than `is_err()`.
 // ============================================================================
 
 #[test]
-fn test_ed25519_cross_keypair_verification_fails() {
+fn test_ed25519_cross_keypair_verification_returns_false() {
     let message = b"Test cross keypair";
     let (_pk1, sk1) = generate_keypair().expect("keypair 1");
     let (pk2, _sk2) = generate_keypair().expect("keypair 2");
@@ -580,11 +597,15 @@ fn test_ed25519_cross_keypair_verification_fails() {
         sign_ed25519_unverified(message, sk1.expose_secret()).expect("signing should succeed");
 
     let result = verify_ed25519_unverified(message, &signature, pk2.as_slice());
-    assert!(result.is_err(), "Signature from one key should not verify with different public key");
+    assert_eq!(
+        result.ok(),
+        Some(false),
+        "Signature from one key should not verify with different public key"
+    );
 }
 
 #[test]
-fn test_ed25519_swapped_keys_verification_fails() {
+fn test_ed25519_swapped_keys_verification_returns_false() {
     let message = b"Test swapped keys";
     let (pk1, sk1) = generate_keypair().expect("keypair 1");
     let (pk2, sk2) = generate_keypair().expect("keypair 2");
@@ -593,17 +614,17 @@ fn test_ed25519_swapped_keys_verification_fails() {
     let sig1 =
         sign_ed25519_unverified(message, sk1.expose_secret()).expect("signing should succeed");
     let result1 = verify_ed25519_unverified(message, &sig1, pk2.as_slice());
-    assert!(result1.is_err(), "sk1 signature should not verify with pk2");
+    assert_eq!(result1.ok(), Some(false), "sk1 signature should not verify with pk2");
 
     // Sign with sk2, try to verify with pk1
     let sig2 =
         sign_ed25519_unverified(message, sk2.expose_secret()).expect("signing should succeed");
     let result2 = verify_ed25519_unverified(message, &sig2, pk1.as_slice());
-    assert!(result2.is_err(), "sk2 signature should not verify with pk1");
+    assert_eq!(result2.ok(), Some(false), "sk2 signature should not verify with pk1");
 }
 
 #[test]
-fn test_ed25519_many_cross_keypair_verification_fails() {
+fn test_ed25519_many_cross_keypair_verification_returns_false() {
     let message = b"Many cross keypairs";
 
     // Generate 5 keypairs
@@ -623,8 +644,9 @@ fn test_ed25519_many_cross_keypair_verification_fails() {
         for (j, (pk_j, _)) in keypairs.iter().enumerate() {
             if i != j {
                 let result = verify_ed25519_unverified(message, &signature, pk_j.as_slice());
-                assert!(
-                    result.is_err(),
+                assert_eq!(
+                    result.ok(),
+                    Some(false),
                     "Keypair {} signature should not verify with keypair {} public key",
                     i,
                     j
@@ -639,7 +661,7 @@ fn test_ed25519_many_cross_keypair_verification_fails() {
 // ============================================================================
 
 #[test]
-fn test_ed25519_signature_first_byte_tampered_fails() {
+fn test_ed25519_signature_first_byte_tampered_returns_false() {
     let message = b"Test tampering first byte";
     let (pk, sk) = generate_keypair().expect("keypair");
 
@@ -650,11 +672,11 @@ fn test_ed25519_signature_first_byte_tampered_fails() {
     signature[0] ^= 0xFF;
 
     let result = verify_ed25519_unverified(message, &signature, pk.as_slice());
-    assert!(result.is_err(), "Tampered first byte should fail verification");
+    assert_eq!(result.ok(), Some(false), "Tampered first byte should fail verification");
 }
 
 #[test]
-fn test_ed25519_signature_last_byte_tampered_fails() {
+fn test_ed25519_signature_last_byte_tampered_returns_false() {
     let message = b"Test tampering last byte";
     let (pk, sk) = generate_keypair().expect("keypair");
 
@@ -666,11 +688,11 @@ fn test_ed25519_signature_last_byte_tampered_fails() {
     signature[last_idx] ^= 0xFF;
 
     let result = verify_ed25519_unverified(message, &signature, pk.as_slice());
-    assert!(result.is_err(), "Tampered last byte should fail verification");
+    assert_eq!(result.ok(), Some(false), "Tampered last byte should fail verification");
 }
 
 #[test]
-fn test_ed25519_signature_middle_byte_tampered_fails() {
+fn test_ed25519_signature_middle_byte_tampered_returns_false() {
     let message = b"Test tampering middle byte";
     let (pk, sk) = generate_keypair().expect("keypair");
 
@@ -681,11 +703,11 @@ fn test_ed25519_signature_middle_byte_tampered_fails() {
     signature[32] ^= 0x01;
 
     let result = verify_ed25519_unverified(message, &signature, pk.as_slice());
-    assert!(result.is_err(), "Tampered middle byte should fail verification");
+    assert_eq!(result.ok(), Some(false), "Tampered middle byte should fail verification");
 }
 
 #[test]
-fn test_ed25519_signature_single_bit_flip_fails() {
+fn test_ed25519_signature_single_bit_flip_returns_false() {
     let message = b"Test single bit flip";
     let (pk, sk) = generate_keypair().expect("keypair");
 
@@ -696,11 +718,11 @@ fn test_ed25519_signature_single_bit_flip_fails() {
     signature[16] ^= 0x01;
 
     let result = verify_ed25519_unverified(message, &signature, pk.as_slice());
-    assert!(result.is_err(), "Single bit flip should fail verification");
+    assert_eq!(result.ok(), Some(false), "Single bit flip should fail verification");
 }
 
 #[test]
-fn test_ed25519_every_byte_tampered_fails() {
+fn test_ed25519_every_byte_tampered_returns_false() {
     let message = b"Every byte tampered";
     let (pk, sk) = generate_keypair().expect("keypair");
 
@@ -713,7 +735,7 @@ fn test_ed25519_every_byte_tampered_fails() {
         tampered[i] ^= 0xFF;
 
         let result = verify_ed25519_unverified(message, &tampered, pk.as_slice());
-        assert!(result.is_err(), "Tampering byte {} should fail verification", i);
+        assert_eq!(result.ok(), Some(false), "Tampering byte {} should fail verification", i);
     }
 }
 
@@ -825,7 +847,10 @@ fn test_ed25519_empty_private_key_returns_error() {
 }
 
 #[test]
-fn test_ed25519_invalid_public_key_not_on_curve_returns_error() {
+fn test_ed25519_invalid_public_key_not_on_curve_returns_false() {
+    // Round-26 audit fix (H10): an off-curve PK (correct length, but
+    // not on the Ed25519 curve) is adversary-reachable, so verify
+    // collapses to `Ok(false)` rather than `Err(InvalidKey)`.
     let message = b"Test invalid curve point";
     let (_, sk) = generate_keypair().expect("keypair");
 
@@ -836,7 +861,7 @@ fn test_ed25519_invalid_public_key_not_on_curve_returns_error() {
         sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
 
     let result = verify_ed25519_unverified(message, &signature, &invalid_pk);
-    assert!(result.is_err(), "Invalid curve point should fail");
+    assert_eq!(result.ok(), Some(false), "Invalid curve point should fail");
 }
 
 // ============================================================================
@@ -886,7 +911,7 @@ fn test_ed25519_power_of_two_sizes_succeeds() -> Result<()> {
 }
 
 #[test]
-fn test_ed25519_message_with_wrong_message_fails() {
+fn test_ed25519_message_with_wrong_message_returns_false() {
     let original = b"Original message";
     let tampered = b"Tampered message";
     let (pk, sk) = generate_keypair().expect("keypair");
@@ -895,7 +920,7 @@ fn test_ed25519_message_with_wrong_message_fails() {
         sign_ed25519_unverified(original, sk.expose_secret()).expect("signing should succeed");
 
     let result = verify_ed25519_unverified(tampered, &signature, pk.as_slice());
-    assert!(result.is_err(), "Wrong message should fail verification");
+    assert_eq!(result.ok(), Some(false), "Wrong message should fail verification");
 }
 
 // ============================================================================

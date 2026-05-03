@@ -313,16 +313,36 @@ impl MetricsCollector {
     /// Record a single operation timing
     #[allow(clippy::arithmetic_side_effects)] // Histogram bucket indexing on bounded duration values
     pub fn record_operation(&self, name: &str, duration: Duration) {
-        if let Ok(mut histograms) = self.histograms.lock() {
-            histograms
-                .entry(name.to_string())
-                .or_insert_with(Histogram::new_default)
-                .record(duration);
+        // Round-26 audit fix (L31): emit a tracing warning on poisoned
+        // mutex instead of silently dropping the metric. Metrics are
+        // observability, so a silent drop hides the symptom that
+        // caused the panic that poisoned the mutex.
+        match self.histograms.lock() {
+            Ok(mut histograms) => {
+                histograms
+                    .entry(name.to_string())
+                    .or_insert_with(Histogram::new_default)
+                    .record(duration);
+            }
+            Err(_) => {
+                tracing::warn!(
+                    operation = name,
+                    "perf::MetricsCollector: histograms mutex poisoned; metric dropped"
+                );
+            }
         }
 
-        if let Ok(mut counts) = self.operation_counts.lock() {
-            let current_count = counts.entry(name.to_string()).or_insert(0);
-            *current_count = current_count.saturating_add(1);
+        match self.operation_counts.lock() {
+            Ok(mut counts) => {
+                let current_count = counts.entry(name.to_string()).or_insert(0);
+                *current_count = current_count.saturating_add(1);
+            }
+            Err(_) => {
+                tracing::warn!(
+                    operation = name,
+                    "perf::MetricsCollector: operation_counts mutex poisoned; metric dropped"
+                );
+            }
         }
     }
 

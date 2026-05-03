@@ -45,19 +45,67 @@ impl NttProcessor {
     }
     /// Find primitive Nth root of unity modulo modulus
     ///
-    /// Uses precomputed roots for known parameter sets (Kyber, Dilithium).
-    /// For other parameters, returns an error as finding primitive roots
-    /// modulo arbitrary moduli is computationally expensive.
+    /// Uses precomputed roots for known parameter sets. Round-26 audit
+    /// fix (M3): the previous comments labelled `(512, 12289)` and
+    /// `(1024, 12289)` as "Dilithium parameters" but ML-DSA / FIPS 204
+    /// uses q = 8380417 with primitive root 1753 — q = 12289 is Falcon
+    /// territory. The labels were wrong, and there was no
+    /// `mod_pow(root, n, modulus) == 1 && mod_pow(root, n/2, modulus)
+    /// == modulus - 1` self-check to catch a copy-paste error in the
+    /// table. The labels are now correct and `new()` self-validates
+    /// the chosen root before precomputing twiddle factors.
     fn find_primitive_root(n: usize, modulus: i64) -> Result<i32> {
         match (n, modulus) {
-            (256, 3329) => Ok(17),   // Kyber parameters
-            (512, 12289) => Ok(49),  // Dilithium parameters
-            (1024, 12289) => Ok(49), // Dilithium parameters
+            (256, 3329) => Ok(17), // ML-KEM (Kyber) — q = 3329
+            // Round-26 audit fix (M3): the table previously listed 49
+            // for both (512, 12289) and (1024, 12289). 49 is a primitive
+            // 1024th root of unity mod 12289 (49^1024 ≡ 1, 49^512 ≡ -1),
+            // so it works for n=1024 but FAILS the primitive-root test
+            // for n=512 — at that size, 49^512 ≡ 1 (i.e. it has order
+            // 1024, not 512), so it is not primitive. The correct
+            // primitive 512th root is 49^2 = 2401, which satisfies
+            // 2401^512 ≡ 1 and 2401^256 ≡ -1 mod 12289.
+            // The new `validate_primitive_root` self-check now catches
+            // this kind of table corruption at construction time —
+            // exactly the class of silent NTT-output corruption the
+            // audit warned would slip past unaided code review.
+            (512, 12289) => Ok(2401), // Falcon — q = 12289 (primitive 512th root = 49^2)
+            (1024, 12289) => Ok(49),  // Falcon — q = 12289 (primitive 1024th root)
             _ => Err(LatticeArcError::InvalidInput(format!(
                 "No known primitive root for N={}, modulus={}",
                 n, modulus
             ))),
         }
+    }
+
+    /// Verify that `root` is a primitive Nth root of unity modulo `modulus`.
+    ///
+    /// A primitive Nth root of unity satisfies:
+    ///   - `root^N ≡ 1 (mod modulus)`
+    ///   - `root^(N/2) ≡ -1 (mod modulus)` (i.e. `modulus - 1`)
+    ///
+    /// Round-26 audit fix (M3): catches table copy-paste errors that
+    /// would silently produce wrong NTT outputs. Called from
+    /// `NttProcessor::new` immediately after `find_primitive_root`.
+    fn validate_primitive_root(n: usize, modulus: i64, root: i32) -> Result<()> {
+        let n_i64 = n as i64;
+        let pow_n = mod_pow(i64::from(root), n_i64, modulus);
+        if pow_n != 1 {
+            return Err(LatticeArcError::InvalidInput(format!(
+                "NTT primitive root self-check failed: root^N = {} ≠ 1 \
+                 (root={}, n={}, modulus={}). Table corruption suspected.",
+                pow_n, root, n, modulus
+            )));
+        }
+        let pow_half = mod_pow(i64::from(root), n_i64 / 2, modulus);
+        if pow_half != modulus - 1 {
+            return Err(LatticeArcError::InvalidInput(format!(
+                "NTT primitive root self-check failed: root^(N/2) = {} ≠ -1 \
+                 (root={}, n={}, modulus={}). Table corruption suspected.",
+                pow_half, root, n, modulus
+            )));
+        }
+        Ok(())
     }
 
     /// Compute forward NTT twiddle factors
@@ -104,6 +152,11 @@ impl NttProcessor {
 
         // Find primitive NTT root of unity
         let primitive_root = Self::find_primitive_root(n, modulus)?;
+
+        // Round-26 audit fix (M3): self-check the chosen root before
+        // burning O(N) work into precomputed twiddles based on a
+        // possibly-corrupted table entry.
+        Self::validate_primitive_root(n, modulus, primitive_root)?;
 
         // Precompute twiddle factors
         let forward_twiddles = Self::compute_twiddles(n, primitive_root, modulus)?;

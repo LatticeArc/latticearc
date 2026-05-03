@@ -18,11 +18,14 @@ fuzz_target!(|data: &[u8]| {
     // Use data as message
     let message = data;
 
-    // Test 1: Generate keypair and sign/verify
+    // Test 1: Generate keypair and sign/verify.
+    // Round-26: `Ed25519KeyPair::sign` is now fallible (validate_signature_size).
+    // The fuzzer's `message` slice is bounded by libfuzzer to a few KiB, so
+    // the sign cap is not exercised here — but the new fallible signature
+    // requires `?`-style handling at every site.
     if let Ok(keypair) = Ed25519KeyPair::generate() {
         // Sign the fuzzed message
-        {
-            let signature = keypair.sign(message);
+        if let Ok(signature) = keypair.sign(message) {
             // Verify signature
             let pk_bytes = keypair.public_key_bytes();
             let result = Ed25519Signature::verify(&pk_bytes, message, &signature);
@@ -59,8 +62,7 @@ fuzz_target!(|data: &[u8]| {
         match Ed25519KeyPair::from_secret_key(sk_bytes) {
             Ok(keypair) => {
                 // Sign with reconstructed keypair
-                {
-                    let sig = keypair.sign(b"test message");
+                if let Ok(sig) = keypair.sign(b"test message") {
                     let pk_bytes = keypair.public_key_bytes();
                     assert!(Ed25519Signature::verify(&pk_bytes, b"test message", &sig).is_ok());
                 }
@@ -73,8 +75,7 @@ fuzz_target!(|data: &[u8]| {
 
     // Test 3: Verify with fuzzed public key bytes
     if let Ok(keypair) = Ed25519KeyPair::generate() {
-        {
-            let sig = keypair.sign(message);
+        if let Ok(sig) = keypair.sign(message) {
             // Fuzzed public key
             let fuzzed_pk = &data[..32.min(data.len())];
             if fuzzed_pk.len() == 32 {
@@ -95,21 +96,18 @@ fuzz_target!(|data: &[u8]| {
 
     // Test 5: Empty message signing
     if let Ok(keypair) = Ed25519KeyPair::generate() {
-        {
-            let sig = keypair.sign(&[]);
+        if let Ok(sig) = keypair.sign(&[]) {
             let pk_bytes = keypair.public_key_bytes();
             assert!(Ed25519Signature::verify(&pk_bytes, &[], &sig).is_ok());
         }
     }
 
     // Test 6: Large message signing
-    if data.len() >= 10000 {
-        if let Ok(keypair) = Ed25519KeyPair::generate() {
-            {
-                let sig = keypair.sign(data);
-                let pk_bytes = keypair.public_key_bytes();
-                assert!(Ed25519Signature::verify(&pk_bytes, data, &sig).is_ok());
-            }
-        }
+    if data.len() >= 10000
+        && let Ok(keypair) = Ed25519KeyPair::generate()
+        && let Ok(sig) = keypair.sign(data)
+    {
+        let pk_bytes = keypair.public_key_bytes();
+        assert!(Ed25519Signature::verify(&pk_bytes, data, &sig).is_ok());
     }
 });

@@ -22,7 +22,9 @@
 use crate::primitives::aead::{
     AeadCipher, AeadError, CHACHA20_POLY1305_KEY_LEN, Nonce, TAG_LEN, Tag,
 };
-use crate::primitives::resource_limits::{validate_decryption_size, validate_encryption_size};
+use crate::primitives::resource_limits::{
+    validate_aad_size, validate_decryption_size, validate_encryption_size,
+};
 use chacha20poly1305::{
     ChaCha20Poly1305,
     aead::{Aead, AeadCore, KeyInit, OsRng},
@@ -107,6 +109,14 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
             },
         )?;
 
+        // Round-26 audit fix (H8): cap AAD size before passing to the
+        // AEAD primitive (CPU-amplification DoS prevention).
+        if let Some(a) = aad {
+            validate_aad_size(a.len()).map_err(|_e| {
+                AeadError::EncryptionFailed("AAD exceeds resource limits".to_string())
+            })?;
+        }
+
         let cipher = ChaCha20Poly1305::new_from_slice(&self.key_bytes)
             .map_err(|_e| AeadError::InvalidKeyLength)?;
         let chacha_nonce = (*nonce).into();
@@ -154,6 +164,13 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
             },
         )?;
 
+        // Round-26 audit fix (H8): cap AAD size on decrypt path too.
+        if let Some(a) = aad {
+            validate_aad_size(a.len()).map_err(|_e| {
+                AeadError::DecryptionFailed("AAD exceeds resource limits".to_string())
+            })?;
+        }
+
         let cipher = ChaCha20Poly1305::new_from_slice(&self.key_bytes)
             .map_err(|_e| AeadError::InvalidKeyLength)?;
         let chacha_nonce = (*nonce).into();
@@ -187,11 +204,17 @@ impl ChaCha20Poly1305Cipher {
     /// Generate a random key for ChaCha20-Poly1305.
     ///
     /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop.
+    ///
+    /// Round-26 audit fix (L14): the previous shape called
+    /// `ChaCha20Poly1305::generate_key(&mut OsRng)` and copied the
+    /// resulting `GenericArray` into the destination, leaving an
+    /// un-zeroed transient on the stack. We now fill the destination
+    /// directly via `secure_rng().fill_bytes` so no intermediate copy
+    /// of the key bytes exists, matching the AES path.
     #[must_use]
     pub fn generate_key() -> Zeroizing<[u8; CHACHA20_POLY1305_KEY_LEN]> {
-        let key_bytes = ChaCha20Poly1305::generate_key(&mut OsRng);
         let mut result = Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
-        result.copy_from_slice(key_bytes.as_slice());
+        crate::primitives::rand::secure_rng().fill_bytes(result.as_mut());
         result
     }
 }
@@ -331,6 +354,13 @@ impl XChaCha20Poly1305Cipher {
             },
         )?;
 
+        // Round-26 audit fix (H8): cap AAD on the XChaCha encrypt_x path.
+        if let Some(a) = aad {
+            validate_aad_size(a.len()).map_err(|_e| {
+                AeadError::EncryptionFailed("AAD exceeds resource limits".to_string())
+            })?;
+        }
+
         let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(&self.key_bytes)
             .map_err(|_e| AeadError::InvalidKeyLength)?;
         let xnonce = (*nonce).into();
@@ -381,6 +411,13 @@ impl XChaCha20Poly1305Cipher {
                 AeadError::DecryptionFailed("ciphertext exceeds resource limits".to_string())
             },
         )?;
+
+        // Round-26 audit fix (H8): cap AAD on the XChaCha decrypt_x path.
+        if let Some(a) = aad {
+            validate_aad_size(a.len()).map_err(|_e| {
+                AeadError::DecryptionFailed("AAD exceeds resource limits".to_string())
+            })?;
+        }
 
         let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(&self.key_bytes)
             .map_err(|_e| AeadError::InvalidKeyLength)?;

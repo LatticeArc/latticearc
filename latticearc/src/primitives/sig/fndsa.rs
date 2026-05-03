@@ -368,8 +368,12 @@ impl VerifyingKey {
         // point. Mirrors the bound applied in `sign_with_rng()`. The
         // size-limit error is folded into `LatticeArcError` (the public
         // Result type) via the existing `From<FnDsaError>` impl.
-        if crate::primitives::resource_limits::validate_signature_size(message.len()).is_err() {
-            return Err(FnDsaError::MessageTooLong);
+        // Round-26 audit fix (M1): collapse to opaque verification
+        // failure on verify so a probing attacker cannot binary-search
+        // the configured cap from the Result shape.
+        if let Err(e) = crate::primitives::resource_limits::validate_signature_size(message.len()) {
+            tracing::debug!(error = ?e, msg_len = message.len(), "FN-DSA verify rejected: message exceeds resource limit");
+            return Ok(false);
         }
 
         let valid = self.inner.verify(signature.as_ref(), &DOMAIN_NONE, &HASH_ID_RAW, message);

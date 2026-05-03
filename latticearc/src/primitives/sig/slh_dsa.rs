@@ -232,26 +232,19 @@ impl VerifyingKey {
         let mut key_bytes = [0u8; shake_256s::PK_LEN];
         key_bytes[..expected_len].copy_from_slice(bytes);
 
-        match security_level {
-            SlhDsaSecurityLevel::Shake128s => {
-                let pk_bytes: [u8; shake_128s::PK_LEN] =
-                    bytes.try_into().map_err(|_e| SlhDsaError::DeserializationError)?;
-                shake_128s::PublicKey::try_from_bytes(&pk_bytes)
-                    .map_err(|_e| SlhDsaError::InvalidPublicKey)?;
-            }
-            SlhDsaSecurityLevel::Shake192s => {
-                let pk_bytes: [u8; shake_192s::PK_LEN] =
-                    bytes.try_into().map_err(|_e| SlhDsaError::DeserializationError)?;
-                shake_192s::PublicKey::try_from_bytes(&pk_bytes)
-                    .map_err(|_e| SlhDsaError::InvalidPublicKey)?;
-            }
-            SlhDsaSecurityLevel::Shake256s => {
-                let pk_bytes: [u8; shake_256s::PK_LEN] =
-                    bytes.try_into().map_err(|_e| SlhDsaError::DeserializationError)?;
-                shake_256s::PublicKey::try_from_bytes(&pk_bytes)
-                    .map_err(|_e| SlhDsaError::InvalidPublicKey)?;
-            }
-        }
+        // Round-26 audit fix (M9): the previous implementation called
+        // `try_from_bytes` here as eager validation, then `verify()`
+        // called it again on every signature check — two parses per
+        // PK, with the constructor's parsed result immediately
+        // discarded. The struct stores raw bytes only, so caching the
+        // parsed PK would require a typestate enum; since the parse
+        // is re-done in verify anyway, drop the eager call. Length is
+        // still validated above (`expected_len` check), and content
+        // validity is detected on first verify with the same opaque
+        // `InvalidPublicKey` error. PCT-based keygen flows
+        // (`SigningKey::generate` → `pct_slh_dsa`) still exercise
+        // both sign and verify on a fresh keypair so correctness
+        // regressions are caught at construction time.
 
         Ok(VerifyingKey { security_level, bytes: key_bytes, len: expected_len })
     }
@@ -314,8 +307,13 @@ impl VerifyingKey {
         // hyper-tree; an attacker who can submit arbitrary bytes through
         // any verify entry point can force unbounded hashing work. The
         // bound here mirrors the one in `sign()`.
-        crate::primitives::resource_limits::validate_signature_size(message.len())
-            .map_err(|_e| SlhDsaError::MessageTooLong)?;
+        // Round-26 audit fix (M1): collapse into the generic
+        // verification-failure variant. `MessageTooLong` on verify
+        // leaked the configured cap to a probing attacker.
+        if let Err(e) = crate::primitives::resource_limits::validate_signature_size(message.len()) {
+            tracing::debug!(error = ?e, msg_len = message.len(), "SLH-DSA verify rejected: message exceeds resource limit");
+            return Err(SlhDsaError::VerificationFailed);
+        }
 
         let ctx = context;
 

@@ -25,9 +25,16 @@ pub(crate) fn run(_args: InfoArgs) -> Result<()> {
     println!("LatticeArc CLI v{}", env!("CARGO_PKG_VERSION"));
     println!("Library:  latticearc v{}", latticearc::VERSION);
     println!();
+    // Round-26 audit fix (L30): cross-reference `self_tests_passed()`
+    // before printing the "validated backend" claim. The compile-time
+    // `fips_available()` flag is necessary but not sufficient — a
+    // FIPS-validated module is only operational while POST has
+    // succeeded. Reading the runtime POST state once and reusing it
+    // makes both lines self-consistent.
+    let post_ok = latticearc::unified_api::self_tests_passed();
     println!(
         "FIPS 140-3 backend: {}",
-        if latticearc::fips_available() {
+        if latticearc::fips_available() && post_ok {
             // Round-21 audit fix #11: distinguish "validated backend"
             // (aws-lc-rs is FIPS 140-3 validated as a stand-alone
             // module) from "validated module" (this binary linking
@@ -36,11 +43,13 @@ pub(crate) fn run(_args: InfoArgs) -> Result<()> {
             // certified-product claim to operators glancing at
             // `--info`.
             "validated backend (aws-lc-rs); this binary links the validated backend but is NOT itself a FIPS 140-3 certified module — see docs/NIST_COMPLIANCE.md and docs/FIPS_SECURITY_POLICY.md"
+        } else if latticearc::fips_available() {
+            "validated backend present but POST has not passed; module is non-operational"
         } else {
             "not available"
         }
     );
-    println!("Self-tests passed:  {}", latticearc::unified_api::self_tests_passed());
+    println!("Self-tests passed:  {}", post_ok);
     println!();
     println!("Supported Algorithms:");
     println!("  Encryption:");

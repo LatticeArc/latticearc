@@ -480,6 +480,55 @@ impl MlKemSecretKey {
         // `self.data` is already `Zeroizing<Vec<u8>>`; just return it.
         self.data
     }
+
+    /// Returns the public key (`ek`) bytes embedded in this secret key.
+    ///
+    /// Per FIPS 203 §6.1, the secret key (decapsulation key) layout is:
+    /// `dk_pke || ek || H(ek) || z`, where:
+    /// - `dk_pke` is the K-PKE decryption key (`384·k` bytes)
+    /// - `ek` is the encapsulation (public) key (`384·k + 32` bytes)
+    /// - `H(ek)` is a SHA3-256 hash of `ek` (32 bytes)
+    /// - `z` is a 32-byte rejection-sampling seed
+    ///
+    /// This helper carves out the embedded `ek` slice so callers that need
+    /// to bind the recipient public key into a KDF info string (RFC 9180
+    /// §5.1 channel binding) can do so on the decrypt side without
+    /// requiring the public key as a separate parameter. Round-26 audit
+    /// fix (H1) — convenience `pq_kem` decrypt now uses this helper to
+    /// match the encrypt-side `hkdf_kem_info_with_pk` binding.
+    ///
+    /// The returned slice borrows from `self`, so it is zeroized when
+    /// `self` drops.
+    #[must_use]
+    pub fn embedded_public_key_bytes(&self) -> &[u8] {
+        // dk_pke length is 384·k, where 384·k = (sk_size − 96) / 2.
+        // `saturating_sub` and `saturating_div` here are conservative;
+        // the FIPS 203 SK sizes are constants well above 96, so the
+        // arithmetic cannot underflow in practice — but the workspace
+        // lint rejects raw `-`/`/` everywhere uniformly.
+        let sk_size = self.security_level.secret_key_size();
+        let dk_pke_len = sk_size.saturating_sub(96) / 2;
+        let pk_size = self.security_level.public_key_size();
+        // Bounds-checked slice — `dk_pke_len + pk_size` is exactly
+        // `sk_size − 64` per the FIPS 203 layout, so this never panics
+        // for a well-formed SK (length validated in `Self::new`).
+        // Round-26 code-review follow-up: `debug_assert!` makes the
+        // well-formed-SK invariant visible. If a future deserialization
+        // path bypasses `Self::new` and lets `data.len()` drift from
+        // `secret_key_size()`, the silent-empty-slice behaviour would
+        // mask a real invariant violation in release builds — the
+        // assert turns it into an immediate test-time failure.
+        let end = dk_pke_len.saturating_add(pk_size);
+        debug_assert!(
+            self.data.len() == sk_size && end <= self.data.len(),
+            "MlKemSecretKey::embedded_public_key_bytes invariant violated: \
+             data.len() = {}, expected sk_size = {}, slice end = {}",
+            self.data.len(),
+            sk_size,
+            end
+        );
+        self.data.get(dk_pke_len..end).unwrap_or(&[])
+    }
 }
 
 impl ConstantTimeEq for MlKemSecretKey {
@@ -752,19 +801,21 @@ impl MlKemDecapsulationKeyPair {
         &self,
         ciphertext: &MlKemCiphertext,
     ) -> Result<MlKemSharedSecret, MlKemError> {
-        // Round-11 audit fix (MEDIUM #7): the sister `static`
-        // `MlKem::decapsulate_with_config` was hardened in round-10 fix
-        // #3, but this instance method on `MlKemDecapsulationKeyPair`
-        // was missed and continued to leak `"Security level mismatch:
-        // keypair is {:?}, ciphertext is {:?}"`. Both paths now collapse
-        // to the same opaque envelope so a chosen-ciphertext attacker
-        // cannot distinguish parameter-set rejection from constant-time
-        // decap rejection (FIPS 203 §6.3 implicit-rejection contract).
-        if ciphertext.security_level() != self.security_level {
+        // Round-26 audit fix (M2): the keypair-method form skipped the
+        // resource-limit pre-check the static helper enforces, leaving
+        // an asymmetric defense surface. All adversary-reachable failure
+        // paths (DoS-size rejection, parameter-set mismatch, and the
+        // constant-time decap rejection itself) collapse to the same
+        // opaque envelope so a chosen-ciphertext attacker cannot
+        // distinguish them (FIPS 203 §6.3 implicit-rejection contract).
+        if validate_decryption_size(ciphertext.as_bytes().len()).is_err()
+            || ciphertext.security_level() != self.security_level
+        {
             tracing::debug!(
+                ct_len = ciphertext.as_bytes().len(),
                 sk_level = ?self.security_level,
                 ct_level = ?ciphertext.security_level(),
-                "ML-KEM keypair decap rejected: parameter-set mismatch"
+                "ML-KEM keypair decap rejected before key reconstruction"
             );
             return Err(MlKemError::DecapsulationError("decapsulation failed".to_string()));
         }
@@ -868,24 +919,16 @@ impl MlKem {
         let secret_key =
             MlKemSecretKey::new(config.security_level, sk_bytes_obj.as_ref().to_vec())?;
 
-        // FIPS 140-3 §9.2: Pairwise Consistency Test after every key
-        // generation. Verifies encapsulation + decapsulation consistency
-        // with a fresh keypair.
-        //
-        // **Asymmetry note**: ML-DSA (`primitives/sig/ml_dsa.rs`) and
-        // SLH-DSA (`primitives/sig/slh_dsa.rs`) call PCT unconditionally
-        // on every keygen. ML-KEM here is gated behind `fips-self-test`.
-        // This is deliberate: ML-KEM PCT incurs a full
-        // encapsulate+decapsulate roundtrip (~50µs at the smallest
-        // parameter set) on every keygen, and most real workloads
-        // (TLS, message sealing, CCE) generate KEM keys at session
-        // rates much higher than DSA keys. Gating behind
-        // `fips-self-test` lets non-FIPS deployments pay the cost only
-        // when they need the FIPS 140-3 §9.2 attestation. FIPS-validated
-        // builds (`--features fips`) transitively enable
-        // `fips-self-test`, so the PCT runs in the configurations where
-        // it is actually required by the FIPS module.
-        #[cfg(feature = "fips-self-test")]
+        // FIPS 140-3 §9.2 / IG 10.3.A: Pairwise Consistency Test after
+        // every key generation. Verifies encapsulation + decapsulation
+        // consistency with a fresh keypair. Round-26 audit fix (C5)
+        // dropped the `fips-self-test` gate that was here previously: IG
+        // 10.3.A requires PCT on every asymmetric keygen, period, and
+        // gating it asymmetrically (ML-DSA, SLH-DSA, FN-DSA, Ed25519,
+        // and secp256k1 PCTs all run unconditionally) broke any FIPS
+        // posture claim for builds that omitted the feature. The cost
+        // is ~50µs at the smallest parameter set; acceptable for
+        // session-rate keygen.
         crate::primitives::pct::pct_ml_kem(config.security_level).map_err(|e| {
             MlKemError::KeyGenerationError(format!(
                 "Post-keygen PCT failed (FIPS 140-3 §9.2): {}",
@@ -948,10 +991,12 @@ impl MlKem {
     pub fn encapsulate(
         public_key: &MlKemPublicKey,
     ) -> Result<(MlKemSharedSecret, MlKemCiphertext), MlKemError> {
-        // Validate public key size to prevent DoS via large keys
-        validate_encryption_size(public_key.as_bytes().len())
-            .map_err(|e| MlKemError::EncapsulationError(e.to_string()))?;
-
+        // Round-26 audit fix (C3): the duplicate `validate_encryption_size`
+        // pre-check here previously mapped failure via `e.to_string()`,
+        // surfacing `requested=N, limit=M` from `ResourceError::Display`
+        // — a structurally distinguishable error string that leaked the
+        // configured cap to any caller. `encapsulate_with_config` now
+        // owns the sole gate and emits an opaque error.
         Self::encapsulate_with_config(public_key)
     }
 
@@ -970,9 +1015,15 @@ impl MlKem {
     pub fn encapsulate_with_config(
         public_key: &MlKemPublicKey,
     ) -> Result<(MlKemSharedSecret, MlKemCiphertext), MlKemError> {
-        // Validate public key size to prevent DoS via large keys
-        validate_encryption_size(public_key.as_bytes().len())
-            .map_err(|e| MlKemError::EncapsulationError(e.to_string()))?;
+        // Round-26 audit fix (C3): map `validate_encryption_size`
+        // failure to an opaque error string so the public-key length
+        // and configured cap are not leaked through `Display`. The
+        // upstream `requested=N, limit=M` detail is logged at
+        // `tracing::debug!` for operators.
+        if let Err(e) = validate_encryption_size(public_key.as_bytes().len()) {
+            tracing::debug!(error = ?e, pk_len = public_key.as_bytes().len(), "ML-KEM encap rejected: PK exceeds resource limit");
+            return Err(MlKemError::EncapsulationError("encapsulation failed".to_string()));
+        }
 
         let algorithm = public_key.security_level().as_aws_algorithm();
 
@@ -1023,10 +1074,14 @@ impl MlKem {
         secret_key: &MlKemSecretKey,
         ciphertext: &MlKemCiphertext,
     ) -> Result<MlKemSharedSecret, MlKemError> {
-        // Validate ciphertext size to prevent DoS via large ciphertexts
-        validate_decryption_size(ciphertext.as_bytes().len())
-            .map_err(|e| MlKemError::DecapsulationError(e.to_string()))?;
-
+        // Round-26 audit fix (C2): the duplicate `validate_decryption_size`
+        // pre-check here previously mapped failure via `e.to_string()`,
+        // surfacing `requested=N, limit=M` and breaking the FIPS 203
+        // §6.3 implicit-rejection contract — a chosen-ciphertext
+        // attacker could distinguish DoS-size rejection from the
+        // constant-time decap rejection that all other paths produce.
+        // `decapsulate_with_config` now owns the sole gate and emits an
+        // opaque error.
         Self::decapsulate_with_config(secret_key, ciphertext)
     }
 

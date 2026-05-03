@@ -864,7 +864,20 @@ mod coverage {
     }
 
     #[test]
-    fn test_encrypt_security_level_pq_only_maximum_succeeds() {
+    fn test_encrypt_security_level_pq_only_maximum_rejects_symmetric_fallback() {
+        // Round-26 audit fix (M15): `scheme_min_security_level("aes-256-gcm")`
+        // now correctly returns `Standard` instead of substring-matching
+        // `"256"` and reporting `Maximum`. Encrypt with
+        // `.force_scheme(CryptoScheme::Symmetric)` bypasses the compliance
+        // gate (the caller has explicitly elected the symmetric scheme),
+        // so encryption itself still succeeds. Decrypt does NOT use
+        // `force_scheme` — it validates the on-wire scheme against the
+        // caller's `SecurityLevel`, and that's the path that previously
+        // accepted "aes-256-gcm" as Maximum (substring-match bug) and now
+        // correctly rejects it. Migrating the test from "decrypt
+        // succeeds" to "decrypt errors with ComplianceViolation" preserves
+        // the regression-detection value: if the substring-match bug ever
+        // re-creeps in, this test will pass when it should fail.
         let key = vec![0x42u8; 32];
         let data = b"PQ-only Maximum security level encryption";
         let config = CryptoConfig::new()
@@ -876,10 +889,21 @@ mod coverage {
             EncryptKey::Symmetric(key.as_ref()),
             config.clone().force_scheme(CryptoScheme::Symmetric),
         )
-        .unwrap();
+        .expect("force_scheme overrides compliance on the encrypt path");
         assert!(!encrypted.ciphertext().is_empty());
-        let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
-        assert_eq!(decrypted.as_slice(), data.as_slice());
+
+        let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), config);
+        let err = result.expect_err(
+            "Decrypting an AES-256-GCM ciphertext under SecurityLevel::Maximum must be \
+             rejected as a ComplianceViolation; the substring-match bug that previously \
+             let it pass was closed in round-26 audit fix M15.",
+        );
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("Standard") && msg.contains("Maximum"),
+            "Expected ComplianceViolation citing Standard vs Maximum, got: {}",
+            msg
+        );
     }
 
     // ============================================================

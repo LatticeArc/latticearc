@@ -361,7 +361,9 @@ impl CryptoCavpTester {
                         LatticeArcError::InvalidData(format!("Invalid Ed25519 private key: {e}"))
                     })?;
 
-                let signature = keypair.sign(&vector.message);
+                let signature = keypair.sign(&vector.message).map_err(|e| {
+                    LatticeArcError::InvalidData(format!("Ed25519 sign failed: {e}"))
+                })?;
                 let signature_bytes = Ed25519Signature::signature_bytes(&signature);
 
                 // Check that signature is not empty and has correct length (64 bytes for Ed25519)
@@ -458,7 +460,9 @@ pub fn load_sample_crypto_vectors() -> Result<Vec<CryptoTestVector>> {
         LatticeArcError::InvalidData(format!("Ed25519 key construction failed: {}", e))
     })?;
     let message = b"test message for Ed25519".to_vec();
-    let signature = keypair.sign(&message);
+    let signature = keypair
+        .sign(&message)
+        .map_err(|e| LatticeArcError::InvalidData(format!("Ed25519 sign failed: {e}")))?;
     let signature_bytes = Ed25519Signature::signature_bytes(&signature);
     let public_key_bytes_vec = keypair.public_key_bytes();
 

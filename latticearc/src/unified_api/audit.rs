@@ -487,6 +487,43 @@ struct FileState {
     created_at: DateTime<Utc>,
 }
 
+/// Result of [`FileAuditStorage::verify_chain`]. Round-26 audit fix
+/// (M20).
+#[derive(Debug, Clone)]
+pub struct ChainVerificationReport {
+    /// Number of `audit-*.jsonl` files inspected.
+    pub files_checked: usize,
+    /// Number of audit events whose hash was recomputed.
+    pub events_checked: u64,
+    /// `Some(_)` when the first divergence was found; `None` when the
+    /// chain verifies end-to-end.
+    pub mismatch: Option<ChainMismatch>,
+}
+
+impl ChainVerificationReport {
+    /// True if the chain verified end-to-end with no divergence.
+    #[must_use]
+    pub fn is_intact(&self) -> bool {
+        self.mismatch.is_none()
+    }
+}
+
+/// First divergence found by [`FileAuditStorage::verify_chain`].
+#[derive(Debug, Clone)]
+pub struct ChainMismatch {
+    /// Path to the JSONL file containing the diverging entry.
+    pub file: PathBuf,
+    /// Zero-based line number within the file.
+    pub line: usize,
+    /// `id` field of the diverging audit event.
+    pub event_id: String,
+    /// `integrity_hash` value as persisted on disk.
+    pub stored_hash: String,
+    /// Hash recomputed from `(previous_hash, fields)` per the canonical
+    /// encoding.
+    pub expected_hash: String,
+}
+
 /// File-based audit storage with automatic rotation.
 ///
 /// Writes audit events as JSON Lines (one JSON object per line).
@@ -669,9 +706,16 @@ impl FileAuditStorage {
     /// [`crate::primitives::hash::sha2::sha256`] wrapper so audit integrity
     /// uses the same hash call path as the rest of the crate.
     ///
+    /// Round-26 audit fix (M20): made `pub(crate)` so the public
+    /// `verify_chain` helper below can re-use it without duplicating
+    /// the field-encoding rules.
+    ///
     /// # Errors
     /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
-    fn compute_integrity_hash(event: &AuditEvent, previous_hash: &str) -> Result<String> {
+    pub(crate) fn compute_integrity_hash(
+        event: &AuditEvent,
+        previous_hash: &str,
+    ) -> Result<String> {
         // Length-prefix every field so prefix-collision attacks are
         // impossible (`"ab" + "c"` and `"a" + "bc"` no longer hash to the
         // same digest). The metadata caps already bound each field, but a
@@ -915,6 +959,95 @@ impl FileAuditStorage {
         }
 
         Ok(())
+    }
+
+    /// Round-26 audit fix (M20): public hash-chain verification.
+    ///
+    /// Walks every `audit-*.jsonl` file in the storage directory in
+    /// filename-timestamp order, recomputes each entry's
+    /// `integrity_hash` from the persisted genesis, and reports the
+    /// first divergence (or `Ok(report)` with no mismatches when the
+    /// chain is intact). Tamper detection previously required
+    /// hand-writing a verifier in the right encoding — the asymmetry
+    /// tamper-evident logging exists to remove.
+    ///
+    /// The returned [`ChainVerificationReport`] carries the line count
+    /// inspected and an `Option<Mismatch>` describing the first event
+    /// whose recomputed hash differed from its persisted
+    /// `integrity_hash` field.
+    ///
+    /// # Errors
+    /// Returns an error if the storage directory cannot be read, a
+    /// log file cannot be opened, a line cannot be parsed as JSON, or
+    /// the hash recomputation fails.
+    pub fn verify_chain(&self) -> Result<ChainVerificationReport> {
+        let mut log_files: Vec<PathBuf> = Vec::new();
+        let entries = fs::read_dir(&self.config.storage_path)
+            .map_err(|e| CoreError::AuditError(format!("Failed to read audit dir: {}", e)))?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
+            // Match `audit-*.jsonl` (case-insensitive on extension; round-26
+            // audit fix L for case-sensitive .jsonl bug).
+            let lower = name.to_ascii_lowercase();
+            if lower.starts_with("audit-") && lower.ends_with(".jsonl") {
+                log_files.push(path);
+            }
+        }
+        // Filename-timestamp ordering: `audit-YYYYMMDD-HHMMSS-NNN.jsonl`
+        // is lexicographically chronological.
+        log_files.sort();
+
+        // Recompute from genesis. Reads the persisted genesis directly
+        // rather than the in-memory `previous_hash` so verification
+        // works on a freshly-mounted storage with no prior writes in
+        // this process.
+        let genesis = Self::load_or_create_genesis(&self.config.storage_path)?;
+        let mut prev_hash = genesis;
+        let mut events_checked: u64 = 0;
+        let mut mismatch: Option<ChainMismatch> = None;
+
+        for file in &log_files {
+            use std::io::BufRead;
+            let f = File::open(file).map_err(|e| {
+                CoreError::AuditError(format!("Failed to open {}: {}", file.display(), e))
+            })?;
+            let reader = std::io::BufReader::new(f);
+            for (line_idx, line_res) in reader.lines().enumerate() {
+                let line = line_res
+                    .map_err(|e| CoreError::AuditError(format!("Failed to read line: {}", e)))?;
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let event: AuditEvent = serde_json::from_str(&line).map_err(|e| {
+                    CoreError::AuditError(format!(
+                        "Failed to parse line {} of {}: {}",
+                        line_idx,
+                        file.display(),
+                        e
+                    ))
+                })?;
+                let stored = event.integrity_hash.clone();
+                let recomputed = Self::compute_integrity_hash(&event, &prev_hash)?;
+                events_checked = events_checked.saturating_add(1);
+                if stored != recomputed {
+                    mismatch = Some(ChainMismatch {
+                        file: file.clone(),
+                        line: line_idx,
+                        event_id: event.id.clone(),
+                        stored_hash: stored,
+                        expected_hash: recomputed,
+                    });
+                    break;
+                }
+                prev_hash = recomputed;
+            }
+            if mismatch.is_some() {
+                break;
+            }
+        }
+
+        Ok(ChainVerificationReport { files_checked: log_files.len(), events_checked, mismatch })
     }
 
     /// Write an audit event to the current file.

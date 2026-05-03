@@ -298,7 +298,7 @@ fn test_ed25519_rfc8032_key_sizes_has_correct_size() {
 fn test_ed25519_rfc8032_signature_size_has_correct_size() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
     let message = b"Test message for Ed25519";
-    let signature = keypair.sign(message);
+    let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
     // RFC 8032: Ed25519 signature is 64 bytes
     assert_eq!(Ed25519Signature::signature_len(), 64, "Ed25519 signature should be 64 bytes");
@@ -314,7 +314,7 @@ fn test_ed25519_rfc8032_signature_size_has_correct_size() {
 fn test_ed25519_signature_format_compatibility_has_correct_size() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
     let message = b"Test message for Ed25519 format";
-    let signature = keypair.sign(message);
+    let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
     // Signature should not be trivial
     let sig_bytes = Ed25519Signature::signature_bytes(&signature);
@@ -547,7 +547,7 @@ fn test_zeroization_completeness_succeeds() {
 fn test_signature_byte_roundtrip() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
     let message = b"Test message for roundtrip";
-    let signature = keypair.sign(message);
+    let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
     // Convert to bytes
     let sig_bytes = Ed25519Signature::signature_bytes(&signature);
@@ -631,7 +631,7 @@ fn test_arc_primitives_ed25519_interface_compatibility_succeeds() {
     let message = b"Test message for Ed25519 interface";
 
     // Sign produces signature
-    let signature = keypair.sign(message);
+    let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
     // Verify uses static method pattern
     Ed25519Signature::verify(&keypair.public_key_bytes(), message, &signature)
@@ -809,7 +809,7 @@ fn test_rfc8032_ed25519_test_vector_1_matches_expected() {
         "RFC 8032: Public key should match test vector"
     );
 
-    let signature = keypair.sign(message);
+    let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
     assert_eq!(
         Ed25519Signature::signature_bytes(&signature),
         expected_signature,
@@ -842,7 +842,7 @@ fn test_rfc8032_ed25519_test_vector_2_matches_expected() {
         "RFC 8032: Public key should match test vector 2"
     );
 
-    let signature = keypair.sign(&message);
+    let signature = keypair.sign(&message).expect("Ed25519 sign should succeed in test");
     assert_eq!(
         Ed25519Signature::signature_bytes(&signature),
         expected_signature,
@@ -1068,7 +1068,7 @@ fn test_all_signatures_reject_modified_messages_fails() {
 
     // Ed25519
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
-    let signature = keypair.sign(message);
+    let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
     let result = Ed25519Signature::verify(&keypair.public_key_bytes(), wrong_message, &signature);
     assert!(result.is_err(), "Ed25519 should reject modified message");
@@ -1102,7 +1102,7 @@ fn test_all_signatures_reject_wrong_public_key_fails() {
     // Ed25519
     let keypair1 = Ed25519KeyPair::generate().expect("keygen 1 should succeed");
     let keypair2 = Ed25519KeyPair::generate().expect("keygen 2 should succeed");
-    let signature = keypair1.sign(message);
+    let signature = keypair1.sign(message).expect("Ed25519 sign should succeed");
 
     let result = Ed25519Signature::verify(&keypair2.public_key_bytes(), message, &signature);
     assert!(result.is_err(), "Ed25519 should reject wrong public key");

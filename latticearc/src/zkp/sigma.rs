@@ -244,8 +244,19 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         proof: &SigmaProof,
         context: &[u8],
     ) -> Result<bool> {
-        // Recompute challenge
-        let expected_challenge = self.compute_challenge(statement, proof.commitment(), context)?;
+        // Round-26 audit fix (H11): collapse all adversary-reachable
+        // sub-errors (challenge hash failure, malformed commitment,
+        // malformed response) to `Err(VerificationFailed)` so a probing
+        // attacker cannot distinguish reject reasons from the Result
+        // shape. Previously, `?` propagated the upstream error variants
+        // directly while a legitimate challenge mismatch returned
+        // `Ok(false)` — the variant difference was itself a
+        // distinguisher.
+        let expected_challenge =
+            self.compute_challenge(statement, proof.commitment(), context).map_err(|e| {
+                tracing::debug!(error = ?e, "FiatShamir::verify rejected: challenge hash");
+                ZkpError::VerificationFailed
+            })?;
 
         // Constant-time challenge comparison to prevent timing side-channels
         if expected_challenge.ct_eq(proof.challenge()).unwrap_u8() == 0 {
@@ -253,8 +264,14 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         }
 
         // Deserialize and verify
-        let commitment = self.protocol.deserialize_commitment(proof.commitment())?;
-        let response = self.protocol.deserialize_response(proof.response())?;
+        let commitment = self.protocol.deserialize_commitment(proof.commitment()).map_err(|e| {
+            tracing::debug!(error = ?e, "FiatShamir::verify rejected: commitment deserialize");
+            ZkpError::VerificationFailed
+        })?;
+        let response = self.protocol.deserialize_response(proof.response()).map_err(|e| {
+            tracing::debug!(error = ?e, "FiatShamir::verify rejected: response deserialize");
+            ZkpError::VerificationFailed
+        })?;
 
         self.protocol.verify(statement, &commitment, proof.challenge(), &response)
     }
@@ -450,17 +467,25 @@ impl DlogEqualityProof {
         let g = Self::parse_point(&statement.g)?;
         let h = Self::parse_point(&statement.h)?;
 
+        // Round-26 audit fix (M6): wrap scalars in `Zeroizing` so
+        // stack-resident copies of `k`, `x`, and `s` (computed below)
+        // are scrubbed when the function returns. See the matching
+        // comment in `zkp/schnorr.rs::Schnorr::prove`.
+        use zeroize::Zeroizing;
+
         // Parse secret
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(secret)).into();
-        let x = x.ok_or(ZkpError::InvalidScalar)?;
+        let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
         // Random nonce via primitives layer
         let nonce_bytes = crate::primitives::rand::csprng::random_bytes(32);
-        let k = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&nonce_bytes));
+        let k = Zeroizing::new(<Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(
+            &nonce_bytes,
+        )));
 
         // Commitments
-        let a_point = g * k;
-        let b_point = h * k;
+        let a_point = g * *k;
+        let b_point = h * *k;
 
         let a_bytes: [u8; 33] = <[u8; 33]>::try_from(a_point.to_affine().to_bytes().as_slice())
             .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize A: {}", e)))?;
@@ -472,7 +497,7 @@ impl DlogEqualityProof {
         let c = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&challenge));
 
         // Response
-        let s = k + c * x;
+        let s = Zeroizing::new(*k + c * *x);
         let response: [u8; 32] = s.to_bytes().into();
 
         Ok(Self { a: a_bytes, b: b_bytes, challenge, response })
@@ -489,23 +514,45 @@ impl DlogEqualityProof {
     pub fn verify(&self, statement: &DlogEqualityStatement, context: &[u8]) -> Result<bool> {
         use k256::{FieldBytes, Scalar, U256};
 
-        // Parse points
-        let g = Self::parse_point(&statement.g)?;
-        let h = Self::parse_point(&statement.h)?;
-        let p = Self::parse_point(&statement.p)?;
-        let q = Self::parse_point(&statement.q)?;
-        let a = Self::parse_point(&self.a)?;
-        let b = Self::parse_point(&self.b)?;
+        // Round-26 audit fix (H11): collapse all adversary-reachable
+        // sub-errors (off-curve points, out-of-field scalar, hash
+        // serialization) to `Err(VerificationFailed)` so a probing
+        // attacker cannot distinguish reject reasons from the Result
+        // shape. Previously, `parse_point` returned `InvalidPublicKey`
+        // / `SerializationError` and `Scalar::from_repr` returned
+        // `InvalidScalar`, while a legitimate challenge mismatch
+        // returned `Ok(false)` — the variant difference itself was a
+        // distinguisher. The underlying cause is logged via
+        // `tracing::debug!` for operators.
+        let parse_or_fail = |result: Result<k256::ProjectivePoint>| {
+            result.map_err(|e| {
+                tracing::debug!(error = ?e, "DlogEqualityProof::verify rejected: point parse");
+                ZkpError::VerificationFailed
+            })
+        };
+        let g = parse_or_fail(Self::parse_point(&statement.g))?;
+        let h = parse_or_fail(Self::parse_point(&statement.h))?;
+        let p = parse_or_fail(Self::parse_point(&statement.p))?;
+        let q = parse_or_fail(Self::parse_point(&statement.q))?;
+        let a = parse_or_fail(Self::parse_point(&self.a))?;
+        let b = parse_or_fail(Self::parse_point(&self.b))?;
 
         // Constant-time challenge comparison to prevent timing side-channels
-        let expected_challenge = Self::compute_challenge(statement, &self.a, &self.b, context)?;
+        let expected_challenge = Self::compute_challenge(statement, &self.a, &self.b, context)
+            .map_err(|e| {
+                tracing::debug!(error = ?e, "DlogEqualityProof::verify rejected: hash failure");
+                ZkpError::VerificationFailed
+            })?;
         if expected_challenge.ct_eq(&self.challenge).unwrap_u8() == 0 {
             return Ok(false);
         }
 
         // Parse response and challenge
         let s: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.response)).into();
-        let s = s.ok_or(ZkpError::InvalidScalar)?;
+        let s = s.ok_or_else(|| {
+            tracing::debug!("DlogEqualityProof::verify rejected: invalid scalar");
+            ZkpError::VerificationFailed
+        })?;
         let c = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&self.challenge));
 
         // Verify: s*G == A + c*P and s*H == B + c*Q (constant-time comparison)

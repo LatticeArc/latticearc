@@ -86,11 +86,15 @@ impl std::fmt::Debug for CounterKdfParams {
     }
 }
 
-impl Default for CounterKdfParams {
-    fn default() -> Self {
-        Self { label: b"Default KDF Label".to_vec(), context: vec![] }
-    }
-}
+// Round-26 audit fix (L12): the previous `Default` impl baked the
+// generic label `"Default KDF Label"` into the struct. Two callers
+// using `CounterKdfParams::default()` with the same KI would silently
+// derive identical keys (cross-protocol collision) — labels are the
+// SP 800-108 §5.1 mechanism for domain-separating KDF outputs across
+// protocols, so a default label defeats their purpose. Removing the
+// `Default` impl forces every caller to pass a domain-specific label
+// via `new(label)`. The struct still implements `Clone` for ergonomic
+// passing.
 
 impl CounterKdfParams {
     /// Create new KDF parameters with custom label
@@ -596,11 +600,16 @@ mod tests {
     }
 
     #[test]
-    fn test_default_params_has_expected_label_succeeds() {
+    fn test_explicit_label_succeeds() {
+        // Round-26 audit fix (L12): the previous test exercised
+        // `CounterKdfParams::default()` which baked the generic
+        // "Default KDF Label" into the params. The Default impl was
+        // removed (callers must now supply a domain-specific label
+        // via `new(label)`); this test verifies an explicit label.
         let ki = b"test keying material";
-        let params = CounterKdfParams::default();
+        let params = CounterKdfParams::new(b"explicit-test-label-v1");
 
-        assert_eq!(params.label, b"Default KDF Label");
+        assert_eq!(params.label, b"explicit-test-label-v1");
         assert!(params.context.is_empty());
 
         let result = counter_kdf(ki, &params, 32).unwrap();

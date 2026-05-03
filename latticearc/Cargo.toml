@@ -70,12 +70,26 @@ secret-mlock = ["dep:region"]
 kat-test-vectors = []
 
 # Exposes adversarial-test mutators on otherwise-immutable proof types
-# (e.g. `SigmaProof::challenge_mut`). These mutators bypass the soundness
-# binding between commitment, challenge, and response, so they MUST NOT
-# be reachable from production builds — round-10 audit fix #11. Test
-# crates that need to mount tamper-detection assertions enable this
-# feature explicitly.
+# (e.g. `SigmaProof::challenge_mut`) and FIPS module-error-state recovery
+# helpers (`clear_error_state`, `restore_operational_state`). These items
+# bypass soundness or FIPS 140-3 §9.6 state-machine invariants, so they
+# MUST NOT be reachable from production builds — round-10 audit fix #11
+# and round-26 audit fix C1. Test crates that need to mount tamper-
+# detection assertions enable this feature explicitly. Distinct from
+# `kat-replay` below, which is for legitimate KAT-replay entry points and
+# does NOT bypass any soundness check.
 test-utils = []
+
+# Exposes legitimate KAT-replay entry points that bypass operator
+# parameter floors but NOT cryptographic soundness checks. Specifically:
+# `pbkdf2_kat`, which lets RFC 6070 / NIST CAVP fixtures with iteration
+# counts below the OWASP per-PRF floor be replayed for validation. The
+# DoS cap, key-length checks, and PRF correctness remain enforced — only
+# the operator floor is replaced with an absolute minimum of 1. The CLI
+# enables this feature so `latticearc kdf --allow-weak-iterations` can
+# reproduce published vectors without inheriting the soundness-bypassing
+# surface of `test-utils`. Round-26 audit fix (C1).
+kat-replay = []
 
 [dependencies]
 # =============================================================================

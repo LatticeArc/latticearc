@@ -28,7 +28,9 @@ use rand::RngCore;
 use tracing::instrument;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-use crate::primitives::resource_limits::{validate_decryption_size, validate_encryption_size};
+use crate::primitives::resource_limits::{
+    validate_aad_size, validate_decryption_size, validate_encryption_size,
+};
 
 /// Implements an AES-GCM cipher struct with `AeadCipher` trait and `generate_key()`.
 macro_rules! impl_aes_gcm {
@@ -112,6 +114,16 @@ macro_rules! impl_aes_gcm {
                     },
                 )?;
 
+                // Round-26 audit fix (H8): cap AAD size before passing to
+                // the AEAD primitive. AEAD MACs run linear time over AAD,
+                // so an attacker-controlled AAD bypasses the plaintext
+                // cap and turns into a CPU-amplification DoS.
+                if let Some(a) = aad {
+                    validate_aad_size(a.len()).map_err(|_e| {
+                        AeadError::EncryptionFailed("AAD exceeds resource limits".to_string())
+                    })?;
+                }
+
                 let unbound_key = UnboundKey::new($algorithm, &self.key_bytes)
                     .map_err(|_e| AeadError::InvalidKeyLength)?;
                 let key = LessSafeKey::new(unbound_key);
@@ -167,6 +179,15 @@ macro_rules! impl_aes_gcm {
                         )
                     },
                 )?;
+
+                // Round-26 audit fix (H8): cap AAD size on the decrypt
+                // path too. The MAC verification cost is linear in AAD
+                // length even when the AAD differs across calls.
+                if let Some(a) = aad {
+                    validate_aad_size(a.len()).map_err(|_e| {
+                        AeadError::DecryptionFailed("AAD exceeds resource limits".to_string())
+                    })?;
+                }
 
                 let unbound_key = UnboundKey::new($algorithm, &self.key_bytes)
                     .map_err(|_e| AeadError::InvalidKeyLength)?;

@@ -616,7 +616,10 @@ fn run_power_up_self_tests() -> Result<()> {
         component: "Ed25519 Keypair".to_string(),
         status: format!("keygen failed: {e}"),
     })?;
-    let signature = keypair.sign(TEST_MESSAGE);
+    let signature = keypair.sign(TEST_MESSAGE).map_err(|e| CoreError::SelfTestFailed {
+        component: "Ed25519 Sign/Verify".to_string(),
+        status: format!("Ed25519 sign failed at startup: {e}"),
+    })?;
     let public_key_bytes = keypair.public_key_bytes();
     Ed25519Signature::verify(&public_key_bytes, TEST_MESSAGE, &signature).map_err(|e| {
         CoreError::SelfTestFailed {

@@ -80,8 +80,15 @@ fn validate_ed25519_keypair(keypair: &Ed25519KeyPair) -> Result<()> {
     // Validate public key format (32 bytes guaranteed by Ed25519KeyPair type)
     let public_bytes = keypair.public_key_bytes();
 
-    // Validate that public key is not the identity element (all zeros)
-    if public_bytes.iter().all(|&b| b == 0) {
+    // Validate that public key is not the identity element (all zeros).
+    // Round-26 audit fix (M21): the previous `iter().all(|&b| b == 0)`
+    // short-circuits on the first non-zero byte, leaking the position
+    // of the first non-zero byte to a timing observer. PK bytes are
+    // public input — leakage is harmless here — but the same check is
+    // applied to the secret key below where leakage IS sensitive, so
+    // we use a non-short-circuit fold here for symmetry with that path.
+    let pk_or = public_bytes.iter().fold(0u8, |a, &b| a | b);
+    if pk_or == 0 {
         return Err(CoreError::KeyGenerationFailed {
             reason: "Public key is identity element".to_string(),
             recovery: "Generate a new keypair, identity element is invalid".to_string(),
@@ -91,8 +98,12 @@ fn validate_ed25519_keypair(keypair: &Ed25519KeyPair) -> Result<()> {
     // Validate private key format (32 bytes guaranteed by Ed25519KeyPair type)
     let private_bytes = keypair.secret_key_bytes();
 
-    // Validate private key is not zero
-    if private_bytes.iter().all(|&b| b == 0) {
+    // Round-26 audit fix (M21): non-short-circuit fold — leak of the
+    // first-non-zero-byte position would be a side-channel into the
+    // structure of the secret key. The fold loops over all 32 bytes
+    // unconditionally, so the operation is data-independent.
+    let sk_or = private_bytes.iter().fold(0u8, |a, &b| a | b);
+    if sk_or == 0 {
         return Err(CoreError::KeyGenerationFailed {
             reason: "Private key is zero".to_string(),
             recovery: "Generate a new keypair, zero private key is invalid".to_string(),
@@ -102,7 +113,14 @@ fn validate_ed25519_keypair(keypair: &Ed25519KeyPair) -> Result<()> {
     // Perform a test signature to ensure keypair consistency. Both sign and
     // verify go through the primitives API. Ed25519 signing is infallible.
     let test_message = b"key_validation_test";
-    let signature = keypair.sign(test_message);
+    // Round-26 audit fix (H4): `Ed25519KeyPair::sign` is now fallible
+    // (validate_signature_size); the test message is well under the
+    // cap, so the gate never trips here, but the `?` keeps the surface
+    // honest if the cap is ever lowered.
+    let signature = keypair.sign(test_message).map_err(|e| CoreError::KeyGenerationFailed {
+        reason: format!("Keypair validation signing failed: {e}"),
+        recovery: "Regenerate keypair and retry validation".to_string(),
+    })?;
     Ed25519SignatureOps::verify(&public_bytes, test_message, &signature).map_err(|e| {
         CoreError::KeyGenerationFailed {
             reason: format!("Keypair validation failed: {e}"),
@@ -440,16 +458,20 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_cross_keypair_verification_fails() -> Result<()> {
+    fn test_ed25519_cross_keypair_verification_returns_false() -> Result<()> {
+        // Round-26 audit fix (H10): cross-keypair verification is the
+        // canonical "wrong PK" adversary-reachable path. Verify collapses
+        // it to `Ok(false)` rather than `Err`.
         let (_pk1, sk1) = generate_keypair()?;
         let (pk2, _sk2) = generate_keypair()?;
         let message = b"Cross validation test";
 
         let signature = sign_ed25519_unverified(message, sk1.expose_secret())?;
         let result = verify_ed25519_unverified(message, &signature, pk2.as_slice());
-        assert!(
-            result.is_err(),
-            "Signature from one key should not verify with different public key"
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "Signature from one key should yield Ok(false) under different PK"
         );
         Ok(())
     }

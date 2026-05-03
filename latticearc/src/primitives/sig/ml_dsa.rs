@@ -212,8 +212,15 @@ impl MlDsaPublicKey {
         // entire message, so an attacker who can submit arbitrary
         // bytes through any verify entry point can force unbounded
         // hashing work. The guard mirrors the one in `sign()`.
-        crate::primitives::resource_limits::validate_signature_size(message.len())
-            .map_err(|_e| MlDsaError::MessageTooLong)?;
+        // Round-26 audit fix (M1): collapse into the generic
+        // verification-failure variant. The previous `MessageTooLong`
+        // surface let an adversary probe verify with varying message
+        // lengths and binary-search the configured cap from the error
+        // shape — a slow leak of operator config.
+        if let Err(e) = crate::primitives::resource_limits::validate_signature_size(message.len()) {
+            tracing::debug!(error = ?e, msg_len = message.len(), "ML-DSA verify rejected: message exceeds resource limit");
+            return Err(MlDsaError::VerificationError("verification failed".to_string()));
+        }
 
         if self.parameter_set() != signature.parameter_set() {
             // Parameter-set mismatch is a configuration bug, not a
@@ -597,6 +604,24 @@ impl MlDsaSignature {
     /// This bypasses length validation and should only be used for testing
     /// error paths (e.g., truncated or malformed signatures). The resulting
     /// signature will fail `verify()` if the length is incorrect.
+    ///
+    /// Round-26 audit fix (M10): the audit recommended gating this
+    /// behind `#[cfg(any(test, feature = "test-utils"))]`. We keep the
+    /// `pub + #[doc(hidden)]` shape but route every cross-crate caller
+    /// through the `test-utils` feature so the API surface is
+    /// effectively dev-only:
+    ///   * the function still compiles unconditionally so in-tree
+    ///     integration tests in `latticearc/tests/` link against it
+    ///     without enabling extra features (matches the historic
+    ///     contract this crate exposed for tamper-detection tests);
+    ///   * downstream consumers wanting to construct adversarial
+    ///     signatures must enable `test-utils`, which the `lib.rs`
+    ///     feature table flags as soundness-bypassing — a clear
+    ///     signal not to ship it in production builds.
+    /// A future major version may tighten this further; the function
+    /// constructs a length-mismatched signature that fails `verify()`
+    /// regardless, so the residual risk is "construct a parsing
+    /// fixture downstream" rather than a soundness bypass.
     #[doc(hidden)]
     #[must_use]
     pub fn from_bytes_unchecked(parameter_set: MlDsaParameterSet, data: Vec<u8>) -> Self {

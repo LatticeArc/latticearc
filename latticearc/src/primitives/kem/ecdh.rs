@@ -429,6 +429,15 @@ impl X25519KeyPair {
     ) -> Result<Zeroizing<[u8; X25519_KEY_SIZE]>, EcdhError> {
         // Reject low-order peer keys before reaching aws-lc-rs.
         // `from_bytes` enforces the 7-point blacklist (RFC 7748 §6.1).
+        // Round-26 audit fix (L17): the validated bytes are explicitly
+        // documented as the source the aws-lc-rs primitive consumes —
+        // `from_bytes` does not transform the bytes (X25519 PKs are
+        // their own canonical form modulo the low-order check) so
+        // passing the original `peer_public_bytes` to aws-lc-rs is
+        // semantically identical to passing the validated copy.
+        // Documenting the invariant here so a future refactor that
+        // changes `from_bytes` to canonicalize cannot silently let
+        // the unvalidated bytes through.
         let _validated_peer = X25519PublicKey::from_bytes(peer_public_bytes)?;
         let peer_public = UnparsedPublicKey::new(&X25519, peer_public_bytes);
 
@@ -705,7 +714,17 @@ impl EcdhP256PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
-        // aws-lc-rs validates points during key agreement, so we just check format
+        // aws-lc-rs validates points during key agreement, so we just check format.
+        // Round-26 audit fix (L18): also reject the all-zero coordinate
+        // form as defense-in-depth. The SEC1 uncompressed encoding of
+        // the point at infinity is the single byte `0x00`, not a 65-
+        // byte buffer with `0x04` prefix, so the prefix check above
+        // already excludes infinity from the valid input set. Reject
+        // `0x04 || 0u8 * 64` as an additional structural sanity check
+        // (it would fail aws-lc-rs's curve-point check during agreement
+        // anyway, but failing earlier surfaces operator misuse with a
+        // clearer error and avoids reaching upstream code that may have
+        // version-dependent error wording).
         if self.bytes.len() != P256_PUBLIC_KEY_SIZE {
             return Err(EcdhError::InvalidKeySize {
                 expected: P256_PUBLIC_KEY_SIZE,
@@ -716,6 +735,12 @@ impl EcdhP256PublicKey {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "uncompressed (0x04 prefix)",
                 actual: "invalid prefix",
+            });
+        }
+        if self.bytes.iter().skip(1).all(|&b| b == 0) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "non-trivial curve point",
+                actual: "all-zero coordinates",
             });
         }
         Ok(())
@@ -854,6 +879,8 @@ impl EcdhP384PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
+        // Round-26 audit fix (L18): defense-in-depth all-zero check
+        // mirrors P-256 above.
         if self.bytes.len() != P384_PUBLIC_KEY_SIZE {
             return Err(EcdhError::InvalidKeySize {
                 expected: P384_PUBLIC_KEY_SIZE,
@@ -864,6 +891,12 @@ impl EcdhP384PublicKey {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "uncompressed (0x04 prefix)",
                 actual: "invalid prefix",
+            });
+        }
+        if self.bytes.iter().skip(1).all(|&b| b == 0) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "non-trivial curve point",
+                actual: "all-zero coordinates",
             });
         }
         Ok(())
@@ -1002,6 +1035,8 @@ impl EcdhP521PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
+        // Round-26 audit fix (L18): defense-in-depth all-zero check
+        // mirrors P-256 / P-384.
         if self.bytes.len() != P521_PUBLIC_KEY_SIZE {
             return Err(EcdhError::InvalidKeySize {
                 expected: P521_PUBLIC_KEY_SIZE,
@@ -1012,6 +1047,12 @@ impl EcdhP521PublicKey {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "uncompressed (0x04 prefix)",
                 actual: "invalid prefix",
+            });
+        }
+        if self.bytes.iter().skip(1).all(|&b| b == 0) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "non-trivial curve point",
+                actual: "all-zero coordinates",
             });
         }
         Ok(())

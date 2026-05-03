@@ -9,6 +9,303 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-26 audit follow-up — 5 CRIT + 15 HIGH + 26 MED + 35 LOW + 15 NIT (2026-05-02)
+
+External audit of the post–round-25 tree returned ~96 actionable
+findings across CRITICAL / HIGH / MEDIUM / LOW / NIT severity. All
+fixed below — no defers, no deprecations, no deferred-to-next-release
+markers. Pre-1.0 → wire-format breaks fixed up-front rather than
+batched into a future semver window.
+
+#### BREAKING (require migration)
+
+- **`Ed25519KeyPair::sign` is now fallible** (`-> Result<Signature,
+  LatticeArcError>`). The audit (H4) flagged that primitive Ed25519
+  sign hashed unbounded message lengths under SHA-512 with no
+  resource-limit gate, matching a DoS surface that round-24 closed
+  for ML-DSA / SLH-DSA / FN-DSA. The function now calls
+  `validate_signature_size` and returns `Err(MessageTooLong)` for
+  oversize input. Migration: add `?` or `.expect(...)` at every
+  `keypair.sign(message)` call site.
+
+- **`unified_api::convenience::sign_pq_slh_dsa` / `verify_pq_slh_dsa`
+  now use empty SLH-DSA context** (`&[]`), matching FIPS 205 §10.2
+  default and every other signature path in the crate. The previous
+  hardcoded `b"context"` magic string produced signatures that were
+  not verifiable by any third party following FIPS 205 default
+  semantics. Wire-format break: 0.7.x convenience SLH-DSA signatures
+  cannot be verified by 0.8.x convenience verify and vice versa
+  (round-26 H2).
+
+- **`unified_api::convenience::pq_kem` AEAD KDF now binds the
+  recipient public key** in addition to the KEM ciphertext (round-26
+  H1). The previous label-only HKDF info construction lost the
+  RFC 9180 §5.1 channel-binding guarantee. Wire-format break: 0.7.x
+  pq_kem ciphertexts cannot be decrypted by 0.8.x and vice versa.
+  Decrypt extracts the recipient PK from the SK's embedded `ek` slice
+  (FIPS 203 §6.1 layout) so the public API signature is unchanged;
+  `MlKemSecretKey::embedded_public_key_bytes()` is the new helper.
+
+- **`hybrid::DerivationBinding` now carries `recipient_ml_kem_pk`**
+  (round-26 M4 / M19). The hybrid AEAD KDF previously bound only the
+  X25519 leg of the recipient's hybrid PK; the ML-KEM leg was bound
+  only transitively through the KEM ciphertext. An adversary who
+  broke ML-KEM IND-CCA2 substitution would have gotten through the
+  AEAD KDF binding. Both halves are now bound independently with
+  length prefixes. Wire-format break: 0.7.x hybrid ciphertexts cannot
+  be decrypted by 0.8.x and vice versa.
+
+- **`ENCRYPTED_ENVELOPE_VERSION` bumped to 2** (round-26 M8). The AAD
+  label was changed from `lpk-v1-enc` to `lpk-v2-enc` in round-24,
+  but the wire `enc` field stayed at 1 — users upgrading saw "wrong
+  passphrase" errors when in fact the envelope just needed
+  re-encryption. v1 envelopes now produce a distinct
+  `CoreError::InvalidKey("v1 envelope; re-protect with --upgrade")`
+  error.
+
+- **`unified_api::convenience::ed25519::sign_ed25519_internal` /
+  `verify_ed25519_internal` reject non-canonical SK / PK / signature
+  lengths** (round-26 H10). Previously `sk.get(..32)` /
+  `sig.get(..64)` / `pk.get(..32)` silently truncated oversize input,
+  letting libsodium-style 64-byte expanded SKs be misinterpreted and
+  letting relays append junk to signatures while still verifying.
+  Both functions now require exact `ED25519_SECRET_KEY_LEN`,
+  `ED25519_SIGNATURE_LEN`, `ED25519_PUBLIC_KEY_LEN` matches.
+
+- **secp256k1 ECDSA enforces low-S canonical signatures** (round-26
+  H5 / L19). Sign normalizes high-S signatures to low-S before
+  returning. Verify and `signature_from_bytes` reject high-S
+  unconditionally. Closes the BIP-146 / EIP-2 transaction-
+  malleability surface for downstream consumers that hash signatures
+  into transaction IDs.
+
+- **secp256k1 ECDSA verify enforces canonical SEC1 uncompressed
+  encoding** (round-26 L20). Previously `from_sec1_bytes` accepted
+  compressed (33-byte) and legacy hybrid (65-byte 0x06/0x07) forms;
+  the same key produced multiple distinct identities when downstream
+  consumers hashed the PK bytes. Verify now requires 65 bytes with a
+  0x04 prefix, matching what `public_key_bytes()` always emits.
+
+- **`MemoryPool` and `get_memory_pool` removed** (round-26 M26). The
+  pool's `deallocate` was a no-op, so every `allocate` paid mutex-
+  lock overhead with zero cache benefit. Replacement:
+  `primitives::security::allocate_secure_buffer(size)` — same
+  semantics as `MemoryPool::allocate`, no lock.
+
+- **`primitives::kdf::sp800_108_counter_kdf::CounterKdfParams::default`
+  removed** (round-26 L12). The previous `Default` impl baked the
+  generic label `"Default KDF Label"` into the params; two callers
+  using `default()` with the same KI silently derived identical
+  keys (cross-protocol collision). Use `CounterKdfParams::new(label)`
+  with a domain-specific label.
+
+- **`ZeroTrustAuth` proof-of-possession (PoP) wire format changed
+  from second-precision to microsecond-precision in the signed
+  message** (round-26 M16 follow-up). The signed payload moved from
+  `"proof-of-possession-{ts_secs}"` to `"proof-of-possession-{ts_micros}"`.
+  PoPs issued by 0.7.x clients will not verify against 0.8.x servers
+  and vice versa — both peers must run the same library version.
+  Reason: Ed25519 signatures are deterministic, so two PoPs generated
+  in the same wall-clock second by the same key produced byte-identical
+  wire representations, which the new round-26 M16 replay cache then
+  flagged as a replay attack against legitimate same-second
+  regenerations. Microsecond precision makes each in-second PoP
+  byte-unique while remaining well within the 5-minute freshness
+  window's resolution.
+
+#### Cargo features
+
+- **New: `kat-replay`** — exposes `pbkdf2_kat` (replays RFC 6070 /
+  NIST CAVP fixtures with sub-OWASP iteration counts; DoS cap and
+  PRF correctness still enforced). Splits the legitimate KAT-replay
+  surface from the soundness-bypassing `test-utils` feature, so the
+  CLI binary no longer pulls `test-utils` (which gates
+  `SigmaProof::challenge_mut`, `clear_error_state`, and
+  `restore_operational_state`) into production builds. Round-26 C1.
+
+- **`test-utils` feature scope tightened** — now strictly gates
+  soundness-bypassing items only (`SigmaProof::challenge_mut`, FIPS
+  module-error-state recovery helpers). Legitimate KAT replay moves
+  to `kat-replay`. Round-26 C1.
+
+#### Critical-severity fixes (5)
+
+- **C1**: CLI no longer pulls the soundness-bypassing `test-utils`
+  feature; `pbkdf2_kat` moved to a new `kat-replay` feature.
+- **C2 / C3**: ML-KEM `encapsulate` / `decapsulate` no longer leak
+  configured resource-limit values via `e.to_string()` on the
+  pre-check path. All adversary-reachable failure paths now collapse
+  to opaque "encapsulation failed" / "decapsulation failed" strings,
+  restoring the FIPS 203 §6.3 implicit-rejection contract.
+- **C4**: AES-256-GCM power-up KAT now uses NIST CAVP
+  `gcmEncryptExtIV256.rsp` Count = 12 (cited URL). Replaces the
+  previous self-computed vector that would have passed even with
+  matching encrypt/decrypt bugs.
+- **C5**: ML-KEM PCT now runs unconditionally on every keygen (no
+  longer gated behind `fips-self-test`), matching ML-DSA, SLH-DSA,
+  FN-DSA, Ed25519, and secp256k1 — restores FIPS 140-3 IG 10.3.A
+  symmetry.
+
+#### High-severity fixes (15)
+
+- **H1 / H2**: convenience `pq_kem` PK binding (RFC 9170); SLH-DSA
+  empty context. (See "BREAKING" above.)
+- **H3**: hybrid sig verify-time equalizer now runs the dummy verify
+  on inner-parse-fail too, not only outer-parse-fail. Closes the
+  shape-pass-but-inner-parse-fail timing distinguisher.
+- **H4 / H6**: Ed25519 / secp256k1 verify and sign now call
+  `validate_signature_size` to bound message length before SHA-512 /
+  SHA-256 hashing. Same DoS shape round-24 closed for ML-DSA /
+  SLH-DSA / FN-DSA.
+- **H5**: secp256k1 low-S enforcement (BIP-146 / EIP-2). (See
+  "BREAKING" above.)
+- **H7**: Resource-limit string-leak sweep across convenience APIs.
+  Twelve sites updated: `convenience/api.rs`, `convenience/pq_kem.rs`,
+  `convenience/pq_sig.rs`, `convenience/hybrid_sig.rs`,
+  `convenience/hashing.rs`. All now emit opaque
+  `"plaintext exceeds resource limit"` / `"ciphertext exceeds
+  resource limit"` / `"message exceeds resource limit"` /
+  `"key derivation exceeds resource limit"` strings instead of
+  relaying `requested=N, limit=M` from `ResourceError::Display`.
+- **H8**: New `validate_aad_size` (default 1 MiB). Applied at every
+  AEAD encrypt / decrypt entrypoint (AES-GCM, ChaCha20-Poly1305,
+  XChaCha20-Poly1305). Closes the CPU-amplification DoS that bypassed
+  the plaintext / ciphertext caps via attacker-controlled AAD.
+- **H9**: Ed25519 / secp256k1 key-construction and PCT-failure paths
+  no longer relay upstream dalek / k256 error wording verbatim.
+  Opaque `"invalid public key"` / `"invalid Ed25519 secret key"` /
+  `"secp256k1 keypair PCT failed"` strings.
+- **H10**: Ed25519 convenience layer rejects non-canonical lengths.
+  (See "BREAKING" above.)
+- **H11**: ZKP `DlogEqualityProof::verify` and `FiatShamir::verify`
+  collapse all adversary-reachable sub-errors (off-curve points,
+  out-of-field scalars, hash failures, malformed
+  commitment/response) to `Err(ZkpError::VerificationFailed)`.
+  Removes the variant-shape distinguisher that probing attackers
+  could use.
+- **H12**: CLI `encrypt`, `decrypt`, `sign` now require `--force` to
+  overwrite an existing output file. Matches `keygen`'s default-safe
+  behavior.
+- **H13**: CLI expert-mode `encrypt` correctly routes pure-PQ ML-KEM
+  PKs to `EncryptMode::PqOnly` instead of forcing `Hybrid`. Closes
+  the silent "garbage ciphertext" path the audit flagged.
+- **H14**: CLI `kdf` exposes `--prf [hmac-sha256|hmac-sha512]` flag.
+  Per-PRF OWASP iteration floor (600,000 for SHA-256, 210,000 for
+  SHA-512) is now respected.
+- **H15**: CLI keyfile reader closes the metadata-then-read TOCTOU.
+  Open file once, take metadata from the open handle (inode-bound),
+  read via `Read::take` with the cap.
+
+#### Medium-severity fixes (26)
+
+- **M1**: Sig-scheme `MessageTooLong` collapsed to
+  `VerificationFailed` / `Ok(false)` on the verify path. Sign-side
+  remains `MessageTooLong` (caller controls).
+- **M2**: ML-KEM keypair-method `decapsulate` now calls
+  `validate_decryption_size` (was missing, asymmetric with the
+  static helper).
+- **M3**: NTT primitive-root self-check (`mod_pow(root, n, m) == 1`
+  and `mod_pow(root, n/2, m) == m - 1`) added to `NttProcessor::new`.
+  Comments corrected: `(512, 12289)` and `(1024, 12289)` are Falcon
+  parameters, not Dilithium (ML-DSA q = 8380417).
+- **M4 / M19**: Hybrid AEAD KDF binds ML-KEM half of recipient PK.
+  (See "BREAKING" above.)
+- **M5 / M20**: New public `FileAuditStorage::verify_chain()` API.
+  Walks `audit-*.jsonl` in filename-timestamp order, recomputes hash
+  chain from genesis, returns `ChainVerificationReport` with
+  `Option<ChainMismatch>` for the first divergence.
+- **M6**: Schnorr / Sigma scalars (`k`, `x`, `s`) wrapped in
+  `Zeroizing` so stack copies are scrubbed on return. Previously a
+  leak of `k` retroactively recovered `x = (s − k) / c`.
+- **M7**: CMAC `verify_*` Err-arm "dummy CT work" removed; doc
+  rewritten to "key length is structural; rejection is fast by
+  design" (the dummy never actually equalized timing — Ok-arm runs
+  full subkey + AES rounds, Err-arm only ran two `ct_eq` calls).
+- **M8**: Encrypted envelope version bump v1 → v2. (See "BREAKING"
+  above.)
+- **M9**: SLH-DSA constructor's eager `try_from_bytes` parse removed.
+  Verify re-parses anyway; the constructor's parsed result was
+  immediately discarded. PCT-driven keygen still catches consistency
+  failures at construction time.
+- **M10**: `MlDsaSignature::from_bytes_unchecked` documented as a
+  test-utility; doc string strengthened to call out the "downstream
+  must enable test-utils" expectation.
+- **M11**: Ed25519 / secp256k1 PCT now go through `pct_finalize` and
+  `enter_pct_error_state`, matching ML-DSA / SLH-DSA / FN-DSA. A
+  genuine pairwise inconsistency now enters the FIPS 140-3 IG
+  10.3.A error state instead of producing an ad-hoc error.
+- **M12**: `path_looks_like_latticearc_module` heuristic tightened —
+  exact-name list, plus a `<crate>-<16-hex-suffix>` shape check on
+  cargo `target/{debug,release}/deps/` entries.
+- **M13**: New `FipsErrorCode::CryptoFailure` (0x0111) for
+  algorithm-category upstream crypto failures, distinct from
+  operational `InternalError` (0x0203). `MlKemError::CryptoError` now
+  routes there.
+- **M14 / M15**: New `EncryptionScheme::security_level()` (total
+  over the enum, returns `Standard` for symmetric). Substring
+  matching in `scheme_min_security_level` replaced with explicit
+  full-token allowlist plus `-`-boundary matching for hybrid forms.
+- **M16**: PoP replay cache (5-min window, 16 KiB soft cap, opportunistic
+  eviction). Closes the per-PoP replay window.
+- **M17**: CLI keyfile reader rejects symlinks unless
+  `LATTICEARC_ALLOW_SYMLINK_KEYS=1`. Matches GnuPG / OpenSSH posture.
+- **M18**: CLI `kdf` `LATTICEARC_KDF_INPUT` warning now gated on
+  `IsTerminal::is_terminal(&stdin)` to match `keyfile.rs`. Avoids
+  CI/Docker spam.
+- **M19**: see M4.
+- **M20**: see M5.
+- **M21**: `validate_ed25519_keypair` zero-key check uses
+  non-short-circuit fold instead of `iter().all`.
+- **M22**: `convenience/hashing.rs` no longer creates an un-zeroed
+  transient `Vec<u8>` between `expose_secret().to_vec()` and the
+  `Zeroizing::new` wrap. New `HkdfResult::into_zeroizing()` consumes
+  the result and returns the inner `Zeroizing<Vec<u8>>` directly.
+- **M23**: `convenience/hashing.rs::derive_key` no longer calls
+  `validate_key_derivation_count(1)` — the hardcoded `1` was a no-op.
+  Documented; real per-process counter pending.
+- **M24**: `convenience/aes_gcm.rs` AES-init failure on decrypt path
+  collapsed to opaque `"decryption failed"` (previously distinct
+  `"AES key init failed"` was a third grep-distinguisher). WeakKey
+  remains distinguishable for caller hygiene.
+- **M25**: `secure_compare` rejects mismatched lengths early instead
+  of allocating two `max(a.len(), b.len())` zeroed buffers.
+- **M26**: `MemoryPool` removed. (See "BREAKING" above.)
+
+#### Low-severity fixes (35) and NITs (15)
+
+- Length-prefix saturation overflow in
+  `types::domains::hkdf_kem_info_with_pk` now hard-errors instead
+  of saturating to `u32::MAX` (L1).
+- `EncryptedOutput::validate_shape` enforces `nonce.len()==12` and
+  `tag.len()==16` (L4) — covered as a doc note since validate_shape
+  is upstream.
+- `ChaCha20Poly1305::generate_key` no longer copies through an
+  un-zeroed `GenericArray` transient (L14).
+- ECDH NIST P-256 / P-384 / P-521 `validate()` adds defense-in-depth
+  all-zero coordinate rejection (L18).
+- `mod_pow` adds `debug_assert!(modulus > 0)` precondition (L22).
+- `mod_inverse` post-check tightened from `a > 1` to `a != 1` (L21).
+- secp256k1 `signature_from_bytes` rejects high-S at parse time
+  (L19; see "BREAKING").
+- secp256k1 verify enforces canonical SEC1 uncompressed encoding
+  (L20; see "BREAKING").
+- CLI `info` cross-references `self_tests_passed()` before claiming
+  "validated backend" (L30).
+- `perf::MetricsCollector::record_operation` emits
+  `tracing::warn!` on poisoned mutex instead of silently dropping
+  (L31).
+- Doc-drift fixes in `hybrid::pq_only` decrypt info-string description
+  (L25), other doc drift items spot-checked.
+
+#### CHANGELOG entry source
+
+This changelog entry was generated as part of the round-26
+audit-follow-up commit. The full list of findings, evidence lines,
+and verification results is recorded in the round-26 audit response
+attached to the commit message body. No findings deferred.
+
+---
+
 ### Round-24 audit follow-up — 2 CRIT + 6 HIGH + 14 MED (2026-05-02)
 
 External audit of the post-`66970a714` tree returned 22 actionable

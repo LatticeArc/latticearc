@@ -68,7 +68,16 @@ const ML_KEM_PK_METADATA_KEY: &str = "ml_kem_pk";
 // --- Passphrase-encryption envelope constants (LPK v1 encrypted variant) ---
 
 /// Current version of the encrypted-key envelope schema.
-const ENCRYPTED_ENVELOPE_VERSION: u32 = 1;
+///
+/// Round-26 audit fix (M8): bumped from `1` to `2` to mark the AAD
+/// label change introduced by round-24's metadata-binding fix
+/// (`lpk-v1-enc` → `lpk-v2-enc`). Pre-fix v1 envelopes have the same
+/// `enc: 1` field but a different AEAD AAD; decrypting them with v2
+/// code surfaces as "wrong passphrase" because the AAD mismatch fails
+/// authentication. Bumping the wire field lets us emit a distinct
+/// "v1 envelope; re-protect with --upgrade" error so users know to
+/// re-encrypt rather than chase a passphrase that was already correct.
+const ENCRYPTED_ENVELOPE_VERSION: u32 = 2;
 /// KDF identifier for the encrypted-key envelope.
 const PBKDF2_KDF_ID: &str = "PBKDF2-HMAC-SHA256";
 /// AEAD identifier for the encrypted-key envelope.
@@ -1785,6 +1794,19 @@ impl PortableKey {
         nonce: &str,
         ciphertext: &str,
     ) -> Result<()> {
+        // Round-26 audit fix (M8): emit a distinct error for the v1
+        // → v2 transition so users know to re-encrypt rather than
+        // chase a passphrase that was already correct (the v1 AAD
+        // doesn't match the v2 verifier; AEAD authentication fails
+        // and the legacy code path surfaced as "wrong passphrase").
+        if enc == 1 {
+            return Err(CoreError::InvalidKey(
+                "v1 envelope; re-protect with --upgrade. The AAD format \
+                 changed in 0.8.0 (round-24); v1 envelopes cannot be decrypted \
+                 by v2 code even with the correct passphrase."
+                    .to_string(),
+            ));
+        }
         if enc != ENCRYPTED_ENVELOPE_VERSION {
             return Err(CoreError::InvalidKey(format!(
                 "Unsupported encrypted key envelope version {enc}, expected {ENCRYPTED_ENVELOPE_VERSION}",

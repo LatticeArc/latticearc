@@ -6,10 +6,10 @@
 //! Tests that PBKDF2 operations handle arbitrary input data
 //! without crashing and produce consistent outputs.
 
-// Fuzz uses `pbkdf2_kat` (test-utils gated) so the harness can exercise
-// the success path with a small iteration count; `pbkdf2()` would reject
-// anything below the OWASP 2023 floor and turn the harness into a near
-// no-op.
+// Fuzz uses `pbkdf2_kat` (gated behind the `kat-replay` feature, enabled
+// in `fuzz/Cargo.toml`) so the harness can exercise the success path with
+// a small iteration count; `pbkdf2()` would reject anything below the
+// OWASP 2023 floor and turn the harness into a near no-op.
 use latticearc::primitives::kdf::pbkdf2::{
     Pbkdf2Params, PrfType, pbkdf2_kat as pbkdf2, pbkdf2_simple,
 };

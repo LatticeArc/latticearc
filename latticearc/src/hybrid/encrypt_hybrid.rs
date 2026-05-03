@@ -296,9 +296,20 @@ impl HybridEncryptionContext {
 /// populate all three.
 #[derive(Debug, Clone, Copy)]
 pub struct DerivationBinding<'a> {
-    /// Recipient's static (long-term) public key. For the hybrid KEM,
-    /// this is the X25519 component of the recipient's `HybridKemPublicKey`.
+    /// Recipient's static X25519 public key (the classical leg of the
+    /// hybrid PK).
     pub recipient_static_pk: &'a [u8],
+    /// Recipient's static ML-KEM public key (the PQ leg of the hybrid
+    /// PK). Round-26 audit fix (M4 / M19): bound here so the AEAD KDF
+    /// info channel-binds the FULL hybrid recipient identity, not just
+    /// its X25519 half. The previous binding only bound X25519
+    /// directly; the ML-KEM half was bound only transitively via the
+    /// `kem_ciphertext`. An adversary who broke ML-KEM IND-CCA2
+    /// substitution would have gotten through the AEAD KDF binding
+    /// even with the recipient_static_pk leg intact.
+    /// BREAKING CHANGE: 0.7.x hybrid ciphertexts cannot be decrypted
+    /// by 0.8.x and vice versa. See CHANGELOG.
+    pub recipient_ml_kem_pk: &'a [u8],
     /// Sender's ephemeral public key produced by `kem_hybrid::encapsulate`.
     /// For the hybrid KEM this is the X25519 ephemeral PK.
     pub ephemeral_pk: &'a [u8],
@@ -313,7 +324,12 @@ impl<'a> DerivationBinding<'a> {
     /// binding constructed by `encrypt_hybrid` / `decrypt_hybrid`.
     #[must_use]
     pub const fn empty() -> Self {
-        Self { recipient_static_pk: &[], ephemeral_pk: &[], kem_ciphertext: &[] }
+        Self {
+            recipient_static_pk: &[],
+            recipient_ml_kem_pk: &[],
+            ephemeral_pk: &[],
+            kem_ciphertext: &[],
+        }
     }
 }
 
@@ -357,6 +373,7 @@ pub fn derive_encryption_key(
     let oversize = context.info.len() > u32::MAX as usize
         || context.aad.len() > u32::MAX as usize
         || binding.recipient_static_pk.len() > u32::MAX as usize
+        || binding.recipient_ml_kem_pk.len() > u32::MAX as usize
         || binding.ephemeral_pk.len() > u32::MAX as usize
         || binding.kem_ciphertext.len() > u32::MAX as usize;
     if oversize {
@@ -383,15 +400,21 @@ pub fn derive_encryption_key(
     // Wire layout (each `len: u32 BE` is followed by `len` bytes):
     //   [info_len][info]
     //   [aad_len][aad]
-    //   [recipient_pk_len][recipient_pk]   ── Pattern 7 / channel binding
-    //   [ephemeral_pk_len][ephemeral_pk]   ── ditto
-    //   [kem_ct_len][kem_ct]               ── ditto
+    //   [recipient_x25519_pk_len][recipient_x25519_pk]   ── Pattern 7 / channel binding
+    //   [recipient_ml_kem_pk_len][recipient_ml_kem_pk]   ── round-26 fix M4/M19
+    //   [ephemeral_pk_len][ephemeral_pk]                 ── ditto
+    //   [kem_ct_len][kem_ct]                             ── ditto
     //
-    // Order is fixed; reordering is a wire-format break.
-    let segments: [&[u8]; 5] = [
+    // Order is fixed; reordering or omitting any segment is a
+    // wire-format break. The ml-kem leg is positioned before the
+    // ephemeral pk so that pre-existing v1 wire-format readers (which
+    // expected ephemeral after the X25519 leg) fail closed instead of
+    // silently misinterpreting a longer payload.
+    let segments: [&[u8]; 6] = [
         &context.info,
         &context.aad,
         binding.recipient_static_pk,
+        binding.recipient_ml_kem_pk,
         binding.ephemeral_pk,
         binding.kem_ciphertext,
     ];
@@ -488,8 +511,11 @@ pub fn encrypt_hybrid(
     // Derive AES-256 encryption key from 64-byte hybrid shared secret.
     // Pattern 7 / HPKE: bind recipient PK + ephemeral PK + KEM ciphertext
     // into the HKDF info, on top of the upstream combiner's binding.
+    // Round-26 audit fix (M4 / M19): bind ML-KEM PK explicitly into the
+    // AEAD KDF info, not just transitively through the KEM ciphertext.
     let binding = DerivationBinding {
         recipient_static_pk: hybrid_pk.ecdh_pk(),
+        recipient_ml_kem_pk: hybrid_pk.ml_kem_pk(),
         ephemeral_pk: encapsulated.ecdh_pk(),
         kem_ciphertext: encapsulated.ml_kem_ct(),
     };
@@ -597,8 +623,14 @@ pub fn decrypt_hybrid(
     // Pattern 7 / HPKE: bind recipient PK + ephemeral PK + KEM ciphertext
     // into the HKDF info (must match the encrypt-side binding exactly).
     let recipient_static_pk = hybrid_sk.ecdh_public_key_bytes();
+    // Round-26 audit fix (M4 / M19): mirror the encrypt-side ML-KEM
+    // PK binding. The ML-KEM PK is reconstructible from the SK via the
+    // FIPS 203 §6.1 layout; `ml_kem_public_key_bytes()` exposes the
+    // embedded `ek` slice.
+    let recipient_ml_kem_pk = hybrid_sk.ml_kem_pk_bytes();
     let binding = DerivationBinding {
         recipient_static_pk: &recipient_static_pk,
+        recipient_ml_kem_pk: &recipient_ml_kem_pk,
         ephemeral_pk: ciphertext.ecdh_ephemeral_pk(),
         kem_ciphertext: ciphertext.kem_ciphertext(),
     };

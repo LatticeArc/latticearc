@@ -523,8 +523,13 @@ pub fn sign(
             log_crypto_operation_error!(op::HYBRID_SIGN, "Ed25519 SK init failed");
             HybridSignatureError::Ed25519Error("signing failed".to_string())
         })?;
-    // Ed25519 signing is infallible for valid key pairs
-    let ed25519_signature = ed25519_keypair.sign(message);
+    // Round-26 audit fix (H4): `Ed25519KeyPair::sign` is now fallible
+    // (validate_signature_size). Message length is already gated by
+    // the hybrid sig API above; this `?` is the boundary safety net.
+    let ed25519_signature = ed25519_keypair.sign(message).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_SIGN, "Ed25519 sign rejected");
+        HybridSignatureError::Ed25519Error("signing failed".to_string())
+    })?;
     let ed25519_sig = Ed25519SignatureOps::signature_bytes(&ed25519_signature);
 
     Ok(HybridSignature { ml_dsa_sig, ed25519_sig })
@@ -615,8 +620,39 @@ pub fn verify(
             MlDsaSignature::from_bytes(pq_sig_bytes, pk.parameter_set)
                 .map(|parsed_sig| (parsed_pk, parsed_sig))
         });
+    // Round-26 audit fix (H3): the previous shape was
+    //   `Ok(parsed) => parsed.verify(...)`,
+    //   `Err(_) => dummy.verify(...)`.
+    // But `MlDsaPublicKey::verify` internally calls
+    // `ml_dsa_NN::PublicKey::try_from_bytes`, which short-circuits with
+    // `Err(VerificationError)` on structurally-invalid PKs (e.g.
+    // all-zero) before any actual ML-DSA verify runs. So a shape-pass-
+    // but-inner-parse-fail input paid only the cheap parse-fail cost
+    // while a shape-pass-and-inner-parse-pass input paid the full
+    // ML-DSA verify cost — a measurable timing oracle on the difference.
+    // Now: ANY path that doesn't reach a successful real verify falls
+    // through to the dummy verify so the wall-clock cost is equal
+    // across all reject reasons.
     let ml_dsa_verify_result = match &parse_ok {
-        Ok((parsed_pk, parsed_sig)) => parsed_pk.verify(message, parsed_sig, &[]),
+        Ok((parsed_pk, parsed_sig)) => {
+            let inner = parsed_pk.verify(message, parsed_sig, &[]);
+            match &inner {
+                Ok(_) => inner,
+                // Inner parse failed (structurally-invalid PK reached
+                // the short-circuit in `try_from_bytes`). Run the
+                // equalizer dummy verify to spend verify-time budget;
+                // discard its result.
+                Err(_) => match &dummy.parsed {
+                    Some(parsed) => {
+                        let _ = parsed.pq_pk.verify(&parsed.pq_test_message, &parsed.pq_sig, &[]);
+                        // Bubble the original Err so `matches!(.., Ok(true))`
+                        // below still rejects the substituted input.
+                        inner
+                    }
+                    None => inner,
+                },
+            }
+        }
         Err(_) => match &dummy.parsed {
             // Equalizer fallback: run verify against pre-validated
             // material so the wall-clock cost stays equal between
@@ -814,7 +850,7 @@ mod tests {
         let public_key_bytes = keypair.public_key_bytes();
 
         let message = b"Test message";
-        let signature = keypair.sign(message);
+        let signature = keypair.sign(message).expect("sign should succeed");
 
         // Valid signature should verify
         let result = Ed25519SignatureOps::verify(&public_key_bytes, message, &signature);
