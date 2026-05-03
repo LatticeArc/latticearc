@@ -534,9 +534,10 @@ mod tests {
         Ok(())
     }
 
+    /// Pattern 8 Rule 4: parameter-influence test — `Pbkdf2Params.salt`
+    /// influences the derived key.
     #[test]
-    fn test_pbkdf2_different_salts_produce_different_keys_succeeds()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_salt_influences_pbkdf2() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let params1 = Pbkdf2Params::with_salt(b"salt123456789012").iterations(1000).key_length(32);
         let params2 = Pbkdf2Params::with_salt(b"salt223456789012").iterations(1000).key_length(32);
 
@@ -547,8 +548,10 @@ mod tests {
         Ok(())
     }
 
+    /// Pattern 8 Rule 4: parameter-influence test —
+    /// `Pbkdf2Params.iterations` influences the derived key.
     #[test]
-    fn test_pbkdf2_different_iterations_produce_different_keys_succeeds() {
+    fn test_iterations_influences_pbkdf2() {
         let password = b"password";
         let salt = b"salt123456789012";
         let params1 = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
@@ -558,6 +561,25 @@ mod tests {
         let result2 = pbkdf2_kat(password, &params2).unwrap();
 
         assert_ne!(result1.key, result2.key);
+    }
+
+    /// Pattern 8 Rule 4: parameter-influence test —
+    /// `Pbkdf2Params.key_length` influences the derived key length.
+    #[test]
+    fn test_key_length_influences_pbkdf2() {
+        let password = b"password";
+        let salt = b"salt123456789012";
+        for &len in &[16usize, 32, 48, 64] {
+            let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(len);
+            let result = pbkdf2_kat(password, &params).unwrap();
+            assert_eq!(
+                result.expose_secret().len(),
+                len,
+                "key_length={} did not produce a {}-byte derived key",
+                len,
+                len,
+            );
+        }
     }
 
     #[test]
@@ -687,8 +709,11 @@ mod tests {
         assert!(pbkdf2(b"pw", &params).is_err());
     }
 
+    /// Pattern 8 Rule 4: parameter-influence test — `Pbkdf2Params.prf`
+    /// influences the derived key (different PRF produces different
+    /// output for the same password+salt+iterations+length).
     #[test]
-    fn test_prf_types_produce_correct_key_lengths_has_correct_size() {
+    fn test_prf_influences_pbkdf2() {
         let password = b"password";
         let salt = b"salt123456789012";
 

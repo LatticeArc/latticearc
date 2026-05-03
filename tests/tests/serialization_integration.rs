@@ -568,7 +568,12 @@ mod encrypted_output_roundtrip {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(64))]
+        // Round-27 M1: Pattern 15 mandates 1000 cases for roundtrip
+        // properties. EncryptedOutput JSON+CBOR roundtrip is fast
+        // (microseconds per case), so 1000 cases is ~tens of ms overhead
+        // — worth it for ser/deser symmetry that protocol implementations
+        // depend on.
+        #![proptest_config(ProptestConfig::with_cases(1000))]
 
         /// Round-trip via the JSON-string inherent methods preserves equality
         /// for any well-formed AES-GCM `EncryptedOutput`.

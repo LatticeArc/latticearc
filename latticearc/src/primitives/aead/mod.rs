@@ -240,7 +240,16 @@ pub enum AeadError {
     #[error("Invalid key length")]
     InvalidKeyLength,
 
-    /// Invalid nonce length
+    /// Invalid nonce length — fail-closed defence-in-depth.
+    ///
+    /// The `Nonce` type is `[u8; 12]`, so wrong-size nonces cannot reach the
+    /// AEAD trait through normal use; this variant exists to surface the
+    /// case where the underlying primitive (aws-lc-rs's
+    /// `try_assume_unique_for_key`, or chacha20poly1305) ever rejects a
+    /// 12-byte nonce — e.g. because the AEAD algorithm semantics changed
+    /// upstream. Mapped to `FipsErrorCode::InvalidNonce` for FIPS error
+    /// reporting. See `test_invalid_nonce_length_is_structurally_unreachable`
+    /// for the structural-unreachability proof.
     #[error("Invalid nonce length")]
     InvalidNonceLength,
 
@@ -415,5 +424,28 @@ mod tests {
 
         let tag: Tag = [0u8; TAG_LEN];
         assert_eq!(tag.len(), 16);
+    }
+
+    /// Round-27 H4 (Pattern 14): `AeadError::InvalidNonceLength` is a
+    /// fail-closed defence-in-depth variant. The `Nonce` type alias is
+    /// `[u8; NONCE_LEN]` (12), so the AEAD trait cannot be called with a
+    /// wrong-size nonce — the type system forbids it at compile time.
+    /// This test pins that structural property: if someone ever changes
+    /// `Nonce` from a sized array to a slice or `Vec<u8>`, the assertion
+    /// below stops compiling and forces re-evaluation of the variant's
+    /// reachability.
+    #[test]
+    fn test_invalid_nonce_length_is_structurally_unreachable() {
+        // The compile-time witness: `Nonce` is a 12-byte array, so the
+        // AEAD trait cannot receive any other size. If `Nonce` ever
+        // becomes a slice/Vec, this assertion fails.
+        const _: () = {
+            let _: Nonce = [0u8; NONCE_LEN];
+        };
+        assert_eq!(NONCE_LEN, 12);
+        // The variant still constructs cleanly (FIPS error mapping uses
+        // it); we just cannot trigger it through the public AEAD API.
+        let err = AeadError::InvalidNonceLength;
+        assert!(matches!(err, AeadError::InvalidNonceLength));
     }
 }

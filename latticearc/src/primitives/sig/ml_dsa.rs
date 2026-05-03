@@ -1324,4 +1324,20 @@ mod tests {
             generate_keypair(MlDsaParameterSet::MlDsa65).expect("Key generation should succeed");
         assert_eq!(sk.parameter_set(), MlDsaParameterSet::MlDsa65);
     }
+
+    /// Round-27 H5 (Pattern 14): the `MessageTooLong` variant must be
+    /// triggerable through the public sign path. The default global
+    /// signature-size limit is 64 KiB; passing 64 KiB + 1 bytes exceeds
+    /// the cap and the signing path returns `MlDsaError::MessageTooLong`
+    /// before reaching the upstream `ml-dsa` crate.
+    #[test]
+    fn test_ml_dsa_sign_oversized_message_returns_message_too_long() {
+        let (_pk, sk) =
+            generate_keypair(MlDsaParameterSet::MlDsa65).expect("Key generation should succeed");
+        // Default cap is 64 KiB (65,536). Use 65 KiB + 1 byte = 66,561 to
+        // exceed it without inflating the test memory footprint.
+        let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
+        let err = sk.sign(&oversize, b"").expect_err("oversized message must be rejected");
+        assert!(matches!(err, MlDsaError::MessageTooLong), "expected MessageTooLong, got {err:?}");
+    }
 }

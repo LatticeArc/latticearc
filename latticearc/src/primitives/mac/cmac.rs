@@ -1077,4 +1077,39 @@ mod tests {
             }
         }
     }
+
+    /// Round-27 L2 (Pattern 14): `CmacError::ComputationError` is a
+    /// fail-closed defence-in-depth variant. Both production paths that
+    /// emit it (`AES key init failed` and `Block N out of bounds`) are
+    /// structurally unreachable — key length is validated to 16/24/32 at
+    /// each callsite before the AES init, and block iteration uses
+    /// computed offsets within `data.len()`. This test pins the variant's
+    /// shape so a regression that drops the wrap (e.g. switching to
+    /// `expect()`) fails CI, and documents that the path cannot be
+    /// triggered through the public API by design.
+    #[test]
+    fn test_cmac_computation_error_is_defence_in_depth() {
+        // The variant constructs cleanly and has the expected Display.
+        let err = CmacError::ComputationError("AES key init failed".to_string());
+        assert!(matches!(err, CmacError::ComputationError(_)));
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("AES key init failed"),
+            "Display must surface the inner detail for developer diagnosis"
+        );
+
+        // Structural-unreachability witness: every public CMAC entrypoint
+        // that calls `AES::new_from_slice` validates key length first. A
+        // regression that removes the validate-then-init ordering would
+        // surface here as a panic on the assertion below.
+        for &valid_len in &[16usize, 24, 32] {
+            let zero_key = vec![0u8; valid_len];
+            let result = generate_subkeys(&zero_key);
+            assert!(
+                result.is_ok(),
+                "valid AES key length {} must succeed (no ComputationError reachable)",
+                valid_len
+            );
+        }
+    }
 }

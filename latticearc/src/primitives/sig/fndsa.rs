@@ -1084,6 +1084,32 @@ mod tests {
             .join()
             .expect("Thread join failed");
     }
+
+    /// Round-27 H5 (Pattern 14): the `MessageTooLong` variant must be
+    /// triggerable through the public sign path. Default global cap is
+    /// 64 KiB; pass 64 KiB + 1 to exceed it before the upstream
+    /// `fn-dsa` signer runs. FN-DSA uses a stack-heavy signer so the
+    /// test runs on a worker thread (matching the rest of this file).
+    #[test]
+    fn test_fndsa_sign_oversized_message_returns_message_too_long() {
+        std::thread::Builder::new()
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let mut rng = OsRng;
+                let mut keypair =
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+                        .expect("Key generation failed");
+                let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
+                let err = keypair.sign(&oversize).expect_err("oversized message must be rejected");
+                assert!(
+                    matches!(err, FnDsaError::MessageTooLong),
+                    "expected MessageTooLong, got {err:?}"
+                );
+            })
+            .expect("Thread spawn failed")
+            .join()
+            .expect("Thread join failed");
+    }
 }
 
 #[cfg(test)]

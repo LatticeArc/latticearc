@@ -79,10 +79,11 @@ pub enum SlhDsaError {
     #[error("Signature verification failed")]
     VerificationFailed,
 
-    /// Deserialization failed
-    #[error("Deserialization failed")]
-    DeserializationError,
-
+    // Round-27 M4: `DeserializationError` removed — declared but never
+    // returned by any production path. SLH-DSA byte-shape errors surface
+    // as `InvalidPublicKey` / `InvalidSecretKey` / `VerificationFailed`.
+    // Safe under `#[non_exhaustive]`: external matches must already have
+    // a fallback arm, and no production code ever produced this variant.
     /// Context string too long (max 255 bytes)
     #[error("Context string too long (max 255 bytes)")]
     ContextTooLong,
@@ -1074,5 +1075,17 @@ mod tests {
         invalid_sig[0] ^= 0xFF;
         let result = pk.verify(message, &invalid_sig, &[]);
         assert!(matches!(result, Ok(false)));
+    }
+
+    /// Round-27 H5 (Pattern 14): `MessageTooLong` is the resource-cap
+    /// gate at the top of `sign()`. Default global limit is 64 KiB; pass
+    /// 64 KiB + 1 to trigger it before the upstream slh-dsa crate runs.
+    #[test]
+    fn test_slh_dsa_sign_oversized_message_returns_message_too_long() {
+        let (sk, _pk) =
+            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
+        let err = sk.sign(&oversize, &[]).expect_err("oversized message must be rejected");
+        assert!(matches!(err, SlhDsaError::MessageTooLong), "expected MessageTooLong, got {err:?}");
     }
 }

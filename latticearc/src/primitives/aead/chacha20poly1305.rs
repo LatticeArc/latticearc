@@ -33,6 +33,11 @@ use rand::RngCore;
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
+// Round-27 H2: single opaque string for every decrypt failure path. Pattern
+// 6 forbids stage-distinguishing error strings on AEAD decrypt — see the
+// detailed comment in aes_gcm.rs for the full rationale.
+const DECRYPTION_FAILED: &str = "decryption failed";
+
 /// ChaCha20-Poly1305 AEAD cipher
 ///
 /// Stores key bytes directly (like AES-GCM) for proper `ZeroizeOnDrop` support.
@@ -158,17 +163,21 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         tag: &Tag,
         aad: Option<&[u8]>,
     ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
+        // Round-27 H2: Pattern 6 opacity sweep — every decrypt failure
+        // collapses to the same opaque string so the primitives layer no
+        // longer leaks a stage-identifying oracle (size-check vs MAC-check
+        // vs buffer-shape) to direct callers. See aes_gcm.rs for the full
+        // rationale; the matching constant lives in this file as
+        // `DECRYPTION_FAILED`.
         validate_decryption_size(ciphertext.len()).map_err(
             |_e: crate::primitives::resource_limits::ResourceError| {
-                AeadError::DecryptionFailed("ciphertext exceeds resource limits".to_string())
+                AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string())
             },
         )?;
 
-        // Round-26 audit fix (H8): cap AAD size on decrypt path too.
         if let Some(a) = aad {
-            validate_aad_size(a.len()).map_err(|_e| {
-                AeadError::DecryptionFailed("AAD exceeds resource limits".to_string())
-            })?;
+            validate_aad_size(a.len())
+                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?;
         }
 
         let cipher = ChaCha20Poly1305::new_from_slice(&self.key_bytes)
@@ -188,12 +197,10 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
                     &chacha_nonce,
                     chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
                 )
-                .map_err(|_e| {
-                    AeadError::DecryptionFailed("AEAD authentication failed".to_string())
-                })?,
-            None => cipher.decrypt(&chacha_nonce, ciphertext_with_tag.as_ref()).map_err(|_e| {
-                AeadError::DecryptionFailed("AEAD authentication failed".to_string())
-            })?,
+                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?,
+            None => cipher
+                .decrypt(&chacha_nonce, ciphertext_with_tag.as_ref())
+                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?,
         };
 
         Ok(Zeroizing::new(plaintext))
@@ -403,20 +410,18 @@ impl XChaCha20Poly1305Cipher {
         tag: &Tag,
         aad: Option<&[u8]>,
     ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
-        // Symmetric with `encrypt_x` above and the AeadCipher trait
-        // impl: enforce the per-call resource cap on attacker-supplied
-        // ciphertext length before any AEAD work runs.
+        // Round-27 H2: Pattern 6 opacity sweep — every decrypt failure
+        // collapses to the same opaque string. Symmetric with the
+        // ChaCha20Poly1305 trait impl above and the AES-GCM macro.
         validate_decryption_size(ciphertext.len()).map_err(
             |_e: crate::primitives::resource_limits::ResourceError| {
-                AeadError::DecryptionFailed("ciphertext exceeds resource limits".to_string())
+                AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string())
             },
         )?;
 
-        // Round-26 audit fix (H8): cap AAD on the XChaCha decrypt_x path.
         if let Some(a) = aad {
-            validate_aad_size(a.len()).map_err(|_e| {
-                AeadError::DecryptionFailed("AAD exceeds resource limits".to_string())
-            })?;
+            validate_aad_size(a.len())
+                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?;
         }
 
         let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(&self.key_bytes)
@@ -434,12 +439,10 @@ impl XChaCha20Poly1305Cipher {
                     &xnonce,
                     chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
                 )
-                .map_err(|_e| {
-                    AeadError::DecryptionFailed("AEAD authentication failed".to_string())
-                })?,
-            None => cipher.decrypt(&xnonce, ciphertext_with_tag.as_ref()).map_err(|_e| {
-                AeadError::DecryptionFailed("AEAD authentication failed".to_string())
-            })?,
+                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?,
+            None => cipher
+                .decrypt(&xnonce, ciphertext_with_tag.as_ref())
+                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?,
         };
 
         Ok(Zeroizing::new(plaintext))
@@ -893,10 +896,12 @@ mod tests {
         let result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
-        if let Err(AeadError::DecryptionFailed(msg)) = result {
-            assert!(msg.contains("resource limit"), "Error should mention resource limit: {}", msg);
-        } else {
-            panic!("Expected DecryptionFailed error");
-        }
+        // Round-27 H2: Pattern 6 opacity sweep collapsed every decrypt
+        // failure to the same opaque "decryption failed" string, so this
+        // test now only asserts the variant shape.
+        assert!(
+            matches!(result, Err(AeadError::DecryptionFailed(_))),
+            "Expected DecryptionFailed variant, got {result:?}"
+        );
     }
 }

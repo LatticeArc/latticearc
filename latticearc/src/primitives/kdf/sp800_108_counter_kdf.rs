@@ -395,8 +395,10 @@ mod tests {
         assert_eq!(result1.key, result2.key);
     }
 
+    /// Pattern 8 Rule 4: parameter-influence test —
+    /// `CounterKdfParams.label` influences the derived key.
     #[test]
-    fn test_counter_kdf_different_labels_produce_distinct_keys_are_unique() {
+    fn test_label_influences_derive_key() {
         let ki = b"test keying material";
         let params1 = CounterKdfParams::new(b"Label 1");
         let params2 = CounterKdfParams::new(b"Label 2");
@@ -407,8 +409,10 @@ mod tests {
         assert_ne!(result1.key, result2.key);
     }
 
+    /// Pattern 8 Rule 4: parameter-influence test —
+    /// `CounterKdfParams.context` influences the derived key.
     #[test]
-    fn test_counter_kdf_different_contexts_produce_distinct_keys_are_unique() {
+    fn test_context_influences_derive_key() {
         let ki = b"test keying material";
         let params1 = CounterKdfParams::new(b"Label").with_context(b"Context 1");
         let params2 = CounterKdfParams::new(b"Label").with_context(b"Context 2");

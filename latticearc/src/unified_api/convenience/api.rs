@@ -748,7 +748,6 @@ pub fn decrypt_with_aad(
 /// tag, which `sign_with_key` later needs to dispatch correctly). Callers
 /// can keep using the tuple form for backwards compatibility, OR construct
 /// `SigningKeypair::from(tuple)` to get named fields.
-#[derive(Debug)]
 pub struct SigningKeypair {
     /// Public-key bytes for the selected scheme.
     pub public_key: Vec<u8>,
@@ -759,6 +758,20 @@ pub struct SigningKeypair {
     /// dispatcher routes signing through the same algorithm that
     /// generated the keypair.
     pub scheme: String,
+}
+
+// Manual `Debug` is required: `Zeroizing<Vec<u8>>` forwards `Debug` to the
+// inner `Vec<u8>` (see zeroize crate docs), so deriving Debug here would
+// print the raw secret-key bytes whenever a caller `dbg!`s or formats the
+// keypair. Pattern 5 Property 2 mandates `[REDACTED]` for secret material.
+impl core::fmt::Debug for SigningKeypair {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SigningKeypair")
+            .field("public_key", &format_args!("<{} bytes>", self.public_key.len()))
+            .field("secret_key", &"[REDACTED]")
+            .field("scheme", &self.scheme)
+            .finish()
+    }
 }
 
 impl From<(Vec<u8>, Zeroizing<Vec<u8>>, String)> for SigningKeypair {

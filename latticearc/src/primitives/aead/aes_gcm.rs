@@ -32,6 +32,11 @@ use crate::primitives::resource_limits::{
     validate_aad_size, validate_decryption_size, validate_encryption_size,
 };
 
+// Round-27 H2: single opaque string for every decrypt failure path. Pattern
+// 6 forbids stage-distinguishing error strings on AEAD decrypt — see the
+// detailed comment in the macro body below.
+const DECRYPTION_FAILED: &str = "decryption failed";
+
 /// Implements an AES-GCM cipher struct with `AeadCipher` trait and `generate_key()`.
 macro_rules! impl_aes_gcm {
     (
@@ -168,24 +173,27 @@ macro_rules! impl_aes_gcm {
                 tag: &Tag,
                 aad: Option<&[u8]>,
             ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
-                // Pre-flight resource validation uses a public input (length),
-                // so revealing "ciphertext too large" is safe. The actual
-                // open_in_place error path below is deliberately opaque to
-                // prevent padding/MAC oracles (P5.10 M1).
+                // Round-27 H2: Pattern 6 opacity sweep. All decrypt failure
+                // paths now share the same opaque error string. Size-check
+                // branches at the top are still reachable before key init,
+                // but they no longer distinguish which size limit was
+                // crossed (ciphertext vs AAD vs post-auth shape) so the
+                // primitives layer no longer leaks a stage-identifying
+                // oracle to direct callers. The InvalidKeyLength /
+                // InvalidNonceLength variants below remain distinct because
+                // they fire on input shape that an adversary controls
+                // explicitly (key/nonce length); the actual open_in_place
+                // path is folded into the same opaque string as the
+                // post-auth-success buffer-shape check.
                 validate_decryption_size(ciphertext.len()).map_err(
                     |_e: crate::primitives::resource_limits::ResourceError| {
-                        AeadError::DecryptionFailed(
-                            "ciphertext exceeds resource limits".to_string(),
-                        )
+                        AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string())
                     },
                 )?;
 
-                // Round-26 audit fix (H8): cap AAD size on the decrypt
-                // path too. The MAC verification cost is linear in AAD
-                // length even when the AAD differs across calls.
                 if let Some(a) = aad {
                     validate_aad_size(a.len()).map_err(|_e| {
-                        AeadError::DecryptionFailed("AAD exceeds resource limits".to_string())
+                        AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string())
                     })?;
                 }
 
@@ -205,22 +213,15 @@ macro_rules! impl_aes_gcm {
                 in_out.extend_from_slice(ciphertext);
                 in_out.extend_from_slice(tag);
 
-                // Opaque error: do not leak whether MAC check, decryption,
-                // or input shape was the cause of failure.
                 let plaintext_len = key
                     .open_in_place(aws_nonce, aad, in_out.as_mut_slice())
                     .map_err(|_e| {
-                        AeadError::DecryptionFailed(
-                            "AEAD authentication failed".to_string(),
-                        )
+                        AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string())
                     })?
                     .len();
 
-                // Copy plaintext out into a fresh Zeroizing<Vec<u8>> — the
-                // original `in_out` buffer is dropped (and zeroized) at end
-                // of scope.
                 let plaintext_slice = in_out.get(..plaintext_len).ok_or_else(|| {
-                    AeadError::DecryptionFailed("plaintext length exceeds buffer".to_string())
+                    AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string())
                 })?;
                 Ok(Zeroizing::new(plaintext_slice.to_vec()))
             }
@@ -655,17 +656,12 @@ mod tests {
         let result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
-        if let Err(AeadError::DecryptionFailed(msg)) = result {
-            // Error message is now opaque to prevent oracle attacks (P5.10),
-            // but the resource-limit path uses a distinct message because the
-            // input length is public.
-            assert!(
-                msg.contains("resource limits") || msg.contains("AEAD"),
-                "Error should be a DecryptionFailed variant: {}",
-                msg
-            );
-        } else {
-            panic!("Expected DecryptionFailed error");
-        }
+        // Round-27 H2: Pattern 6 opacity sweep collapsed every decrypt
+        // failure to the same opaque "decryption failed" string, so this
+        // test now only asserts the variant shape.
+        assert!(
+            matches!(result, Err(AeadError::DecryptionFailed(_))),
+            "Expected DecryptionFailed variant, got {result:?}"
+        );
     }
 }

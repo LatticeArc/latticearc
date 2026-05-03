@@ -30,7 +30,15 @@ mod aes_gcm {
 
     // Any single-bit flip in the authentication tag must make decrypt fail.
     // This is the AES-GCM unforgeability contract (NIST SP 800-38D).
+    // Round-27 M1: Pattern 15 mandates ≥ 256 cases for protocol-critical
+    // crypto properties. AES-GCM encrypt/decrypt is sub-µs in release
+    // mode, so 256 cases per property is well under 1 s overhead.
     proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: 256,
+            .. ProptestConfig::default()
+        })]
+
         #[test]
         fn aes_256_gcm_any_tag_bit_flip_rejects_decrypt(
             plaintext in prop::collection::vec(any::<u8>(), 1..512),
@@ -49,6 +57,11 @@ mod aes_gcm {
 
     // Any single-bit flip in the ciphertext must make decrypt fail.
     proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: 256,
+            .. ProptestConfig::default()
+        })]
+
         #[test]
         fn aes_256_gcm_any_ciphertext_bit_flip_rejects_decrypt(
             plaintext in prop::collection::vec(any::<u8>(), 1..512),
@@ -68,6 +81,11 @@ mod aes_gcm {
 
     // AAD divergence between encrypt and decrypt must fail.
     proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: 256,
+            .. ProptestConfig::default()
+        })]
+
         #[test]
         fn aes_256_gcm_aad_mismatch_rejects_decrypt(
             plaintext in prop::collection::vec(any::<u8>(), 1..256),
@@ -81,6 +99,94 @@ mod aes_gcm {
             let (ct, tag) = cipher.encrypt(&nonce, &plaintext, Some(&aad_a)).expect("encrypt");
             let result = cipher.decrypt(&nonce, &ct, &tag, Some(&aad_b));
             prop_assert!(result.is_err(), "AAD mismatch did not fail decrypt");
+        }
+    }
+}
+
+// =============================================================================
+// ChaCha20-Poly1305 (LatticeArc wrapper): tag/ct/AAD invariants
+// =============================================================================
+// Round-27 L1: the audit flagged that the LatticeArc wrapper around the
+// chacha20poly1305 crate has its own nonce-generation and weak-key guard,
+// but no proptest covers it. Mirrors the AES-GCM coverage above so a
+// regression in either backend is caught by the same shape of test.
+
+#[cfg(not(feature = "fips"))]
+mod chacha20_poly1305 {
+    use super::*;
+    use latticearc::primitives::aead::{AeadCipher, ChaCha20Poly1305Cipher};
+
+    proptest! {
+        // Pattern 15: ≥ 256 cases for unforgeability properties.
+        #![proptest_config(ProptestConfig {
+            cases: 256,
+            .. ProptestConfig::default()
+        })]
+
+        #[test]
+        fn chacha20_any_tag_bit_flip_rejects_decrypt(
+            plaintext in prop::collection::vec(any::<u8>(), 1..512),
+            key in prop::array::uniform32(any::<u8>()),
+            flip_byte in 0usize..16,
+            flip_bit in 0u8..8,
+        ) {
+            let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher init");
+            let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+            let (ct, mut tag) = cipher.encrypt(&nonce, &plaintext, None).expect("encrypt");
+            tag[flip_byte] ^= 1 << flip_bit;
+            let result = cipher.decrypt(&nonce, &ct, &tag, None);
+            prop_assert!(result.is_err(), "tag bit-flip at ({flip_byte},{flip_bit}) did not fail decrypt");
+        }
+
+        #[test]
+        fn chacha20_any_ciphertext_bit_flip_rejects_decrypt(
+            plaintext in prop::collection::vec(any::<u8>(), 1..512),
+            key in prop::array::uniform32(any::<u8>()),
+            flip_index in 0usize..512,
+            flip_bit in 0u8..8,
+        ) {
+            let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher init");
+            let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+            let (mut ct, tag) = cipher.encrypt(&nonce, &plaintext, None).expect("encrypt");
+            prop_assume!(flip_index < ct.len());
+            ct[flip_index] ^= 1 << flip_bit;
+            let result = cipher.decrypt(&nonce, &ct, &tag, None);
+            prop_assert!(result.is_err(), "ciphertext bit-flip at ({flip_index},{flip_bit}) did not fail decrypt");
+        }
+
+        #[test]
+        fn chacha20_aad_mismatch_rejects_decrypt(
+            plaintext in prop::collection::vec(any::<u8>(), 1..256),
+            key in prop::array::uniform32(any::<u8>()),
+            aad_a in prop::collection::vec(any::<u8>(), 0..64),
+            aad_b in prop::collection::vec(any::<u8>(), 0..64),
+        ) {
+            prop_assume!(aad_a != aad_b);
+            let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher init");
+            let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+            let (ct, tag) = cipher.encrypt(&nonce, &plaintext, Some(&aad_a)).expect("encrypt");
+            let result = cipher.decrypt(&nonce, &ct, &tag, Some(&aad_b));
+            prop_assert!(result.is_err(), "AAD mismatch did not fail decrypt");
+        }
+    }
+
+    proptest! {
+        // Pattern 15: 1000 cases for roundtrip properties.
+        #![proptest_config(ProptestConfig {
+            cases: 1000,
+            .. ProptestConfig::default()
+        })]
+
+        #[test]
+        fn chacha20_encrypt_decrypt_roundtrip(
+            plaintext in prop::collection::vec(any::<u8>(), 0..1024),
+            key in prop::array::uniform32(any::<u8>()),
+        ) {
+            let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher init");
+            let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+            let (ct, tag) = cipher.encrypt(&nonce, &plaintext, None).expect("encrypt");
+            let recovered = cipher.decrypt(&nonce, &ct, &tag, None).expect("decrypt");
+            prop_assert_eq!(recovered.as_slice(), plaintext.as_slice());
         }
     }
 }
@@ -214,6 +320,14 @@ mod hmac_sha256 {
     use latticearc::primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
 
     proptest! {
+        // Round-27 M1: Pattern 15 mandates ≥ 256 cases for crypto
+        // unforgeability properties. HMAC verify is sub-µs in release
+        // mode, so 256 cases per property is well under 1 s overhead.
+        #![proptest_config(ProptestConfig {
+            cases: 256,
+            .. ProptestConfig::default()
+        })]
+
         #[test]
         fn hmac_sha256_tag_bit_flip_rejects(
             data in prop::collection::vec(any::<u8>(), 0..512),
@@ -255,6 +369,14 @@ mod roundtrip {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 
     proptest! {
+        // Round-27 M1: Pattern 15 mandates 1000 cases for roundtrip
+        // properties (forward(reverse(x)) == x). AES-GCM encrypt+decrypt
+        // is sub-µs in release mode, so 1000 cases is ~1 s overhead.
+        #![proptest_config(ProptestConfig {
+            cases: 1000,
+            .. ProptestConfig::default()
+        })]
+
         #[test]
         fn aes_256_gcm_encrypt_decrypt_roundtrip(
             plaintext in prop::collection::vec(any::<u8>(), 0..1024),

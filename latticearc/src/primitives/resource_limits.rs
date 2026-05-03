@@ -468,6 +468,27 @@ mod tests {
         assert!(validate_decryption_size(1024).is_ok());
     }
 
+    /// Round-27 M2 (Pattern 14): the `AadSizeLimitExceeded` variant must
+    /// be triggerable through the public API. The default global cap is
+    /// 1 MiB; passing 1 MiB + 1 bytes exceeds it.
+    #[test]
+    fn test_validate_aad_size_oversized_returns_aad_limit_exceeded() {
+        let custom = ResourceLimits::new(10, 1024, 512, 2048);
+        let manager = ResourceLimitsManager::with_limits(ResourceLimits {
+            max_aad_size_bytes: 1024,
+            ..custom
+        });
+        assert!(manager.validate_aad_size(1024).is_ok(), "exact-limit AAD must accept");
+        let err = manager.validate_aad_size(1025).expect_err("AAD over limit must be rejected");
+        match err {
+            ResourceError::AadSizeLimitExceeded { requested, limit } => {
+                assert_eq!(requested, 1025);
+                assert_eq!(limit, 1024);
+            }
+            other => panic!("expected AadSizeLimitExceeded, got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_resource_error_display_fails() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };

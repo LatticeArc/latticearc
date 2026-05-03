@@ -523,6 +523,58 @@ mod tests {
         assert!(!commitment.verify(&opening).unwrap());
     }
 
+    /// Round-27 M3 (Pattern 14): `verify` must return
+    /// `Err(VerificationFailed)` for an opening whose `value` scalar
+    /// reduces to zero. Existing wrong-value tests use a non-zero scalar
+    /// and so hit `Ok(false)` instead — this test exercises the
+    /// "structurally invalid input" branch.
+    #[test]
+    fn test_pedersen_verify_zero_value_returns_verification_failed() {
+        let value = [1u8; 32];
+        let (commitment, mut opening) = PedersenCommitment::commit(&value).unwrap();
+        opening.value = [0u8; 32]; // zero scalar
+
+        let result = commitment.verify(&opening);
+        match result {
+            Err(ZkpError::VerificationFailed) => {}
+            other => panic!("expected Err(VerificationFailed), got {other:?}"),
+        }
+    }
+
+    /// Round-27 M3 (Pattern 14): `verify` must return
+    /// `Err(VerificationFailed)` for an opening whose `blinding` scalar
+    /// reduces to zero.
+    #[test]
+    fn test_pedersen_verify_zero_blinding_returns_verification_failed() {
+        let value = [1u8; 32];
+        let (commitment, mut opening) = PedersenCommitment::commit(&value).unwrap();
+        opening.blinding = [0u8; 32]; // zero blinding
+
+        let result = commitment.verify(&opening);
+        match result {
+            Err(ZkpError::VerificationFailed) => {}
+            other => panic!("expected Err(VerificationFailed), got {other:?}"),
+        }
+    }
+
+    /// Round-27 M3 (Pattern 14): `verify` must return
+    /// `Err(VerificationFailed)` when an opening scalar lies outside the
+    /// secp256k1 field. All-0xFF bytes form 2^256 - 1, well above the
+    /// group order n ≈ 2^256 - 2^32 - 977, so `Scalar::from_repr` returns
+    /// `None` and the verify path takes the malformed-bytes branch.
+    #[test]
+    fn test_pedersen_verify_out_of_field_value_returns_verification_failed() {
+        let value = [1u8; 32];
+        let (commitment, mut opening) = PedersenCommitment::commit(&value).unwrap();
+        opening.value = [0xFFu8; 32]; // out-of-field bytes
+
+        let result = commitment.verify(&opening);
+        match result {
+            Err(ZkpError::VerificationFailed) => {}
+            other => panic!("expected Err(VerificationFailed), got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_pedersen_homomorphic_addition_matches_expected() {
         let v1 = [1u8; 32];

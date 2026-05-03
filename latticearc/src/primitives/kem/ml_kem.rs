@@ -1756,6 +1756,41 @@ mod tests {
         assert!(matches!(config.security_level, MlKemSecurityLevel::MlKem1024));
     }
 
+    /// Pattern 8 Rule 4: parameter-influence test —
+    /// `MlKemConfig.security_level` influences `generate_keypair_with_config`
+    /// (each level produces keys / ciphertexts of distinct sizes per FIPS
+    /// 203). Existing tests only checked struct construction, not effect.
+    #[test]
+    fn test_security_level_influences_generate_keypair_with_config() -> Result<(), MlKemError> {
+        for level in [
+            MlKemSecurityLevel::MlKem512,
+            MlKemSecurityLevel::MlKem768,
+            MlKemSecurityLevel::MlKem1024,
+        ] {
+            let config = MlKemConfig { security_level: level };
+            let (pk, sk) = MlKem::generate_keypair_with_config(config)?;
+            assert_eq!(
+                pk.security_level(),
+                level,
+                "config.security_level={:?} did not propagate to public key",
+                level,
+            );
+            assert_eq!(
+                sk.security_level(),
+                level,
+                "config.security_level={:?} did not propagate to secret key",
+                level,
+            );
+            assert_eq!(
+                pk.as_bytes().len(),
+                level.public_key_size(),
+                "config.security_level={:?} produced wrong public-key size",
+                level,
+            );
+        }
+        Ok(())
+    }
+
     #[test]
     fn test_public_key_security_level_getter_returns_correct_level_succeeds()
     -> Result<(), MlKemError> {

@@ -372,4 +372,110 @@ mod tests {
             assert!(result.is_err());
         }
     }
+
+    // secp256k1 group order n in big-endian. Used to construct high-S
+    // signatures by computing `n - s` for a given low-S `s`. Verified
+    // against SECG SEC2 §2.4.1.
+    const SECP256K1_ORDER_BE: [u8; 32] = [
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFE, 0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36,
+        0x41, 0x41,
+    ];
+
+    /// Negate a 32-byte big-endian scalar mod n: returns `n - s`. Used to
+    /// turn a canonical low-S signature into a malleable high-S form.
+    fn negate_scalar_mod_n(s: [u8; 32]) -> [u8; 32] {
+        // Big-endian subtraction `n - s` with borrow propagation. n > s
+        // for any low-S input (s ≤ n/2), so no underflow.
+        let mut result = [0u8; 32];
+        let mut borrow: i16 = 0;
+        for i in (0..32).rev() {
+            let n_byte = SECP256K1_ORDER_BE[i] as i16;
+            let s_byte = s[i] as i16;
+            let mut diff = n_byte - s_byte - borrow;
+            if diff < 0 {
+                diff += 256;
+                borrow = 1;
+            } else {
+                borrow = 0;
+            }
+            result[i] = diff as u8;
+        }
+        result
+    }
+
+    /// Round-27 H3: high-S signature bytes are rejected by
+    /// `signature_from_bytes` (BIP-146 / EIP-2). The raw byte path is the
+    /// one wire format consumers use, so this is the parse-time gate.
+    #[test]
+    fn test_secp256k1_high_s_signature_from_bytes_rejected() -> Result<()> {
+        let keypair = Secp256k1KeyPair::generate()?;
+        let message = b"high-S parse rejection test";
+        let sig = keypair.sign(message)?;
+        let mut sig_bytes = Secp256k1Signature::signature_bytes(&sig);
+
+        // The k256 signer emits low-S by default. Negate s in place to
+        // produce the high-S form `(r, n - s)`.
+        let mut s_le = [0u8; 32];
+        s_le.copy_from_slice(&sig_bytes[32..64]);
+        let high_s = negate_scalar_mod_n(s_le);
+        sig_bytes[32..64].copy_from_slice(&high_s);
+
+        let parsed = Secp256k1Signature::signature_from_bytes(&sig_bytes);
+        assert!(
+            parsed.is_err(),
+            "high-S signature must be rejected by signature_from_bytes (BIP-146/EIP-2)"
+        );
+        Ok(())
+    }
+
+    /// Round-27 H3: a high-S signature constructed in-process (bypassing
+    /// the parse gate) is rejected by `verify`. This covers the in-memory
+    /// path where a caller has already obtained a `Signature` value.
+    #[test]
+    fn test_secp256k1_high_s_signature_verify_rejected() -> Result<()> {
+        let keypair = Secp256k1KeyPair::generate()?;
+        let message = b"high-S verify rejection test";
+        let sig = keypair.sign(message)?;
+        let sig_bytes = Secp256k1Signature::signature_bytes(&sig);
+
+        // Build the high-S form directly via k256, bypassing
+        // signature_from_bytes which would reject it at parse time.
+        let mut s_le = [0u8; 32];
+        s_le.copy_from_slice(&sig_bytes[32..64]);
+        let high_s = negate_scalar_mod_n(s_le);
+        let mut high_sig_bytes = [0u8; 64];
+        high_sig_bytes[..32].copy_from_slice(&sig_bytes[..32]);
+        high_sig_bytes[32..].copy_from_slice(&high_s);
+
+        // Construct via k256's low-level API (this does NOT reject high-S).
+        let high_sig = Signature::from_slice(&high_sig_bytes)
+            .map_err(|e| LatticeArcError::InvalidSignature(format!("test setup: {e}")))?;
+
+        // Sanity: the test setup actually produced a high-S signature.
+        assert!(
+            high_sig.normalize_s().is_some(),
+            "test setup bug: constructed signature is not high-S"
+        );
+
+        let pk_bytes = keypair.public_key_bytes();
+        let result = Secp256k1Signature::verify(&pk_bytes, message, &high_sig);
+        assert!(result.is_err(), "high-S signature must be rejected by verify (BIP-146/EIP-2)");
+        Ok(())
+    }
+
+    /// Round-27 H3 sanity check: the `negate_scalar_mod_n` test helper
+    /// must compute `n - s` correctly. Verified by checking that
+    /// `negate(negate(s)) == s` for an arbitrary low-S scalar.
+    #[test]
+    fn test_negate_scalar_mod_n_is_involutive() {
+        let s: [u8; 32] = [
+            0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB,
+            0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67,
+            0x89, 0xAB, 0xCD, 0xEF,
+        ];
+        let high = negate_scalar_mod_n(s);
+        let back = negate_scalar_mod_n(high);
+        assert_eq!(back, s, "negate is not involutive — helper is broken");
+    }
 }

@@ -9,6 +9,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-27 self-audit — DESIGN_PATTERNS.md compliance sweep (2026-05-03)
+
+Self-audit against `docs/DESIGN_PATTERNS.md` Sections 1–3 surfaced 11
+findings (2 HIGH, 5 MED, 2 LOW, 3 config-naming nits). All fixed below.
+
+#### BREAKING (require migration)
+
+- **`SlhDsaError::DeserializationError` removed.** The variant was
+  declared but never returned by any production path. SLH-DSA byte-shape
+  errors surface as `InvalidPublicKey` / `InvalidSecretKey` /
+  `VerificationFailed`. Safe under `#[non_exhaustive]`: external
+  matches must already have a fallback arm and no production code ever
+  produced this variant. Pattern compliance: "no speculative code".
+
+#### HIGH — Pattern 5/6 violations
+
+- **`SigningKeypair` no longer leaks secret key via `Debug`.** The
+  derived `Debug` forwarded through `Zeroizing<Vec<u8>>` to the inner
+  `Vec`, so `println!("{:?}", kp)` printed the raw secret. Replaced with
+  a manual `impl Debug` that emits `[REDACTED]` for `secret_key`,
+  matching every other secret type in the codebase
+  (`unified_api/convenience/api.rs`).
+- **AEAD primitives error-string opacity sweep.** `AeadCipher::decrypt`
+  on AES-GCM and ChaCha20-Poly1305 returned four distinguishable
+  failure strings (`"AEAD authentication failed"`, `"plaintext length
+  exceeds buffer"`, `"ciphertext exceeds resource limits"`, `"AAD
+  exceeds resource limits"`) at the public primitives layer — a
+  stage-identifying oracle for direct callers. Collapsed all four to a
+  single opaque `"decryption failed"` string. Higher layers (hybrid,
+  convenience) were already opaque; this closes the primitives-layer
+  re-opening.
+
+#### MED — Pattern 14/15 missing tests
+
+- **secp256k1 high-S rejection negative tests.** Round-26 added BIP-146 /
+  EIP-2 high-S rejection on both `verify` and `signature_from_bytes`,
+  but neither path had a test that constructed a high-S signature.
+  Added three tests: parse-time rejection, verify-time rejection
+  (bypassing parse), and a self-check on the helper's `n - s` math.
+- **`MessageTooLong` negative tests for ML-DSA, SLH-DSA, FN-DSA.** All
+  three signing paths enforce a 64 KiB resource-limit cap; none had a
+  test that exceeded it. Added a per-scheme test that signs a 64 KiB +
+  1 byte message and asserts `MessageTooLong`.
+- **`AadSizeLimitExceeded` triggerability test.** Variant was declared
+  in `ResourceError` (round-26) but had zero coverage. Added a unit
+  test that constructs a manager with a 1 KiB cap and confirms boundary
+  behavior.
+- **`ZkpError::VerificationFailed` malformed-bytes paths.** Existing
+  tests only covered `Ok(false)` (wrong scalar value). Added three
+  tests that supply zero-value, zero-blinding, and out-of-field
+  scalars, asserting `Err(VerificationFailed)` from `PedersenCommitment::verify`.
+- **proptest case counts.** AES-GCM and HMAC-SHA256 modules in
+  `tests/proptest_invariants.rs` ran at proptest's default 100 cases;
+  Pattern 15 mandates ≥ 256 for unforgeability. Bumped to 256. The
+  AES-GCM roundtrip and `EncryptedOutput` JSON/CBOR roundtrip blocks
+  ran at 64; Pattern 15 mandates 1000 for roundtrip properties — bumped
+  to 1000 (microsecond-per-case ops, negligible overhead).
+
+#### LOW — Coverage gaps
+
+- **`AeadError::InvalidNonceLength` structural-unreachability proof.**
+  The `Nonce` type is `[u8; 12]`, so the trait cannot receive any other
+  size. Documented the variant as defence-in-depth and added a test
+  that pins the structural invariant via a compile-time witness.
+- **`CmacError::ComputationError` documentation + structural test.**
+  Both production paths (AES key init failure, block index OOB) are
+  unreachable: key length is validated before `AES::new_from_slice` and
+  block iteration uses computed offsets within `data.len()`. Pinned
+  defence-in-depth status with a test that confirms valid lengths
+  succeed and the variant constructs cleanly.
+- **ChaCha20-Poly1305 LatticeArc-wrapper proptests.** AES-GCM had four
+  proptests (tag flip, ciphertext flip, AAD mismatch, roundtrip);
+  ChaCha20-Poly1305 had none. Added the same four properties with
+  matching ≥ 256 / 1000 case counts.
+
+#### Pattern 8 Rule 4 — config influence test naming
+
+- **Renamed PBKDF2 influence tests** to `test_<field>_influences_pbkdf2`:
+  `test_salt_influences_pbkdf2`, `test_iterations_influences_pbkdf2`,
+  `test_prf_influences_pbkdf2`. Added missing
+  `test_key_length_influences_pbkdf2`.
+- **Renamed CounterKDF influence tests** to
+  `test_<field>_influences_derive_key`: `test_label_influences_derive_key`,
+  `test_context_influences_derive_key`.
+- **Added `test_security_level_influences_generate_keypair_with_config`**
+  for `MlKemConfig.security_level` — previously only tested for struct
+  construction, not for effect on keypair shape.
+
 ### Round-26 audit follow-up — 5 CRIT + 15 HIGH + 26 MED + 35 LOW + 15 NIT (2026-05-02)
 
 External audit of the post–round-25 tree returned ~96 actionable
