@@ -616,64 +616,67 @@
 <a href=#616 id=616 data-nosnippet>616</a>        component: <span class="string">"Ed25519 Keypair"</span>.to_string(),
 <a href=#617 id=617 data-nosnippet>617</a>        status: <span class="macro">format!</span>(<span class="string">"keygen failed: {e}"</span>),
 <a href=#618 id=618 data-nosnippet>618</a>    })<span class="question-mark">?</span>;
-<a href=#619 id=619 data-nosnippet>619</a>    <span class="kw">let </span>signature = keypair.sign(TEST_MESSAGE);
-<a href=#620 id=620 data-nosnippet>620</a>    <span class="kw">let </span>public_key_bytes = keypair.public_key_bytes();
-<a href=#621 id=621 data-nosnippet>621</a>    Ed25519Signature::verify(<span class="kw-2">&amp;</span>public_key_bytes, TEST_MESSAGE, <span class="kw-2">&amp;</span>signature).map_err(|e| {
-<a href=#622 id=622 data-nosnippet>622</a>        CoreError::SelfTestFailed {
-<a href=#623 id=623 data-nosnippet>623</a>            component: <span class="string">"Ed25519 Sign/Verify"</span>.to_string(),
-<a href=#624 id=624 data-nosnippet>624</a>            status: <span class="macro">format!</span>(<span class="string">"valid signature was rejected at startup: {e}"</span>),
-<a href=#625 id=625 data-nosnippet>625</a>        }
-<a href=#626 id=626 data-nosnippet>626</a>    })<span class="question-mark">?</span>;
-<a href=#627 id=627 data-nosnippet>627</a>    <span class="comment">// Negative check: a one-byte change to the message must invalidate
-<a href=#628 id=628 data-nosnippet>628</a>    // the signature, confirming `verify()` actually checks rather than
-<a href=#629 id=629 data-nosnippet>629</a>    // returning `Ok(())` unconditionally. `TEST_MESSAGE` is a fixed-
-<a href=#630 id=630 data-nosnippet>630</a>    // length non-empty literal, so `get_mut(0)` is provably-Some.
-<a href=#631 id=631 data-nosnippet>631</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>tampered = TEST_MESSAGE.to_vec();
-<a href=#632 id=632 data-nosnippet>632</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(b) = tampered.get_mut(<span class="number">0</span>) {
-<a href=#633 id=633 data-nosnippet>633</a>        <span class="kw-2">*</span>b ^= <span class="number">0xFF</span>;
-<a href=#634 id=634 data-nosnippet>634</a>    }
-<a href=#635 id=635 data-nosnippet>635</a>    <span class="kw">if </span>Ed25519Signature::verify(<span class="kw-2">&amp;</span>public_key_bytes, <span class="kw-2">&amp;</span>tampered, <span class="kw-2">&amp;</span>signature).is_ok() {
-<a href=#636 id=636 data-nosnippet>636</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SelfTestFailed {
-<a href=#637 id=637 data-nosnippet>637</a>            component: <span class="string">"Ed25519 Sign/Verify"</span>.to_string(),
-<a href=#638 id=638 data-nosnippet>638</a>            status: <span class="string">"tampered message was incorrectly accepted at startup"</span>.to_string(),
-<a href=#639 id=639 data-nosnippet>639</a>        });
-<a href=#640 id=640 data-nosnippet>640</a>    }
-<a href=#641 id=641 data-nosnippet>641</a>
-<a href=#642 id=642 data-nosnippet>642</a>    <span class="comment">// All tests passed - set self-test status
-<a href=#643 id=643 data-nosnippet>643</a>    </span>SELF_TESTS_PASSED.store(<span class="bool-val">true</span>, Ordering::SeqCst);
-<a href=#644 id=644 data-nosnippet>644</a>    <span class="prelude-val">Ok</span>(())
-<a href=#645 id=645 data-nosnippet>645</a>}
-<a href=#646 id=646 data-nosnippet>646</a>
-<a href=#647 id=647 data-nosnippet>647</a><span class="attr">#[cfg(test)]
-<a href=#648 id=648 data-nosnippet>648</a>#[allow(
-<a href=#649 id=649 data-nosnippet>649</a>    clippy::panic,
-<a href=#650 id=650 data-nosnippet>650</a>    clippy::unwrap_used,
-<a href=#651 id=651 data-nosnippet>651</a>    clippy::expect_used,
-<a href=#652 id=652 data-nosnippet>652</a>    clippy::indexing_slicing,
-<a href=#653 id=653 data-nosnippet>653</a>    clippy::arithmetic_side_effects,
-<a href=#654 id=654 data-nosnippet>654</a>    clippy::panic_in_result_fn,
-<a href=#655 id=655 data-nosnippet>655</a>    clippy::unnecessary_wraps,
-<a href=#656 id=656 data-nosnippet>656</a>    clippy::redundant_clone,
-<a href=#657 id=657 data-nosnippet>657</a>    clippy::useless_vec,
-<a href=#658 id=658 data-nosnippet>658</a>    clippy::cast_possible_truncation,
-<a href=#659 id=659 data-nosnippet>659</a>    clippy::cast_sign_loss,
-<a href=#660 id=660 data-nosnippet>660</a>    clippy::clone_on_copy,
-<a href=#661 id=661 data-nosnippet>661</a>    clippy::len_zero,
-<a href=#662 id=662 data-nosnippet>662</a>    clippy::single_match,
-<a href=#663 id=663 data-nosnippet>663</a>    clippy::unnested_or_patterns,
-<a href=#664 id=664 data-nosnippet>664</a>    clippy::default_constructed_unit_structs,
-<a href=#665 id=665 data-nosnippet>665</a>    clippy::redundant_closure_for_method_calls,
-<a href=#666 id=666 data-nosnippet>666</a>    clippy::semicolon_if_nothing_returned,
-<a href=#667 id=667 data-nosnippet>667</a>    clippy::unnecessary_unwrap,
-<a href=#668 id=668 data-nosnippet>668</a>    clippy::redundant_pattern_matching,
-<a href=#669 id=669 data-nosnippet>669</a>    clippy::missing_const_for_thread_local,
-<a href=#670 id=670 data-nosnippet>670</a>    clippy::get_first,
-<a href=#671 id=671 data-nosnippet>671</a>    clippy::float_cmp,
-<a href=#672 id=672 data-nosnippet>672</a>    clippy::needless_borrows_for_generic_args,
-<a href=#673 id=673 data-nosnippet>673</a>    unused_qualifications
-<a href=#674 id=674 data-nosnippet>674</a>)]
-<a href=#675 id=675 data-nosnippet>675</a></span><span class="kw">mod </span>tests;
-<a href=#676 id=676 data-nosnippet>676</a>
-<a href=#677 id=677 data-nosnippet>677</a><span class="attr">#[cfg(test)]
-<a href=#678 id=678 data-nosnippet>678</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>test_helpers;
+<a href=#619 id=619 data-nosnippet>619</a>    <span class="kw">let </span>signature = keypair.sign(TEST_MESSAGE).map_err(|e| CoreError::SelfTestFailed {
+<a href=#620 id=620 data-nosnippet>620</a>        component: <span class="string">"Ed25519 Sign/Verify"</span>.to_string(),
+<a href=#621 id=621 data-nosnippet>621</a>        status: <span class="macro">format!</span>(<span class="string">"Ed25519 sign failed at startup: {e}"</span>),
+<a href=#622 id=622 data-nosnippet>622</a>    })<span class="question-mark">?</span>;
+<a href=#623 id=623 data-nosnippet>623</a>    <span class="kw">let </span>public_key_bytes = keypair.public_key_bytes();
+<a href=#624 id=624 data-nosnippet>624</a>    Ed25519Signature::verify(<span class="kw-2">&amp;</span>public_key_bytes, TEST_MESSAGE, <span class="kw-2">&amp;</span>signature).map_err(|e| {
+<a href=#625 id=625 data-nosnippet>625</a>        CoreError::SelfTestFailed {
+<a href=#626 id=626 data-nosnippet>626</a>            component: <span class="string">"Ed25519 Sign/Verify"</span>.to_string(),
+<a href=#627 id=627 data-nosnippet>627</a>            status: <span class="macro">format!</span>(<span class="string">"valid signature was rejected at startup: {e}"</span>),
+<a href=#628 id=628 data-nosnippet>628</a>        }
+<a href=#629 id=629 data-nosnippet>629</a>    })<span class="question-mark">?</span>;
+<a href=#630 id=630 data-nosnippet>630</a>    <span class="comment">// Negative check: a one-byte change to the message must invalidate
+<a href=#631 id=631 data-nosnippet>631</a>    // the signature, confirming `verify()` actually checks rather than
+<a href=#632 id=632 data-nosnippet>632</a>    // returning `Ok(())` unconditionally. `TEST_MESSAGE` is a fixed-
+<a href=#633 id=633 data-nosnippet>633</a>    // length non-empty literal, so `get_mut(0)` is provably-Some.
+<a href=#634 id=634 data-nosnippet>634</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>tampered = TEST_MESSAGE.to_vec();
+<a href=#635 id=635 data-nosnippet>635</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(b) = tampered.get_mut(<span class="number">0</span>) {
+<a href=#636 id=636 data-nosnippet>636</a>        <span class="kw-2">*</span>b ^= <span class="number">0xFF</span>;
+<a href=#637 id=637 data-nosnippet>637</a>    }
+<a href=#638 id=638 data-nosnippet>638</a>    <span class="kw">if </span>Ed25519Signature::verify(<span class="kw-2">&amp;</span>public_key_bytes, <span class="kw-2">&amp;</span>tampered, <span class="kw-2">&amp;</span>signature).is_ok() {
+<a href=#639 id=639 data-nosnippet>639</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SelfTestFailed {
+<a href=#640 id=640 data-nosnippet>640</a>            component: <span class="string">"Ed25519 Sign/Verify"</span>.to_string(),
+<a href=#641 id=641 data-nosnippet>641</a>            status: <span class="string">"tampered message was incorrectly accepted at startup"</span>.to_string(),
+<a href=#642 id=642 data-nosnippet>642</a>        });
+<a href=#643 id=643 data-nosnippet>643</a>    }
+<a href=#644 id=644 data-nosnippet>644</a>
+<a href=#645 id=645 data-nosnippet>645</a>    <span class="comment">// All tests passed - set self-test status
+<a href=#646 id=646 data-nosnippet>646</a>    </span>SELF_TESTS_PASSED.store(<span class="bool-val">true</span>, Ordering::SeqCst);
+<a href=#647 id=647 data-nosnippet>647</a>    <span class="prelude-val">Ok</span>(())
+<a href=#648 id=648 data-nosnippet>648</a>}
+<a href=#649 id=649 data-nosnippet>649</a>
+<a href=#650 id=650 data-nosnippet>650</a><span class="attr">#[cfg(test)]
+<a href=#651 id=651 data-nosnippet>651</a>#[allow(
+<a href=#652 id=652 data-nosnippet>652</a>    clippy::panic,
+<a href=#653 id=653 data-nosnippet>653</a>    clippy::unwrap_used,
+<a href=#654 id=654 data-nosnippet>654</a>    clippy::expect_used,
+<a href=#655 id=655 data-nosnippet>655</a>    clippy::indexing_slicing,
+<a href=#656 id=656 data-nosnippet>656</a>    clippy::arithmetic_side_effects,
+<a href=#657 id=657 data-nosnippet>657</a>    clippy::panic_in_result_fn,
+<a href=#658 id=658 data-nosnippet>658</a>    clippy::unnecessary_wraps,
+<a href=#659 id=659 data-nosnippet>659</a>    clippy::redundant_clone,
+<a href=#660 id=660 data-nosnippet>660</a>    clippy::useless_vec,
+<a href=#661 id=661 data-nosnippet>661</a>    clippy::cast_possible_truncation,
+<a href=#662 id=662 data-nosnippet>662</a>    clippy::cast_sign_loss,
+<a href=#663 id=663 data-nosnippet>663</a>    clippy::clone_on_copy,
+<a href=#664 id=664 data-nosnippet>664</a>    clippy::len_zero,
+<a href=#665 id=665 data-nosnippet>665</a>    clippy::single_match,
+<a href=#666 id=666 data-nosnippet>666</a>    clippy::unnested_or_patterns,
+<a href=#667 id=667 data-nosnippet>667</a>    clippy::default_constructed_unit_structs,
+<a href=#668 id=668 data-nosnippet>668</a>    clippy::redundant_closure_for_method_calls,
+<a href=#669 id=669 data-nosnippet>669</a>    clippy::semicolon_if_nothing_returned,
+<a href=#670 id=670 data-nosnippet>670</a>    clippy::unnecessary_unwrap,
+<a href=#671 id=671 data-nosnippet>671</a>    clippy::redundant_pattern_matching,
+<a href=#672 id=672 data-nosnippet>672</a>    clippy::missing_const_for_thread_local,
+<a href=#673 id=673 data-nosnippet>673</a>    clippy::get_first,
+<a href=#674 id=674 data-nosnippet>674</a>    clippy::float_cmp,
+<a href=#675 id=675 data-nosnippet>675</a>    clippy::needless_borrows_for_generic_args,
+<a href=#676 id=676 data-nosnippet>676</a>    unused_qualifications
+<a href=#677 id=677 data-nosnippet>677</a>)]
+<a href=#678 id=678 data-nosnippet>678</a></span><span class="kw">mod </span>tests;
+<a href=#679 id=679 data-nosnippet>679</a>
+<a href=#680 id=680 data-nosnippet>680</a><span class="attr">#[cfg(test)]
+<a href=#681 id=681 data-nosnippet>681</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>test_helpers;
 </code></pre></div></section></main></body></html>
