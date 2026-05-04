@@ -235,7 +235,8 @@ fn test_ml_dsa_modified_signature_fails() {
         MlDsaParameterSet::MlDsa44,
     );
 
-    assert!(result.is_err(), "Modified signature should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Modified signature should fail verification");
 }
 
 #[test]
@@ -256,7 +257,8 @@ fn test_ml_dsa_wrong_message_fails() {
         MlDsaParameterSet::MlDsa44,
     );
 
-    assert!(result.is_err(), "Wrong message should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Wrong message should fail verification");
 }
 
 #[test]
@@ -316,7 +318,8 @@ fn test_ml_dsa_wrong_public_key_fails() {
         MlDsaParameterSet::MlDsa44,
     );
 
-    assert!(result.is_err(), "Wrong public key should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Wrong public key should fail verification");
 }
 
 #[test]
@@ -338,7 +341,8 @@ fn test_ml_dsa_corrupted_public_key_returns_error() {
     let result =
         verify_pq_ml_dsa_unverified(message, &signature, &pk_bytes, MlDsaParameterSet::MlDsa44);
 
-    assert!(result.is_err(), "Corrupted public key should fail");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Corrupted public key should fail");
 }
 
 // ============================================================================
@@ -692,7 +696,8 @@ fn test_slh_dsa_modified_signature_fails() {
         SlhDsaSecurityLevel::Shake128s,
     );
 
-    assert!(result.is_err(), "Modified signature should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Modified signature should fail verification");
 }
 
 #[test]
@@ -716,7 +721,8 @@ fn test_slh_dsa_wrong_message_fails() {
         SlhDsaSecurityLevel::Shake128s,
     );
 
-    assert!(result.is_err(), "Wrong message should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Wrong message should fail verification");
 }
 
 // ============================================================================
@@ -769,7 +775,8 @@ fn test_slh_dsa_wrong_public_key_fails() {
         SlhDsaSecurityLevel::Shake128s,
     );
 
-    assert!(result.is_err(), "Wrong public key should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Wrong public key should fail verification");
 }
 
 // ============================================================================
@@ -991,7 +998,8 @@ fn test_fn_dsa_modified_signature_fails() {
         FnDsaSecurityLevel::Level512,
     );
 
-    assert!(result.is_err(), "Modified signature should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Modified signature should fail verification");
 }
 
 #[test]
@@ -1014,7 +1022,8 @@ fn test_fn_dsa_wrong_message_fails() {
         FnDsaSecurityLevel::Level512,
     );
 
-    assert!(result.is_err(), "Wrong message should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Wrong message should fail verification");
 }
 
 #[test]
@@ -1082,7 +1091,8 @@ fn test_fn_dsa_wrong_public_key_fails() {
         FnDsaSecurityLevel::Level512,
     );
 
-    assert!(result.is_err(), "Wrong public key should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Wrong public key should fail verification");
 }
 
 // ============================================================================
@@ -1159,7 +1169,8 @@ fn test_ml_dsa_signature_with_slh_dsa_key_fails() {
         SlhDsaSecurityLevel::Shake128s,
     );
 
-    assert!(result.is_err(), "ML-DSA signature should not verify with SLH-DSA key");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "ML-DSA signature should not verify with SLH-DSA key");
 }
 
 #[test]
@@ -1184,7 +1195,8 @@ fn test_slh_dsa_signature_with_fn_dsa_key_fails() {
         FnDsaSecurityLevel::Level512,
     );
 
-    assert!(result.is_err(), "SLH-DSA signature should not verify with FN-DSA key");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "SLH-DSA signature should not verify with FN-DSA key");
 }
 
 #[test]
@@ -1274,7 +1286,8 @@ fn test_slh_dsa_empty_signature_returns_error() {
         SlhDsaSecurityLevel::Shake128s,
     );
 
-    assert!(result.is_err(), "Empty signature should fail verification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "Empty signature should fail verification");
 }
 
 #[test]

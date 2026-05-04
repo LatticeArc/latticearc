@@ -491,11 +491,8 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "Verification should fail with different keypair");
-        match result {
-            Err(CoreError::VerificationFailed) => {}
-            _ => panic!("Expected VerificationFailed error, got {:?}", result),
-        }
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "Verification should fail with different keypair");
     }
 
     #[test]
@@ -522,7 +519,12 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "ML-DSA-65 verification should fail with different keypair");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "ML-DSA-65 verification should fail with different keypair"
+        );
     }
 
     #[test]
@@ -549,7 +551,12 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "ML-DSA-87 verification should fail with different keypair");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "ML-DSA-87 verification should fail with different keypair"
+        );
     }
 
     #[test]
@@ -576,7 +583,12 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "SLH-DSA verification should fail with different keypair");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "SLH-DSA verification should fail with different keypair"
+        );
     }
 
     #[test]
@@ -601,7 +613,12 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "FN-DSA verification should fail with different keypair");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "FN-DSA verification should fail with different keypair"
+        );
     }
 
     // ============================================================================
@@ -637,7 +654,8 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "Corrupted signature should be rejected");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "Corrupted signature should be rejected");
     }
 
     #[test]
@@ -666,7 +684,8 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "Signature with corrupted first byte should fail");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "Signature with corrupted first byte should fail");
     }
 
     #[test]
@@ -696,7 +715,8 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "Signature with corrupted last byte should fail");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "Signature with corrupted last byte should fail");
     }
 
     #[test]
@@ -727,7 +747,8 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "SLH-DSA corrupted signature should be rejected");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "SLH-DSA corrupted signature should be rejected");
     }
 
     #[test]
@@ -757,7 +778,8 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "FN-DSA corrupted signature should be rejected");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "FN-DSA corrupted signature should be rejected");
     }
 
     // ============================================================================
@@ -1571,7 +1593,8 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "Signature should not verify different message");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "Signature should not verify different message");
     }
 
     #[test]
@@ -1598,7 +1621,12 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        assert!(result.is_err(), "SLH-DSA signature should not verify different message");
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "SLH-DSA signature should not verify different message"
+        );
     }
 
     // ============================================================================
@@ -1782,7 +1810,10 @@ mod error_paths {
             &bad_pk,
             SlhDsaSecurityLevel::Shake128s,
         );
-        assert!(result.is_err());
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // SLH-DSA has no pre-map_verify_result sig parse; wrong-length bytes reach
+        // pk.verify() and are collapsed by map_verify_result to Ok(false).
+        assert_eq!(result.ok(), Some(false));
     }
 
     #[test]
@@ -1847,16 +1878,19 @@ mod error_paths {
 
     #[test]
     fn test_fn_dsa_verify_invalid_sig_format_returns_error() {
-        // Generate real keypair, then provide bad signature
+        // Round-28 H6: FnDsaSignature::from_bytes only rejects empty,
+        // so a 100-byte 0xFF blob passes parse and reaches pk.verify(),
+        // where the malformed-signature failure is collapsed to
+        // Ok(false) by map_verify_result (Pattern 6).
         let (pk, _sk) = generate_fn_dsa_keypair().unwrap();
-        let bad_sig = vec![0xFFu8; 100]; // invalid format
+        let bad_sig = vec![0xFFu8; 100]; // wrong length, non-empty
         let result = verify_pq_fn_dsa_unverified(
             b"test",
             &bad_sig,
             pk.as_slice(),
             FnDsaSecurityLevel::Level512,
         );
-        assert!(result.is_err());
+        assert_eq!(result.ok(), Some(false), "invalid sig format must yield Ok(false)");
     }
 }
 

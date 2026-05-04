@@ -41,13 +41,10 @@
 use latticearc::primitives::sig::{
     fndsa::FnDsaSecurityLevel, ml_dsa::MlDsaParameterSet, slh_dsa::SlhDsaSecurityLevel,
 };
-use latticearc::unified_api::{
-    convenience::{
-        generate_fn_dsa_keypair, generate_ml_dsa_keypair, generate_slh_dsa_keypair,
-        sign_pq_fn_dsa_unverified, sign_pq_ml_dsa_unverified, sign_pq_slh_dsa_unverified,
-        verify_pq_fn_dsa_unverified, verify_pq_ml_dsa_unverified, verify_pq_slh_dsa_unverified,
-    },
-    error::CoreError,
+use latticearc::unified_api::convenience::{
+    generate_fn_dsa_keypair, generate_ml_dsa_keypair, generate_slh_dsa_keypair,
+    sign_pq_fn_dsa_unverified, sign_pq_ml_dsa_unverified, sign_pq_slh_dsa_unverified,
+    verify_pq_fn_dsa_unverified, verify_pq_ml_dsa_unverified, verify_pq_slh_dsa_unverified,
 };
 
 // ============================================================================
@@ -186,14 +183,8 @@ fn test_ml_dsa_verify_corrupted_signature_fails() {
         public_key.as_slice(),
         MlDsaParameterSet::MlDsa44,
     );
-    assert!(result.is_err(), "Should fail with corrupted signature");
-
-    match result {
-        Err(CoreError::VerificationFailed) | Err(CoreError::InvalidInput(_)) => {
-            // Expected error types
-        }
-        _ => panic!("Expected VerificationFailed or InvalidInput, got {:?}", result),
-    }
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "corrupted signature must yield Ok(false)");
 }
 
 #[test]
@@ -213,14 +204,8 @@ fn test_ml_dsa_verify_modified_message_fails() {
         public_key.as_slice(),
         MlDsaParameterSet::MlDsa44,
     );
-    assert!(result.is_err(), "Should fail when message is modified");
-
-    match result {
-        Err(CoreError::VerificationFailed) => {
-            // Expected error
-        }
-        _ => panic!("Expected VerificationFailed, got {:?}", result),
-    }
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "modified message must yield Ok(false)");
 }
 
 // ============================================================================
@@ -277,21 +262,14 @@ fn test_ml_dsa_verify_with_wrong_public_key_fails() {
     )
     .expect("signing should succeed");
 
-    // Try to verify with different public key
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
     let result = verify_pq_ml_dsa_unverified(
         message,
         &signature,
         public_key_2.as_slice(),
         MlDsaParameterSet::MlDsa44,
     );
-    assert!(result.is_err(), "Should fail with wrong public key");
-
-    match result {
-        Err(CoreError::VerificationFailed) => {
-            // Expected error
-        }
-        _ => panic!("Expected VerificationFailed, got {:?}", result),
-    }
+    assert_eq!(result.ok(), Some(false), "wrong public key must yield Ok(false)");
 }
 
 // ============================================================================
@@ -321,7 +299,8 @@ fn test_slh_dsa_verify_empty_signature_fails() {
         public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    assert!(result.is_err(), "Should fail with empty signature");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "empty signature must yield Ok(false)");
 }
 
 #[test]
@@ -348,7 +327,8 @@ fn test_slh_dsa_verify_corrupted_signature_fails() {
         public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    assert!(result.is_err(), "Should fail with corrupted signature");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "corrupted signature must yield Ok(false)");
 }
 
 #[test]
@@ -373,7 +353,8 @@ fn test_slh_dsa_verify_truncated_signature_fails() {
         public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    assert!(result.is_err(), "Should fail with truncated signature");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "truncated signature must yield Ok(false)");
 }
 
 #[test]
@@ -406,14 +387,14 @@ fn test_slh_dsa_verify_wrong_public_key_fails() {
     )
     .expect("signing should succeed");
 
-    // Verify with different public key
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
     let result = verify_pq_slh_dsa_unverified(
         message,
         &signature,
         public_key_2.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    assert!(result.is_err(), "Should fail with wrong public key");
+    assert_eq!(result.ok(), Some(false), "wrong public key must yield Ok(false)");
 }
 
 // ============================================================================
@@ -468,7 +449,8 @@ fn test_fn_dsa_verify_corrupted_signature_fails() {
         public_key.as_slice(),
         FnDsaSecurityLevel::Level512,
     );
-    assert!(result.is_err(), "Should fail with corrupted signature");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "corrupted signature must yield Ok(false)");
 }
 
 #[test]
@@ -495,14 +477,14 @@ fn test_fn_dsa_verify_wrong_public_key_fails() {
     )
     .expect("signing should succeed");
 
-    // Verify with different public key
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
     let result = verify_pq_fn_dsa_unverified(
         message,
         &signature,
         public_key_2.as_slice(),
         FnDsaSecurityLevel::Level512,
     );
-    assert!(result.is_err(), "Should fail with wrong public key");
+    assert_eq!(result.ok(), Some(false), "wrong public key must yield Ok(false)");
 }
 
 #[test]
@@ -519,7 +501,8 @@ fn test_fn_dsa_verify_junk_signature_fails() {
         public_key.as_slice(),
         FnDsaSecurityLevel::Level512,
     );
-    assert!(result.is_err(), "Should fail with junk signature");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "junk signature must yield Ok(false)");
 }
 
 // ============================================================================
@@ -541,15 +524,18 @@ fn test_ml_dsa_signature_with_slh_dsa_verify_fails() {
     )
     .expect("signing should succeed");
 
-    // Try to verify ML-DSA signature with SLH-DSA
-    // This should fail due to key/signature format mismatch
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
     let result = verify_pq_slh_dsa_unverified(
         message,
         &ml_signature,
         slh_public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    assert!(result.is_err(), "Should fail when mixing ML-DSA and SLH-DSA");
+    assert_eq!(
+        result.ok(),
+        Some(false),
+        "ML-DSA signature with SLH-DSA verify must yield Ok(false)"
+    );
 }
 
 // ============================================================================
@@ -627,5 +613,6 @@ fn test_fn_dsa_verify_modified_single_bit_fails() {
         public_key.as_slice(),
         FnDsaSecurityLevel::Level512,
     );
-    assert!(result.is_err(), "Should fail with single bit modification");
+    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    assert_eq!(result.ok(), Some(false), "single-bit modification must yield Ok(false)");
 }

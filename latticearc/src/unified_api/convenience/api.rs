@@ -780,6 +780,19 @@ impl From<(Vec<u8>, Zeroizing<Vec<u8>>, String)> for SigningKeypair {
     }
 }
 
+// Round-28 M2 (Pattern 5 follow-up): the struct's manual `Debug` impl
+// redacts `secret_key`, but this `From<SigningKeypair>` for a tuple
+// re-exposes raw `Zeroizing<Vec<u8>>` whose `Debug` forwards to the
+// inner `Vec<u8>` — `dbg!(&tuple)` then prints the secret bytes.
+// `#[deprecated]` cannot be attached to trait impl blocks (rustc
+// rejects it as of 1.x), so the warning lives here instead: callers
+// MUST NOT round-trip a `SigningKeypair` through a tuple if any
+// `Debug`/`format!("{:?}")` site can observe it. Use the named-field
+// shape end-to-end. The reverse `From<tuple>` direction (above) is
+// safe because it consumes the tuple immediately into the struct.
+//
+// This impl exists for backwards compatibility with pre-named-field
+// callers and will be removed in a future major bump.
 impl From<SigningKeypair> for (Vec<u8>, Zeroizing<Vec<u8>>, String) {
     fn from(kp: SigningKeypair) -> Self {
         (kp.public_key, kp.secret_key, kp.scheme)
@@ -1286,6 +1299,16 @@ mod tests {
     use crate::types::types::CryptoScheme;
     use crate::unified_api::test_helpers::non_fips_config;
     use crate::{CryptoConfig, CryptoMode, SecurityLevel, UseCase};
+    use static_assertions::assert_not_impl_any;
+
+    // Round-28 M3 (Pattern 5 follow-up): SigningKeypair holds
+    // `Zeroizing<Vec<u8>>` for the secret key. A future contributor
+    // deriving `PartialEq`/`Eq` would route equality through Vec's
+    // short-circuiting `==`, leaking secret-prefix-agreement timing.
+    // The integration-level `tests/no_partial_eq_on_secret_types.rs`
+    // can't reach `SigningKeypair` (it's `pub` inside a private
+    // module), so the matching guard lives here.
+    assert_not_impl_any!(SigningKeypair: PartialEq, Eq);
 
     /// Helper: generate keypair + sign + return signed data
     fn sign_message(message: &[u8], config: CryptoConfig) -> Result<SignedData> {

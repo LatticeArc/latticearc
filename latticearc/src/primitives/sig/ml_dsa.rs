@@ -170,8 +170,15 @@ pub enum MlDsaError {
 
     /// Message length exceeds the configured resource limit.
     ///
-    /// Shape matches `SlhDsaError::MessageTooLong` and the FN-DSA sibling;
-    /// unit variant, no payload (the length is already known to the sender).
+    /// Round-28 H7: kept for ABI compatibility but no longer returned from
+    /// `sign()` — the cap-rejection now collapses to `SigningError` so the
+    /// sign path matches Pattern 6 opacity (round-26 M1 closed the verify
+    /// side; this completes the sign-side symmetry). Mirrors the
+    /// deprecation on `SlhDsaError::MessageTooLong` and
+    /// `FnDsaError::MessageTooLong`. Will be removed in a future major
+    /// bump alongside its siblings.
+    #[deprecated(note = "Round-28 H7: sign() now returns SigningError for cap rejection; \
+                this variant is no longer reachable from production code.")]
     #[error("Message exceeds signature resource limit")]
     MessageTooLong,
 
@@ -384,7 +391,9 @@ impl MlDsaSecretKey {
     ///
     /// `context` is the FIPS 204 context string; pass `&[]` for domain-neutral
     /// signatures. Messages longer than the configured resource limit are
-    /// rejected with [`MlDsaError::MessageTooLong`].
+    /// rejected with [`MlDsaError::SigningError`] (round-28 H7 collapsed
+    /// the previous `MessageTooLong` variant for Pattern 6 sign-side
+    /// opacity; the `MessageTooLong` variant is now `#[deprecated]`).
     ///
     /// # Errors
     /// Returns an error if signing fails, the key fails to parse at the
@@ -392,9 +401,18 @@ impl MlDsaSecretKey {
     #[instrument(level = "debug", skip(self, message, context), fields(parameter_set = ?self.parameter_set(), message_len = message.len(), context_len = context.len()))]
     pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<MlDsaSignature, MlDsaError> {
         // DoS bound: primitive callers bypass unified_api's resource limits.
-        // Guard the signing hot path against unbounded messages.
-        crate::primitives::resource_limits::validate_signature_size(message.len())
-            .map_err(|_e| MlDsaError::MessageTooLong)?;
+        // Round-28 H7 (Pattern 6): collapse the resource-cap rejection to
+        // the same opaque `SigningError` the rest of the path uses. The
+        // previous distinguishable `MessageTooLong` variant leaked the
+        // configured cap to any caller (including privileged processes
+        // probing message lengths). Round-26 M1 already collapsed the
+        // verify-side; this completes the symmetry on the sign-side.
+        crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
+            |e| {
+                tracing::debug!(error = ?e, msg_len = message.len(), "ML-DSA sign rejected: message exceeds resource limit");
+                MlDsaError::SigningError("ML-DSA signing failed".to_string())
+            },
+        )?;
 
         let parameter_set = self.parameter_set();
 
@@ -1325,19 +1343,18 @@ mod tests {
         assert_eq!(sk.parameter_set(), MlDsaParameterSet::MlDsa65);
     }
 
-    /// Round-27 H5 (Pattern 14): the `MessageTooLong` variant must be
-    /// triggerable through the public sign path. The default global
-    /// signature-size limit is 64 KiB; passing 64 KiB + 1 bytes exceeds
-    /// the cap and the signing path returns `MlDsaError::MessageTooLong`
-    /// before reaching the upstream `ml-dsa` crate.
+    /// Round-27 H5 + Round-28 H7 (Pattern 14 + Pattern 6): oversized
+    /// message must be rejected by `sign()` before reaching the upstream
+    /// crate. Round-28 collapsed the cap-rejection variant to the opaque
+    /// `SigningError` (was distinguishable `MessageTooLong`) so a caller
+    /// probing the cap cannot recover its configured value from the
+    /// returned variant.
     #[test]
-    fn test_ml_dsa_sign_oversized_message_returns_message_too_long() {
+    fn test_ml_dsa_sign_oversized_message_rejects_opaquely() {
         let (_pk, sk) =
             generate_keypair(MlDsaParameterSet::MlDsa65).expect("Key generation should succeed");
-        // Default cap is 64 KiB (65,536). Use 65 KiB + 1 byte = 66,561 to
-        // exceed it without inflating the test memory footprint.
         let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
         let err = sk.sign(&oversize, b"").expect_err("oversized message must be rejected");
-        assert!(matches!(err, MlDsaError::MessageTooLong), "expected MessageTooLong, got {err:?}");
+        assert!(matches!(err, MlDsaError::SigningError(_)), "expected SigningError, got {err:?}");
     }
 }

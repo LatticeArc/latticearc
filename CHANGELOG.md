@@ -9,6 +9,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-28 audit follow-up — 7 HIGH + 4 MED + regression coverage (2026-05-03)
+
+External audit of the post-round-27 tree returned 14 actionable findings.
+Validated each against actual code (4 partial — 2 deferred as semantic-
+correct, 1 defended by existing invariant, 1 already covered). Applied
+the rest with no defers.
+
+#### BREAKING (require migration)
+
+- **`SlhDsaError::MessageTooLong` and `FnDsaError::MessageTooLong`**
+  marked `#[deprecated]` and no longer returned from `sign()` paths —
+  the cap-rejection now collapses to `SigningFailed` (Pattern 6 sign-
+  side opacity, mirroring round-26 M1 verify-side). The variants remain
+  in the enum for ABI compat under `#[non_exhaustive]`; will be removed
+  in a future major bump. `MlDsaError::MessageTooLong` was already
+  reachable; the cap-rejection path now maps to `MlDsaError::SigningError`.
+- **CLI keyfile helpers gain an `overwrite: bool` parameter.** The 5
+  helpers (`write_key`, `write_key_protected`,
+  `write_key_protected_with_metadata`, `write_composite_key`,
+  `write_composite_key_protected`) now thread CLI `--force` through to
+  `PortableKey::write_to_file_with_overwrite`. Internal API change only
+  (helpers are `pub(crate)`); no public API impact.
+
+#### HIGH — Pattern 6 / 14
+
+- **AES-GCM and ChaCha20-Poly1305 encrypt path opacity sweep.**
+  Round-27 H2 collapsed the decrypt path; the encrypt path still had 6
+  distinguishable error strings (`"plaintext exceeds resource limits"`,
+  `"AAD exceeds resource limits"`, `"AEAD seal failed"`, `"ciphertext
+  too short"`, `"invalid ciphertext length"`, `"invalid tag offset"`).
+  Collapsed to a single `ENCRYPTION_FAILED` constant per cipher.
+- **ECDH `agree()` validate routing.** Round-26 L18 added an all-zero-
+  coordinate rejection to `EcdhP{256,384,521}PublicKey::validate()` but
+  the production `agree()` paths constructed `UnparsedPublicKey`
+  directly, bypassing validation. aws-lc-rs's curve-point check is the
+  baseline (so this was defense-in-depth), but the LatticeArc-side
+  validator is now consistently reachable on every production path.
+- **CLI decrypt uniform error.** Round-26 M19 claimed uniform
+  `"Decryption failed: <scheme>"` but the implementation had
+  `(symmetric)` / `(hybrid)` / `(pq-only)` parentheticals plus `{e}`
+  interpolation of inner library wording. Replaced with bare
+  `"Decryption failed"`; per-stage cause goes to `tracing::debug!`.
+- **CLI keygen `--force`.** Previously had no overwrite escape hatch.
+  Re-running keygen over a stale keypair failed on the first SK-write
+  (round-8 fix #4 wrote SK first to avoid orphan PKs); the inverse
+  failure mode still bit users. New `--force` threads through all 4
+  CLI write sites and the 5 keyfile helpers.
+- **`key_format.rs:2262` salt-length truncation.** Round-26 L1/L2
+  collapsed `unwrap_or(u32::MAX)` saturation at four other length-
+  prefix sites; this one in the AAD-builder for the encrypted
+  envelope was missed. Replaced with `try_from(...).map_err(...)?`
+  that propagates as `SerializationError("kdf_salt exceeds u32::MAX
+  bytes")`.
+- **`pq_sig::map_verify_result` Err opacity.** Round-27 H7 closed the
+  same Pattern 6 re-opening at convenience-layer string sites but
+  missed this central mapper. The `Err(_)` branch interpolated
+  `{alg}` and upstream `{e}`. Now all rejections (proper-shape +
+  parse-failure) collapse to `Ok(false)` with `tracing::debug!`
+  capturing the cause.
+- **PQ-sig sign-side `MessageTooLong` opacity.** Round-26 M1
+  explicitly collapsed verify-side only. Round-28 closes the
+  symmetry: ML-DSA `sign()` returns `SigningError("ML-DSA signing
+  failed")` on cap-rejection (was distinguishable `MessageTooLong`);
+  SLH-DSA / FN-DSA gain new `SigningFailed` variants.
+
+#### MED
+
+- **`hybrid_sig_error_to_core` split verify/sign.** The shared mapper
+  leaked ML-DSA-vs-Ed25519 component identity on the verify path
+  (`"Hybrid ML-DSA error: ..."` vs `"Hybrid Ed25519 error: ..."`).
+  `verify_hybrid_signature` now collapses every `Err` to `Ok(false)`
+  via `tracing::debug!`; the sign-side mapper retains diagnostics.
+- **`SigningKeypair` tuple `Debug` leak documented.** The struct's
+  manual `Debug` redacts `secret_key`, but `From<SigningKeypair>` for
+  a tuple re-exposes raw `Zeroizing<Vec<u8>>` whose `Debug` forwards
+  to `Vec<u8>`. Rust does not allow `#[deprecated]` on trait impls,
+  so the leak is documented inline; a future major bump removes the
+  tuple form entirely.
+- **`SigningKeypair` no_partial_eq guard.** Inline
+  `assert_not_impl_any!(SigningKeypair: PartialEq, Eq)` in the api
+  module's tests block. The integration-level guard at
+  `tests/no_partial_eq_on_secret_types.rs` cannot reach the type
+  (it is `pub` inside a private module); the inline guard is the
+  regression blocker.
+- **NTT primitive-root comment cleanup.** The round-26 M3 fix is
+  mathematically correct but the explanatory comment had an internal
+  contradiction ("49^512 ≡ -1" then "49^512 ≡ 1 (i.e. it has order
+  1024)"). Rewritten for consistency.
+
+#### Regression coverage
+
+- `latticearc/tests/round26_behavior.rs` and
+  `latticearc/tests/round27_behavior.rs` added, mirroring the
+  round20/21_behavior.rs convention. 5 + 4 tests covering the
+  load-bearing security properties (Pattern 6 opacity, channel
+  binding, resource caps, key validation, dead-variant absence,
+  high-S parse rejection). Each test passes against the fixed code
+  and would fail if the fix is reverted.
+
+#### Deferred
+
+- **H-V6 (key_lifecycle.rs:324 `unwrap_or(u32::MAX)`)**: deferred —
+  the saturation IS the documented "always require rotation" semantic
+  (`age >= rotation_interval` returns true at u32::MAX). Functionally
+  correct; the comment makes the intent explicit.
+- **M-V1 (`embedded_public_key_bytes` debug_assert!)**: deferred —
+  `data` is private and `MlKemSecretKey::new` enforces `data.len() ==
+  sk_size`. The invariant cannot be violated through the public API,
+  so converting to `Result<&[u8]>` would force every caller to handle
+  a never-fires error.
+
 ### Round-27 self-audit — DESIGN_PATTERNS.md compliance sweep (2026-05-03)
 
 Self-audit against `docs/DESIGN_PATTERNS.md` Sections 1–3 surfaced 11

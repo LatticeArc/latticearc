@@ -107,7 +107,21 @@ pub fn verify_hybrid_signature(
         return Ok(false);
     }
 
-    sig_hybrid::verify(pk, message, signature).map_err(hybrid_sig_error_to_core)
+    // Round-28 M1 (Pattern 6): every adversary-reachable verify failure
+    // collapses to `Ok(false)` here. The previous mapping went through
+    // `hybrid_sig_error_to_core`, which kept distinguishable
+    // `Hybrid ML-DSA error: ...` vs `Hybrid Ed25519 error: ...`
+    // strings — an adversary injecting malformed bytes for one half
+    // could learn which component rejected. The sign-side mapper
+    // (`hybrid_sig_error_to_core`) still keeps diagnostics for sign-side
+    // failures where the SK holder is presumed authorized.
+    match sig_hybrid::verify(pk, message, signature) {
+        Ok(b) => Ok(b),
+        Err(e) => {
+            tracing::debug!(error = ?e, "hybrid sig verify rejected (Err mapped to Ok(false))");
+            Ok(false)
+        }
+    }
 }
 
 /// Generate a hybrid signing keypair with configuration validation.
@@ -300,7 +314,8 @@ mod tests {
         let signature = sign_hybrid_unverified(b"correct message", &sk)?;
         let result = verify_hybrid_signature_unverified(b"wrong message", &signature, &pk);
 
-        assert!(result.is_err(), "Wrong message should fail verification");
+        // Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "Wrong message must yield Ok(false), not Err");
         Ok(())
     }
 
@@ -313,7 +328,8 @@ mod tests {
         let signature = sign_hybrid_unverified(message, &sk1)?;
         let result = verify_hybrid_signature_unverified(message, &signature, &pk2);
 
-        assert!(result.is_err(), "Wrong key should fail verification");
+        // Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "Wrong key must yield Ok(false), not Err");
         Ok(())
     }
 

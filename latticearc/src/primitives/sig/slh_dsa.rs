@@ -93,8 +93,22 @@ pub enum SlhDsaError {
     /// SLH-DSA signing cost scales with message length; this guard prevents
     /// unbounded-message DoS when callers bypass the unified-api resource
     /// checks.
+    ///
+    /// Round-28 H7: kept for ABI compatibility but no longer returned from
+    /// `sign()` — the cap-rejection now collapses to `SigningFailed` so
+    /// the sign path matches Pattern 6 opacity (round-26 M1 closed the
+    /// verify-side; this completes the sign-side symmetry). Will be
+    /// removed in a future major bump alongside `DeserializationError`.
+    #[deprecated(note = "Round-28 H7: sign() now returns SigningFailed for cap rejection; \
+                this variant is no longer reachable from production code.")]
     #[error("Message exceeds signature resource limit")]
     MessageTooLong,
+
+    /// Signing failed for an internal reason (resource cap, upstream
+    /// error, etc.). Opaque per Pattern 6 — the specific cause is
+    /// preserved via `tracing::debug!` for operator diagnostics.
+    #[error("SLH-DSA signing failed")]
+    SigningFailed,
 }
 
 // ============================================================================
@@ -673,13 +687,24 @@ impl SigningKey {
     ///
     /// Returns `SlhDsaError::RngError` if random number generation fails, or
     /// `SlhDsaError::ContextTooLong` if `context` exceeds 255 bytes, or
-    /// `SlhDsaError::MessageTooLong` if the message exceeds the resource limit.
+    /// `SlhDsaError::SigningFailed` if the message exceeds the resource
+    /// limit (round-28 H7 collapsed the previous `MessageTooLong` variant
+    /// for Pattern 6 sign-side opacity; the `MessageTooLong` variant is
+    /// now `#[deprecated]`).
     #[instrument(level = "debug", skip(self, message, context), fields(security_level = ?self.security_level, message_len = message.len(), context_len = context.len()))]
     pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<Vec<u8>, SlhDsaError> {
         // DoS bound: SLH-DSA signing cost scales with message length.
-        // Primitive callers bypass unified_api's resource limits.
-        crate::primitives::resource_limits::validate_signature_size(message.len())
-            .map_err(|_e| SlhDsaError::MessageTooLong)?;
+        // Round-28 H7 (Pattern 6): collapse the resource-cap rejection
+        // to the new `SigningFailed` variant. Cap probing was the same
+        // leak round-26 M1 closed on the verify-side; this completes
+        // the sign-side symmetry. Trace captures the actual cause for
+        // operator diagnostics.
+        crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
+            |e| {
+                tracing::debug!(error = ?e, msg_len = message.len(), "SLH-DSA sign rejected: message exceeds resource limit");
+                SlhDsaError::SigningFailed
+            },
+        )?;
 
         let ctx = context;
 
@@ -1077,15 +1102,17 @@ mod tests {
         assert!(matches!(result, Ok(false)));
     }
 
-    /// Round-27 H5 (Pattern 14): `MessageTooLong` is the resource-cap
-    /// gate at the top of `sign()`. Default global limit is 64 KiB; pass
-    /// 64 KiB + 1 to trigger it before the upstream slh-dsa crate runs.
+    /// Round-27 H5 + Round-28 H7 (Pattern 14 + Pattern 6): the
+    /// resource-cap gate at the top of `sign()` rejects oversized
+    /// messages before reaching the upstream slh-dsa crate. Round-28
+    /// collapsed the variant to the opaque `SigningFailed` (was
+    /// distinguishable `MessageTooLong`).
     #[test]
-    fn test_slh_dsa_sign_oversized_message_returns_message_too_long() {
+    fn test_slh_dsa_sign_oversized_message_rejects_opaquely() {
         let (sk, _pk) =
             SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
         let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
         let err = sk.sign(&oversize, &[]).expect_err("oversized message must be rejected");
-        assert!(matches!(err, SlhDsaError::MessageTooLong), "expected MessageTooLong, got {err:?}");
+        assert!(matches!(err, SlhDsaError::SigningFailed), "expected SigningFailed, got {err:?}");
     }
 }

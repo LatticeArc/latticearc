@@ -40,21 +40,34 @@ use crate::unified_api::error::{CoreError, Result};
 ///
 /// ```text
 /// Ok(true)  → Ok(true)
-/// Ok(false) → Err(CoreError::VerificationFailed)
-/// Err(e)    → Err(CoreError::InvalidInput(format!("{alg} verification error: {e}")))
+/// Ok(false) → Ok(false)
+/// Err(e)    → Ok(false), with `tracing::debug!` capturing the cause
 /// ```
 ///
-/// `alg` is interpolated into the InvalidInput message to keep the error
-/// reason traceable to which PQ scheme produced it.
+/// Round-28 H6 (Pattern 6): the previous mapping returned distinguishable
+/// `Err(VerificationFailed)` and `Err(InvalidInput("{alg} ... {e}"))`
+/// variants on adversary-reachable input, leaking both the algorithm
+/// name and upstream parse failure detail. Round-27 H7 closed the same
+/// re-opening at convenience-layer string sites but missed this central
+/// mapper. Now the only observable boolean to a verifier is `Ok(false)`
+/// for any rejection (correct shape *or* malformed bytes); diagnosis
+/// goes through `tracing::debug!` at developer log level.
+// Round-28 H6: the post-collapse signature always returns `Ok(...)`, but
+// the wrapping `Result<bool>` is required to match the call sites that
+// previously could fail and to keep the public-API shape stable across
+// the Pattern 6 sweep. `unnecessary_wraps` is silenced for that reason.
+#[allow(clippy::unnecessary_wraps)]
 fn map_verify_result<E: std::fmt::Display>(
     r: std::result::Result<bool, E>,
     alg: &str,
 ) -> Result<bool> {
-    match r {
-        Ok(true) => Ok(true),
-        Ok(false) => Err(CoreError::VerificationFailed),
-        Err(e) => Err(CoreError::InvalidInput(format!("{alg} verification error: {e}"))),
-    }
+    Ok(match r {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::debug!(alg = %alg, error = %e, "PQ-sig verify rejected (Err mapped to Ok(false))");
+            false
+        }
+    })
 }
 use crate::unified_api::logging::op;
 use crate::unified_api::zero_trust::SecurityMode;
@@ -1071,7 +1084,9 @@ mod tests {
             pk.as_slice(),
             MlDsaParameterSet::MlDsa65,
         );
-        assert!(result.is_err(), "Verification should fail for wrong message");
+        // Round-28 H6: verify path collapses Err to Ok(false) for
+        // adversary-reachable input (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "verify must return Ok(false) for wrong message");
     }
 
     // ML-DSA with config tests
@@ -1203,7 +1218,8 @@ mod tests {
             pk.as_slice(),
             SlhDsaSecurityLevel::Shake128s,
         );
-        assert!(result.is_err(), "Verification should fail for wrong message");
+        // Round-28 H6: verify path collapses Err to Ok(false).
+        assert_eq!(result.ok(), Some(false), "verify must return Ok(false) for wrong message");
     }
 
     // SLH-DSA with config tests
@@ -1284,14 +1300,20 @@ mod tests {
 
         let signature =
             sign_pq_fn_dsa_unverified(message, sk.expose_secret(), FnDsaSecurityLevel::Level512)?;
-        // FN-DSA returns Err on verification failure, not Ok(false)
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // The pre-round-28 comment said "FN-DSA returns Err" — that
+        // was the leaky behaviour the H6 sweep closed.
         let result = verify_pq_fn_dsa_unverified(
             wrong_message,
             &signature,
             pk.as_slice(),
             FnDsaSecurityLevel::Level512,
         );
-        assert!(result.is_err(), "FN-DSA verify with wrong message should fail");
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "FN-DSA verify must return Ok(false) for wrong message"
+        );
         Ok(())
     }
 
@@ -1563,7 +1585,8 @@ mod tests {
             pk2.as_slice(),
             MlDsaParameterSet::MlDsa44,
         );
-        assert!(result.is_err());
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "verify must return Ok(false)");
     }
 
     #[test]
@@ -1587,7 +1610,8 @@ mod tests {
             pk2.as_slice(),
             SlhDsaSecurityLevel::Shake128s,
         );
-        assert!(result.is_err());
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "verify must return Ok(false)");
     }
 
     #[test]
@@ -1609,7 +1633,8 @@ mod tests {
             pk.as_slice(),
             MlDsaParameterSet::MlDsa44,
         );
-        assert!(result.is_err());
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "verify must return Ok(false)");
     }
 
     #[test]
@@ -1631,7 +1656,8 @@ mod tests {
             pk.as_slice(),
             SlhDsaSecurityLevel::Shake128s,
         );
-        assert!(result.is_err());
+        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(result.ok(), Some(false), "verify must return Ok(false)");
     }
 
     #[test]

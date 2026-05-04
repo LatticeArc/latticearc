@@ -79,11 +79,17 @@ fn decrypt_symmetric(
         latticearc::DecryptKey::Symmetric(&key_bytes),
         latticearc::CryptoConfig::new(),
     )
-    // Round-26 audit fix (M19): uniform "Decryption failed: <scheme>"
-    // prefix across all three branches so scripted callers cannot
-    // distinguish symmetric vs hybrid vs PQ-only failure paths from
-    // stderr.
-    .map_err(|e| anyhow::anyhow!("Decryption failed (symmetric): {e}"))
+    // Round-28 H3 (Pattern 6): the round-26 M19 fix kept a `(symmetric)`
+    // parenthetical and `{e}` interpolation that re-introduced the
+    // oracle the comment claimed to close — scripted callers could
+    // distinguish symmetric vs hybrid vs PQ-only branches from stderr,
+    // and the upstream `e` leaked inner library wording. Now bare
+    // "Decryption failed", uniform across all three branches; per-stage
+    // cause is preserved via `tracing::debug!` for operator debugging.
+    .map_err(|e| {
+        tracing::debug!(error = %e, scheme = "symmetric", "decrypt failed");
+        anyhow::anyhow!("Decryption failed")
+    })
 }
 
 fn decrypt_hybrid(
@@ -103,7 +109,11 @@ fn decrypt_hybrid(
         latticearc::DecryptKey::Hybrid(&hybrid_sk),
         latticearc::CryptoConfig::new(),
     )
-    .map_err(|e| anyhow::anyhow!("Decryption failed (hybrid): {e}"))
+    .map_err(|e| {
+        // Round-28 H3: bare "Decryption failed"; cause to tracing.
+        tracing::debug!(error = %e, scheme = "hybrid", "decrypt failed");
+        anyhow::anyhow!("Decryption failed")
+    })
 }
 
 fn decrypt_pq_only(
@@ -139,7 +149,11 @@ fn decrypt_pq_only(
         latticearc::DecryptKey::PqOnly(&pq_sk),
         latticearc::CryptoConfig::new().crypto_mode(latticearc::CryptoMode::PqOnly),
     )
-    .map_err(|e| anyhow::anyhow!("Decryption failed (pq-only): {e}"))
+    .map_err(|e| {
+        // Round-28 H3: bare "Decryption failed"; cause to tracing.
+        tracing::debug!(error = %e, scheme = "pq-only", "decrypt failed");
+        anyhow::anyhow!("Decryption failed")
+    })
 }
 
 fn read_input_string(path: &Option<PathBuf>) -> Result<String> {

@@ -643,7 +643,12 @@ mod tests {
             pk2.as_slice(),
             MlDsaParameterSet::MlDsa65,
         );
-        assert!(result.is_err(), "ML-DSA signature should not verify with different key");
+        // Round-28 H6: verify collapses Err to Ok(false) (Pattern 6).
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "ML-DSA verify must return Ok(false) for cross-keypair, not Err"
+        );
         Ok(())
     }
 

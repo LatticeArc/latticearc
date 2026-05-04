@@ -2259,7 +2259,17 @@ impl PortableKey {
         aad.extend_from_slice(kdf.as_bytes());
         aad.push(0);
         aad.extend_from_slice(&kdf_iterations.to_be_bytes());
-        let salt_len_u32 = u32::try_from(kdf_salt.len()).unwrap_or(u32::MAX);
+        // Round-28 H5: round-26 L1/L2 collapsed `unwrap_or(u32::MAX)`
+        // saturation at four other length-prefix sites; this one was
+        // missed. Saturation collapses every `>4 GiB` salt onto the same
+        // length prefix, leading to an AAD canonicalization collision.
+        // Refuse instead, with the same shape as the metadata-len
+        // overflow check above.
+        let salt_len_u32 = u32::try_from(kdf_salt.len()).map_err(|_e| {
+            CoreError::SerializationError(
+                "Encrypted-envelope kdf_salt exceeds u32::MAX bytes".to_string(),
+            )
+        })?;
         aad.extend_from_slice(&salt_len_u32.to_be_bytes());
         aad.extend_from_slice(kdf_salt);
         aad.extend_from_slice(aead.as_bytes());

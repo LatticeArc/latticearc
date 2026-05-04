@@ -714,29 +714,16 @@ impl EcdhP256PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
-        // aws-lc-rs validates points during key agreement, so we just check format.
-        // Round-26 audit fix (L18): also reject the all-zero coordinate
-        // form as defense-in-depth. The SEC1 uncompressed encoding of
-        // the point at infinity is the single byte `0x00`, not a 65-
-        // byte buffer with `0x04` prefix, so the prefix check above
-        // already excludes infinity from the valid input set. Reject
-        // `0x04 || 0u8 * 64` as an additional structural sanity check
-        // (it would fail aws-lc-rs's curve-point check during agreement
-        // anyway, but failing earlier surfaces operator misuse with a
-        // clearer error and avoids reaching upstream code that may have
-        // version-dependent error wording).
-        if self.bytes.len() != P256_PUBLIC_KEY_SIZE {
-            return Err(EcdhError::InvalidKeySize {
-                expected: P256_PUBLIC_KEY_SIZE,
-                actual: self.bytes.len(),
-            });
-        }
-        if self.bytes.first() != Some(&0x04) {
-            return Err(EcdhError::InvalidPointFormat {
-                expected: "uncompressed (0x04 prefix)",
-                actual: "invalid prefix",
-            });
-        }
+        // L18 (round-26): reject the all-zero coordinate form as defense
+        // in depth. aws-lc-rs's `agree_ephemeral` would also reject it
+        // during agreement, but failing here surfaces operator misuse
+        // with a clearer, version-stable error.
+        //
+        // Length and `0x04` prefix are guaranteed by `Self::from_bytes`
+        // (the only public constructor) — round-28 follow-up removed
+        // the redundant rechecks here. The standalone
+        // `validate_p256_public_key(&[u8])` route still covers them
+        // because it goes through `from_bytes` first.
         if self.bytes.iter().skip(1).all(|&b| b == 0) {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "non-trivial curve point",
@@ -806,6 +793,14 @@ impl EcdhP256KeyPair {
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
     pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
+        // Round-28 H2: route the peer key through the LatticeArc-side
+        // validator before delegating to aws-lc-rs `agree_ephemeral`.
+        // aws-lc-rs already performs curve-point validation, but its
+        // error wording is version-volatile and the all-zero-coordinate
+        // rejection is a defense-in-depth check we want consistently
+        // reachable on every production decrypt path (not only via the
+        // standalone `validate_p256_public_key` helper).
+        EcdhP256PublicKey::from_bytes(peer_public_bytes)?.validate()?;
         let peer_public = UnparsedPublicKey::new(&ECDH_P256, peer_public_bytes);
 
         agreement::agree_ephemeral(
@@ -879,20 +874,10 @@ impl EcdhP384PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
-        // Round-26 audit fix (L18): defense-in-depth all-zero check
-        // mirrors P-256 above.
-        if self.bytes.len() != P384_PUBLIC_KEY_SIZE {
-            return Err(EcdhError::InvalidKeySize {
-                expected: P384_PUBLIC_KEY_SIZE,
-                actual: self.bytes.len(),
-            });
-        }
-        if self.bytes.first() != Some(&0x04) {
-            return Err(EcdhError::InvalidPointFormat {
-                expected: "uncompressed (0x04 prefix)",
-                actual: "invalid prefix",
-            });
-        }
+        // Round-26 L18: defense-in-depth all-zero check mirrors P-256.
+        // Length and `0x04` prefix are guaranteed by `Self::from_bytes`
+        // (the only public constructor); see the matching comment on
+        // `EcdhP256PublicKey::validate`.
         if self.bytes.iter().skip(1).all(|&b| b == 0) {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "non-trivial curve point",
@@ -962,6 +947,8 @@ impl EcdhP384KeyPair {
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
     pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
+        // Round-28 H2: validate before delegating — see EcdhP256KeyPair::agree.
+        EcdhP384PublicKey::from_bytes(peer_public_bytes)?.validate()?;
         let peer_public = UnparsedPublicKey::new(&ECDH_P384, peer_public_bytes);
 
         agreement::agree_ephemeral(
@@ -1035,20 +1022,10 @@ impl EcdhP521PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
-        // Round-26 audit fix (L18): defense-in-depth all-zero check
-        // mirrors P-256 / P-384.
-        if self.bytes.len() != P521_PUBLIC_KEY_SIZE {
-            return Err(EcdhError::InvalidKeySize {
-                expected: P521_PUBLIC_KEY_SIZE,
-                actual: self.bytes.len(),
-            });
-        }
-        if self.bytes.first() != Some(&0x04) {
-            return Err(EcdhError::InvalidPointFormat {
-                expected: "uncompressed (0x04 prefix)",
-                actual: "invalid prefix",
-            });
-        }
+        // Round-26 L18: defense-in-depth all-zero check mirrors P-256
+        // / P-384. Length and `0x04` prefix are guaranteed by
+        // `Self::from_bytes` (the only public constructor); see the
+        // matching comment on `EcdhP256PublicKey::validate`.
         if self.bytes.iter().skip(1).all(|&b| b == 0) {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "non-trivial curve point",
@@ -1118,6 +1095,8 @@ impl EcdhP521KeyPair {
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
     pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
+        // Round-28 H2: validate before delegating — see EcdhP256KeyPair::agree.
+        EcdhP521PublicKey::from_bytes(peer_public_bytes)?.validate()?;
         let peer_public = UnparsedPublicKey::new(&ECDH_P521, peer_public_bytes);
 
         agreement::agree_ephemeral(

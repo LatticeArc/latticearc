@@ -104,6 +104,17 @@ pub(crate) struct KeygenArgs {
     /// visible in `ps` and shell history; use the env var or the tty prompt.
     #[arg(long)]
     pub passphrase: bool,
+    /// Overwrite existing key files at the destination paths.
+    ///
+    /// Without this flag, keygen refuses to clobber an existing key file.
+    // Round-28 H4 audit context (kept out of `--help`): keygen previously
+    // had no escape hatch, so re-running over a stale keypair failed on
+    // the first SK-write (SK is written first to avoid orphan PKs from
+    // round-8 fix #4); the inverse failure mode still bit users running
+    // keygen twice. `--force` plumbs through to
+    // `PortableKey::write_to_file_with_overwrite` at all 4 write sites.
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// Resolve the optional passphrase for protecting newly-generated secret keys.
@@ -220,10 +231,10 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
         // didn't know was created. SK-first ensures the PK only lands
         // when there's a matching usable SK.
         portable_sk
-            .write_to_file(&sk_path)
+            .write_to_file_with_overwrite(&sk_path, args.force)
             .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", sk_path.display()))?;
         portable_pk
-            .write_to_file(&pk_path)
+            .write_to_file_with_overwrite(&pk_path, args.force)
             .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", pk_path.display()))?;
     } else {
         // PQ-only or classical signing scheme — concatenated bytes are the
@@ -237,8 +248,9 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
             sk.as_ref(),
             args.label.clone(),
             passphrase.as_ref().map(|p| p.as_bytes()),
+            args.force,
         )?;
-        keyfile::write_key(&pk_path, alg, KeyType::Public, &pk, args.label.clone())?;
+        keyfile::write_key(&pk_path, alg, KeyType::Public, &pk, args.label.clone(), args.force)?;
     }
 
     let uc_desc = args.use_case.as_ref().map(|uc| format!(" for {:?}", uc)).unwrap_or_default();
@@ -270,10 +282,10 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
     let enc_sk_path = args.output.join("encryption.sec.json");
     // SK first — see fix #4 explanation in the signing-keypair branch.
     portable_sk
-        .write_to_file(&enc_sk_path)
+        .write_to_file_with_overwrite(&enc_sk_path, args.force)
         .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_sk_path.display()))?;
     portable_pk
-        .write_to_file(&enc_pk_path)
+        .write_to_file_with_overwrite(&enc_pk_path, args.force)
         .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_pk_path.display()))?;
 
     eprintln!("  Encrypt PK: {}", enc_pk_path.display());
@@ -304,6 +316,7 @@ fn generate_symmetric(args: &KeygenArgs) -> Result<()> {
         &key,
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+        args.force,
     )?;
 
     zeroize::Zeroize::zeroize(&mut key);
@@ -356,8 +369,16 @@ fn generate_ml_kem(
         args.label.clone(),
         &[("ml_kem_pk", serde_json::Value::String(pk_b64))],
         passphrase.as_ref().map(|p| p.as_bytes()),
+        args.force,
     )?;
-    keyfile::write_key(&pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())?;
+    keyfile::write_key(
+        &pk_path,
+        alg,
+        KeyType::Public,
+        pk.as_ref(),
+        args.label.clone(),
+        args.force,
+    )?;
 
     print_keypair_report(alg_name, &pk_path, &sk_path, passphrase.is_some());
     Ok(())
@@ -395,8 +416,16 @@ fn generate_ml_dsa(
         sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+        args.force,
     )?;
-    keyfile::write_key(&pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())?;
+    keyfile::write_key(
+        &pk_path,
+        alg,
+        KeyType::Public,
+        pk.as_ref(),
+        args.label.clone(),
+        args.force,
+    )?;
 
     print_keypair_report(&format!("{alg_name} signing"), &pk_path, &sk_path, passphrase.is_some());
     Ok(())
@@ -419,6 +448,7 @@ fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
         sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+        args.force,
     )?;
     keyfile::write_key(
         &pk_path,
@@ -426,6 +456,7 @@ fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
         KeyType::Public,
         pk.as_ref(),
         args.label.clone(),
+        args.force,
     )?;
 
     print_keypair_report("SLH-DSA-SHAKE-128s signing", &pk_path, &sk_path, passphrase.is_some());
@@ -448,6 +479,7 @@ fn generate_fn_dsa(args: &KeygenArgs) -> Result<()> {
         sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+        args.force,
     )?;
     keyfile::write_key(
         &pk_path,
@@ -455,6 +487,7 @@ fn generate_fn_dsa(args: &KeygenArgs) -> Result<()> {
         KeyType::Public,
         pk.as_ref(),
         args.label.clone(),
+        args.force,
     )?;
 
     print_keypair_report("FN-DSA-512 signing", &pk_path, &sk_path, passphrase.is_some());
@@ -477,6 +510,7 @@ fn generate_ed25519(args: &KeygenArgs) -> Result<()> {
         sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+        args.force,
     )?;
     keyfile::write_key(
         &pk_path,
@@ -484,6 +518,7 @@ fn generate_ed25519(args: &KeygenArgs) -> Result<()> {
         KeyType::Public,
         pk.as_ref(),
         args.label.clone(),
+        args.force,
     )?;
 
     print_keypair_report("Ed25519 signing", &pk_path, &sk_path, passphrase.is_some());
@@ -513,8 +548,12 @@ fn generate_hybrid_kem(args: &KeygenArgs) -> Result<()> {
     let sk_path = args.output.join("hybrid-kem.sec.json");
 
     // SK first — see fix #4 explanation in `generate_signing` above.
-    portable_sk.write_to_file(&sk_path).map_err(|e| anyhow::anyhow!("Write SK: {e}"))?;
-    portable_pk.write_to_file(&pk_path).map_err(|e| anyhow::anyhow!("Write PK: {e}"))?;
+    portable_sk
+        .write_to_file_with_overwrite(&sk_path, args.force)
+        .map_err(|e| anyhow::anyhow!("Write SK: {e}"))?;
+    portable_pk
+        .write_to_file_with_overwrite(&pk_path, args.force)
+        .map_err(|e| anyhow::anyhow!("Write PK: {e}"))?;
 
     print_keypair_report("Hybrid ML-KEM-768 + X25519", &pk_path, &sk_path, passphrase.is_some());
     Ok(())
@@ -541,6 +580,7 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
         sk.expose_ed25519_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+        args.force,
     )?;
     keyfile::write_composite_key(
         &pk_path,
@@ -549,6 +589,7 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
         pk.ml_dsa_pk(),
         pk.ed25519_pk(),
         args.label.clone(),
+        args.force,
     )?;
 
     print_keypair_report(

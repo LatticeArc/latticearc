@@ -38,6 +38,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 // detailed comment in aes_gcm.rs for the full rationale.
 const DECRYPTION_FAILED: &str = "decryption failed";
 
+// Round-28 H1: matching opacity sweep for the encrypt path. See aes_gcm.rs
+// for the full rationale; same string constant per cipher.
+const ENCRYPTION_FAILED: &str = "encryption failed";
+
 /// ChaCha20-Poly1305 AEAD cipher
 ///
 /// Stores key bytes directly (like AES-GCM) for proper `ZeroizeOnDrop` support.
@@ -107,50 +111,47 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
-        // Opaque: don't leak configured resource-limit values via e.to_string().
+        // Round-28 H1: Pattern 6 opacity sweep on the encrypt path —
+        // every adversary-reachable failure (size caps, AEAD seal,
+        // post-seal buffer-shape) collapses to the same opaque string.
+        // See aes_gcm.rs for the full rationale; matching constant is
+        // `ENCRYPTION_FAILED` in this file.
         validate_encryption_size(plaintext.len()).map_err(
             |_e: crate::primitives::resource_limits::ResourceError| {
-                AeadError::EncryptionFailed("plaintext exceeds resource limits".to_string())
+                AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string())
             },
         )?;
 
-        // Round-26 audit fix (H8): cap AAD size before passing to the
-        // AEAD primitive (CPU-amplification DoS prevention).
         if let Some(a) = aad {
-            validate_aad_size(a.len()).map_err(|_e| {
-                AeadError::EncryptionFailed("AAD exceeds resource limits".to_string())
-            })?;
+            validate_aad_size(a.len())
+                .map_err(|_e| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?;
         }
 
         let cipher = ChaCha20Poly1305::new_from_slice(&self.key_bytes)
             .map_err(|_e| AeadError::InvalidKeyLength)?;
         let chacha_nonce = (*nonce).into();
 
-        // Opaque error: symmetric to decrypt path. Don't rely on upstream
-        // Display invariants to remain secret-free across versions.
         let ciphertext_with_tag = match aad {
             Some(aad) => cipher
                 .encrypt(&chacha_nonce, chacha20poly1305::aead::Payload { msg: plaintext, aad })
-                .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?,
+                .map_err(|_e| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?,
             None => cipher
                 .encrypt(&chacha_nonce, plaintext)
-                .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?,
+                .map_err(|_e| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?,
         };
 
-        // Split ciphertext and tag
         if ciphertext_with_tag.len() < TAG_LEN {
-            return Err(AeadError::EncryptionFailed("ciphertext too short".to_string()));
+            return Err(AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()));
         }
-        // Safe: validated len >= TAG_LEN above
         let ct_len = ciphertext_with_tag.len().saturating_sub(TAG_LEN);
         let ciphertext = ciphertext_with_tag
             .get(..ct_len)
-            .ok_or_else(|| AeadError::EncryptionFailed("invalid ciphertext length".to_string()))?
+            .ok_or_else(|| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?
             .to_vec();
         let mut tag = [0u8; TAG_LEN];
         let tag_slice = ciphertext_with_tag
             .get(ct_len..)
-            .ok_or_else(|| AeadError::EncryptionFailed("invalid tag offset".to_string()))?;
+            .ok_or_else(|| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?;
         tag.copy_from_slice(tag_slice);
 
         Ok((ciphertext, tag))
@@ -350,22 +351,19 @@ impl XChaCha20Poly1305Cipher {
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
-        // Mirror the AeadCipher trait impl above (line 96): the resource
-        // cap applies whether callers reach the cipher through the trait
-        // or through this 24-byte XNonce inherent shortcut. Skipping the
-        // check here would let attacker-controlled lengths bypass DoS
-        // bounds that the rest of the AEAD surface enforces.
+        // Round-28 H1: Pattern 6 opacity sweep — symmetric with the
+        // AeadCipher trait impl above and the AES-GCM macro. Every
+        // adversary-reachable encrypt failure collapses to the same
+        // opaque string; per-stage diagnostics live in tracing::debug!.
         validate_encryption_size(plaintext.len()).map_err(
             |_e: crate::primitives::resource_limits::ResourceError| {
-                AeadError::EncryptionFailed("plaintext exceeds resource limits".to_string())
+                AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string())
             },
         )?;
 
-        // Round-26 audit fix (H8): cap AAD on the XChaCha encrypt_x path.
         if let Some(a) = aad {
-            validate_aad_size(a.len()).map_err(|_e| {
-                AeadError::EncryptionFailed("AAD exceeds resource limits".to_string())
-            })?;
+            validate_aad_size(a.len())
+                .map_err(|_e| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?;
         }
 
         let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(&self.key_bytes)
@@ -375,24 +373,24 @@ impl XChaCha20Poly1305Cipher {
         let ciphertext_with_tag = match aad {
             Some(aad) => cipher
                 .encrypt(&xnonce, chacha20poly1305::aead::Payload { msg: plaintext, aad })
-                .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?,
+                .map_err(|_e| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?,
             None => cipher
                 .encrypt(&xnonce, plaintext)
-                .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?,
+                .map_err(|_e| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?,
         };
 
         if ciphertext_with_tag.len() < TAG_LEN {
-            return Err(AeadError::EncryptionFailed("ciphertext too short".to_string()));
+            return Err(AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()));
         }
         let ct_len = ciphertext_with_tag.len().saturating_sub(TAG_LEN);
         let ciphertext = ciphertext_with_tag
             .get(..ct_len)
-            .ok_or_else(|| AeadError::EncryptionFailed("invalid ciphertext length".to_string()))?
+            .ok_or_else(|| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?
             .to_vec();
         let mut tag = [0u8; TAG_LEN];
         let tag_slice = ciphertext_with_tag
             .get(ct_len..)
-            .ok_or_else(|| AeadError::EncryptionFailed("invalid tag offset".to_string()))?;
+            .ok_or_else(|| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?;
         tag.copy_from_slice(tag_slice);
 
         Ok((ciphertext, tag))
@@ -876,11 +874,12 @@ mod tests {
         let result = cipher.encrypt(&nonce, &plaintext, None);
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
-        if let Err(AeadError::EncryptionFailed(msg)) = result {
-            assert!(msg.contains("resource limit"), "Error should mention resource limit: {}", msg);
-        } else {
-            panic!("Expected EncryptionFailed error");
-        }
+        // Round-28 H1: Pattern 6 opacity sweep collapsed every encrypt
+        // failure to the same opaque "encryption failed" string.
+        assert!(
+            matches!(result, Err(AeadError::EncryptionFailed(_))),
+            "Expected EncryptionFailed variant, got {result:?}"
+        );
     }
 
     #[test]

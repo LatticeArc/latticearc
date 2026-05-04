@@ -104,22 +104,29 @@ jobs:
           target
         key: ${{ runner.os }}-fuzz-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Build fuzz targets
+    # Round-28 follow-up: build only the matrix target (was `cargo
+    # fuzz build` with no arg, which built all 35+ targets but didn't
+    # share artifacts cleanly with the per-target `cargo fuzz run` —
+    # the run step then re-built incrementally and ate 1m+ of the
+    # 360s budget before fuzzing started). Matching the extended-fuzz
+    # convention.
+    - name: Build fuzz target
       run: |
         cd fuzz
-        cargo fuzz build
+        cargo fuzz build "${{ matrix.target }}"
 
     - name: Run fuzz tests (short duration)
       run: |
         cd fuzz
         # No `|| true` wrapper: masking the exit code prevents the
         # `if: failure()` artifact-upload step below from firing on a
-        # real crash. The outer `timeout` is 360s and `-max_total_time`
-        # is 300s so libFuzzer exits cleanly first under normal
-        # operation; the extra 60s gives headroom on slow-cache runners.
-        # Build was performed in the prior step so this only governs
-        # fuzz execution. `matrix.target` is a static workflow string.
-        timeout 360s cargo fuzz run "${{ matrix.target }}" -- -max_total_time=300
+        # real crash. Outer `timeout` is 600s and `-max_total_time` is
+        # 300s — the gap accommodates cargo-fuzz's incremental
+        # rebuild check (~80s on cold cache even after the prior
+        # build step) plus libfuzzer cleanup, with 200s headroom.
+        # Round-28 follow-up: bumped from 360s after slow runners hit
+        # 4m+ of build/init time.
+        timeout 600s cargo fuzz run "${{ matrix.target }}" -- -max_total_time=300
 
     - name: Upload fuzz artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

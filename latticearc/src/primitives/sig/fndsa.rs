@@ -70,8 +70,22 @@ pub enum FnDsaError {
 
     /// Message length exceeds the configured resource limit. Unit variant —
     /// length is known to the sender.
+    ///
+    /// Round-28 H7: kept for ABI compatibility but no longer returned from
+    /// `sign_with_rng()` — the cap-rejection now collapses to
+    /// `SigningFailed` so the sign path matches Pattern 6 opacity
+    /// (round-26 M1 closed the verify-side; this completes the sign-side
+    /// symmetry). Will be removed in a future major bump.
+    #[deprecated(note = "Round-28 H7: sign() now returns SigningFailed for cap rejection; \
+                this variant is no longer reachable from production code.")]
     #[error("Message exceeds signature resource limit")]
     MessageTooLong,
+
+    /// Signing failed for an internal reason (resource cap, upstream
+    /// error, etc.). Opaque per Pattern 6 — the specific cause is
+    /// preserved via `tracing::debug!` for operator diagnostics.
+    #[error("FN-DSA signing failed")]
+    SigningFailed,
 }
 
 impl From<FnDsaError> for LatticeArcError {
@@ -83,7 +97,13 @@ impl From<FnDsaError> for LatticeArcError {
             )),
             FnDsaError::InvalidKey(msg) => Self::InvalidKey(msg),
             FnDsaError::InvalidSignature(msg) => Self::InvalidSignature(msg),
+            // Round-28 H7: kept for ABI completeness — production code now
+            // emits `SigningFailed` instead. The arm preserves the
+            // historical mapping for any consumer that constructs the
+            // variant directly.
+            #[allow(deprecated)]
             FnDsaError::MessageTooLong => Self::MessageTooLong,
+            FnDsaError::SigningFailed => Self::SigningError("FN-DSA signing failed".to_string()),
         }
     }
 }
@@ -543,9 +563,17 @@ impl SigningKey {
         rng: &mut R,
         message: &[u8],
     ) -> Result<Signature> {
-        // DoS bound: primitive callers bypass unified_api's resource limits.
-        crate::primitives::resource_limits::validate_signature_size(message.len())
-            .map_err(|_e| FnDsaError::MessageTooLong)?;
+        // Round-28 H7 (Pattern 6): collapse the resource-cap rejection to
+        // the new `SigningFailed` variant. Cap probing was the same leak
+        // round-26 M1 closed on the verify-side; this completes the
+        // sign-side symmetry. Trace captures the actual cause for
+        // operator diagnostics.
+        crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
+            |e| {
+                tracing::debug!(error = ?e, msg_len = message.len(), "FN-DSA sign rejected: message exceeds resource limit");
+                FnDsaError::SigningFailed
+            },
+        )?;
 
         let logn = match self.security_level {
             FnDsaSecurityLevel::Level512 => FN_DSA_LOGN_512,
@@ -1088,10 +1116,11 @@ mod tests {
     /// Round-27 H5 (Pattern 14): the `MessageTooLong` variant must be
     /// triggerable through the public sign path. Default global cap is
     /// 64 KiB; pass 64 KiB + 1 to exceed it before the upstream
-    /// `fn-dsa` signer runs. FN-DSA uses a stack-heavy signer so the
+    /// `fn-dsa` signer runs. Round-28 H7 collapsed the variant to the
+    /// opaque `SigningFailed`. FN-DSA uses a stack-heavy signer so the
     /// test runs on a worker thread (matching the rest of this file).
     #[test]
-    fn test_fndsa_sign_oversized_message_returns_message_too_long() {
+    fn test_fndsa_sign_oversized_message_rejects_opaquely() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
@@ -1102,8 +1131,8 @@ mod tests {
                 let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
                 let err = keypair.sign(&oversize).expect_err("oversized message must be rejected");
                 assert!(
-                    matches!(err, FnDsaError::MessageTooLong),
-                    "expected MessageTooLong, got {err:?}"
+                    matches!(err, FnDsaError::SigningFailed),
+                    "expected SigningFailed, got {err:?}"
                 );
             })
             .expect("Thread spawn failed")

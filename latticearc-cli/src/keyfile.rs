@@ -238,14 +238,22 @@ pub(crate) fn parse_hybrid_sign_sk(
 // ============================================================================
 
 /// Write a single-component key to a JSON file using `PortableKey`.
+///
+/// `overwrite = false` refuses to clobber an existing file; `true` replaces.
+/// Round-28 H4: keygen now threads its `--force` flag through this surface
+/// so a re-run with `--force` no longer hits the partial-state bug
+/// (round-8 fix #4 wrote SK first to avoid orphan PKs; without `--force`,
+/// re-running orphans the SK retry on the existing-file refusal — symmetric
+/// failure mode in the inverse direction).
 pub(crate) fn write_key(
     path: &std::path::Path,
     algorithm: KeyAlgorithm,
     key_type: LpkKeyType,
     key_bytes: &[u8],
     label: Option<String>,
+    overwrite: bool,
 ) -> Result<()> {
-    write_key_protected(path, algorithm, key_type, key_bytes, label, None)
+    write_key_protected(path, algorithm, key_type, key_bytes, label, None, overwrite)
 }
 
 /// Write a single-component key, optionally encrypting secret/symmetric material
@@ -261,13 +269,15 @@ pub(crate) fn write_key_protected(
     key_bytes: &[u8],
     label: Option<String>,
     passphrase: Option<&[u8]>,
+    overwrite: bool,
 ) -> Result<()> {
     let mut key = PortableKey::new(algorithm, key_type, KeyData::from_raw(key_bytes));
     if let Some(l) = label {
         key.set_label(l);
     }
     encrypt_if_secret(&mut key, key_type, passphrase)?;
-    key.write_to_file(path).with_context(|| format!("Failed to write {}", path.display()))
+    key.write_to_file_with_overwrite(path, overwrite)
+        .with_context(|| format!("Failed to write {}", path.display()))
 }
 
 /// Write a composite (hybrid) key to a JSON file using `PortableKey`.
@@ -278,8 +288,18 @@ pub(crate) fn write_composite_key(
     pq_bytes: &[u8],
     classical_bytes: &[u8],
     label: Option<String>,
+    overwrite: bool,
 ) -> Result<()> {
-    write_composite_key_protected(path, algorithm, key_type, pq_bytes, classical_bytes, label, None)
+    write_composite_key_protected(
+        path,
+        algorithm,
+        key_type,
+        pq_bytes,
+        classical_bytes,
+        label,
+        None,
+        overwrite,
+    )
 }
 
 /// Variant of [`write_key_protected`] that stores additional metadata
@@ -291,6 +311,7 @@ pub(crate) fn write_composite_key(
 ///
 /// Metadata is bound into the AEAD AAD when a passphrase is supplied,
 /// so a tampered metadata field invalidates the AEAD tag.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn write_key_protected_with_metadata(
     path: &std::path::Path,
     algorithm: KeyAlgorithm,
@@ -299,6 +320,7 @@ pub(crate) fn write_key_protected_with_metadata(
     label: Option<String>,
     metadata: &[(&str, serde_json::Value)],
     passphrase: Option<&[u8]>,
+    overwrite: bool,
 ) -> Result<()> {
     let mut key = PortableKey::new(algorithm, key_type, KeyData::from_raw(key_bytes));
     if let Some(l) = label {
@@ -308,10 +330,12 @@ pub(crate) fn write_key_protected_with_metadata(
         key.set_metadata((*k).to_string(), v.clone());
     }
     encrypt_if_secret(&mut key, key_type, passphrase)?;
-    key.write_to_file(path).with_context(|| format!("Failed to write {}", path.display()))
+    key.write_to_file_with_overwrite(path, overwrite)
+        .with_context(|| format!("Failed to write {}", path.display()))
 }
 
 /// Composite-key counterpart to [`write_key_protected`].
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn write_composite_key_protected(
     path: &std::path::Path,
     algorithm: KeyAlgorithm,
@@ -320,6 +344,7 @@ pub(crate) fn write_composite_key_protected(
     classical_bytes: &[u8],
     label: Option<String>,
     passphrase: Option<&[u8]>,
+    overwrite: bool,
 ) -> Result<()> {
     let mut key =
         PortableKey::new(algorithm, key_type, KeyData::from_composite(pq_bytes, classical_bytes));
@@ -327,7 +352,8 @@ pub(crate) fn write_composite_key_protected(
         key.set_label(l);
     }
     encrypt_if_secret(&mut key, key_type, passphrase)?;
-    key.write_to_file(path).with_context(|| format!("Failed to write {}", path.display()))
+    key.write_to_file_with_overwrite(path, overwrite)
+        .with_context(|| format!("Failed to write {}", path.display()))
 }
 
 /// Apply passphrase encryption to secret/symmetric keys only.

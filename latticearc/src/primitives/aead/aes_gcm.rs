@@ -37,6 +37,13 @@ use crate::primitives::resource_limits::{
 // detailed comment in the macro body below.
 const DECRYPTION_FAILED: &str = "decryption failed";
 
+// Round-28 H1: matching opacity sweep on the AEAD encrypt path. Encrypt
+// errors are reachable by callers who probe the configured size cap with
+// chosen plaintext lengths — collapsing to a single uniform string blocks
+// that side channel without losing operator diagnosability (the per-stage
+// cause is preserved via `tracing::debug!` in the higher layers).
+const ENCRYPTION_FAILED: &str = "encryption failed";
+
 /// Implements an AES-GCM cipher struct with `AeadCipher` trait and `generate_key()`.
 macro_rules! impl_aes_gcm {
     (
@@ -109,23 +116,22 @@ macro_rules! impl_aes_gcm {
                 plaintext: &[u8],
                 aad: Option<&[u8]>,
             ) -> Result<(Vec<u8>, Tag), AeadError> {
-                // Opaque: don't leak configured resource-limit values
-                // (requested/limit bytes) via e.to_string().
+                // Round-28 H1: Pattern 6 opacity sweep on the encrypt
+                // path mirrors the decrypt-side sweep at round-27 H2.
+                // Every adversary-reachable failure (size caps, AEAD
+                // seal, post-seal buffer-shape checks) collapses to a
+                // single opaque ENCRYPTION_FAILED string. Per-stage
+                // cause is preserved via the higher-layer
+                // `log_crypto_operation_error!` calls.
                 validate_encryption_size(plaintext.len()).map_err(
                     |_e: crate::primitives::resource_limits::ResourceError| {
-                        AeadError::EncryptionFailed(
-                            "plaintext exceeds resource limits".to_string(),
-                        )
+                        AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string())
                     },
                 )?;
 
-                // Round-26 audit fix (H8): cap AAD size before passing to
-                // the AEAD primitive. AEAD MACs run linear time over AAD,
-                // so an attacker-controlled AAD bypasses the plaintext
-                // cap and turns into a CPU-amplification DoS.
                 if let Some(a) = aad {
                     validate_aad_size(a.len()).map_err(|_e| {
-                        AeadError::EncryptionFailed("AAD exceeds resource limits".to_string())
+                        AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string())
                     })?;
                 }
 
@@ -141,25 +147,22 @@ macro_rules! impl_aes_gcm {
                 let mut in_out = Vec::with_capacity(plaintext.len().saturating_add(TAG_LEN));
                 in_out.extend_from_slice(plaintext);
 
-                // Opaque error: symmetric to decrypt path. aws-lc-rs's
-                // Unspecified Display is already generic, but we don't want
-                // to rely on that invariant across upstream versions.
                 key.seal_in_place_append_tag(aws_nonce, aad, &mut in_out)
-                    .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?;
+                    .map_err(|_e| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?;
 
                 if in_out.len() < TAG_LEN {
-                    return Err(AeadError::EncryptionFailed("ciphertext too short".to_string()));
+                    return Err(AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()));
                 }
 
                 let ct_len = in_out.len().saturating_sub(TAG_LEN);
                 let ciphertext = in_out
                     .get(..ct_len)
-                    .ok_or_else(|| AeadError::EncryptionFailed("invalid ciphertext length".to_string()))?
+                    .ok_or_else(|| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?
                     .to_vec();
                 let mut tag = [0u8; TAG_LEN];
                 let tag_slice = in_out
                     .get(ct_len..)
-                    .ok_or_else(|| AeadError::EncryptionFailed("invalid tag offset".to_string()))?;
+                    .ok_or_else(|| AeadError::EncryptionFailed(ENCRYPTION_FAILED.to_string()))?;
                 tag.copy_from_slice(tag_slice);
 
                 Ok((ciphertext, tag))
@@ -634,13 +637,13 @@ mod tests {
         let result = cipher.encrypt(&nonce, &plaintext, None);
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
-        if let Err(AeadError::EncryptionFailed(msg)) = result {
-            // Error message is deliberately opaque (doesn't echo requested/limit
-            // bytes) — just verify the resource-limit phrasing is present.
-            assert!(msg.contains("resource limit"), "Error should mention resource limit: {}", msg);
-        } else {
-            panic!("Expected EncryptionFailed error");
-        }
+        // Round-28 H1: Pattern 6 opacity sweep collapsed every encrypt
+        // failure to the same opaque "encryption failed" string, so this
+        // test now only asserts the variant shape.
+        assert!(
+            matches!(result, Err(AeadError::EncryptionFailed(_))),
+            "Expected EncryptionFailed variant, got {result:?}"
+        );
     }
 
     #[test]

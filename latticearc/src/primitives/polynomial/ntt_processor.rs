@@ -57,18 +57,23 @@ impl NttProcessor {
     fn find_primitive_root(n: usize, modulus: i64) -> Result<i32> {
         match (n, modulus) {
             (256, 3329) => Ok(17), // ML-KEM (Kyber) — q = 3329
-            // Round-26 audit fix (M3): the table previously listed 49
-            // for both (512, 12289) and (1024, 12289). 49 is a primitive
-            // 1024th root of unity mod 12289 (49^1024 ≡ 1, 49^512 ≡ -1),
-            // so it works for n=1024 but FAILS the primitive-root test
-            // for n=512 — at that size, 49^512 ≡ 1 (i.e. it has order
-            // 1024, not 512), so it is not primitive. The correct
-            // primitive 512th root is 49^2 = 2401, which satisfies
-            // 2401^512 ≡ 1 and 2401^256 ≡ -1 mod 12289.
-            // The new `validate_primitive_root` self-check now catches
-            // this kind of table corruption at construction time —
-            // exactly the class of silent NTT-output corruption the
-            // audit warned would slip past unaided code review.
+            // Round-26 audit fix (M3) + Round-28 M4 comment cleanup: the
+            // table previously listed 49 for BOTH (512, 12289) and
+            // (1024, 12289), which is wrong for the n=512 entry. The
+            // arithmetic that explains why:
+            //
+            //   - 49 is a primitive 1024th root of unity mod 12289:
+            //     49^1024 ≡ 1, and 49^512 ≡ -1 (so the order is exactly
+            //     1024, not 512 — if it were 512, 49^512 would be 1).
+            //   - For the n=512 NTT we need a primitive 512th root,
+            //     i.e. an element of order exactly 512. Squaring gives
+            //     it: 49^2 = 2401, and 2401^512 = 49^1024 ≡ 1, while
+            //     2401^256 = 49^512 ≡ -1 — so 2401 has order 512.
+            //
+            // The new `validate_primitive_root` self-check catches this
+            // kind of table corruption at construction time — exactly
+            // the class of silent NTT-output corruption the audit
+            // warned would slip past unaided code review.
             (512, 12289) => Ok(2401), // Falcon — q = 12289 (primitive 512th root = 49^2)
             (1024, 12289) => Ok(49),  // Falcon — q = 12289 (primitive 1024th root)
             _ => Err(LatticeArcError::InvalidInput(format!(
