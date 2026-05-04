@@ -633,702 +633,728 @@
 <a href=#633 id=633 data-nosnippet>633</a>    // Now: ANY path that doesn't reach a successful real verify falls
 <a href=#634 id=634 data-nosnippet>634</a>    // through to the dummy verify so the wall-clock cost is equal
 <a href=#635 id=635 data-nosnippet>635</a>    // across all reject reasons.
-<a href=#636 id=636 data-nosnippet>636</a>    </span><span class="kw">let </span>ml_dsa_verify_result = <span class="kw">match </span><span class="kw-2">&amp;</span>parse_ok {
-<a href=#637 id=637 data-nosnippet>637</a>        <span class="prelude-val">Ok</span>((parsed_pk, parsed_sig)) =&gt; {
-<a href=#638 id=638 data-nosnippet>638</a>            <span class="kw">let </span>inner = parsed_pk.verify(message, parsed_sig, <span class="kw-2">&amp;</span>[]);
-<a href=#639 id=639 data-nosnippet>639</a>            <span class="kw">match </span><span class="kw-2">&amp;</span>inner {
-<a href=#640 id=640 data-nosnippet>640</a>                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; inner,
-<a href=#641 id=641 data-nosnippet>641</a>                <span class="comment">// Inner parse failed (structurally-invalid PK reached
-<a href=#642 id=642 data-nosnippet>642</a>                // the short-circuit in `try_from_bytes`). Run the
-<a href=#643 id=643 data-nosnippet>643</a>                // equalizer dummy verify to spend verify-time budget;
-<a href=#644 id=644 data-nosnippet>644</a>                // discard its result.
-<a href=#645 id=645 data-nosnippet>645</a>                </span><span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">match </span><span class="kw-2">&amp;</span>dummy.parsed {
-<a href=#646 id=646 data-nosnippet>646</a>                    <span class="prelude-val">Some</span>(parsed) =&gt; {
-<a href=#647 id=647 data-nosnippet>647</a>                        <span class="kw">let _ </span>= parsed.pq_pk.verify(<span class="kw-2">&amp;</span>parsed.pq_test_message, <span class="kw-2">&amp;</span>parsed.pq_sig, <span class="kw-2">&amp;</span>[]);
-<a href=#648 id=648 data-nosnippet>648</a>                        <span class="comment">// Bubble the original Err so `matches!(.., Ok(true))`
-<a href=#649 id=649 data-nosnippet>649</a>                        // below still rejects the substituted input.
-<a href=#650 id=650 data-nosnippet>650</a>                        </span>inner
-<a href=#651 id=651 data-nosnippet>651</a>                    }
-<a href=#652 id=652 data-nosnippet>652</a>                    <span class="prelude-val">None </span>=&gt; inner,
-<a href=#653 id=653 data-nosnippet>653</a>                },
-<a href=#654 id=654 data-nosnippet>654</a>            }
-<a href=#655 id=655 data-nosnippet>655</a>        }
-<a href=#656 id=656 data-nosnippet>656</a>        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">match </span><span class="kw-2">&amp;</span>dummy.parsed {
-<a href=#657 id=657 data-nosnippet>657</a>            <span class="comment">// Equalizer fallback: run verify against pre-validated
-<a href=#658 id=658 data-nosnippet>658</a>            // material so the wall-clock cost stays equal between
-<a href=#659 id=659 data-nosnippet>659</a>            // shape-fail-then-parse-fail and shape-good-then-verify.
-<a href=#660 id=660 data-nosnippet>660</a>            // The result is discarded by the AND with `parse_ok.is_ok()`
-<a href=#661 id=661 data-nosnippet>661</a>            // below — its only purpose is to consume verify-time
-<a href=#662 id=662 data-nosnippet>662</a>            // wall-clock budget.
-<a href=#663 id=663 data-nosnippet>663</a>            </span><span class="prelude-val">Some</span>(parsed) =&gt; parsed.pq_pk.verify(<span class="kw-2">&amp;</span>parsed.pq_test_message, <span class="kw-2">&amp;</span>parsed.pq_sig, <span class="kw-2">&amp;</span>[]),
-<a href=#664 id=664 data-nosnippet>664</a>            <span class="comment">// Init keygen failed (extremely rare). Equalizer degraded;
-<a href=#665 id=665 data-nosnippet>665</a>            // legacy fast-fail behavior. Documented; not a correctness
-<a href=#666 id=666 data-nosnippet>666</a>            // regression because the bit is computed below via AND
-<a href=#667 id=667 data-nosnippet>667</a>            // with multiple guards.
-<a href=#668 id=668 data-nosnippet>668</a>            </span><span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>),
-<a href=#669 id=669 data-nosnippet>669</a>        },
-<a href=#670 id=670 data-nosnippet>670</a>    };
-<a href=#671 id=671 data-nosnippet>671</a>    <span class="comment">// Bit is 1 only when the real input passed shape-check, both
-<a href=#672 id=672 data-nosnippet>672</a>    // `from_bytes` calls succeeded, AND the verify returned Ok(true).
-<a href=#673 id=673 data-nosnippet>673</a>    // When shape failed, the verify still ran (against the dummy or
-<a href=#674 id=674 data-nosnippet>674</a>    // against pre-parsed material) for timing equalization; its
-<a href=#675 id=675 data-nosnippet>675</a>    // result is discarded by the AND with `pq_shape_ok`.
-<a href=#676 id=676 data-nosnippet>676</a>    </span><span class="kw">let </span>ml_dsa_valid: u8 =
-<a href=#677 id=677 data-nosnippet>677</a>        <span class="kw">if </span>pq_shape_ok &amp;&amp; parse_ok.is_ok() &amp;&amp; <span class="macro">matches!</span>(ml_dsa_verify_result, <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)) {
-<a href=#678 id=678 data-nosnippet>678</a>            <span class="number">1u8
-<a href=#679 id=679 data-nosnippet>679</a>        </span>} <span class="kw">else </span>{
-<a href=#680 id=680 data-nosnippet>680</a>            <span class="number">0u8
-<a href=#681 id=681 data-nosnippet>681</a>        </span>};
-<a href=#682 id=682 data-nosnippet>682</a>
-<a href=#683 id=683 data-nosnippet>683</a>    <span class="comment">// Verify Ed25519. The Ed25519 parse is a simple length check — its
-<a href=#684 id=684 data-nosnippet>684</a>    // wall-clock cost is in the same order of magnitude as the verify
-<a href=#685 id=685 data-nosnippet>685</a>    // itself, so a parse-vs-verify timing oracle on this leg is
-<a href=#686 id=686 data-nosnippet>686</a>    // negligible. Keep the original short-circuit shape for clarity.
-<a href=#687 id=687 data-nosnippet>687</a>    </span><span class="kw">let </span>ed25519_valid: u8 =
-<a href=#688 id=688 data-nosnippet>688</a>        <span class="kw">match </span>Ed25519SignatureOps::signature_from_bytes(sig.ed25519_sig.as_slice()) {
-<a href=#689 id=689 data-nosnippet>689</a>            <span class="prelude-val">Ok</span>(ed25519_signature) =&gt; {
-<a href=#690 id=690 data-nosnippet>690</a>                <span class="kw">match </span>Ed25519SignatureOps::verify(
-<a href=#691 id=691 data-nosnippet>691</a>                    pk.ed25519_pk.as_slice(),
-<a href=#692 id=692 data-nosnippet>692</a>                    message,
-<a href=#693 id=693 data-nosnippet>693</a>                    <span class="kw-2">&amp;</span>ed25519_signature,
-<a href=#694 id=694 data-nosnippet>694</a>                ) {
-<a href=#695 id=695 data-nosnippet>695</a>                    <span class="prelude-val">Ok</span>(()) =&gt; <span class="number">1u8</span>,
-<a href=#696 id=696 data-nosnippet>696</a>                    <span class="kw">_ </span>=&gt; <span class="number">0u8</span>,
-<a href=#697 id=697 data-nosnippet>697</a>                }
-<a href=#698 id=698 data-nosnippet>698</a>            }
-<a href=#699 id=699 data-nosnippet>699</a>            <span class="kw">_ </span>=&gt; <span class="number">0u8</span>,
-<a href=#700 id=700 data-nosnippet>700</a>        };
-<a href=#701 id=701 data-nosnippet>701</a>
-<a href=#702 id=702 data-nosnippet>702</a>    <span class="comment">// One generic event on aggregate failure — preserves the "something
-<a href=#703 id=703 data-nosnippet>703</a>    // went wrong with hybrid verify" alerting signal without leaking
-<a href=#704 id=704 data-nosnippet>704</a>    // which component(s) failed.
-<a href=#705 id=705 data-nosnippet>705</a>    </span><span class="kw">if </span>(ml_dsa_valid &amp; ed25519_valid) != <span class="number">1 </span>{
-<a href=#706 id=706 data-nosnippet>706</a>        <span class="macro">log_crypto_operation_error!</span>(op::HYBRID_VERIFY, <span class="string">"hybrid signature verification failed"</span>);
-<a href=#707 id=707 data-nosnippet>707</a>    }
-<a href=#708 id=708 data-nosnippet>708</a>
-<a href=#709 id=709 data-nosnippet>709</a>    <span class="comment">// The two component bits are combined via bitwise AND (not short-circuit
-<a href=#710 id=710 data-nosnippet>710</a>    // `&amp;&amp;`) so verification work is identical regardless of which component
-<a href=#711 id=711 data-nosnippet>711</a>    // failed first. The branch below on `both_valid` does not leak anything
-<a href=#712 id=712 data-nosnippet>712</a>    // the return value doesn't already carry — pass/fail is observable from
-<a href=#713 id=713 data-nosnippet>713</a>    // the caller either way.
-<a href=#714 id=714 data-nosnippet>714</a>    </span><span class="kw">let </span>both_valid: u8 = ml_dsa_valid &amp; ed25519_valid;
-<a href=#715 id=715 data-nosnippet>715</a>    <span class="kw">if </span><span class="macro">both_valid !</span>= <span class="number">1 </span>{
-<a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(HybridSignatureError::VerificationFailed(
-<a href=#717 id=717 data-nosnippet>717</a>            <span class="string">"hybrid signature verification failed"</span>.to_string(),
-<a href=#718 id=718 data-nosnippet>718</a>        ));
-<a href=#719 id=719 data-nosnippet>719</a>    }
-<a href=#720 id=720 data-nosnippet>720</a>
-<a href=#721 id=721 data-nosnippet>721</a>    <span class="comment">// Both signatures verified successfully
-<a href=#722 id=722 data-nosnippet>722</a>    </span><span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
-<a href=#723 id=723 data-nosnippet>723</a>}
-<a href=#724 id=724 data-nosnippet>724</a>
-<a href=#725 id=725 data-nosnippet>725</a><span class="attr">#[cfg(test)]
-<a href=#726 id=726 data-nosnippet>726</a>#[allow(clippy::unwrap_used)] </span><span class="comment">// Tests use unwrap for simplicity
-<a href=#727 id=727 data-nosnippet>727</a></span><span class="attr">#[allow(clippy::expect_used)] </span><span class="comment">// Tests use expect for simplicity
-<a href=#728 id=728 data-nosnippet>728</a></span><span class="attr">#[allow(clippy::implicit_clone)] </span><span class="comment">// Tests don't require optimal cloning patterns
-<a href=#729 id=729 data-nosnippet>729</a></span><span class="attr">#[allow(clippy::indexing_slicing)] </span><span class="comment">// Tests use direct indexing for simplicity
-<a href=#730 id=730 data-nosnippet>730</a></span><span class="attr">#[allow(clippy::single_match)] </span><span class="comment">// Match with comment is clearer than if-let in tests
-<a href=#731 id=731 data-nosnippet>731</a></span><span class="kw">mod </span>tests {
-<a href=#732 id=732 data-nosnippet>732</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#733 id=733 data-nosnippet>733</a>
-<a href=#734 id=734 data-nosnippet>734</a>    <span class="attr">#[test]
-<a href=#735 id=735 data-nosnippet>735</a>    </span><span class="kw">fn </span>test_hybrid_secret_key_zeroization_succeeds() {
-<a href=#736 id=736 data-nosnippet>736</a>        <span class="kw">let </span>(_pk, <span class="kw-2">mut </span>sk) = generate_keypair().unwrap();
-<a href=#737 id=737 data-nosnippet>737</a>
-<a href=#738 id=738 data-nosnippet>738</a>        <span class="kw">let </span>ml_dsa_sk_before = sk.ml_dsa_sk_bytes().to_vec();
-<a href=#739 id=739 data-nosnippet>739</a>        <span class="kw">let </span>ed25519_sk_before = sk.ed25519_sk_bytes().to_vec();
-<a href=#740 id=740 data-nosnippet>740</a>
-<a href=#741 id=741 data-nosnippet>741</a>        <span class="macro">assert!</span>(
-<a href=#742 id=742 data-nosnippet>742</a>            !ml_dsa_sk_before.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#743 id=743 data-nosnippet>743</a>            <span class="string">"ML-DSA secret should contain non-zero data"
-<a href=#744 id=744 data-nosnippet>744</a>        </span>);
-<a href=#745 id=745 data-nosnippet>745</a>        <span class="macro">assert!</span>(
-<a href=#746 id=746 data-nosnippet>746</a>            !ed25519_sk_before.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#747 id=747 data-nosnippet>747</a>            <span class="string">"Ed25519 secret should contain non-zero data"
-<a href=#748 id=748 data-nosnippet>748</a>        </span>);
-<a href=#749 id=749 data-nosnippet>749</a>
-<a href=#750 id=750 data-nosnippet>750</a>        sk.zeroize();
-<a href=#751 id=751 data-nosnippet>751</a>
-<a href=#752 id=752 data-nosnippet>752</a>        <span class="macro">assert!</span>(sk.ml_dsa_sk_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>), <span class="string">"ML-DSA secret should be zeroized"</span>);
-<a href=#753 id=753 data-nosnippet>753</a>        <span class="macro">assert!</span>(sk.ed25519_sk_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>), <span class="string">"Ed25519 secret should be zeroized"</span>);
-<a href=#754 id=754 data-nosnippet>754</a>    }
-<a href=#755 id=755 data-nosnippet>755</a>
-<a href=#756 id=756 data-nosnippet>756</a>    <span class="attr">#[test]
-<a href=#757 id=757 data-nosnippet>757</a>    </span><span class="kw">fn </span>test_hybrid_secret_key_drop_zeroization_succeeds() {
-<a href=#758 id=758 data-nosnippet>758</a>        <span class="kw">let </span>test_ml_data = <span class="macro">vec!</span>[<span class="number">0x77</span>; <span class="number">4032</span>];
-<a href=#759 id=759 data-nosnippet>759</a>        <span class="kw">let </span>test_ed25519_data = <span class="macro">vec!</span>[<span class="number">0x66</span>; <span class="number">32</span>];
-<a href=#760 id=760 data-nosnippet>760</a>
-<a href=#761 id=761 data-nosnippet>761</a>        {
-<a href=#762 id=762 data-nosnippet>762</a>            <span class="kw">let </span>sk = HybridSigSecretKey {
-<a href=#763 id=763 data-nosnippet>763</a>                parameter_set: MlDsaParameterSet::MlDsa65,
-<a href=#764 id=764 data-nosnippet>764</a>                ml_dsa_sk: Zeroizing::new(test_ml_data),
-<a href=#765 id=765 data-nosnippet>765</a>                ed25519_sk: Zeroizing::new(test_ed25519_data),
-<a href=#766 id=766 data-nosnippet>766</a>            };
-<a href=#767 id=767 data-nosnippet>767</a>
-<a href=#768 id=768 data-nosnippet>768</a>            <span class="macro">assert!</span>(
-<a href=#769 id=769 data-nosnippet>769</a>                !sk.ml_dsa_sk_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#770 id=770 data-nosnippet>770</a>                <span class="string">"ML-DSA secret should contain non-zero data"
-<a href=#771 id=771 data-nosnippet>771</a>            </span>);
-<a href=#772 id=772 data-nosnippet>772</a>            <span class="macro">assert!</span>(
-<a href=#773 id=773 data-nosnippet>773</a>                !sk.ed25519_sk_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#774 id=774 data-nosnippet>774</a>                <span class="string">"Ed25519 secret should contain non-zero data"
-<a href=#775 id=775 data-nosnippet>775</a>            </span>);
-<a href=#776 id=776 data-nosnippet>776</a>        }
-<a href=#777 id=777 data-nosnippet>777</a>    }
-<a href=#778 id=778 data-nosnippet>778</a>
-<a href=#779 id=779 data-nosnippet>779</a>    <span class="attr">#[test]
-<a href=#780 id=780 data-nosnippet>780</a>    </span><span class="kw">fn </span>test_hybrid_signature_after_zeroization_succeeds() {
-<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">let </span>(pk, <span class="kw-2">mut </span>sk) = generate_keypair().unwrap();
-<a href=#782 id=782 data-nosnippet>782</a>        <span class="kw">let </span>message = <span class="string">b"Test message"</span>;
-<a href=#783 id=783 data-nosnippet>783</a>
-<a href=#784 id=784 data-nosnippet>784</a>        <span class="kw">let </span>signature_before = sign(<span class="kw-2">&amp;</span>sk, message).expect(<span class="string">"Should sign before zeroization"</span>);
-<a href=#785 id=785 data-nosnippet>785</a>        <span class="kw">let </span>valid_before =
-<a href=#786 id=786 data-nosnippet>786</a>            verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>signature_before).expect(<span class="string">"Should verify before zeroization"</span>);
-<a href=#787 id=787 data-nosnippet>787</a>        <span class="macro">assert!</span>(valid_before, <span class="string">"Signature should be valid before zeroization"</span>);
-<a href=#788 id=788 data-nosnippet>788</a>
-<a href=#789 id=789 data-nosnippet>789</a>        sk.zeroize();
-<a href=#790 id=790 data-nosnippet>790</a>
-<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">let </span>result = sign(<span class="kw-2">&amp;</span>sk, message);
-<a href=#792 id=792 data-nosnippet>792</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Signing should fail after zeroization"</span>);
-<a href=#793 id=793 data-nosnippet>793</a>    }
-<a href=#794 id=794 data-nosnippet>794</a>
-<a href=#795 id=795 data-nosnippet>795</a>    <span class="attr">#[test]
-<a href=#796 id=796 data-nosnippet>796</a>    </span><span class="kw">fn </span>test_hybrid_signature_keypair_generation_succeeds() {
-<a href=#797 id=797 data-nosnippet>797</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
-<a href=#798 id=798 data-nosnippet>798</a>
-<a href=#799 id=799 data-nosnippet>799</a>        <span class="macro">assert!</span>(!pk.ml_dsa_pk.is_empty(), <span class="string">"ML-DSA public key should not be empty"</span>);
-<a href=#800 id=800 data-nosnippet>800</a>        <span class="macro">assert_eq!</span>(pk.ed25519_pk.len(), <span class="number">32</span>, <span class="string">"Ed25519 public key should be 32 bytes"</span>);
-<a href=#801 id=801 data-nosnippet>801</a>        <span class="macro">assert!</span>(!sk.ml_dsa_sk.is_empty(), <span class="string">"ML-DSA secret key should not be empty"</span>);
-<a href=#802 id=802 data-nosnippet>802</a>        <span class="macro">assert_eq!</span>(sk.ed25519_sk.len(), <span class="number">32</span>, <span class="string">"Ed25519 secret key should be 32 bytes"</span>);
-<a href=#803 id=803 data-nosnippet>803</a>
-<a href=#804 id=804 data-nosnippet>804</a>        <span class="macro">assert!</span>(!pk.ml_dsa_pk.iter().all(|<span class="kw-2">&amp;</span>x| x == <span class="number">0</span>), <span class="string">"ML-DSA PK should not be all zeros"</span>);
-<a href=#805 id=805 data-nosnippet>805</a>        <span class="macro">assert!</span>(!pk.ed25519_pk.iter().all(|<span class="kw-2">&amp;</span>x| x == <span class="number">0</span>), <span class="string">"Ed25519 PK should not be all zeros"</span>);
-<a href=#806 id=806 data-nosnippet>806</a>    }
-<a href=#807 id=807 data-nosnippet>807</a>
-<a href=#808 id=808 data-nosnippet>808</a>    <span class="attr">#[test]
-<a href=#809 id=809 data-nosnippet>809</a>    </span><span class="kw">fn </span>test_hybrid_signature_signing_and_verification_succeeds() {
-<a href=#810 id=810 data-nosnippet>810</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
-<a href=#811 id=811 data-nosnippet>811</a>
-<a href=#812 id=812 data-nosnippet>812</a>        <span class="kw">let </span>message = <span class="string">b"Hello, hybrid signature!"</span>;
-<a href=#813 id=813 data-nosnippet>813</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, message);
-<a href=#814 id=814 data-nosnippet>814</a>        <span class="macro">assert!</span>(sig.is_ok(), <span class="string">"Signing should succeed"</span>);
-<a href=#815 id=815 data-nosnippet>815</a>
-<a href=#816 id=816 data-nosnippet>816</a>        <span class="kw">let </span>sig = sig.unwrap();
-<a href=#817 id=817 data-nosnippet>817</a>        <span class="macro">assert!</span>(!sig.ml_dsa_sig.is_empty(), <span class="string">"ML-DSA signature should not be empty"</span>);
-<a href=#818 id=818 data-nosnippet>818</a>        <span class="macro">assert_eq!</span>(sig.ed25519_sig.len(), <span class="number">64</span>, <span class="string">"Ed25519 signature should be 64 bytes"</span>);
-<a href=#819 id=819 data-nosnippet>819</a>
-<a href=#820 id=820 data-nosnippet>820</a>        <span class="kw">let </span>valid = verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>sig);
-<a href=#821 id=821 data-nosnippet>821</a>        <span class="macro">assert!</span>(valid.is_ok(), <span class="string">"Verification should succeed"</span>);
-<a href=#822 id=822 data-nosnippet>822</a>        <span class="macro">assert!</span>(valid.unwrap(), <span class="string">"Signature should be valid"</span>);
-<a href=#823 id=823 data-nosnippet>823</a>    }
+<a href=#636 id=636 data-nosnippet>636</a>    // Round-29 L6: pre-parsed material now goes through `parsed_or_init()`
+<a href=#637 id=637 data-nosnippet>637</a>    // which retries init when prior attempts produced None. The result is
+<a href=#638 id=638 data-nosnippet>638</a>    // a clone (cheap — public bytes only); we own it locally.
+<a href=#639 id=639 data-nosnippet>639</a>    </span><span class="kw">let </span>dummy_parsed = dummy.parsed_or_init();
+<a href=#640 id=640 data-nosnippet>640</a>    <span class="kw">let </span>ml_dsa_verify_result = <span class="kw">match </span><span class="kw-2">&amp;</span>parse_ok {
+<a href=#641 id=641 data-nosnippet>641</a>        <span class="prelude-val">Ok</span>((parsed_pk, parsed_sig)) =&gt; {
+<a href=#642 id=642 data-nosnippet>642</a>            <span class="kw">let </span>inner = parsed_pk.verify(message, parsed_sig, <span class="kw-2">&amp;</span>[]);
+<a href=#643 id=643 data-nosnippet>643</a>            <span class="kw">match </span><span class="kw-2">&amp;</span>inner {
+<a href=#644 id=644 data-nosnippet>644</a>                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; inner,
+<a href=#645 id=645 data-nosnippet>645</a>                <span class="comment">// Inner parse failed (structurally-invalid PK reached
+<a href=#646 id=646 data-nosnippet>646</a>                // the short-circuit in `try_from_bytes`). Run the
+<a href=#647 id=647 data-nosnippet>647</a>                // equalizer dummy verify to spend verify-time budget;
+<a href=#648 id=648 data-nosnippet>648</a>                // discard its result.
+<a href=#649 id=649 data-nosnippet>649</a>                </span><span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">match </span><span class="kw-2">&amp;</span>dummy_parsed {
+<a href=#650 id=650 data-nosnippet>650</a>                    <span class="prelude-val">Some</span>(parsed) =&gt; {
+<a href=#651 id=651 data-nosnippet>651</a>                        <span class="kw">let _ </span>= parsed.pq_pk.verify(<span class="kw-2">&amp;</span>parsed.pq_test_message, <span class="kw-2">&amp;</span>parsed.pq_sig, <span class="kw-2">&amp;</span>[]);
+<a href=#652 id=652 data-nosnippet>652</a>                        <span class="comment">// Bubble the original Err so `matches!(.., Ok(true))`
+<a href=#653 id=653 data-nosnippet>653</a>                        // below still rejects the substituted input.
+<a href=#654 id=654 data-nosnippet>654</a>                        </span>inner
+<a href=#655 id=655 data-nosnippet>655</a>                    }
+<a href=#656 id=656 data-nosnippet>656</a>                    <span class="prelude-val">None </span>=&gt; inner,
+<a href=#657 id=657 data-nosnippet>657</a>                },
+<a href=#658 id=658 data-nosnippet>658</a>            }
+<a href=#659 id=659 data-nosnippet>659</a>        }
+<a href=#660 id=660 data-nosnippet>660</a>        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">match </span><span class="kw-2">&amp;</span>dummy_parsed {
+<a href=#661 id=661 data-nosnippet>661</a>            <span class="comment">// Equalizer fallback: run verify against pre-validated
+<a href=#662 id=662 data-nosnippet>662</a>            // material so the wall-clock cost stays equal between
+<a href=#663 id=663 data-nosnippet>663</a>            // shape-fail-then-parse-fail and shape-good-then-verify.
+<a href=#664 id=664 data-nosnippet>664</a>            // The result is discarded by the AND with `parse_ok.is_ok()`
+<a href=#665 id=665 data-nosnippet>665</a>            // below — its only purpose is to consume verify-time
+<a href=#666 id=666 data-nosnippet>666</a>            // wall-clock budget.
+<a href=#667 id=667 data-nosnippet>667</a>            </span><span class="prelude-val">Some</span>(parsed) =&gt; parsed.pq_pk.verify(<span class="kw-2">&amp;</span>parsed.pq_test_message, <span class="kw-2">&amp;</span>parsed.pq_sig, <span class="kw-2">&amp;</span>[]),
+<a href=#668 id=668 data-nosnippet>668</a>            <span class="comment">// Init keygen failed (extremely rare; round-29 L6 retries
+<a href=#669 id=669 data-nosnippet>669</a>            // on every call). Equalizer degraded; legacy fast-fail
+<a href=#670 id=670 data-nosnippet>670</a>            // behavior. Not a correctness regression because the bit
+<a href=#671 id=671 data-nosnippet>671</a>            // is computed below via AND with multiple guards.
+<a href=#672 id=672 data-nosnippet>672</a>            </span><span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>),
+<a href=#673 id=673 data-nosnippet>673</a>        },
+<a href=#674 id=674 data-nosnippet>674</a>    };
+<a href=#675 id=675 data-nosnippet>675</a>    <span class="comment">// Bit is 1 only when the real input passed shape-check, both
+<a href=#676 id=676 data-nosnippet>676</a>    // `from_bytes` calls succeeded, AND the verify returned Ok(true).
+<a href=#677 id=677 data-nosnippet>677</a>    // When shape failed, the verify still ran (against the dummy or
+<a href=#678 id=678 data-nosnippet>678</a>    // against pre-parsed material) for timing equalization; its
+<a href=#679 id=679 data-nosnippet>679</a>    // result is discarded by the AND with `pq_shape_ok`.
+<a href=#680 id=680 data-nosnippet>680</a>    </span><span class="kw">let </span>ml_dsa_valid: u8 =
+<a href=#681 id=681 data-nosnippet>681</a>        <span class="kw">if </span>pq_shape_ok &amp;&amp; parse_ok.is_ok() &amp;&amp; <span class="macro">matches!</span>(ml_dsa_verify_result, <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)) {
+<a href=#682 id=682 data-nosnippet>682</a>            <span class="number">1u8
+<a href=#683 id=683 data-nosnippet>683</a>        </span>} <span class="kw">else </span>{
+<a href=#684 id=684 data-nosnippet>684</a>            <span class="number">0u8
+<a href=#685 id=685 data-nosnippet>685</a>        </span>};
+<a href=#686 id=686 data-nosnippet>686</a>
+<a href=#687 id=687 data-nosnippet>687</a>    <span class="comment">// Round-29 M1: the Ed25519 leg now has a real verify-time
+<a href=#688 id=688 data-nosnippet>688</a>    // equalizer. The previous shape claimed parse cost was "in the
+<a href=#689 id=689 data-nosnippet>689</a>    // same order of magnitude as verify" — empirically wrong (parse
+<a href=#690 id=690 data-nosnippet>690</a>    // is a 64-byte length check, verify is one EC scalar mul; ~3
+<a href=#691 id=691 data-nosnippet>691</a>    // orders of magnitude apart). On parse-fail, run verify against
+<a href=#692 id=692 data-nosnippet>692</a>    // pre-parsed cached material so the wall-clock cost matches a
+<a href=#693 id=693 data-nosnippet>693</a>    // real verify, mirroring the ML-DSA equalizer above.
+<a href=#694 id=694 data-nosnippet>694</a>    </span><span class="kw">let </span>ed_dummy = <span class="kw">crate</span>::hybrid::verify_equalizer::ed25519_verify_dummy_material();
+<a href=#695 id=695 data-nosnippet>695</a>    <span class="kw">let </span>ed_dummy_parsed = ed_dummy.parsed_or_init();
+<a href=#696 id=696 data-nosnippet>696</a>    <span class="kw">let </span>ed25519_valid: u8 = <span class="kw">if let </span><span class="prelude-val">Ok</span>(ed25519_signature) =
+<a href=#697 id=697 data-nosnippet>697</a>        Ed25519SignatureOps::signature_from_bytes(sig.ed25519_sig.as_slice())
+<a href=#698 id=698 data-nosnippet>698</a>    {
+<a href=#699 id=699 data-nosnippet>699</a>        <span class="kw">match </span>Ed25519SignatureOps::verify(pk.ed25519_pk.as_slice(), message, <span class="kw-2">&amp;</span>ed25519_signature) {
+<a href=#700 id=700 data-nosnippet>700</a>            <span class="prelude-val">Ok</span>(()) =&gt; <span class="number">1u8</span>,
+<a href=#701 id=701 data-nosnippet>701</a>            <span class="kw">_ </span>=&gt; <span class="number">0u8</span>,
+<a href=#702 id=702 data-nosnippet>702</a>        }
+<a href=#703 id=703 data-nosnippet>703</a>    } <span class="kw">else </span>{
+<a href=#704 id=704 data-nosnippet>704</a>        <span class="comment">// Parse failure on caller-supplied bytes: still spend a
+<a href=#705 id=705 data-nosnippet>705</a>        // verify-cost worth of cycles against the dummy material so
+<a href=#706 id=706 data-nosnippet>706</a>        // the wall-clock between parse-fail and verify-fail is equal.
+<a href=#707 id=707 data-nosnippet>707</a>        // Discard the result — `0u8` is the verdict because the
+<a href=#708 id=708 data-nosnippet>708</a>        // caller's input was structurally wrong.
+<a href=#709 id=709 data-nosnippet>709</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(parsed) = <span class="kw-2">&amp;</span>ed_dummy_parsed
+<a href=#710 id=710 data-nosnippet>710</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(parsed_sig) =
+<a href=#711 id=711 data-nosnippet>711</a>                Ed25519SignatureOps::signature_from_bytes(parsed.ed_sig.as_slice())
+<a href=#712 id=712 data-nosnippet>712</a>        {
+<a href=#713 id=713 data-nosnippet>713</a>            <span class="comment">// Discarded; runs the EC scalar mul.
+<a href=#714 id=714 data-nosnippet>714</a>            </span><span class="kw">let _ </span>= Ed25519SignatureOps::verify(
+<a href=#715 id=715 data-nosnippet>715</a>                parsed.ed_pk.as_slice(),
+<a href=#716 id=716 data-nosnippet>716</a>                parsed.ed_test_message.as_slice(),
+<a href=#717 id=717 data-nosnippet>717</a>                <span class="kw-2">&amp;</span>parsed_sig,
+<a href=#718 id=718 data-nosnippet>718</a>            );
+<a href=#719 id=719 data-nosnippet>719</a>        }
+<a href=#720 id=720 data-nosnippet>720</a>        <span class="comment">// If `ed_dummy_parsed` is None (RNG/PCT init failure —
+<a href=#721 id=721 data-nosnippet>721</a>        // round-29 L6 retries on every call), fall through to the
+<a href=#722 id=722 data-nosnippet>722</a>        // legacy fast-fail. Bit is computed below via AND with
+<a href=#723 id=723 data-nosnippet>723</a>        // `pq_shape_ok` and `parse_ok.is_ok()`, so a degraded
+<a href=#724 id=724 data-nosnippet>724</a>        // equalizer cannot affect correctness.
+<a href=#725 id=725 data-nosnippet>725</a>        </span><span class="number">0u8
+<a href=#726 id=726 data-nosnippet>726</a>    </span>};
+<a href=#727 id=727 data-nosnippet>727</a>
+<a href=#728 id=728 data-nosnippet>728</a>    <span class="comment">// One generic event on aggregate failure — preserves the "something
+<a href=#729 id=729 data-nosnippet>729</a>    // went wrong with hybrid verify" alerting signal without leaking
+<a href=#730 id=730 data-nosnippet>730</a>    // which component(s) failed.
+<a href=#731 id=731 data-nosnippet>731</a>    </span><span class="kw">if </span>(ml_dsa_valid &amp; ed25519_valid) != <span class="number">1 </span>{
+<a href=#732 id=732 data-nosnippet>732</a>        <span class="macro">log_crypto_operation_error!</span>(op::HYBRID_VERIFY, <span class="string">"hybrid signature verification failed"</span>);
+<a href=#733 id=733 data-nosnippet>733</a>    }
+<a href=#734 id=734 data-nosnippet>734</a>
+<a href=#735 id=735 data-nosnippet>735</a>    <span class="comment">// The two component bits are combined via bitwise AND (not short-circuit
+<a href=#736 id=736 data-nosnippet>736</a>    // `&amp;&amp;`) so verification work is identical regardless of which component
+<a href=#737 id=737 data-nosnippet>737</a>    // failed first. The branch below on `both_valid` does not leak anything
+<a href=#738 id=738 data-nosnippet>738</a>    // the return value doesn't already carry — pass/fail is observable from
+<a href=#739 id=739 data-nosnippet>739</a>    // the caller either way.
+<a href=#740 id=740 data-nosnippet>740</a>    </span><span class="kw">let </span>both_valid: u8 = ml_dsa_valid &amp; ed25519_valid;
+<a href=#741 id=741 data-nosnippet>741</a>    <span class="kw">if </span><span class="macro">both_valid !</span>= <span class="number">1 </span>{
+<a href=#742 id=742 data-nosnippet>742</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(HybridSignatureError::VerificationFailed(
+<a href=#743 id=743 data-nosnippet>743</a>            <span class="string">"hybrid signature verification failed"</span>.to_string(),
+<a href=#744 id=744 data-nosnippet>744</a>        ));
+<a href=#745 id=745 data-nosnippet>745</a>    }
+<a href=#746 id=746 data-nosnippet>746</a>
+<a href=#747 id=747 data-nosnippet>747</a>    <span class="comment">// Both signatures verified successfully
+<a href=#748 id=748 data-nosnippet>748</a>    </span><span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+<a href=#749 id=749 data-nosnippet>749</a>}
+<a href=#750 id=750 data-nosnippet>750</a>
+<a href=#751 id=751 data-nosnippet>751</a><span class="attr">#[cfg(test)]
+<a href=#752 id=752 data-nosnippet>752</a>#[allow(clippy::unwrap_used)] </span><span class="comment">// Tests use unwrap for simplicity
+<a href=#753 id=753 data-nosnippet>753</a></span><span class="attr">#[allow(clippy::expect_used)] </span><span class="comment">// Tests use expect for simplicity
+<a href=#754 id=754 data-nosnippet>754</a></span><span class="attr">#[allow(clippy::implicit_clone)] </span><span class="comment">// Tests don't require optimal cloning patterns
+<a href=#755 id=755 data-nosnippet>755</a></span><span class="attr">#[allow(clippy::indexing_slicing)] </span><span class="comment">// Tests use direct indexing for simplicity
+<a href=#756 id=756 data-nosnippet>756</a></span><span class="attr">#[allow(clippy::single_match)] </span><span class="comment">// Match with comment is clearer than if-let in tests
+<a href=#757 id=757 data-nosnippet>757</a></span><span class="kw">mod </span>tests {
+<a href=#758 id=758 data-nosnippet>758</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#759 id=759 data-nosnippet>759</a>
+<a href=#760 id=760 data-nosnippet>760</a>    <span class="attr">#[test]
+<a href=#761 id=761 data-nosnippet>761</a>    </span><span class="kw">fn </span>test_hybrid_secret_key_zeroization_succeeds() {
+<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>(_pk, <span class="kw-2">mut </span>sk) = generate_keypair().unwrap();
+<a href=#763 id=763 data-nosnippet>763</a>
+<a href=#764 id=764 data-nosnippet>764</a>        <span class="kw">let </span>ml_dsa_sk_before = sk.ml_dsa_sk_bytes().to_vec();
+<a href=#765 id=765 data-nosnippet>765</a>        <span class="kw">let </span>ed25519_sk_before = sk.ed25519_sk_bytes().to_vec();
+<a href=#766 id=766 data-nosnippet>766</a>
+<a href=#767 id=767 data-nosnippet>767</a>        <span class="macro">assert!</span>(
+<a href=#768 id=768 data-nosnippet>768</a>            !ml_dsa_sk_before.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#769 id=769 data-nosnippet>769</a>            <span class="string">"ML-DSA secret should contain non-zero data"
+<a href=#770 id=770 data-nosnippet>770</a>        </span>);
+<a href=#771 id=771 data-nosnippet>771</a>        <span class="macro">assert!</span>(
+<a href=#772 id=772 data-nosnippet>772</a>            !ed25519_sk_before.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#773 id=773 data-nosnippet>773</a>            <span class="string">"Ed25519 secret should contain non-zero data"
+<a href=#774 id=774 data-nosnippet>774</a>        </span>);
+<a href=#775 id=775 data-nosnippet>775</a>
+<a href=#776 id=776 data-nosnippet>776</a>        sk.zeroize();
+<a href=#777 id=777 data-nosnippet>777</a>
+<a href=#778 id=778 data-nosnippet>778</a>        <span class="macro">assert!</span>(sk.ml_dsa_sk_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>), <span class="string">"ML-DSA secret should be zeroized"</span>);
+<a href=#779 id=779 data-nosnippet>779</a>        <span class="macro">assert!</span>(sk.ed25519_sk_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>), <span class="string">"Ed25519 secret should be zeroized"</span>);
+<a href=#780 id=780 data-nosnippet>780</a>    }
+<a href=#781 id=781 data-nosnippet>781</a>
+<a href=#782 id=782 data-nosnippet>782</a>    <span class="attr">#[test]
+<a href=#783 id=783 data-nosnippet>783</a>    </span><span class="kw">fn </span>test_hybrid_secret_key_drop_zeroization_succeeds() {
+<a href=#784 id=784 data-nosnippet>784</a>        <span class="kw">let </span>test_ml_data = <span class="macro">vec!</span>[<span class="number">0x77</span>; <span class="number">4032</span>];
+<a href=#785 id=785 data-nosnippet>785</a>        <span class="kw">let </span>test_ed25519_data = <span class="macro">vec!</span>[<span class="number">0x66</span>; <span class="number">32</span>];
+<a href=#786 id=786 data-nosnippet>786</a>
+<a href=#787 id=787 data-nosnippet>787</a>        {
+<a href=#788 id=788 data-nosnippet>788</a>            <span class="kw">let </span>sk = HybridSigSecretKey {
+<a href=#789 id=789 data-nosnippet>789</a>                parameter_set: MlDsaParameterSet::MlDsa65,
+<a href=#790 id=790 data-nosnippet>790</a>                ml_dsa_sk: Zeroizing::new(test_ml_data),
+<a href=#791 id=791 data-nosnippet>791</a>                ed25519_sk: Zeroizing::new(test_ed25519_data),
+<a href=#792 id=792 data-nosnippet>792</a>            };
+<a href=#793 id=793 data-nosnippet>793</a>
+<a href=#794 id=794 data-nosnippet>794</a>            <span class="macro">assert!</span>(
+<a href=#795 id=795 data-nosnippet>795</a>                !sk.ml_dsa_sk_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#796 id=796 data-nosnippet>796</a>                <span class="string">"ML-DSA secret should contain non-zero data"
+<a href=#797 id=797 data-nosnippet>797</a>            </span>);
+<a href=#798 id=798 data-nosnippet>798</a>            <span class="macro">assert!</span>(
+<a href=#799 id=799 data-nosnippet>799</a>                !sk.ed25519_sk_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#800 id=800 data-nosnippet>800</a>                <span class="string">"Ed25519 secret should contain non-zero data"
+<a href=#801 id=801 data-nosnippet>801</a>            </span>);
+<a href=#802 id=802 data-nosnippet>802</a>        }
+<a href=#803 id=803 data-nosnippet>803</a>    }
+<a href=#804 id=804 data-nosnippet>804</a>
+<a href=#805 id=805 data-nosnippet>805</a>    <span class="attr">#[test]
+<a href=#806 id=806 data-nosnippet>806</a>    </span><span class="kw">fn </span>test_hybrid_signature_after_zeroization_succeeds() {
+<a href=#807 id=807 data-nosnippet>807</a>        <span class="kw">let </span>(pk, <span class="kw-2">mut </span>sk) = generate_keypair().unwrap();
+<a href=#808 id=808 data-nosnippet>808</a>        <span class="kw">let </span>message = <span class="string">b"Test message"</span>;
+<a href=#809 id=809 data-nosnippet>809</a>
+<a href=#810 id=810 data-nosnippet>810</a>        <span class="kw">let </span>signature_before = sign(<span class="kw-2">&amp;</span>sk, message).expect(<span class="string">"Should sign before zeroization"</span>);
+<a href=#811 id=811 data-nosnippet>811</a>        <span class="kw">let </span>valid_before =
+<a href=#812 id=812 data-nosnippet>812</a>            verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>signature_before).expect(<span class="string">"Should verify before zeroization"</span>);
+<a href=#813 id=813 data-nosnippet>813</a>        <span class="macro">assert!</span>(valid_before, <span class="string">"Signature should be valid before zeroization"</span>);
+<a href=#814 id=814 data-nosnippet>814</a>
+<a href=#815 id=815 data-nosnippet>815</a>        sk.zeroize();
+<a href=#816 id=816 data-nosnippet>816</a>
+<a href=#817 id=817 data-nosnippet>817</a>        <span class="kw">let </span>result = sign(<span class="kw-2">&amp;</span>sk, message);
+<a href=#818 id=818 data-nosnippet>818</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Signing should fail after zeroization"</span>);
+<a href=#819 id=819 data-nosnippet>819</a>    }
+<a href=#820 id=820 data-nosnippet>820</a>
+<a href=#821 id=821 data-nosnippet>821</a>    <span class="attr">#[test]
+<a href=#822 id=822 data-nosnippet>822</a>    </span><span class="kw">fn </span>test_hybrid_signature_keypair_generation_succeeds() {
+<a href=#823 id=823 data-nosnippet>823</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
 <a href=#824 id=824 data-nosnippet>824</a>
-<a href=#825 id=825 data-nosnippet>825</a>    <span class="attr">#[test]
-<a href=#826 id=826 data-nosnippet>826</a>    </span><span class="kw">fn </span>test_invalid_key_and_signature_lengths_all_return_error_fails() {
-<a href=#827 id=827 data-nosnippet>827</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
-<a href=#828 id=828 data-nosnippet>828</a>
-<a href=#829 id=829 data-nosnippet>829</a>        <span class="comment">// Test with invalid Ed25519 public key length
-<a href=#830 id=830 data-nosnippet>830</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>invalid_pk = pk.clone();
-<a href=#831 id=831 data-nosnippet>831</a>        invalid_pk.ed25519_pk = <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">31</span>]; <span class="comment">// Wrong length
-<a href=#832 id=832 data-nosnippet>832</a>        </span><span class="kw">let </span>sig = HybridSignature { ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">100</span>], ed25519_sig: <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">64</span>] };
-<a href=#833 id=833 data-nosnippet>833</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>invalid_pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
-<a href=#834 id=834 data-nosnippet>834</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should reject invalid public key length"</span>);
-<a href=#835 id=835 data-nosnippet>835</a>
-<a href=#836 id=836 data-nosnippet>836</a>        <span class="comment">// Test with invalid signature length
-<a href=#837 id=837 data-nosnippet>837</a>        </span><span class="kw">let </span>invalid_sig = HybridSignature {
-<a href=#838 id=838 data-nosnippet>838</a>            ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">100</span>],
-<a href=#839 id=839 data-nosnippet>839</a>            ed25519_sig: <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">63</span>], <span class="comment">// Wrong length
-<a href=#840 id=840 data-nosnippet>840</a>        </span>};
-<a href=#841 id=841 data-nosnippet>841</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>invalid_sig);
-<a href=#842 id=842 data-nosnippet>842</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should reject invalid signature length"</span>);
-<a href=#843 id=843 data-nosnippet>843</a>    }
-<a href=#844 id=844 data-nosnippet>844</a>
-<a href=#845 id=845 data-nosnippet>845</a>    <span class="attr">#[test]
-<a href=#846 id=846 data-nosnippet>846</a>    </span><span class="kw">fn </span>test_ed25519_signature_properties_are_correct() {
-<a href=#847 id=847 data-nosnippet>847</a>        <span class="comment">// Exercise the primitives-layer Ed25519 wrapper end-to-end to keep
-<a href=#848 id=848 data-nosnippet>848</a>        // this module's tests self-contained without reaching into dalek.
-<a href=#849 id=849 data-nosnippet>849</a>        </span><span class="kw">let </span>keypair = Ed25519KeyPair::generate().expect(<span class="string">"keypair generation should succeed"</span>);
-<a href=#850 id=850 data-nosnippet>850</a>        <span class="kw">let </span>public_key_bytes = keypair.public_key_bytes();
-<a href=#851 id=851 data-nosnippet>851</a>
-<a href=#852 id=852 data-nosnippet>852</a>        <span class="kw">let </span>message = <span class="string">b"Test message"</span>;
-<a href=#853 id=853 data-nosnippet>853</a>        <span class="kw">let </span>signature = keypair.sign(message).expect(<span class="string">"sign should succeed"</span>);
+<a href=#825 id=825 data-nosnippet>825</a>        <span class="macro">assert!</span>(!pk.ml_dsa_pk.is_empty(), <span class="string">"ML-DSA public key should not be empty"</span>);
+<a href=#826 id=826 data-nosnippet>826</a>        <span class="macro">assert_eq!</span>(pk.ed25519_pk.len(), <span class="number">32</span>, <span class="string">"Ed25519 public key should be 32 bytes"</span>);
+<a href=#827 id=827 data-nosnippet>827</a>        <span class="macro">assert!</span>(!sk.ml_dsa_sk.is_empty(), <span class="string">"ML-DSA secret key should not be empty"</span>);
+<a href=#828 id=828 data-nosnippet>828</a>        <span class="macro">assert_eq!</span>(sk.ed25519_sk.len(), <span class="number">32</span>, <span class="string">"Ed25519 secret key should be 32 bytes"</span>);
+<a href=#829 id=829 data-nosnippet>829</a>
+<a href=#830 id=830 data-nosnippet>830</a>        <span class="macro">assert!</span>(!pk.ml_dsa_pk.iter().all(|<span class="kw-2">&amp;</span>x| x == <span class="number">0</span>), <span class="string">"ML-DSA PK should not be all zeros"</span>);
+<a href=#831 id=831 data-nosnippet>831</a>        <span class="macro">assert!</span>(!pk.ed25519_pk.iter().all(|<span class="kw-2">&amp;</span>x| x == <span class="number">0</span>), <span class="string">"Ed25519 PK should not be all zeros"</span>);
+<a href=#832 id=832 data-nosnippet>832</a>    }
+<a href=#833 id=833 data-nosnippet>833</a>
+<a href=#834 id=834 data-nosnippet>834</a>    <span class="attr">#[test]
+<a href=#835 id=835 data-nosnippet>835</a>    </span><span class="kw">fn </span>test_hybrid_signature_signing_and_verification_succeeds() {
+<a href=#836 id=836 data-nosnippet>836</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
+<a href=#837 id=837 data-nosnippet>837</a>
+<a href=#838 id=838 data-nosnippet>838</a>        <span class="kw">let </span>message = <span class="string">b"Hello, hybrid signature!"</span>;
+<a href=#839 id=839 data-nosnippet>839</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, message);
+<a href=#840 id=840 data-nosnippet>840</a>        <span class="macro">assert!</span>(sig.is_ok(), <span class="string">"Signing should succeed"</span>);
+<a href=#841 id=841 data-nosnippet>841</a>
+<a href=#842 id=842 data-nosnippet>842</a>        <span class="kw">let </span>sig = sig.unwrap();
+<a href=#843 id=843 data-nosnippet>843</a>        <span class="macro">assert!</span>(!sig.ml_dsa_sig.is_empty(), <span class="string">"ML-DSA signature should not be empty"</span>);
+<a href=#844 id=844 data-nosnippet>844</a>        <span class="macro">assert_eq!</span>(sig.ed25519_sig.len(), <span class="number">64</span>, <span class="string">"Ed25519 signature should be 64 bytes"</span>);
+<a href=#845 id=845 data-nosnippet>845</a>
+<a href=#846 id=846 data-nosnippet>846</a>        <span class="kw">let </span>valid = verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>sig);
+<a href=#847 id=847 data-nosnippet>847</a>        <span class="macro">assert!</span>(valid.is_ok(), <span class="string">"Verification should succeed"</span>);
+<a href=#848 id=848 data-nosnippet>848</a>        <span class="macro">assert!</span>(valid.unwrap(), <span class="string">"Signature should be valid"</span>);
+<a href=#849 id=849 data-nosnippet>849</a>    }
+<a href=#850 id=850 data-nosnippet>850</a>
+<a href=#851 id=851 data-nosnippet>851</a>    <span class="attr">#[test]
+<a href=#852 id=852 data-nosnippet>852</a>    </span><span class="kw">fn </span>test_invalid_key_and_signature_lengths_all_return_error_fails() {
+<a href=#853 id=853 data-nosnippet>853</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
 <a href=#854 id=854 data-nosnippet>854</a>
-<a href=#855 id=855 data-nosnippet>855</a>        <span class="comment">// Valid signature should verify
-<a href=#856 id=856 data-nosnippet>856</a>        </span><span class="kw">let </span>result = Ed25519SignatureOps::verify(<span class="kw-2">&amp;</span>public_key_bytes, message, <span class="kw-2">&amp;</span>signature);
-<a href=#857 id=857 data-nosnippet>857</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"Valid signature should verify"</span>);
-<a href=#858 id=858 data-nosnippet>858</a>
-<a href=#859 id=859 data-nosnippet>859</a>        <span class="comment">// Wrong message should not verify
-<a href=#860 id=860 data-nosnippet>860</a>        </span><span class="kw">let </span>wrong_message = <span class="string">b"Wrong message"</span>;
-<a href=#861 id=861 data-nosnippet>861</a>        <span class="kw">let </span>result = Ed25519SignatureOps::verify(<span class="kw-2">&amp;</span>public_key_bytes, wrong_message, <span class="kw-2">&amp;</span>signature);
-<a href=#862 id=862 data-nosnippet>862</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Wrong message should not verify"</span>);
-<a href=#863 id=863 data-nosnippet>863</a>    }
-<a href=#864 id=864 data-nosnippet>864</a>
-<a href=#865 id=865 data-nosnippet>865</a>    <span class="attr">#[test]
-<a href=#866 id=866 data-nosnippet>866</a>    </span><span class="kw">fn </span>test_hybrid_signature_zeroization_succeeds() {
-<a href=#867 id=867 data-nosnippet>867</a>        <span class="kw">let </span>ml_dsa_sig_data = <span class="macro">vec!</span>[<span class="number">0x77</span>; <span class="number">2420</span>];
-<a href=#868 id=868 data-nosnippet>868</a>        <span class="kw">let </span>ed25519_sig_data = <span class="macro">vec!</span>[<span class="number">0x88</span>; <span class="number">64</span>];
-<a href=#869 id=869 data-nosnippet>869</a>
-<a href=#870 id=870 data-nosnippet>870</a>        <span class="kw">let </span><span class="kw-2">mut </span>signature =
-<a href=#871 id=871 data-nosnippet>871</a>            HybridSignature { ml_dsa_sig: ml_dsa_sig_data, ed25519_sig: ed25519_sig_data };
-<a href=#872 id=872 data-nosnippet>872</a>
-<a href=#873 id=873 data-nosnippet>873</a>        <span class="macro">assert!</span>(
-<a href=#874 id=874 data-nosnippet>874</a>            !signature.ml_dsa_sig.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#875 id=875 data-nosnippet>875</a>            <span class="string">"ML-DSA signature should contain non-zero data"
-<a href=#876 id=876 data-nosnippet>876</a>        </span>);
-<a href=#877 id=877 data-nosnippet>877</a>        <span class="macro">assert!</span>(
-<a href=#878 id=878 data-nosnippet>878</a>            !signature.ed25519_sig.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#879 id=879 data-nosnippet>879</a>            <span class="string">"Ed25519 signature should contain non-zero data"
-<a href=#880 id=880 data-nosnippet>880</a>        </span>);
-<a href=#881 id=881 data-nosnippet>881</a>
-<a href=#882 id=882 data-nosnippet>882</a>        signature.zeroize();
-<a href=#883 id=883 data-nosnippet>883</a>
-<a href=#884 id=884 data-nosnippet>884</a>        <span class="macro">assert!</span>(
-<a href=#885 id=885 data-nosnippet>885</a>            signature.ml_dsa_sig.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#886 id=886 data-nosnippet>886</a>            <span class="string">"ML-DSA signature should be zeroized"
-<a href=#887 id=887 data-nosnippet>887</a>        </span>);
-<a href=#888 id=888 data-nosnippet>888</a>        <span class="macro">assert!</span>(
-<a href=#889 id=889 data-nosnippet>889</a>            signature.ed25519_sig.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#890 id=890 data-nosnippet>890</a>            <span class="string">"Ed25519 signature should be zeroized"
-<a href=#891 id=891 data-nosnippet>891</a>        </span>);
-<a href=#892 id=892 data-nosnippet>892</a>    }
-<a href=#893 id=893 data-nosnippet>893</a>
-<a href=#894 id=894 data-nosnippet>894</a>    <span class="attr">#[test]
-<a href=#895 id=895 data-nosnippet>895</a>    </span><span class="kw">fn </span>test_hybrid_keypair_zeroization_succeeds() {
-<a href=#896 id=896 data-nosnippet>896</a>        <span class="kw">let </span>(_public_key, secret_key) = generate_keypair().expect(<span class="string">"Should generate hybrid keypair"</span>);
-<a href=#897 id=897 data-nosnippet>897</a>
-<a href=#898 id=898 data-nosnippet>898</a>        <span class="macro">assert!</span>(
-<a href=#899 id=899 data-nosnippet>899</a>            !secret_key.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#900 id=900 data-nosnippet>900</a>            <span class="string">"Keypair ML-DSA secret should contain non-zero data"
-<a href=#901 id=901 data-nosnippet>901</a>        </span>);
-<a href=#902 id=902 data-nosnippet>902</a>        <span class="macro">assert!</span>(
-<a href=#903 id=903 data-nosnippet>903</a>            !secret_key.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#904 id=904 data-nosnippet>904</a>            <span class="string">"Keypair Ed25519 secret should contain non-zero data"
-<a href=#905 id=905 data-nosnippet>905</a>        </span>);
-<a href=#906 id=906 data-nosnippet>906</a>
-<a href=#907 id=907 data-nosnippet>907</a>        <span class="kw">let </span><span class="kw-2">mut </span>secret_key_clone = HybridSigSecretKey {
-<a href=#908 id=908 data-nosnippet>908</a>            parameter_set: secret_key.parameter_set,
-<a href=#909 id=909 data-nosnippet>909</a>            ml_dsa_sk: secret_key.ml_dsa_sk_bytes(),
-<a href=#910 id=910 data-nosnippet>910</a>            ed25519_sk: secret_key.ed25519_sk_bytes(),
-<a href=#911 id=911 data-nosnippet>911</a>        };
-<a href=#912 id=912 data-nosnippet>912</a>
-<a href=#913 id=913 data-nosnippet>913</a>        secret_key_clone.zeroize();
-<a href=#914 id=914 data-nosnippet>914</a>
-<a href=#915 id=915 data-nosnippet>915</a>        <span class="macro">assert!</span>(
-<a href=#916 id=916 data-nosnippet>916</a>            secret_key_clone.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#917 id=917 data-nosnippet>917</a>            <span class="string">"Cloned ML-DSA secret should be zeroized"
-<a href=#918 id=918 data-nosnippet>918</a>        </span>);
-<a href=#919 id=919 data-nosnippet>919</a>        <span class="macro">assert!</span>(
-<a href=#920 id=920 data-nosnippet>920</a>            secret_key_clone.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#921 id=921 data-nosnippet>921</a>            <span class="string">"Cloned Ed25519 secret should be zeroized"
-<a href=#922 id=922 data-nosnippet>922</a>        </span>);
-<a href=#923 id=923 data-nosnippet>923</a>    }
-<a href=#924 id=924 data-nosnippet>924</a>
-<a href=#925 id=925 data-nosnippet>925</a>    <span class="attr">#[test]
-<a href=#926 id=926 data-nosnippet>926</a>    </span><span class="kw">fn </span>test_hybrid_zeroization_order_is_correct() {
-<a href=#927 id=927 data-nosnippet>927</a>        <span class="kw">let </span><span class="kw-2">mut </span>secret_key1 = HybridSigSecretKey {
-<a href=#928 id=928 data-nosnippet>928</a>            parameter_set: MlDsaParameterSet::MlDsa44,
-<a href=#929 id=929 data-nosnippet>929</a>            ml_dsa_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0x11</span>; <span class="number">2560</span>]),
-<a href=#930 id=930 data-nosnippet>930</a>            ed25519_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0x22</span>; <span class="number">32</span>]),
-<a href=#931 id=931 data-nosnippet>931</a>        };
+<a href=#855 id=855 data-nosnippet>855</a>        <span class="comment">// Test with invalid Ed25519 public key length
+<a href=#856 id=856 data-nosnippet>856</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>invalid_pk = pk.clone();
+<a href=#857 id=857 data-nosnippet>857</a>        invalid_pk.ed25519_pk = <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">31</span>]; <span class="comment">// Wrong length
+<a href=#858 id=858 data-nosnippet>858</a>        </span><span class="kw">let </span>sig = HybridSignature { ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">100</span>], ed25519_sig: <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">64</span>] };
+<a href=#859 id=859 data-nosnippet>859</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>invalid_pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
+<a href=#860 id=860 data-nosnippet>860</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should reject invalid public key length"</span>);
+<a href=#861 id=861 data-nosnippet>861</a>
+<a href=#862 id=862 data-nosnippet>862</a>        <span class="comment">// Test with invalid signature length
+<a href=#863 id=863 data-nosnippet>863</a>        </span><span class="kw">let </span>invalid_sig = HybridSignature {
+<a href=#864 id=864 data-nosnippet>864</a>            ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">100</span>],
+<a href=#865 id=865 data-nosnippet>865</a>            ed25519_sig: <span class="macro">vec!</span>[<span class="number">1u8</span>; <span class="number">63</span>], <span class="comment">// Wrong length
+<a href=#866 id=866 data-nosnippet>866</a>        </span>};
+<a href=#867 id=867 data-nosnippet>867</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>invalid_sig);
+<a href=#868 id=868 data-nosnippet>868</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should reject invalid signature length"</span>);
+<a href=#869 id=869 data-nosnippet>869</a>    }
+<a href=#870 id=870 data-nosnippet>870</a>
+<a href=#871 id=871 data-nosnippet>871</a>    <span class="attr">#[test]
+<a href=#872 id=872 data-nosnippet>872</a>    </span><span class="kw">fn </span>test_ed25519_signature_properties_are_correct() {
+<a href=#873 id=873 data-nosnippet>873</a>        <span class="comment">// Exercise the primitives-layer Ed25519 wrapper end-to-end to keep
+<a href=#874 id=874 data-nosnippet>874</a>        // this module's tests self-contained without reaching into dalek.
+<a href=#875 id=875 data-nosnippet>875</a>        </span><span class="kw">let </span>keypair = Ed25519KeyPair::generate().expect(<span class="string">"keypair generation should succeed"</span>);
+<a href=#876 id=876 data-nosnippet>876</a>        <span class="kw">let </span>public_key_bytes = keypair.public_key_bytes();
+<a href=#877 id=877 data-nosnippet>877</a>
+<a href=#878 id=878 data-nosnippet>878</a>        <span class="kw">let </span>message = <span class="string">b"Test message"</span>;
+<a href=#879 id=879 data-nosnippet>879</a>        <span class="kw">let </span>signature = keypair.sign(message).expect(<span class="string">"sign should succeed"</span>);
+<a href=#880 id=880 data-nosnippet>880</a>
+<a href=#881 id=881 data-nosnippet>881</a>        <span class="comment">// Valid signature should verify
+<a href=#882 id=882 data-nosnippet>882</a>        </span><span class="kw">let </span>result = Ed25519SignatureOps::verify(<span class="kw-2">&amp;</span>public_key_bytes, message, <span class="kw-2">&amp;</span>signature);
+<a href=#883 id=883 data-nosnippet>883</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"Valid signature should verify"</span>);
+<a href=#884 id=884 data-nosnippet>884</a>
+<a href=#885 id=885 data-nosnippet>885</a>        <span class="comment">// Wrong message should not verify
+<a href=#886 id=886 data-nosnippet>886</a>        </span><span class="kw">let </span>wrong_message = <span class="string">b"Wrong message"</span>;
+<a href=#887 id=887 data-nosnippet>887</a>        <span class="kw">let </span>result = Ed25519SignatureOps::verify(<span class="kw-2">&amp;</span>public_key_bytes, wrong_message, <span class="kw-2">&amp;</span>signature);
+<a href=#888 id=888 data-nosnippet>888</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Wrong message should not verify"</span>);
+<a href=#889 id=889 data-nosnippet>889</a>    }
+<a href=#890 id=890 data-nosnippet>890</a>
+<a href=#891 id=891 data-nosnippet>891</a>    <span class="attr">#[test]
+<a href=#892 id=892 data-nosnippet>892</a>    </span><span class="kw">fn </span>test_hybrid_signature_zeroization_succeeds() {
+<a href=#893 id=893 data-nosnippet>893</a>        <span class="kw">let </span>ml_dsa_sig_data = <span class="macro">vec!</span>[<span class="number">0x77</span>; <span class="number">2420</span>];
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="kw">let </span>ed25519_sig_data = <span class="macro">vec!</span>[<span class="number">0x88</span>; <span class="number">64</span>];
+<a href=#895 id=895 data-nosnippet>895</a>
+<a href=#896 id=896 data-nosnippet>896</a>        <span class="kw">let </span><span class="kw-2">mut </span>signature =
+<a href=#897 id=897 data-nosnippet>897</a>            HybridSignature { ml_dsa_sig: ml_dsa_sig_data, ed25519_sig: ed25519_sig_data };
+<a href=#898 id=898 data-nosnippet>898</a>
+<a href=#899 id=899 data-nosnippet>899</a>        <span class="macro">assert!</span>(
+<a href=#900 id=900 data-nosnippet>900</a>            !signature.ml_dsa_sig.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#901 id=901 data-nosnippet>901</a>            <span class="string">"ML-DSA signature should contain non-zero data"
+<a href=#902 id=902 data-nosnippet>902</a>        </span>);
+<a href=#903 id=903 data-nosnippet>903</a>        <span class="macro">assert!</span>(
+<a href=#904 id=904 data-nosnippet>904</a>            !signature.ed25519_sig.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#905 id=905 data-nosnippet>905</a>            <span class="string">"Ed25519 signature should contain non-zero data"
+<a href=#906 id=906 data-nosnippet>906</a>        </span>);
+<a href=#907 id=907 data-nosnippet>907</a>
+<a href=#908 id=908 data-nosnippet>908</a>        signature.zeroize();
+<a href=#909 id=909 data-nosnippet>909</a>
+<a href=#910 id=910 data-nosnippet>910</a>        <span class="macro">assert!</span>(
+<a href=#911 id=911 data-nosnippet>911</a>            signature.ml_dsa_sig.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#912 id=912 data-nosnippet>912</a>            <span class="string">"ML-DSA signature should be zeroized"
+<a href=#913 id=913 data-nosnippet>913</a>        </span>);
+<a href=#914 id=914 data-nosnippet>914</a>        <span class="macro">assert!</span>(
+<a href=#915 id=915 data-nosnippet>915</a>            signature.ed25519_sig.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#916 id=916 data-nosnippet>916</a>            <span class="string">"Ed25519 signature should be zeroized"
+<a href=#917 id=917 data-nosnippet>917</a>        </span>);
+<a href=#918 id=918 data-nosnippet>918</a>    }
+<a href=#919 id=919 data-nosnippet>919</a>
+<a href=#920 id=920 data-nosnippet>920</a>    <span class="attr">#[test]
+<a href=#921 id=921 data-nosnippet>921</a>    </span><span class="kw">fn </span>test_hybrid_keypair_zeroization_succeeds() {
+<a href=#922 id=922 data-nosnippet>922</a>        <span class="kw">let </span>(_public_key, secret_key) = generate_keypair().expect(<span class="string">"Should generate hybrid keypair"</span>);
+<a href=#923 id=923 data-nosnippet>923</a>
+<a href=#924 id=924 data-nosnippet>924</a>        <span class="macro">assert!</span>(
+<a href=#925 id=925 data-nosnippet>925</a>            !secret_key.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#926 id=926 data-nosnippet>926</a>            <span class="string">"Keypair ML-DSA secret should contain non-zero data"
+<a href=#927 id=927 data-nosnippet>927</a>        </span>);
+<a href=#928 id=928 data-nosnippet>928</a>        <span class="macro">assert!</span>(
+<a href=#929 id=929 data-nosnippet>929</a>            !secret_key.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#930 id=930 data-nosnippet>930</a>            <span class="string">"Keypair Ed25519 secret should contain non-zero data"
+<a href=#931 id=931 data-nosnippet>931</a>        </span>);
 <a href=#932 id=932 data-nosnippet>932</a>
-<a href=#933 id=933 data-nosnippet>933</a>        <span class="kw">let </span><span class="kw-2">mut </span>secret_key2 = HybridSigSecretKey {
-<a href=#934 id=934 data-nosnippet>934</a>            parameter_set: MlDsaParameterSet::MlDsa44,
-<a href=#935 id=935 data-nosnippet>935</a>            ml_dsa_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0x33</span>; <span class="number">2560</span>]),
-<a href=#936 id=936 data-nosnippet>936</a>            ed25519_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0x44</span>; <span class="number">32</span>]),
+<a href=#933 id=933 data-nosnippet>933</a>        <span class="kw">let </span><span class="kw-2">mut </span>secret_key_clone = HybridSigSecretKey {
+<a href=#934 id=934 data-nosnippet>934</a>            parameter_set: secret_key.parameter_set,
+<a href=#935 id=935 data-nosnippet>935</a>            ml_dsa_sk: secret_key.ml_dsa_sk_bytes(),
+<a href=#936 id=936 data-nosnippet>936</a>            ed25519_sk: secret_key.ed25519_sk_bytes(),
 <a href=#937 id=937 data-nosnippet>937</a>        };
 <a href=#938 id=938 data-nosnippet>938</a>
-<a href=#939 id=939 data-nosnippet>939</a>        <span class="macro">assert!</span>(
-<a href=#940 id=940 data-nosnippet>940</a>            !secret_key1.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#941 id=941 data-nosnippet>941</a>            <span class="string">"Key1 ML-DSA secret should contain non-zero data"
-<a href=#942 id=942 data-nosnippet>942</a>        </span>);
-<a href=#943 id=943 data-nosnippet>943</a>        <span class="macro">assert!</span>(
-<a href=#944 id=944 data-nosnippet>944</a>            !secret_key1.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#945 id=945 data-nosnippet>945</a>            <span class="string">"Key1 Ed25519 secret should contain non-zero data"
-<a href=#946 id=946 data-nosnippet>946</a>        </span>);
-<a href=#947 id=947 data-nosnippet>947</a>        <span class="macro">assert!</span>(
-<a href=#948 id=948 data-nosnippet>948</a>            !secret_key2.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#949 id=949 data-nosnippet>949</a>            <span class="string">"Key2 ML-DSA secret should contain non-zero data"
-<a href=#950 id=950 data-nosnippet>950</a>        </span>);
-<a href=#951 id=951 data-nosnippet>951</a>        <span class="macro">assert!</span>(
-<a href=#952 id=952 data-nosnippet>952</a>            !secret_key2.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#953 id=953 data-nosnippet>953</a>            <span class="string">"Key2 Ed25519 secret should contain non-zero data"
-<a href=#954 id=954 data-nosnippet>954</a>        </span>);
-<a href=#955 id=955 data-nosnippet>955</a>
-<a href=#956 id=956 data-nosnippet>956</a>        secret_key1.ml_dsa_sk.zeroize();
-<a href=#957 id=957 data-nosnippet>957</a>
-<a href=#958 id=958 data-nosnippet>958</a>        <span class="macro">assert!</span>(
-<a href=#959 id=959 data-nosnippet>959</a>            secret_key1.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#960 id=960 data-nosnippet>960</a>            <span class="string">"Key1 ML-DSA secret should be zeroized first"
-<a href=#961 id=961 data-nosnippet>961</a>        </span>);
-<a href=#962 id=962 data-nosnippet>962</a>        <span class="macro">assert!</span>(
-<a href=#963 id=963 data-nosnippet>963</a>            !secret_key1.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#964 id=964 data-nosnippet>964</a>            <span class="string">"Key1 Ed25519 secret should still contain data"
-<a href=#965 id=965 data-nosnippet>965</a>        </span>);
-<a href=#966 id=966 data-nosnippet>966</a>        <span class="macro">assert!</span>(
-<a href=#967 id=967 data-nosnippet>967</a>            !secret_key2.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#968 id=968 data-nosnippet>968</a>            <span class="string">"Key2 ML-DSA secret should still contain data"
-<a href=#969 id=969 data-nosnippet>969</a>        </span>);
-<a href=#970 id=970 data-nosnippet>970</a>
-<a href=#971 id=971 data-nosnippet>971</a>        secret_key1.ed25519_sk.zeroize();
-<a href=#972 id=972 data-nosnippet>972</a>
+<a href=#939 id=939 data-nosnippet>939</a>        secret_key_clone.zeroize();
+<a href=#940 id=940 data-nosnippet>940</a>
+<a href=#941 id=941 data-nosnippet>941</a>        <span class="macro">assert!</span>(
+<a href=#942 id=942 data-nosnippet>942</a>            secret_key_clone.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#943 id=943 data-nosnippet>943</a>            <span class="string">"Cloned ML-DSA secret should be zeroized"
+<a href=#944 id=944 data-nosnippet>944</a>        </span>);
+<a href=#945 id=945 data-nosnippet>945</a>        <span class="macro">assert!</span>(
+<a href=#946 id=946 data-nosnippet>946</a>            secret_key_clone.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#947 id=947 data-nosnippet>947</a>            <span class="string">"Cloned Ed25519 secret should be zeroized"
+<a href=#948 id=948 data-nosnippet>948</a>        </span>);
+<a href=#949 id=949 data-nosnippet>949</a>    }
+<a href=#950 id=950 data-nosnippet>950</a>
+<a href=#951 id=951 data-nosnippet>951</a>    <span class="attr">#[test]
+<a href=#952 id=952 data-nosnippet>952</a>    </span><span class="kw">fn </span>test_hybrid_zeroization_order_is_correct() {
+<a href=#953 id=953 data-nosnippet>953</a>        <span class="kw">let </span><span class="kw-2">mut </span>secret_key1 = HybridSigSecretKey {
+<a href=#954 id=954 data-nosnippet>954</a>            parameter_set: MlDsaParameterSet::MlDsa44,
+<a href=#955 id=955 data-nosnippet>955</a>            ml_dsa_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0x11</span>; <span class="number">2560</span>]),
+<a href=#956 id=956 data-nosnippet>956</a>            ed25519_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0x22</span>; <span class="number">32</span>]),
+<a href=#957 id=957 data-nosnippet>957</a>        };
+<a href=#958 id=958 data-nosnippet>958</a>
+<a href=#959 id=959 data-nosnippet>959</a>        <span class="kw">let </span><span class="kw-2">mut </span>secret_key2 = HybridSigSecretKey {
+<a href=#960 id=960 data-nosnippet>960</a>            parameter_set: MlDsaParameterSet::MlDsa44,
+<a href=#961 id=961 data-nosnippet>961</a>            ml_dsa_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0x33</span>; <span class="number">2560</span>]),
+<a href=#962 id=962 data-nosnippet>962</a>            ed25519_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0x44</span>; <span class="number">32</span>]),
+<a href=#963 id=963 data-nosnippet>963</a>        };
+<a href=#964 id=964 data-nosnippet>964</a>
+<a href=#965 id=965 data-nosnippet>965</a>        <span class="macro">assert!</span>(
+<a href=#966 id=966 data-nosnippet>966</a>            !secret_key1.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#967 id=967 data-nosnippet>967</a>            <span class="string">"Key1 ML-DSA secret should contain non-zero data"
+<a href=#968 id=968 data-nosnippet>968</a>        </span>);
+<a href=#969 id=969 data-nosnippet>969</a>        <span class="macro">assert!</span>(
+<a href=#970 id=970 data-nosnippet>970</a>            !secret_key1.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#971 id=971 data-nosnippet>971</a>            <span class="string">"Key1 Ed25519 secret should contain non-zero data"
+<a href=#972 id=972 data-nosnippet>972</a>        </span>);
 <a href=#973 id=973 data-nosnippet>973</a>        <span class="macro">assert!</span>(
-<a href=#974 id=974 data-nosnippet>974</a>            secret_key1.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#975 id=975 data-nosnippet>975</a>            <span class="string">"Key1 Ed25519 secret should be zeroized second"
+<a href=#974 id=974 data-nosnippet>974</a>            !secret_key2.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#975 id=975 data-nosnippet>975</a>            <span class="string">"Key2 ML-DSA secret should contain non-zero data"
 <a href=#976 id=976 data-nosnippet>976</a>        </span>);
 <a href=#977 id=977 data-nosnippet>977</a>        <span class="macro">assert!</span>(
-<a href=#978 id=978 data-nosnippet>978</a>            !secret_key2.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#979 id=979 data-nosnippet>979</a>            <span class="string">"Key2 ML-DSA secret should still contain data"
+<a href=#978 id=978 data-nosnippet>978</a>            !secret_key2.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#979 id=979 data-nosnippet>979</a>            <span class="string">"Key2 Ed25519 secret should contain non-zero data"
 <a href=#980 id=980 data-nosnippet>980</a>        </span>);
 <a href=#981 id=981 data-nosnippet>981</a>
-<a href=#982 id=982 data-nosnippet>982</a>        secret_key2.ml_dsa_sk.zeroize();
-<a href=#983 id=983 data-nosnippet>983</a>        secret_key2.ed25519_sk.zeroize();
-<a href=#984 id=984 data-nosnippet>984</a>
-<a href=#985 id=985 data-nosnippet>985</a>        <span class="macro">assert!</span>(
-<a href=#986 id=986 data-nosnippet>986</a>            secret_key2.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#987 id=987 data-nosnippet>987</a>            <span class="string">"Key2 ML-DSA secret should be zeroized"
-<a href=#988 id=988 data-nosnippet>988</a>        </span>);
-<a href=#989 id=989 data-nosnippet>989</a>        <span class="macro">assert!</span>(
-<a href=#990 id=990 data-nosnippet>990</a>            secret_key2.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#991 id=991 data-nosnippet>991</a>            <span class="string">"Key2 Ed25519 secret should be zeroized"
-<a href=#992 id=992 data-nosnippet>992</a>        </span>);
-<a href=#993 id=993 data-nosnippet>993</a>    }
-<a href=#994 id=994 data-nosnippet>994</a>
-<a href=#995 id=995 data-nosnippet>995</a>    <span class="attr">#[test]
-<a href=#996 id=996 data-nosnippet>996</a>    </span><span class="kw">fn </span>test_hybrid_concurrent_zeroization_succeeds() {
-<a href=#997 id=997 data-nosnippet>997</a>        <span class="kw">use </span>std::sync::Arc;
-<a href=#998 id=998 data-nosnippet>998</a>        <span class="kw">use </span>std::thread;
-<a href=#999 id=999 data-nosnippet>999</a>
-<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="kw">let </span>ml_dsa_data = Arc::new(<span class="macro">vec!</span>[<span class="number">0x99</span>; <span class="number">2560</span>]);
-<a href=#1001 id=1001 data-nosnippet>1001</a>        <span class="kw">let </span>ed25519_data = Arc::new(<span class="macro">vec!</span>[<span class="number">0xAA</span>; <span class="number">32</span>]);
-<a href=#1002 id=1002 data-nosnippet>1002</a>        <span class="kw">let </span><span class="kw-2">mut </span>handles = <span class="macro">vec!</span>[];
-<a href=#1003 id=1003 data-nosnippet>1003</a>
-<a href=#1004 id=1004 data-nosnippet>1004</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">4 </span>{
-<a href=#1005 id=1005 data-nosnippet>1005</a>            <span class="kw">let </span>ml_dsa_clone = Arc::clone(<span class="kw-2">&amp;</span>ml_dsa_data);
-<a href=#1006 id=1006 data-nosnippet>1006</a>            <span class="kw">let </span>ed25519_clone = Arc::clone(<span class="kw-2">&amp;</span>ed25519_data);
+<a href=#982 id=982 data-nosnippet>982</a>        secret_key1.ml_dsa_sk.zeroize();
+<a href=#983 id=983 data-nosnippet>983</a>
+<a href=#984 id=984 data-nosnippet>984</a>        <span class="macro">assert!</span>(
+<a href=#985 id=985 data-nosnippet>985</a>            secret_key1.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#986 id=986 data-nosnippet>986</a>            <span class="string">"Key1 ML-DSA secret should be zeroized first"
+<a href=#987 id=987 data-nosnippet>987</a>        </span>);
+<a href=#988 id=988 data-nosnippet>988</a>        <span class="macro">assert!</span>(
+<a href=#989 id=989 data-nosnippet>989</a>            !secret_key1.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#990 id=990 data-nosnippet>990</a>            <span class="string">"Key1 Ed25519 secret should still contain data"
+<a href=#991 id=991 data-nosnippet>991</a>        </span>);
+<a href=#992 id=992 data-nosnippet>992</a>        <span class="macro">assert!</span>(
+<a href=#993 id=993 data-nosnippet>993</a>            !secret_key2.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#994 id=994 data-nosnippet>994</a>            <span class="string">"Key2 ML-DSA secret should still contain data"
+<a href=#995 id=995 data-nosnippet>995</a>        </span>);
+<a href=#996 id=996 data-nosnippet>996</a>
+<a href=#997 id=997 data-nosnippet>997</a>        secret_key1.ed25519_sk.zeroize();
+<a href=#998 id=998 data-nosnippet>998</a>
+<a href=#999 id=999 data-nosnippet>999</a>        <span class="macro">assert!</span>(
+<a href=#1000 id=1000 data-nosnippet>1000</a>            secret_key1.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#1001 id=1001 data-nosnippet>1001</a>            <span class="string">"Key1 Ed25519 secret should be zeroized second"
+<a href=#1002 id=1002 data-nosnippet>1002</a>        </span>);
+<a href=#1003 id=1003 data-nosnippet>1003</a>        <span class="macro">assert!</span>(
+<a href=#1004 id=1004 data-nosnippet>1004</a>            !secret_key2.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#1005 id=1005 data-nosnippet>1005</a>            <span class="string">"Key2 ML-DSA secret should still contain data"
+<a href=#1006 id=1006 data-nosnippet>1006</a>        </span>);
 <a href=#1007 id=1007 data-nosnippet>1007</a>
-<a href=#1008 id=1008 data-nosnippet>1008</a>            <span class="kw">let </span>handle = thread::spawn(<span class="kw">move </span>|| {
-<a href=#1009 id=1009 data-nosnippet>1009</a>                <span class="kw">let </span><span class="kw-2">mut </span>secret_key = HybridSigSecretKey {
-<a href=#1010 id=1010 data-nosnippet>1010</a>                    parameter_set: MlDsaParameterSet::MlDsa65,
-<a href=#1011 id=1011 data-nosnippet>1011</a>                    ml_dsa_sk: Zeroizing::new((<span class="kw-2">*</span>ml_dsa_clone).clone()),
-<a href=#1012 id=1012 data-nosnippet>1012</a>                    ed25519_sk: Zeroizing::new((<span class="kw-2">*</span>ed25519_clone).clone()),
-<a href=#1013 id=1013 data-nosnippet>1013</a>                };
-<a href=#1014 id=1014 data-nosnippet>1014</a>
-<a href=#1015 id=1015 data-nosnippet>1015</a>                <span class="macro">assert!</span>(
-<a href=#1016 id=1016 data-nosnippet>1016</a>                    !secret_key.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#1017 id=1017 data-nosnippet>1017</a>                    <span class="string">"Thread {} ML-DSA secret should contain non-zero data"</span>,
-<a href=#1018 id=1018 data-nosnippet>1018</a>                    i
-<a href=#1019 id=1019 data-nosnippet>1019</a>                );
-<a href=#1020 id=1020 data-nosnippet>1020</a>                <span class="macro">assert!</span>(
-<a href=#1021 id=1021 data-nosnippet>1021</a>                    !secret_key.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
-<a href=#1022 id=1022 data-nosnippet>1022</a>                    <span class="string">"Thread {} Ed25519 secret should contain non-zero data"</span>,
-<a href=#1023 id=1023 data-nosnippet>1023</a>                    i
-<a href=#1024 id=1024 data-nosnippet>1024</a>                );
+<a href=#1008 id=1008 data-nosnippet>1008</a>        secret_key2.ml_dsa_sk.zeroize();
+<a href=#1009 id=1009 data-nosnippet>1009</a>        secret_key2.ed25519_sk.zeroize();
+<a href=#1010 id=1010 data-nosnippet>1010</a>
+<a href=#1011 id=1011 data-nosnippet>1011</a>        <span class="macro">assert!</span>(
+<a href=#1012 id=1012 data-nosnippet>1012</a>            secret_key2.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#1013 id=1013 data-nosnippet>1013</a>            <span class="string">"Key2 ML-DSA secret should be zeroized"
+<a href=#1014 id=1014 data-nosnippet>1014</a>        </span>);
+<a href=#1015 id=1015 data-nosnippet>1015</a>        <span class="macro">assert!</span>(
+<a href=#1016 id=1016 data-nosnippet>1016</a>            secret_key2.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#1017 id=1017 data-nosnippet>1017</a>            <span class="string">"Key2 Ed25519 secret should be zeroized"
+<a href=#1018 id=1018 data-nosnippet>1018</a>        </span>);
+<a href=#1019 id=1019 data-nosnippet>1019</a>    }
+<a href=#1020 id=1020 data-nosnippet>1020</a>
+<a href=#1021 id=1021 data-nosnippet>1021</a>    <span class="attr">#[test]
+<a href=#1022 id=1022 data-nosnippet>1022</a>    </span><span class="kw">fn </span>test_hybrid_concurrent_zeroization_succeeds() {
+<a href=#1023 id=1023 data-nosnippet>1023</a>        <span class="kw">use </span>std::sync::Arc;
+<a href=#1024 id=1024 data-nosnippet>1024</a>        <span class="kw">use </span>std::thread;
 <a href=#1025 id=1025 data-nosnippet>1025</a>
-<a href=#1026 id=1026 data-nosnippet>1026</a>                secret_key.zeroize();
-<a href=#1027 id=1027 data-nosnippet>1027</a>
-<a href=#1028 id=1028 data-nosnippet>1028</a>                <span class="kw">let </span>ml_dsa_zeroized = secret_key.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>);
-<a href=#1029 id=1029 data-nosnippet>1029</a>                <span class="kw">let </span>ed25519_zeroized = secret_key.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>);
-<a href=#1030 id=1030 data-nosnippet>1030</a>
-<a href=#1031 id=1031 data-nosnippet>1031</a>                (i, ml_dsa_zeroized, ed25519_zeroized)
-<a href=#1032 id=1032 data-nosnippet>1032</a>            });
+<a href=#1026 id=1026 data-nosnippet>1026</a>        <span class="kw">let </span>ml_dsa_data = Arc::new(<span class="macro">vec!</span>[<span class="number">0x99</span>; <span class="number">2560</span>]);
+<a href=#1027 id=1027 data-nosnippet>1027</a>        <span class="kw">let </span>ed25519_data = Arc::new(<span class="macro">vec!</span>[<span class="number">0xAA</span>; <span class="number">32</span>]);
+<a href=#1028 id=1028 data-nosnippet>1028</a>        <span class="kw">let </span><span class="kw-2">mut </span>handles = <span class="macro">vec!</span>[];
+<a href=#1029 id=1029 data-nosnippet>1029</a>
+<a href=#1030 id=1030 data-nosnippet>1030</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">4 </span>{
+<a href=#1031 id=1031 data-nosnippet>1031</a>            <span class="kw">let </span>ml_dsa_clone = Arc::clone(<span class="kw-2">&amp;</span>ml_dsa_data);
+<a href=#1032 id=1032 data-nosnippet>1032</a>            <span class="kw">let </span>ed25519_clone = Arc::clone(<span class="kw-2">&amp;</span>ed25519_data);
 <a href=#1033 id=1033 data-nosnippet>1033</a>
-<a href=#1034 id=1034 data-nosnippet>1034</a>            handles.push(handle);
-<a href=#1035 id=1035 data-nosnippet>1035</a>        }
-<a href=#1036 id=1036 data-nosnippet>1036</a>
-<a href=#1037 id=1037 data-nosnippet>1037</a>        <span class="kw">for </span>handle <span class="kw">in </span>handles {
-<a href=#1038 id=1038 data-nosnippet>1038</a>            <span class="kw">let </span>(thread_id, ml_dsa_zeroized, ed25519_zeroized) =
-<a href=#1039 id=1039 data-nosnippet>1039</a>                handle.join().expect(<span class="string">"Thread should complete"</span>);
-<a href=#1040 id=1040 data-nosnippet>1040</a>            <span class="macro">assert!</span>(ml_dsa_zeroized, <span class="string">"Thread {} ML-DSA secret should be zeroized"</span>, thread_id);
-<a href=#1041 id=1041 data-nosnippet>1041</a>            <span class="macro">assert!</span>(ed25519_zeroized, <span class="string">"Thread {} Ed25519 secret should be zeroized"</span>, thread_id);
-<a href=#1042 id=1042 data-nosnippet>1042</a>        }
-<a href=#1043 id=1043 data-nosnippet>1043</a>    }
-<a href=#1044 id=1044 data-nosnippet>1044</a>
-<a href=#1045 id=1045 data-nosnippet>1045</a>    <span class="comment">// --- Additional coverage tests ---
-<a href=#1046 id=1046 data-nosnippet>1046</a>
-<a href=#1047 id=1047 data-nosnippet>1047</a>    </span><span class="attr">#[test]
-<a href=#1048 id=1048 data-nosnippet>1048</a>    </span><span class="kw">fn </span>test_hybrid_verify_wrong_message_fails() {
-<a href=#1049 id=1049 data-nosnippet>1049</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
-<a href=#1050 id=1050 data-nosnippet>1050</a>
-<a href=#1051 id=1051 data-nosnippet>1051</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"Original message"</span>).unwrap();
-<a href=#1052 id=1052 data-nosnippet>1052</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"Different message"</span>, <span class="kw-2">&amp;</span>sig);
-<a href=#1053 id=1053 data-nosnippet>1053</a>        <span class="comment">// ML-DSA verify will return error for wrong message
-<a href=#1054 id=1054 data-nosnippet>1054</a>        </span><span class="macro">assert!</span>(result.is_err(), <span class="string">"Wrong message should fail verification"</span>);
-<a href=#1055 id=1055 data-nosnippet>1055</a>    }
+<a href=#1034 id=1034 data-nosnippet>1034</a>            <span class="kw">let </span>handle = thread::spawn(<span class="kw">move </span>|| {
+<a href=#1035 id=1035 data-nosnippet>1035</a>                <span class="kw">let </span><span class="kw-2">mut </span>secret_key = HybridSigSecretKey {
+<a href=#1036 id=1036 data-nosnippet>1036</a>                    parameter_set: MlDsaParameterSet::MlDsa65,
+<a href=#1037 id=1037 data-nosnippet>1037</a>                    ml_dsa_sk: Zeroizing::new((<span class="kw-2">*</span>ml_dsa_clone).clone()),
+<a href=#1038 id=1038 data-nosnippet>1038</a>                    ed25519_sk: Zeroizing::new((<span class="kw-2">*</span>ed25519_clone).clone()),
+<a href=#1039 id=1039 data-nosnippet>1039</a>                };
+<a href=#1040 id=1040 data-nosnippet>1040</a>
+<a href=#1041 id=1041 data-nosnippet>1041</a>                <span class="macro">assert!</span>(
+<a href=#1042 id=1042 data-nosnippet>1042</a>                    !secret_key.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#1043 id=1043 data-nosnippet>1043</a>                    <span class="string">"Thread {} ML-DSA secret should contain non-zero data"</span>,
+<a href=#1044 id=1044 data-nosnippet>1044</a>                    i
+<a href=#1045 id=1045 data-nosnippet>1045</a>                );
+<a href=#1046 id=1046 data-nosnippet>1046</a>                <span class="macro">assert!</span>(
+<a href=#1047 id=1047 data-nosnippet>1047</a>                    !secret_key.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>),
+<a href=#1048 id=1048 data-nosnippet>1048</a>                    <span class="string">"Thread {} Ed25519 secret should contain non-zero data"</span>,
+<a href=#1049 id=1049 data-nosnippet>1049</a>                    i
+<a href=#1050 id=1050 data-nosnippet>1050</a>                );
+<a href=#1051 id=1051 data-nosnippet>1051</a>
+<a href=#1052 id=1052 data-nosnippet>1052</a>                secret_key.zeroize();
+<a href=#1053 id=1053 data-nosnippet>1053</a>
+<a href=#1054 id=1054 data-nosnippet>1054</a>                <span class="kw">let </span>ml_dsa_zeroized = secret_key.ml_dsa_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>);
+<a href=#1055 id=1055 data-nosnippet>1055</a>                <span class="kw">let </span>ed25519_zeroized = secret_key.ed25519_sk.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>);
 <a href=#1056 id=1056 data-nosnippet>1056</a>
-<a href=#1057 id=1057 data-nosnippet>1057</a>    <span class="attr">#[test]
-<a href=#1058 id=1058 data-nosnippet>1058</a>    </span><span class="kw">fn </span>test_hybrid_verify_wrong_key_fails() {
-<a href=#1059 id=1059 data-nosnippet>1059</a>        <span class="kw">let </span>(_pk1, sk1) = generate_keypair().unwrap();
-<a href=#1060 id=1060 data-nosnippet>1060</a>        <span class="kw">let </span>(pk2, _sk2) = generate_keypair().unwrap();
-<a href=#1061 id=1061 data-nosnippet>1061</a>
-<a href=#1062 id=1062 data-nosnippet>1062</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk1, <span class="string">b"Test"</span>).unwrap();
-<a href=#1063 id=1063 data-nosnippet>1063</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk2, <span class="string">b"Test"</span>, <span class="kw-2">&amp;</span>sig);
-<a href=#1064 id=1064 data-nosnippet>1064</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Wrong public key should fail verification"</span>);
-<a href=#1065 id=1065 data-nosnippet>1065</a>    }
-<a href=#1066 id=1066 data-nosnippet>1066</a>
-<a href=#1067 id=1067 data-nosnippet>1067</a>    <span class="attr">#[test]
-<a href=#1068 id=1068 data-nosnippet>1068</a>    </span><span class="kw">fn </span>test_hybrid_sign_invalid_ed25519_sk_length_returns_error() {
-<a href=#1069 id=1069 data-nosnippet>1069</a>        <span class="kw">let </span>sk = HybridSigSecretKey {
-<a href=#1070 id=1070 data-nosnippet>1070</a>            parameter_set: MlDsaParameterSet::MlDsa65,
-<a href=#1071 id=1071 data-nosnippet>1071</a>            ml_dsa_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">4032</span>]),
-<a href=#1072 id=1072 data-nosnippet>1072</a>            ed25519_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">16</span>]), <span class="comment">// Wrong: should be 32
-<a href=#1073 id=1073 data-nosnippet>1073</a>        </span>};
-<a href=#1074 id=1074 data-nosnippet>1074</a>        <span class="kw">let </span>result = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"test"</span>);
-<a href=#1075 id=1075 data-nosnippet>1075</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#1076 id=1076 data-nosnippet>1076</a>        <span class="kw">let </span>err = result.unwrap_err();
-<a href=#1077 id=1077 data-nosnippet>1077</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, HybridSignatureError::InvalidKeyMaterial(<span class="kw">_</span>)));
-<a href=#1078 id=1078 data-nosnippet>1078</a>    }
-<a href=#1079 id=1079 data-nosnippet>1079</a>
-<a href=#1080 id=1080 data-nosnippet>1080</a>    <span class="attr">#[test]
-<a href=#1081 id=1081 data-nosnippet>1081</a>    </span><span class="kw">fn </span>test_hybrid_verify_invalid_ed25519_pk_length_returns_error() {
-<a href=#1082 id=1082 data-nosnippet>1082</a>        <span class="kw">let </span>pk = HybridSigPublicKey {
-<a href=#1083 id=1083 data-nosnippet>1083</a>            parameter_set: MlDsaParameterSet::MlDsa65,
-<a href=#1084 id=1084 data-nosnippet>1084</a>            ml_dsa_pk: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">1952</span>],
-<a href=#1085 id=1085 data-nosnippet>1085</a>            ed25519_pk: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">16</span>], <span class="comment">// Wrong: should be 32
-<a href=#1086 id=1086 data-nosnippet>1086</a>        </span>};
-<a href=#1087 id=1087 data-nosnippet>1087</a>        <span class="kw">let </span>sig = HybridSignature { ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">3309</span>], ed25519_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">64</span>] };
-<a href=#1088 id=1088 data-nosnippet>1088</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
-<a href=#1089 id=1089 data-nosnippet>1089</a>        <span class="comment">// Pattern 6 (#52): verify no longer distinguishes length errors
-<a href=#1090 id=1090 data-nosnippet>1090</a>        // from verify failures; both collapse to VerificationFailed via
-<a href=#1091 id=1091 data-nosnippet>1091</a>        // the bit=0 path. Assert the surviving variant.
-<a href=#1092 id=1092 data-nosnippet>1092</a>        </span><span class="macro">assert!</span>(result.is_err());
-<a href=#1093 id=1093 data-nosnippet>1093</a>        <span class="kw">let </span>err = result.unwrap_err();
-<a href=#1094 id=1094 data-nosnippet>1094</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, HybridSignatureError::VerificationFailed(<span class="kw">_</span>)));
-<a href=#1095 id=1095 data-nosnippet>1095</a>    }
-<a href=#1096 id=1096 data-nosnippet>1096</a>
-<a href=#1097 id=1097 data-nosnippet>1097</a>    <span class="attr">#[test]
-<a href=#1098 id=1098 data-nosnippet>1098</a>    </span><span class="kw">fn </span>test_hybrid_verify_invalid_ed25519_sig_length_returns_error() {
-<a href=#1099 id=1099 data-nosnippet>1099</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
-<a href=#1100 id=1100 data-nosnippet>1100</a>
-<a href=#1101 id=1101 data-nosnippet>1101</a>        <span class="kw">let </span>sig = HybridSignature {
-<a href=#1102 id=1102 data-nosnippet>1102</a>            ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">3309</span>],
-<a href=#1103 id=1103 data-nosnippet>1103</a>            ed25519_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>], <span class="comment">// Wrong: should be 64
-<a href=#1104 id=1104 data-nosnippet>1104</a>        </span>};
-<a href=#1105 id=1105 data-nosnippet>1105</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
-<a href=#1106 id=1106 data-nosnippet>1106</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#1107 id=1107 data-nosnippet>1107</a>        <span class="kw">let </span>err = result.unwrap_err();
-<a href=#1108 id=1108 data-nosnippet>1108</a>        <span class="comment">// Pattern 6 (#52): see test above — length mismatches collapse into
-<a href=#1109 id=1109 data-nosnippet>1109</a>        // the bit=0 verify path, so the surviving variant is VerificationFailed.
-<a href=#1110 id=1110 data-nosnippet>1110</a>        </span><span class="macro">assert!</span>(<span class="macro">matches!</span>(err, HybridSignatureError::VerificationFailed(<span class="kw">_</span>)));
-<a href=#1111 id=1111 data-nosnippet>1111</a>    }
-<a href=#1112 id=1112 data-nosnippet>1112</a>
-<a href=#1113 id=1113 data-nosnippet>1113</a>    <span class="attr">#[test]
-<a href=#1114 id=1114 data-nosnippet>1114</a>    </span><span class="kw">fn </span>test_hybrid_signature_error_display_all_variants_have_correct_format_fails() {
-<a href=#1115 id=1115 data-nosnippet>1115</a>        <span class="kw">let </span>err1 = HybridSignatureError::MlDsaError(<span class="string">"dsa fail"</span>.to_string());
-<a href=#1116 id=1116 data-nosnippet>1116</a>        <span class="macro">assert!</span>(err1.to_string().contains(<span class="string">"dsa fail"</span>));
-<a href=#1117 id=1117 data-nosnippet>1117</a>
-<a href=#1118 id=1118 data-nosnippet>1118</a>        <span class="kw">let </span>err2 = HybridSignatureError::Ed25519Error(<span class="string">"ed fail"</span>.to_string());
-<a href=#1119 id=1119 data-nosnippet>1119</a>        <span class="macro">assert!</span>(err2.to_string().contains(<span class="string">"ed fail"</span>));
-<a href=#1120 id=1120 data-nosnippet>1120</a>
-<a href=#1121 id=1121 data-nosnippet>1121</a>        <span class="kw">let </span>err3 = HybridSignatureError::VerificationFailed(<span class="string">"verify fail"</span>.to_string());
-<a href=#1122 id=1122 data-nosnippet>1122</a>        <span class="macro">assert!</span>(err3.to_string().contains(<span class="string">"verify fail"</span>));
-<a href=#1123 id=1123 data-nosnippet>1123</a>
-<a href=#1124 id=1124 data-nosnippet>1124</a>        <span class="kw">let </span>err4 = HybridSignatureError::InvalidKeyMaterial(<span class="string">"bad key"</span>.to_string());
-<a href=#1125 id=1125 data-nosnippet>1125</a>        <span class="macro">assert!</span>(err4.to_string().contains(<span class="string">"bad key"</span>));
+<a href=#1057 id=1057 data-nosnippet>1057</a>                (i, ml_dsa_zeroized, ed25519_zeroized)
+<a href=#1058 id=1058 data-nosnippet>1058</a>            });
+<a href=#1059 id=1059 data-nosnippet>1059</a>
+<a href=#1060 id=1060 data-nosnippet>1060</a>            handles.push(handle);
+<a href=#1061 id=1061 data-nosnippet>1061</a>        }
+<a href=#1062 id=1062 data-nosnippet>1062</a>
+<a href=#1063 id=1063 data-nosnippet>1063</a>        <span class="kw">for </span>handle <span class="kw">in </span>handles {
+<a href=#1064 id=1064 data-nosnippet>1064</a>            <span class="kw">let </span>(thread_id, ml_dsa_zeroized, ed25519_zeroized) =
+<a href=#1065 id=1065 data-nosnippet>1065</a>                handle.join().expect(<span class="string">"Thread should complete"</span>);
+<a href=#1066 id=1066 data-nosnippet>1066</a>            <span class="macro">assert!</span>(ml_dsa_zeroized, <span class="string">"Thread {} ML-DSA secret should be zeroized"</span>, thread_id);
+<a href=#1067 id=1067 data-nosnippet>1067</a>            <span class="macro">assert!</span>(ed25519_zeroized, <span class="string">"Thread {} Ed25519 secret should be zeroized"</span>, thread_id);
+<a href=#1068 id=1068 data-nosnippet>1068</a>        }
+<a href=#1069 id=1069 data-nosnippet>1069</a>    }
+<a href=#1070 id=1070 data-nosnippet>1070</a>
+<a href=#1071 id=1071 data-nosnippet>1071</a>    <span class="comment">// --- Additional coverage tests ---
+<a href=#1072 id=1072 data-nosnippet>1072</a>
+<a href=#1073 id=1073 data-nosnippet>1073</a>    </span><span class="attr">#[test]
+<a href=#1074 id=1074 data-nosnippet>1074</a>    </span><span class="kw">fn </span>test_hybrid_verify_wrong_message_fails() {
+<a href=#1075 id=1075 data-nosnippet>1075</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
+<a href=#1076 id=1076 data-nosnippet>1076</a>
+<a href=#1077 id=1077 data-nosnippet>1077</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"Original message"</span>).unwrap();
+<a href=#1078 id=1078 data-nosnippet>1078</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"Different message"</span>, <span class="kw-2">&amp;</span>sig);
+<a href=#1079 id=1079 data-nosnippet>1079</a>        <span class="comment">// ML-DSA verify will return error for wrong message
+<a href=#1080 id=1080 data-nosnippet>1080</a>        </span><span class="macro">assert!</span>(result.is_err(), <span class="string">"Wrong message should fail verification"</span>);
+<a href=#1081 id=1081 data-nosnippet>1081</a>    }
+<a href=#1082 id=1082 data-nosnippet>1082</a>
+<a href=#1083 id=1083 data-nosnippet>1083</a>    <span class="attr">#[test]
+<a href=#1084 id=1084 data-nosnippet>1084</a>    </span><span class="kw">fn </span>test_hybrid_verify_wrong_key_fails() {
+<a href=#1085 id=1085 data-nosnippet>1085</a>        <span class="kw">let </span>(_pk1, sk1) = generate_keypair().unwrap();
+<a href=#1086 id=1086 data-nosnippet>1086</a>        <span class="kw">let </span>(pk2, _sk2) = generate_keypair().unwrap();
+<a href=#1087 id=1087 data-nosnippet>1087</a>
+<a href=#1088 id=1088 data-nosnippet>1088</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk1, <span class="string">b"Test"</span>).unwrap();
+<a href=#1089 id=1089 data-nosnippet>1089</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk2, <span class="string">b"Test"</span>, <span class="kw-2">&amp;</span>sig);
+<a href=#1090 id=1090 data-nosnippet>1090</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Wrong public key should fail verification"</span>);
+<a href=#1091 id=1091 data-nosnippet>1091</a>    }
+<a href=#1092 id=1092 data-nosnippet>1092</a>
+<a href=#1093 id=1093 data-nosnippet>1093</a>    <span class="attr">#[test]
+<a href=#1094 id=1094 data-nosnippet>1094</a>    </span><span class="kw">fn </span>test_hybrid_sign_invalid_ed25519_sk_length_returns_error() {
+<a href=#1095 id=1095 data-nosnippet>1095</a>        <span class="kw">let </span>sk = HybridSigSecretKey {
+<a href=#1096 id=1096 data-nosnippet>1096</a>            parameter_set: MlDsaParameterSet::MlDsa65,
+<a href=#1097 id=1097 data-nosnippet>1097</a>            ml_dsa_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">4032</span>]),
+<a href=#1098 id=1098 data-nosnippet>1098</a>            ed25519_sk: Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">16</span>]), <span class="comment">// Wrong: should be 32
+<a href=#1099 id=1099 data-nosnippet>1099</a>        </span>};
+<a href=#1100 id=1100 data-nosnippet>1100</a>        <span class="kw">let </span>result = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"test"</span>);
+<a href=#1101 id=1101 data-nosnippet>1101</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1102 id=1102 data-nosnippet>1102</a>        <span class="kw">let </span>err = result.unwrap_err();
+<a href=#1103 id=1103 data-nosnippet>1103</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, HybridSignatureError::InvalidKeyMaterial(<span class="kw">_</span>)));
+<a href=#1104 id=1104 data-nosnippet>1104</a>    }
+<a href=#1105 id=1105 data-nosnippet>1105</a>
+<a href=#1106 id=1106 data-nosnippet>1106</a>    <span class="attr">#[test]
+<a href=#1107 id=1107 data-nosnippet>1107</a>    </span><span class="kw">fn </span>test_hybrid_verify_invalid_ed25519_pk_length_returns_error() {
+<a href=#1108 id=1108 data-nosnippet>1108</a>        <span class="kw">let </span>pk = HybridSigPublicKey {
+<a href=#1109 id=1109 data-nosnippet>1109</a>            parameter_set: MlDsaParameterSet::MlDsa65,
+<a href=#1110 id=1110 data-nosnippet>1110</a>            ml_dsa_pk: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">1952</span>],
+<a href=#1111 id=1111 data-nosnippet>1111</a>            ed25519_pk: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">16</span>], <span class="comment">// Wrong: should be 32
+<a href=#1112 id=1112 data-nosnippet>1112</a>        </span>};
+<a href=#1113 id=1113 data-nosnippet>1113</a>        <span class="kw">let </span>sig = HybridSignature { ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">3309</span>], ed25519_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">64</span>] };
+<a href=#1114 id=1114 data-nosnippet>1114</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
+<a href=#1115 id=1115 data-nosnippet>1115</a>        <span class="comment">// Pattern 6 (#52): verify no longer distinguishes length errors
+<a href=#1116 id=1116 data-nosnippet>1116</a>        // from verify failures; both collapse to VerificationFailed via
+<a href=#1117 id=1117 data-nosnippet>1117</a>        // the bit=0 path. Assert the surviving variant.
+<a href=#1118 id=1118 data-nosnippet>1118</a>        </span><span class="macro">assert!</span>(result.is_err());
+<a href=#1119 id=1119 data-nosnippet>1119</a>        <span class="kw">let </span>err = result.unwrap_err();
+<a href=#1120 id=1120 data-nosnippet>1120</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, HybridSignatureError::VerificationFailed(<span class="kw">_</span>)));
+<a href=#1121 id=1121 data-nosnippet>1121</a>    }
+<a href=#1122 id=1122 data-nosnippet>1122</a>
+<a href=#1123 id=1123 data-nosnippet>1123</a>    <span class="attr">#[test]
+<a href=#1124 id=1124 data-nosnippet>1124</a>    </span><span class="kw">fn </span>test_hybrid_verify_invalid_ed25519_sig_length_returns_error() {
+<a href=#1125 id=1125 data-nosnippet>1125</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
 <a href=#1126 id=1126 data-nosnippet>1126</a>
-<a href=#1127 id=1127 data-nosnippet>1127</a>        <span class="kw">let </span>err5 = HybridSignatureError::CryptoError(<span class="string">"crypto fail"</span>.to_string());
-<a href=#1128 id=1128 data-nosnippet>1128</a>        <span class="macro">assert!</span>(err5.to_string().contains(<span class="string">"crypto fail"</span>));
-<a href=#1129 id=1129 data-nosnippet>1129</a>    }
-<a href=#1130 id=1130 data-nosnippet>1130</a>
-<a href=#1131 id=1131 data-nosnippet>1131</a>    <span class="attr">#[test]
-<a href=#1132 id=1132 data-nosnippet>1132</a>    </span><span class="kw">fn </span>test_hybrid_signature_error_clone_round_trips() {
-<a href=#1133 id=1133 data-nosnippet>1133</a>        <span class="kw">let </span>err1 = HybridSignatureError::MlDsaError(<span class="string">"test"</span>.to_string());
-<a href=#1134 id=1134 data-nosnippet>1134</a>        <span class="kw">let </span>err2 = err1.clone();
-<a href=#1135 id=1135 data-nosnippet>1135</a>        <span class="macro">assert_eq!</span>(err1.to_string(), err2.to_string());
-<a href=#1136 id=1136 data-nosnippet>1136</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err2, HybridSignatureError::MlDsaError(<span class="kw">_</span>)));
-<a href=#1137 id=1137 data-nosnippet>1137</a>        <span class="macro">assert!</span>(!<span class="macro">matches!</span>(err1, HybridSignatureError::Ed25519Error(<span class="kw">_</span>)));
-<a href=#1138 id=1138 data-nosnippet>1138</a>    }
-<a href=#1139 id=1139 data-nosnippet>1139</a>
-<a href=#1140 id=1140 data-nosnippet>1140</a>    <span class="attr">#[test]
-<a href=#1141 id=1141 data-nosnippet>1141</a>    </span><span class="kw">fn </span>test_hybrid_public_key_clone_debug_succeeds() {
-<a href=#1142 id=1142 data-nosnippet>1142</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
+<a href=#1127 id=1127 data-nosnippet>1127</a>        <span class="kw">let </span>sig = HybridSignature {
+<a href=#1128 id=1128 data-nosnippet>1128</a>            ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">3309</span>],
+<a href=#1129 id=1129 data-nosnippet>1129</a>            ed25519_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>], <span class="comment">// Wrong: should be 64
+<a href=#1130 id=1130 data-nosnippet>1130</a>        </span>};
+<a href=#1131 id=1131 data-nosnippet>1131</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
+<a href=#1132 id=1132 data-nosnippet>1132</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1133 id=1133 data-nosnippet>1133</a>        <span class="kw">let </span>err = result.unwrap_err();
+<a href=#1134 id=1134 data-nosnippet>1134</a>        <span class="comment">// Pattern 6 (#52): see test above — length mismatches collapse into
+<a href=#1135 id=1135 data-nosnippet>1135</a>        // the bit=0 verify path, so the surviving variant is VerificationFailed.
+<a href=#1136 id=1136 data-nosnippet>1136</a>        </span><span class="macro">assert!</span>(<span class="macro">matches!</span>(err, HybridSignatureError::VerificationFailed(<span class="kw">_</span>)));
+<a href=#1137 id=1137 data-nosnippet>1137</a>    }
+<a href=#1138 id=1138 data-nosnippet>1138</a>
+<a href=#1139 id=1139 data-nosnippet>1139</a>    <span class="attr">#[test]
+<a href=#1140 id=1140 data-nosnippet>1140</a>    </span><span class="kw">fn </span>test_hybrid_signature_error_display_all_variants_have_correct_format_fails() {
+<a href=#1141 id=1141 data-nosnippet>1141</a>        <span class="kw">let </span>err1 = HybridSignatureError::MlDsaError(<span class="string">"dsa fail"</span>.to_string());
+<a href=#1142 id=1142 data-nosnippet>1142</a>        <span class="macro">assert!</span>(err1.to_string().contains(<span class="string">"dsa fail"</span>));
 <a href=#1143 id=1143 data-nosnippet>1143</a>
-<a href=#1144 id=1144 data-nosnippet>1144</a>        <span class="kw">let </span>pk2 = pk.clone();
-<a href=#1145 id=1145 data-nosnippet>1145</a>        <span class="macro">assert_eq!</span>(pk.ml_dsa_pk, pk2.ml_dsa_pk);
-<a href=#1146 id=1146 data-nosnippet>1146</a>        <span class="macro">assert_eq!</span>(pk.ed25519_pk, pk2.ed25519_pk);
-<a href=#1147 id=1147 data-nosnippet>1147</a>
-<a href=#1148 id=1148 data-nosnippet>1148</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, pk);
-<a href=#1149 id=1149 data-nosnippet>1149</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"HybridSigPublicKey"</span>));
-<a href=#1150 id=1150 data-nosnippet>1150</a>    }
-<a href=#1151 id=1151 data-nosnippet>1151</a>
-<a href=#1152 id=1152 data-nosnippet>1152</a>    <span class="attr">#[test]
-<a href=#1153 id=1153 data-nosnippet>1153</a>    </span><span class="kw">fn </span>test_hybrid_secret_key_debug_has_correct_format() {
-<a href=#1154 id=1154 data-nosnippet>1154</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
-<a href=#1155 id=1155 data-nosnippet>1155</a>
-<a href=#1156 id=1156 data-nosnippet>1156</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, sk);
-<a href=#1157 id=1157 data-nosnippet>1157</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"HybridSigSecretKey"</span>));
-<a href=#1158 id=1158 data-nosnippet>1158</a>    }
-<a href=#1159 id=1159 data-nosnippet>1159</a>
-<a href=#1160 id=1160 data-nosnippet>1160</a>    <span class="attr">#[test]
-<a href=#1161 id=1161 data-nosnippet>1161</a>    </span><span class="kw">fn </span>test_hybrid_signature_clone_debug_succeeds() {
-<a href=#1162 id=1162 data-nosnippet>1162</a>        <span class="kw">let </span>sig = HybridSignature { ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>], ed25519_sig: <span class="macro">vec!</span>[<span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>] };
-<a href=#1163 id=1163 data-nosnippet>1163</a>        <span class="kw">let </span>sig2 = sig.clone();
-<a href=#1164 id=1164 data-nosnippet>1164</a>        <span class="macro">assert_eq!</span>(sig.ml_dsa_sig, sig2.ml_dsa_sig);
-<a href=#1165 id=1165 data-nosnippet>1165</a>        <span class="macro">assert_eq!</span>(sig.ed25519_sig, sig2.ed25519_sig);
-<a href=#1166 id=1166 data-nosnippet>1166</a>
-<a href=#1167 id=1167 data-nosnippet>1167</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, sig);
-<a href=#1168 id=1168 data-nosnippet>1168</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"HybridSignature"</span>));
-<a href=#1169 id=1169 data-nosnippet>1169</a>    }
-<a href=#1170 id=1170 data-nosnippet>1170</a>
-<a href=#1171 id=1171 data-nosnippet>1171</a>    <span class="attr">#[test]
-<a href=#1172 id=1172 data-nosnippet>1172</a>    </span><span class="kw">fn </span>test_sign_same_key_consistent_ed25519_succeeds() {
-<a href=#1173 id=1173 data-nosnippet>1173</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
-<a href=#1174 id=1174 data-nosnippet>1174</a>
-<a href=#1175 id=1175 data-nosnippet>1175</a>        <span class="kw">let </span>message = <span class="string">b"Consistency test"</span>;
-<a href=#1176 id=1176 data-nosnippet>1176</a>        <span class="kw">let </span>sig1 = sign(<span class="kw-2">&amp;</span>sk, message).unwrap();
-<a href=#1177 id=1177 data-nosnippet>1177</a>        <span class="kw">let </span>sig2 = sign(<span class="kw-2">&amp;</span>sk, message).unwrap();
-<a href=#1178 id=1178 data-nosnippet>1178</a>
-<a href=#1179 id=1179 data-nosnippet>1179</a>        <span class="comment">// Ed25519 signing is deterministic (RFC 8032)
-<a href=#1180 id=1180 data-nosnippet>1180</a>        </span><span class="macro">assert_eq!</span>(sig1.ed25519_sig, sig2.ed25519_sig, <span class="string">"Ed25519 sig should be deterministic"</span>);
-<a href=#1181 id=1181 data-nosnippet>1181</a>        <span class="comment">// ML-DSA uses hedged randomness — signatures may differ but both verify
-<a href=#1182 id=1182 data-nosnippet>1182</a>        </span><span class="macro">assert!</span>(!sig1.ml_dsa_sig.is_empty());
-<a href=#1183 id=1183 data-nosnippet>1183</a>        <span class="macro">assert!</span>(!sig2.ml_dsa_sig.is_empty());
+<a href=#1144 id=1144 data-nosnippet>1144</a>        <span class="kw">let </span>err2 = HybridSignatureError::Ed25519Error(<span class="string">"ed fail"</span>.to_string());
+<a href=#1145 id=1145 data-nosnippet>1145</a>        <span class="macro">assert!</span>(err2.to_string().contains(<span class="string">"ed fail"</span>));
+<a href=#1146 id=1146 data-nosnippet>1146</a>
+<a href=#1147 id=1147 data-nosnippet>1147</a>        <span class="kw">let </span>err3 = HybridSignatureError::VerificationFailed(<span class="string">"verify fail"</span>.to_string());
+<a href=#1148 id=1148 data-nosnippet>1148</a>        <span class="macro">assert!</span>(err3.to_string().contains(<span class="string">"verify fail"</span>));
+<a href=#1149 id=1149 data-nosnippet>1149</a>
+<a href=#1150 id=1150 data-nosnippet>1150</a>        <span class="kw">let </span>err4 = HybridSignatureError::InvalidKeyMaterial(<span class="string">"bad key"</span>.to_string());
+<a href=#1151 id=1151 data-nosnippet>1151</a>        <span class="macro">assert!</span>(err4.to_string().contains(<span class="string">"bad key"</span>));
+<a href=#1152 id=1152 data-nosnippet>1152</a>
+<a href=#1153 id=1153 data-nosnippet>1153</a>        <span class="kw">let </span>err5 = HybridSignatureError::CryptoError(<span class="string">"crypto fail"</span>.to_string());
+<a href=#1154 id=1154 data-nosnippet>1154</a>        <span class="macro">assert!</span>(err5.to_string().contains(<span class="string">"crypto fail"</span>));
+<a href=#1155 id=1155 data-nosnippet>1155</a>    }
+<a href=#1156 id=1156 data-nosnippet>1156</a>
+<a href=#1157 id=1157 data-nosnippet>1157</a>    <span class="attr">#[test]
+<a href=#1158 id=1158 data-nosnippet>1158</a>    </span><span class="kw">fn </span>test_hybrid_signature_error_clone_round_trips() {
+<a href=#1159 id=1159 data-nosnippet>1159</a>        <span class="kw">let </span>err1 = HybridSignatureError::MlDsaError(<span class="string">"test"</span>.to_string());
+<a href=#1160 id=1160 data-nosnippet>1160</a>        <span class="kw">let </span>err2 = err1.clone();
+<a href=#1161 id=1161 data-nosnippet>1161</a>        <span class="macro">assert_eq!</span>(err1.to_string(), err2.to_string());
+<a href=#1162 id=1162 data-nosnippet>1162</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err2, HybridSignatureError::MlDsaError(<span class="kw">_</span>)));
+<a href=#1163 id=1163 data-nosnippet>1163</a>        <span class="macro">assert!</span>(!<span class="macro">matches!</span>(err1, HybridSignatureError::Ed25519Error(<span class="kw">_</span>)));
+<a href=#1164 id=1164 data-nosnippet>1164</a>    }
+<a href=#1165 id=1165 data-nosnippet>1165</a>
+<a href=#1166 id=1166 data-nosnippet>1166</a>    <span class="attr">#[test]
+<a href=#1167 id=1167 data-nosnippet>1167</a>    </span><span class="kw">fn </span>test_hybrid_public_key_clone_debug_succeeds() {
+<a href=#1168 id=1168 data-nosnippet>1168</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
+<a href=#1169 id=1169 data-nosnippet>1169</a>
+<a href=#1170 id=1170 data-nosnippet>1170</a>        <span class="kw">let </span>pk2 = pk.clone();
+<a href=#1171 id=1171 data-nosnippet>1171</a>        <span class="macro">assert_eq!</span>(pk.ml_dsa_pk, pk2.ml_dsa_pk);
+<a href=#1172 id=1172 data-nosnippet>1172</a>        <span class="macro">assert_eq!</span>(pk.ed25519_pk, pk2.ed25519_pk);
+<a href=#1173 id=1173 data-nosnippet>1173</a>
+<a href=#1174 id=1174 data-nosnippet>1174</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, pk);
+<a href=#1175 id=1175 data-nosnippet>1175</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"HybridSigPublicKey"</span>));
+<a href=#1176 id=1176 data-nosnippet>1176</a>    }
+<a href=#1177 id=1177 data-nosnippet>1177</a>
+<a href=#1178 id=1178 data-nosnippet>1178</a>    <span class="attr">#[test]
+<a href=#1179 id=1179 data-nosnippet>1179</a>    </span><span class="kw">fn </span>test_hybrid_secret_key_debug_has_correct_format() {
+<a href=#1180 id=1180 data-nosnippet>1180</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
+<a href=#1181 id=1181 data-nosnippet>1181</a>
+<a href=#1182 id=1182 data-nosnippet>1182</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, sk);
+<a href=#1183 id=1183 data-nosnippet>1183</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"HybridSigSecretKey"</span>));
 <a href=#1184 id=1184 data-nosnippet>1184</a>    }
 <a href=#1185 id=1185 data-nosnippet>1185</a>
 <a href=#1186 id=1186 data-nosnippet>1186</a>    <span class="attr">#[test]
-<a href=#1187 id=1187 data-nosnippet>1187</a>    </span><span class="kw">fn </span>test_sign_different_messages_produces_unique_sigs_are_unique() {
-<a href=#1188 id=1188 data-nosnippet>1188</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
-<a href=#1189 id=1189 data-nosnippet>1189</a>
-<a href=#1190 id=1190 data-nosnippet>1190</a>        <span class="kw">let </span>sig1 = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"Message A"</span>).unwrap();
-<a href=#1191 id=1191 data-nosnippet>1191</a>        <span class="kw">let </span>sig2 = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"Message B"</span>).unwrap();
+<a href=#1187 id=1187 data-nosnippet>1187</a>    </span><span class="kw">fn </span>test_hybrid_signature_clone_debug_succeeds() {
+<a href=#1188 id=1188 data-nosnippet>1188</a>        <span class="kw">let </span>sig = HybridSignature { ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>], ed25519_sig: <span class="macro">vec!</span>[<span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>] };
+<a href=#1189 id=1189 data-nosnippet>1189</a>        <span class="kw">let </span>sig2 = sig.clone();
+<a href=#1190 id=1190 data-nosnippet>1190</a>        <span class="macro">assert_eq!</span>(sig.ml_dsa_sig, sig2.ml_dsa_sig);
+<a href=#1191 id=1191 data-nosnippet>1191</a>        <span class="macro">assert_eq!</span>(sig.ed25519_sig, sig2.ed25519_sig);
 <a href=#1192 id=1192 data-nosnippet>1192</a>
-<a href=#1193 id=1193 data-nosnippet>1193</a>        <span class="macro">assert_ne!</span>(sig1.ml_dsa_sig, sig2.ml_dsa_sig);
-<a href=#1194 id=1194 data-nosnippet>1194</a>        <span class="macro">assert_ne!</span>(sig1.ed25519_sig, sig2.ed25519_sig);
+<a href=#1193 id=1193 data-nosnippet>1193</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, sig);
+<a href=#1194 id=1194 data-nosnippet>1194</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"HybridSignature"</span>));
 <a href=#1195 id=1195 data-nosnippet>1195</a>    }
 <a href=#1196 id=1196 data-nosnippet>1196</a>
 <a href=#1197 id=1197 data-nosnippet>1197</a>    <span class="attr">#[test]
-<a href=#1198 id=1198 data-nosnippet>1198</a>    </span><span class="kw">fn </span>test_sign_empty_message_succeeds() {
-<a href=#1199 id=1199 data-nosnippet>1199</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
+<a href=#1198 id=1198 data-nosnippet>1198</a>    </span><span class="kw">fn </span>test_sign_same_key_consistent_ed25519_succeeds() {
+<a href=#1199 id=1199 data-nosnippet>1199</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
 <a href=#1200 id=1200 data-nosnippet>1200</a>
-<a href=#1201 id=1201 data-nosnippet>1201</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b""</span>).unwrap();
-<a href=#1202 id=1202 data-nosnippet>1202</a>        <span class="kw">let </span>valid = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b""</span>, <span class="kw-2">&amp;</span>sig).unwrap();
-<a href=#1203 id=1203 data-nosnippet>1203</a>        <span class="macro">assert!</span>(valid, <span class="string">"Empty message signature should verify"</span>);
-<a href=#1204 id=1204 data-nosnippet>1204</a>    }
-<a href=#1205 id=1205 data-nosnippet>1205</a>
-<a href=#1206 id=1206 data-nosnippet>1206</a>    <span class="attr">#[test]
-<a href=#1207 id=1207 data-nosnippet>1207</a>    </span><span class="kw">fn </span>test_sign_large_message_succeeds() {
-<a href=#1208 id=1208 data-nosnippet>1208</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
-<a href=#1209 id=1209 data-nosnippet>1209</a>
-<a href=#1210 id=1210 data-nosnippet>1210</a>        <span class="comment">// 50 KiB: large enough to exercise multi-block message handling,
-<a href=#1211 id=1211 data-nosnippet>1211</a>        // below the default max_signature_size_bytes (64 KiB) resource cap
-<a href=#1212 id=1212 data-nosnippet>1212</a>        // enforced by the primitive sign path.
-<a href=#1213 id=1213 data-nosnippet>1213</a>        </span><span class="kw">let </span>large_message = <span class="macro">vec!</span>[<span class="number">0xABu8</span>; <span class="number">50 </span>* <span class="number">1024</span>];
-<a href=#1214 id=1214 data-nosnippet>1214</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>large_message).unwrap();
-<a href=#1215 id=1215 data-nosnippet>1215</a>        <span class="kw">let </span>valid = verify(<span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>large_message, <span class="kw-2">&amp;</span>sig).unwrap();
-<a href=#1216 id=1216 data-nosnippet>1216</a>        <span class="macro">assert!</span>(valid, <span class="string">"Large message signature should verify"</span>);
-<a href=#1217 id=1217 data-nosnippet>1217</a>    }
+<a href=#1201 id=1201 data-nosnippet>1201</a>        <span class="kw">let </span>message = <span class="string">b"Consistency test"</span>;
+<a href=#1202 id=1202 data-nosnippet>1202</a>        <span class="kw">let </span>sig1 = sign(<span class="kw-2">&amp;</span>sk, message).unwrap();
+<a href=#1203 id=1203 data-nosnippet>1203</a>        <span class="kw">let </span>sig2 = sign(<span class="kw-2">&amp;</span>sk, message).unwrap();
+<a href=#1204 id=1204 data-nosnippet>1204</a>
+<a href=#1205 id=1205 data-nosnippet>1205</a>        <span class="comment">// Ed25519 signing is deterministic (RFC 8032)
+<a href=#1206 id=1206 data-nosnippet>1206</a>        </span><span class="macro">assert_eq!</span>(sig1.ed25519_sig, sig2.ed25519_sig, <span class="string">"Ed25519 sig should be deterministic"</span>);
+<a href=#1207 id=1207 data-nosnippet>1207</a>        <span class="comment">// ML-DSA uses hedged randomness — signatures may differ but both verify
+<a href=#1208 id=1208 data-nosnippet>1208</a>        </span><span class="macro">assert!</span>(!sig1.ml_dsa_sig.is_empty());
+<a href=#1209 id=1209 data-nosnippet>1209</a>        <span class="macro">assert!</span>(!sig2.ml_dsa_sig.is_empty());
+<a href=#1210 id=1210 data-nosnippet>1210</a>    }
+<a href=#1211 id=1211 data-nosnippet>1211</a>
+<a href=#1212 id=1212 data-nosnippet>1212</a>    <span class="attr">#[test]
+<a href=#1213 id=1213 data-nosnippet>1213</a>    </span><span class="kw">fn </span>test_sign_different_messages_produces_unique_sigs_are_unique() {
+<a href=#1214 id=1214 data-nosnippet>1214</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
+<a href=#1215 id=1215 data-nosnippet>1215</a>
+<a href=#1216 id=1216 data-nosnippet>1216</a>        <span class="kw">let </span>sig1 = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"Message A"</span>).unwrap();
+<a href=#1217 id=1217 data-nosnippet>1217</a>        <span class="kw">let </span>sig2 = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"Message B"</span>).unwrap();
 <a href=#1218 id=1218 data-nosnippet>1218</a>
-<a href=#1219 id=1219 data-nosnippet>1219</a>    <span class="comment">// ========================================================================
-<a href=#1220 id=1220 data-nosnippet>1220</a>    // Additional coverage: verify error paths
-<a href=#1221 id=1221 data-nosnippet>1221</a>    // ========================================================================
+<a href=#1219 id=1219 data-nosnippet>1219</a>        <span class="macro">assert_ne!</span>(sig1.ml_dsa_sig, sig2.ml_dsa_sig);
+<a href=#1220 id=1220 data-nosnippet>1220</a>        <span class="macro">assert_ne!</span>(sig1.ed25519_sig, sig2.ed25519_sig);
+<a href=#1221 id=1221 data-nosnippet>1221</a>    }
 <a href=#1222 id=1222 data-nosnippet>1222</a>
-<a href=#1223 id=1223 data-nosnippet>1223</a>    </span><span class="attr">#[test]
-<a href=#1224 id=1224 data-nosnippet>1224</a>    </span><span class="kw">fn </span>test_verify_wrong_key_pair_ml_dsa_fails() {
-<a href=#1225 id=1225 data-nosnippet>1225</a>        <span class="kw">let </span>(pk1, _sk1) = generate_keypair().unwrap();
-<a href=#1226 id=1226 data-nosnippet>1226</a>        <span class="kw">let </span>(_pk2, sk2) = generate_keypair().unwrap();
-<a href=#1227 id=1227 data-nosnippet>1227</a>
-<a href=#1228 id=1228 data-nosnippet>1228</a>        <span class="comment">// Sign with sk2, verify with pk1 — ML-DSA component should fail
-<a href=#1229 id=1229 data-nosnippet>1229</a>        </span><span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk2, <span class="string">b"test msg"</span>).unwrap();
-<a href=#1230 id=1230 data-nosnippet>1230</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk1, <span class="string">b"test msg"</span>, <span class="kw-2">&amp;</span>sig);
-<a href=#1231 id=1231 data-nosnippet>1231</a>        <span class="comment">// ML-DSA verify returns Err for wrong key pair
-<a href=#1232 id=1232 data-nosnippet>1232</a>        </span><span class="macro">assert!</span>(result.is_err(), <span class="string">"Verification with wrong key pair must fail"</span>);
-<a href=#1233 id=1233 data-nosnippet>1233</a>    }
-<a href=#1234 id=1234 data-nosnippet>1234</a>
-<a href=#1235 id=1235 data-nosnippet>1235</a>    <span class="attr">#[test]
-<a href=#1236 id=1236 data-nosnippet>1236</a>    </span><span class="kw">fn </span>test_verify_corrupted_ed25519_signature_fails() {
-<a href=#1237 id=1237 data-nosnippet>1237</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
-<a href=#1238 id=1238 data-nosnippet>1238</a>        <span class="kw">let </span>message = <span class="string">b"Test message"</span>;
-<a href=#1239 id=1239 data-nosnippet>1239</a>
-<a href=#1240 id=1240 data-nosnippet>1240</a>        <span class="kw">let </span><span class="kw-2">mut </span>sig = sign(<span class="kw-2">&amp;</span>sk, message).unwrap();
-<a href=#1241 id=1241 data-nosnippet>1241</a>        <span class="comment">// Corrupt only the Ed25519 signature (leave ML-DSA intact)
-<a href=#1242 id=1242 data-nosnippet>1242</a>        </span>sig.ed25519_sig[<span class="number">0</span>] ^= <span class="number">0xFF</span>;
-<a href=#1243 id=1243 data-nosnippet>1243</a>
-<a href=#1244 id=1244 data-nosnippet>1244</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>sig);
-<a href=#1245 id=1245 data-nosnippet>1245</a>        <span class="comment">// Should fail: either error or false
-<a href=#1246 id=1246 data-nosnippet>1246</a>        </span><span class="kw">match </span>result {
-<a href=#1247 id=1247 data-nosnippet>1247</a>            <span class="prelude-val">Ok</span>(valid) =&gt; <span class="macro">assert!</span>(!valid, <span class="string">"Corrupted Ed25519 sig must not verify"</span>),
-<a href=#1248 id=1248 data-nosnippet>1248</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {} <span class="comment">// Error is also acceptable
-<a href=#1249 id=1249 data-nosnippet>1249</a>        </span>}
-<a href=#1250 id=1250 data-nosnippet>1250</a>    }
-<a href=#1251 id=1251 data-nosnippet>1251</a>
-<a href=#1252 id=1252 data-nosnippet>1252</a>    <span class="attr">#[test]
-<a href=#1253 id=1253 data-nosnippet>1253</a>    </span><span class="kw">fn </span>test_verify_invalid_ml_dsa_sig_length_returns_error() {
-<a href=#1254 id=1254 data-nosnippet>1254</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
-<a href=#1255 id=1255 data-nosnippet>1255</a>
-<a href=#1256 id=1256 data-nosnippet>1256</a>        <span class="kw">let </span>sig = HybridSignature {
-<a href=#1257 id=1257 data-nosnippet>1257</a>            ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">100</span>], <span class="comment">// Wrong length for MlDsa65
-<a href=#1258 id=1258 data-nosnippet>1258</a>            </span>ed25519_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">64</span>],
-<a href=#1259 id=1259 data-nosnippet>1259</a>        };
+<a href=#1223 id=1223 data-nosnippet>1223</a>    <span class="attr">#[test]
+<a href=#1224 id=1224 data-nosnippet>1224</a>    </span><span class="kw">fn </span>test_sign_empty_message_succeeds() {
+<a href=#1225 id=1225 data-nosnippet>1225</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
+<a href=#1226 id=1226 data-nosnippet>1226</a>
+<a href=#1227 id=1227 data-nosnippet>1227</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b""</span>).unwrap();
+<a href=#1228 id=1228 data-nosnippet>1228</a>        <span class="kw">let </span>valid = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b""</span>, <span class="kw-2">&amp;</span>sig).unwrap();
+<a href=#1229 id=1229 data-nosnippet>1229</a>        <span class="macro">assert!</span>(valid, <span class="string">"Empty message signature should verify"</span>);
+<a href=#1230 id=1230 data-nosnippet>1230</a>    }
+<a href=#1231 id=1231 data-nosnippet>1231</a>
+<a href=#1232 id=1232 data-nosnippet>1232</a>    <span class="attr">#[test]
+<a href=#1233 id=1233 data-nosnippet>1233</a>    </span><span class="kw">fn </span>test_sign_large_message_succeeds() {
+<a href=#1234 id=1234 data-nosnippet>1234</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
+<a href=#1235 id=1235 data-nosnippet>1235</a>
+<a href=#1236 id=1236 data-nosnippet>1236</a>        <span class="comment">// 50 KiB: large enough to exercise multi-block message handling,
+<a href=#1237 id=1237 data-nosnippet>1237</a>        // below the default max_signature_size_bytes (64 KiB) resource cap
+<a href=#1238 id=1238 data-nosnippet>1238</a>        // enforced by the primitive sign path.
+<a href=#1239 id=1239 data-nosnippet>1239</a>        </span><span class="kw">let </span>large_message = <span class="macro">vec!</span>[<span class="number">0xABu8</span>; <span class="number">50 </span>* <span class="number">1024</span>];
+<a href=#1240 id=1240 data-nosnippet>1240</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>large_message).unwrap();
+<a href=#1241 id=1241 data-nosnippet>1241</a>        <span class="kw">let </span>valid = verify(<span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>large_message, <span class="kw-2">&amp;</span>sig).unwrap();
+<a href=#1242 id=1242 data-nosnippet>1242</a>        <span class="macro">assert!</span>(valid, <span class="string">"Large message signature should verify"</span>);
+<a href=#1243 id=1243 data-nosnippet>1243</a>    }
+<a href=#1244 id=1244 data-nosnippet>1244</a>
+<a href=#1245 id=1245 data-nosnippet>1245</a>    <span class="comment">// ========================================================================
+<a href=#1246 id=1246 data-nosnippet>1246</a>    // Additional coverage: verify error paths
+<a href=#1247 id=1247 data-nosnippet>1247</a>    // ========================================================================
+<a href=#1248 id=1248 data-nosnippet>1248</a>
+<a href=#1249 id=1249 data-nosnippet>1249</a>    </span><span class="attr">#[test]
+<a href=#1250 id=1250 data-nosnippet>1250</a>    </span><span class="kw">fn </span>test_verify_wrong_key_pair_ml_dsa_fails() {
+<a href=#1251 id=1251 data-nosnippet>1251</a>        <span class="kw">let </span>(pk1, _sk1) = generate_keypair().unwrap();
+<a href=#1252 id=1252 data-nosnippet>1252</a>        <span class="kw">let </span>(_pk2, sk2) = generate_keypair().unwrap();
+<a href=#1253 id=1253 data-nosnippet>1253</a>
+<a href=#1254 id=1254 data-nosnippet>1254</a>        <span class="comment">// Sign with sk2, verify with pk1 — ML-DSA component should fail
+<a href=#1255 id=1255 data-nosnippet>1255</a>        </span><span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk2, <span class="string">b"test msg"</span>).unwrap();
+<a href=#1256 id=1256 data-nosnippet>1256</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk1, <span class="string">b"test msg"</span>, <span class="kw-2">&amp;</span>sig);
+<a href=#1257 id=1257 data-nosnippet>1257</a>        <span class="comment">// ML-DSA verify returns Err for wrong key pair
+<a href=#1258 id=1258 data-nosnippet>1258</a>        </span><span class="macro">assert!</span>(result.is_err(), <span class="string">"Verification with wrong key pair must fail"</span>);
+<a href=#1259 id=1259 data-nosnippet>1259</a>    }
 <a href=#1260 id=1260 data-nosnippet>1260</a>
-<a href=#1261 id=1261 data-nosnippet>1261</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
-<a href=#1262 id=1262 data-nosnippet>1262</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#1263 id=1263 data-nosnippet>1263</a>    }
-<a href=#1264 id=1264 data-nosnippet>1264</a>
-<a href=#1265 id=1265 data-nosnippet>1265</a>    <span class="attr">#[test]
-<a href=#1266 id=1266 data-nosnippet>1266</a>    </span><span class="kw">fn </span>test_verify_invalid_ml_dsa_pk_length_returns_error() {
-<a href=#1267 id=1267 data-nosnippet>1267</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
-<a href=#1268 id=1268 data-nosnippet>1268</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"test"</span>).unwrap();
+<a href=#1261 id=1261 data-nosnippet>1261</a>    <span class="attr">#[test]
+<a href=#1262 id=1262 data-nosnippet>1262</a>    </span><span class="kw">fn </span>test_verify_corrupted_ed25519_signature_fails() {
+<a href=#1263 id=1263 data-nosnippet>1263</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
+<a href=#1264 id=1264 data-nosnippet>1264</a>        <span class="kw">let </span>message = <span class="string">b"Test message"</span>;
+<a href=#1265 id=1265 data-nosnippet>1265</a>
+<a href=#1266 id=1266 data-nosnippet>1266</a>        <span class="kw">let </span><span class="kw-2">mut </span>sig = sign(<span class="kw-2">&amp;</span>sk, message).unwrap();
+<a href=#1267 id=1267 data-nosnippet>1267</a>        <span class="comment">// Corrupt only the Ed25519 signature (leave ML-DSA intact)
+<a href=#1268 id=1268 data-nosnippet>1268</a>        </span>sig.ed25519_sig[<span class="number">0</span>] ^= <span class="number">0xFF</span>;
 <a href=#1269 id=1269 data-nosnippet>1269</a>
-<a href=#1270 id=1270 data-nosnippet>1270</a>        <span class="kw">let </span>bad_pk = HybridSigPublicKey {
-<a href=#1271 id=1271 data-nosnippet>1271</a>            parameter_set: MlDsaParameterSet::MlDsa65,
-<a href=#1272 id=1272 data-nosnippet>1272</a>            ml_dsa_pk: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">100</span>], <span class="comment">// Wrong length
-<a href=#1273 id=1273 data-nosnippet>1273</a>            </span>ed25519_pk: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>],
-<a href=#1274 id=1274 data-nosnippet>1274</a>        };
-<a href=#1275 id=1275 data-nosnippet>1275</a>
-<a href=#1276 id=1276 data-nosnippet>1276</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>bad_pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
-<a href=#1277 id=1277 data-nosnippet>1277</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#1278 id=1278 data-nosnippet>1278</a>    }
-<a href=#1279 id=1279 data-nosnippet>1279</a>
-<a href=#1280 id=1280 data-nosnippet>1280</a>    <span class="doccomment">/// Regression test for the parameter-set propagation bug: prior to
-<a href=#1281 id=1281 data-nosnippet>1281</a>    /// 0.8.0 the hardcoded `MlDsaParameterSet::MlDsa65` in `sign` and
-<a href=#1282 id=1282 data-nosnippet>1282</a>    /// `verify` silently broke any keypair generated via
-<a href=#1283 id=1283 data-nosnippet>1283</a>    /// `generate_keypair_with_parameter_set(MlDsa44)` or `(MlDsa87)` —
-<a href=#1284 id=1284 data-nosnippet>1284</a>    /// the public API advertised three parameter sets but only one
-<a href=#1285 id=1285 data-nosnippet>1285</a>    /// actually round-tripped. This test pins all three working.
-<a href=#1286 id=1286 data-nosnippet>1286</a>    </span><span class="attr">#[test]
-<a href=#1287 id=1287 data-nosnippet>1287</a>    </span><span class="kw">fn </span>test_hybrid_sig_all_parameter_sets_roundtrip() {
-<a href=#1288 id=1288 data-nosnippet>1288</a>        <span class="kw">for </span>param_set <span class="kw">in
-<a href=#1289 id=1289 data-nosnippet>1289</a>            </span>[MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
-<a href=#1290 id=1290 data-nosnippet>1290</a>        {
-<a href=#1291 id=1291 data-nosnippet>1291</a>            <span class="kw">let </span>(pk, sk) = generate_keypair_with_parameter_set(param_set)
-<a href=#1292 id=1292 data-nosnippet>1292</a>                .expect(<span class="string">"keypair gen must succeed for every advertised parameter set"</span>);
-<a href=#1293 id=1293 data-nosnippet>1293</a>            <span class="macro">assert_eq!</span>(pk.parameter_set(), param_set);
-<a href=#1294 id=1294 data-nosnippet>1294</a>            <span class="macro">assert_eq!</span>(sk.parameter_set(), param_set);
-<a href=#1295 id=1295 data-nosnippet>1295</a>            <span class="kw">let </span>message = <span class="string">b"parameter-set propagation regression"</span>;
-<a href=#1296 id=1296 data-nosnippet>1296</a>            <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, message).expect(<span class="string">"sign must succeed"</span>);
-<a href=#1297 id=1297 data-nosnippet>1297</a>            <span class="kw">let </span>valid = verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>sig).expect(<span class="string">"verify must succeed"</span>);
-<a href=#1298 id=1298 data-nosnippet>1298</a>            <span class="macro">assert!</span>(valid, <span class="string">"round-trip must verify for {param_set:?}"</span>);
-<a href=#1299 id=1299 data-nosnippet>1299</a>        }
-<a href=#1300 id=1300 data-nosnippet>1300</a>    }
+<a href=#1270 id=1270 data-nosnippet>1270</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>sig);
+<a href=#1271 id=1271 data-nosnippet>1271</a>        <span class="comment">// Should fail: either error or false
+<a href=#1272 id=1272 data-nosnippet>1272</a>        </span><span class="kw">match </span>result {
+<a href=#1273 id=1273 data-nosnippet>1273</a>            <span class="prelude-val">Ok</span>(valid) =&gt; <span class="macro">assert!</span>(!valid, <span class="string">"Corrupted Ed25519 sig must not verify"</span>),
+<a href=#1274 id=1274 data-nosnippet>1274</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {} <span class="comment">// Error is also acceptable
+<a href=#1275 id=1275 data-nosnippet>1275</a>        </span>}
+<a href=#1276 id=1276 data-nosnippet>1276</a>    }
+<a href=#1277 id=1277 data-nosnippet>1277</a>
+<a href=#1278 id=1278 data-nosnippet>1278</a>    <span class="attr">#[test]
+<a href=#1279 id=1279 data-nosnippet>1279</a>    </span><span class="kw">fn </span>test_verify_invalid_ml_dsa_sig_length_returns_error() {
+<a href=#1280 id=1280 data-nosnippet>1280</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
+<a href=#1281 id=1281 data-nosnippet>1281</a>
+<a href=#1282 id=1282 data-nosnippet>1282</a>        <span class="kw">let </span>sig = HybridSignature {
+<a href=#1283 id=1283 data-nosnippet>1283</a>            ml_dsa_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">100</span>], <span class="comment">// Wrong length for MlDsa65
+<a href=#1284 id=1284 data-nosnippet>1284</a>            </span>ed25519_sig: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">64</span>],
+<a href=#1285 id=1285 data-nosnippet>1285</a>        };
+<a href=#1286 id=1286 data-nosnippet>1286</a>
+<a href=#1287 id=1287 data-nosnippet>1287</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
+<a href=#1288 id=1288 data-nosnippet>1288</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1289 id=1289 data-nosnippet>1289</a>    }
+<a href=#1290 id=1290 data-nosnippet>1290</a>
+<a href=#1291 id=1291 data-nosnippet>1291</a>    <span class="attr">#[test]
+<a href=#1292 id=1292 data-nosnippet>1292</a>    </span><span class="kw">fn </span>test_verify_invalid_ml_dsa_pk_length_returns_error() {
+<a href=#1293 id=1293 data-nosnippet>1293</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
+<a href=#1294 id=1294 data-nosnippet>1294</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"test"</span>).unwrap();
+<a href=#1295 id=1295 data-nosnippet>1295</a>
+<a href=#1296 id=1296 data-nosnippet>1296</a>        <span class="kw">let </span>bad_pk = HybridSigPublicKey {
+<a href=#1297 id=1297 data-nosnippet>1297</a>            parameter_set: MlDsaParameterSet::MlDsa65,
+<a href=#1298 id=1298 data-nosnippet>1298</a>            ml_dsa_pk: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">100</span>], <span class="comment">// Wrong length
+<a href=#1299 id=1299 data-nosnippet>1299</a>            </span>ed25519_pk: <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>],
+<a href=#1300 id=1300 data-nosnippet>1300</a>        };
 <a href=#1301 id=1301 data-nosnippet>1301</a>
-<a href=#1302 id=1302 data-nosnippet>1302</a>    <span class="attr">#[test]
-<a href=#1303 id=1303 data-nosnippet>1303</a>    </span><span class="kw">fn </span>test_sign_verify_multiple_messages_same_key_succeeds() {
-<a href=#1304 id=1304 data-nosnippet>1304</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
+<a href=#1302 id=1302 data-nosnippet>1302</a>        <span class="kw">let </span>result = verify(<span class="kw-2">&amp;</span>bad_pk, <span class="string">b"test"</span>, <span class="kw-2">&amp;</span>sig);
+<a href=#1303 id=1303 data-nosnippet>1303</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1304 id=1304 data-nosnippet>1304</a>    }
 <a href=#1305 id=1305 data-nosnippet>1305</a>
-<a href=#1306 id=1306 data-nosnippet>1306</a>        <span class="kw">let </span>messages: Vec&lt;<span class="kw-2">&amp;</span>[u8]&gt; = <span class="macro">vec!</span>[<span class="string">b"msg1"</span>, <span class="string">b"msg2"</span>, <span class="string">b"msg3"</span>];
-<a href=#1307 id=1307 data-nosnippet>1307</a>        <span class="kw">let </span>sigs: Vec&lt;<span class="kw">_</span>&gt; = messages.iter().map(|m| sign(<span class="kw-2">&amp;</span>sk, m).unwrap()).collect();
-<a href=#1308 id=1308 data-nosnippet>1308</a>
-<a href=#1309 id=1309 data-nosnippet>1309</a>        <span class="comment">// Each signature should verify with its own message
-<a href=#1310 id=1310 data-nosnippet>1310</a>        </span><span class="kw">for </span>(msg, sig) <span class="kw">in </span>messages.iter().zip(sigs.iter()) {
-<a href=#1311 id=1311 data-nosnippet>1311</a>            <span class="macro">assert!</span>(verify(<span class="kw-2">&amp;</span>pk, msg, sig).unwrap());
-<a href=#1312 id=1312 data-nosnippet>1312</a>        }
-<a href=#1313 id=1313 data-nosnippet>1313</a>
-<a href=#1314 id=1314 data-nosnippet>1314</a>        <span class="comment">// Cross-verify should fail
-<a href=#1315 id=1315 data-nosnippet>1315</a>        </span><span class="macro">assert!</span>(!verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"msg1"</span>, <span class="kw-2">&amp;</span>sigs[<span class="number">1</span>]).unwrap_or(<span class="bool-val">false</span>));
-<a href=#1316 id=1316 data-nosnippet>1316</a>    }
-<a href=#1317 id=1317 data-nosnippet>1317</a>
-<a href=#1318 id=1318 data-nosnippet>1318</a>    <span class="attr">#[test]
-<a href=#1319 id=1319 data-nosnippet>1319</a>    </span><span class="kw">fn </span>test_hybrid_signature_clone_succeeds() {
-<a href=#1320 id=1320 data-nosnippet>1320</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
-<a href=#1321 id=1321 data-nosnippet>1321</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"clone test"</span>).unwrap();
-<a href=#1322 id=1322 data-nosnippet>1322</a>        <span class="kw">let </span>cloned = sig.clone();
-<a href=#1323 id=1323 data-nosnippet>1323</a>        <span class="macro">assert_eq!</span>(sig.ml_dsa_sig, cloned.ml_dsa_sig);
-<a href=#1324 id=1324 data-nosnippet>1324</a>        <span class="macro">assert_eq!</span>(sig.ed25519_sig, cloned.ed25519_sig);
-<a href=#1325 id=1325 data-nosnippet>1325</a>    }
-<a href=#1326 id=1326 data-nosnippet>1326</a>
-<a href=#1327 id=1327 data-nosnippet>1327</a>    <span class="attr">#[test]
-<a href=#1328 id=1328 data-nosnippet>1328</a>    </span><span class="kw">fn </span>test_hybrid_public_key_ml_dsa_has_correct_size() {
-<a href=#1329 id=1329 data-nosnippet>1329</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
-<a href=#1330 id=1330 data-nosnippet>1330</a>        <span class="macro">assert_eq!</span>(pk.ml_dsa_pk.len(), <span class="number">1952</span>); <span class="comment">// MlDsa65 public key size
-<a href=#1331 id=1331 data-nosnippet>1331</a>        </span><span class="macro">assert_eq!</span>(pk.ed25519_pk.len(), <span class="number">32</span>);
-<a href=#1332 id=1332 data-nosnippet>1332</a>    }
-<a href=#1333 id=1333 data-nosnippet>1333</a>}
+<a href=#1306 id=1306 data-nosnippet>1306</a>    <span class="doccomment">/// Regression test for the parameter-set propagation bug: prior to
+<a href=#1307 id=1307 data-nosnippet>1307</a>    /// 0.8.0 the hardcoded `MlDsaParameterSet::MlDsa65` in `sign` and
+<a href=#1308 id=1308 data-nosnippet>1308</a>    /// `verify` silently broke any keypair generated via
+<a href=#1309 id=1309 data-nosnippet>1309</a>    /// `generate_keypair_with_parameter_set(MlDsa44)` or `(MlDsa87)` —
+<a href=#1310 id=1310 data-nosnippet>1310</a>    /// the public API advertised three parameter sets but only one
+<a href=#1311 id=1311 data-nosnippet>1311</a>    /// actually round-tripped. This test pins all three working.
+<a href=#1312 id=1312 data-nosnippet>1312</a>    </span><span class="attr">#[test]
+<a href=#1313 id=1313 data-nosnippet>1313</a>    </span><span class="kw">fn </span>test_hybrid_sig_all_parameter_sets_roundtrip() {
+<a href=#1314 id=1314 data-nosnippet>1314</a>        <span class="kw">for </span>param_set <span class="kw">in
+<a href=#1315 id=1315 data-nosnippet>1315</a>            </span>[MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
+<a href=#1316 id=1316 data-nosnippet>1316</a>        {
+<a href=#1317 id=1317 data-nosnippet>1317</a>            <span class="kw">let </span>(pk, sk) = generate_keypair_with_parameter_set(param_set)
+<a href=#1318 id=1318 data-nosnippet>1318</a>                .expect(<span class="string">"keypair gen must succeed for every advertised parameter set"</span>);
+<a href=#1319 id=1319 data-nosnippet>1319</a>            <span class="macro">assert_eq!</span>(pk.parameter_set(), param_set);
+<a href=#1320 id=1320 data-nosnippet>1320</a>            <span class="macro">assert_eq!</span>(sk.parameter_set(), param_set);
+<a href=#1321 id=1321 data-nosnippet>1321</a>            <span class="kw">let </span>message = <span class="string">b"parameter-set propagation regression"</span>;
+<a href=#1322 id=1322 data-nosnippet>1322</a>            <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, message).expect(<span class="string">"sign must succeed"</span>);
+<a href=#1323 id=1323 data-nosnippet>1323</a>            <span class="kw">let </span>valid = verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>sig).expect(<span class="string">"verify must succeed"</span>);
+<a href=#1324 id=1324 data-nosnippet>1324</a>            <span class="macro">assert!</span>(valid, <span class="string">"round-trip must verify for {param_set:?}"</span>);
+<a href=#1325 id=1325 data-nosnippet>1325</a>        }
+<a href=#1326 id=1326 data-nosnippet>1326</a>    }
+<a href=#1327 id=1327 data-nosnippet>1327</a>
+<a href=#1328 id=1328 data-nosnippet>1328</a>    <span class="attr">#[test]
+<a href=#1329 id=1329 data-nosnippet>1329</a>    </span><span class="kw">fn </span>test_sign_verify_multiple_messages_same_key_succeeds() {
+<a href=#1330 id=1330 data-nosnippet>1330</a>        <span class="kw">let </span>(pk, sk) = generate_keypair().unwrap();
+<a href=#1331 id=1331 data-nosnippet>1331</a>
+<a href=#1332 id=1332 data-nosnippet>1332</a>        <span class="kw">let </span>messages: Vec&lt;<span class="kw-2">&amp;</span>[u8]&gt; = <span class="macro">vec!</span>[<span class="string">b"msg1"</span>, <span class="string">b"msg2"</span>, <span class="string">b"msg3"</span>];
+<a href=#1333 id=1333 data-nosnippet>1333</a>        <span class="kw">let </span>sigs: Vec&lt;<span class="kw">_</span>&gt; = messages.iter().map(|m| sign(<span class="kw-2">&amp;</span>sk, m).unwrap()).collect();
+<a href=#1334 id=1334 data-nosnippet>1334</a>
+<a href=#1335 id=1335 data-nosnippet>1335</a>        <span class="comment">// Each signature should verify with its own message
+<a href=#1336 id=1336 data-nosnippet>1336</a>        </span><span class="kw">for </span>(msg, sig) <span class="kw">in </span>messages.iter().zip(sigs.iter()) {
+<a href=#1337 id=1337 data-nosnippet>1337</a>            <span class="macro">assert!</span>(verify(<span class="kw-2">&amp;</span>pk, msg, sig).unwrap());
+<a href=#1338 id=1338 data-nosnippet>1338</a>        }
+<a href=#1339 id=1339 data-nosnippet>1339</a>
+<a href=#1340 id=1340 data-nosnippet>1340</a>        <span class="comment">// Cross-verify should fail
+<a href=#1341 id=1341 data-nosnippet>1341</a>        </span><span class="macro">assert!</span>(!verify(<span class="kw-2">&amp;</span>pk, <span class="string">b"msg1"</span>, <span class="kw-2">&amp;</span>sigs[<span class="number">1</span>]).unwrap_or(<span class="bool-val">false</span>));
+<a href=#1342 id=1342 data-nosnippet>1342</a>    }
+<a href=#1343 id=1343 data-nosnippet>1343</a>
+<a href=#1344 id=1344 data-nosnippet>1344</a>    <span class="attr">#[test]
+<a href=#1345 id=1345 data-nosnippet>1345</a>    </span><span class="kw">fn </span>test_hybrid_signature_clone_succeeds() {
+<a href=#1346 id=1346 data-nosnippet>1346</a>        <span class="kw">let </span>(_pk, sk) = generate_keypair().unwrap();
+<a href=#1347 id=1347 data-nosnippet>1347</a>        <span class="kw">let </span>sig = sign(<span class="kw-2">&amp;</span>sk, <span class="string">b"clone test"</span>).unwrap();
+<a href=#1348 id=1348 data-nosnippet>1348</a>        <span class="kw">let </span>cloned = sig.clone();
+<a href=#1349 id=1349 data-nosnippet>1349</a>        <span class="macro">assert_eq!</span>(sig.ml_dsa_sig, cloned.ml_dsa_sig);
+<a href=#1350 id=1350 data-nosnippet>1350</a>        <span class="macro">assert_eq!</span>(sig.ed25519_sig, cloned.ed25519_sig);
+<a href=#1351 id=1351 data-nosnippet>1351</a>    }
+<a href=#1352 id=1352 data-nosnippet>1352</a>
+<a href=#1353 id=1353 data-nosnippet>1353</a>    <span class="attr">#[test]
+<a href=#1354 id=1354 data-nosnippet>1354</a>    </span><span class="kw">fn </span>test_hybrid_public_key_ml_dsa_has_correct_size() {
+<a href=#1355 id=1355 data-nosnippet>1355</a>        <span class="kw">let </span>(pk, _sk) = generate_keypair().unwrap();
+<a href=#1356 id=1356 data-nosnippet>1356</a>        <span class="macro">assert_eq!</span>(pk.ml_dsa_pk.len(), <span class="number">1952</span>); <span class="comment">// MlDsa65 public key size
+<a href=#1357 id=1357 data-nosnippet>1357</a>        </span><span class="macro">assert_eq!</span>(pk.ed25519_pk.len(), <span class="number">32</span>);
+<a href=#1358 id=1358 data-nosnippet>1358</a>    }
+<a href=#1359 id=1359 data-nosnippet>1359</a>}
 </code></pre></div></section></main></body></html>

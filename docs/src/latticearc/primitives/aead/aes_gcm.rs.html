@@ -582,90 +582,104 @@
 <a href=#582 id=582 data-nosnippet>582</a>        }
 <a href=#583 id=583 data-nosnippet>583</a>    }
 <a href=#584 id=584 data-nosnippet>584</a>
-<a href=#585 id=585 data-nosnippet>585</a>    <span class="comment">// Note: NIST test vectors may produce different tags because aws-lc-rs
-<a href=#586 id=586 data-nosnippet>586</a>    // uses hardware-accelerated implementations that may have subtle differences
-<a href=#587 id=587 data-nosnippet>587</a>    // in intermediate computations while still producing correct results.
-<a href=#588 id=588 data-nosnippet>588</a>    </span><span class="attr">#[test]
-<a href=#589 id=589 data-nosnippet>589</a>    </span><span class="kw">fn </span>test_aes_gcm_128_roundtrip_consistency_roundtrip() {
-<a href=#590 id=590 data-nosnippet>590</a>        <span class="comment">// Instead of hardcoded test vectors, verify encrypt/decrypt roundtrip
-<a href=#591 id=591 data-nosnippet>591</a>        </span><span class="kw">let </span>key: [u8; <span class="number">16</span>] = [
-<a href=#592 id=592 data-nosnippet>592</a>            <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>, <span class="number">0x05</span>, <span class="number">0x06</span>, <span class="number">0x07</span>, <span class="number">0x08</span>, <span class="number">0x09</span>, <span class="number">0x0a</span>, <span class="number">0x0b</span>, <span class="number">0x0c</span>, <span class="number">0x0d</span>,
-<a href=#593 id=593 data-nosnippet>593</a>            <span class="number">0x0e</span>, <span class="number">0x0f</span>,
-<a href=#594 id=594 data-nosnippet>594</a>        ];
-<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">let </span>nonce: [u8; <span class="number">12</span>] =
-<a href=#596 id=596 data-nosnippet>596</a>            [<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>];
-<a href=#597 id=597 data-nosnippet>597</a>        <span class="kw">let </span>plaintext: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Test message for AES-128-GCM"</span>;
-<a href=#598 id=598 data-nosnippet>598</a>        <span class="kw">let </span>aad: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Additional data"</span>;
-<a href=#599 id=599 data-nosnippet>599</a>
-<a href=#600 id=600 data-nosnippet>600</a>        <span class="kw">let </span>cipher = AesGcm128::new(<span class="kw-2">&amp;</span>key).unwrap();
-<a href=#601 id=601 data-nosnippet>601</a>        <span class="kw">let </span>(ciphertext, tag) = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, plaintext, <span class="prelude-val">Some</span>(aad)).unwrap();
-<a href=#602 id=602 data-nosnippet>602</a>
-<a href=#603 id=603 data-nosnippet>603</a>        <span class="comment">// Verify decryption works
-<a href=#604 id=604 data-nosnippet>604</a>        </span><span class="kw">let </span>decrypted = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">Some</span>(aad)).unwrap();
-<a href=#605 id=605 data-nosnippet>605</a>        <span class="macro">assert_eq!</span>(plaintext, decrypted.as_slice());
-<a href=#606 id=606 data-nosnippet>606</a>    }
-<a href=#607 id=607 data-nosnippet>607</a>
-<a href=#608 id=608 data-nosnippet>608</a>    <span class="attr">#[test]
-<a href=#609 id=609 data-nosnippet>609</a>    </span><span class="kw">fn </span>test_aes_gcm_256_roundtrip_consistency_roundtrip() {
-<a href=#610 id=610 data-nosnippet>610</a>        <span class="kw">let </span>key: [u8; <span class="number">32</span>] = [
-<a href=#611 id=611 data-nosnippet>611</a>            <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>, <span class="number">0x05</span>, <span class="number">0x06</span>, <span class="number">0x07</span>, <span class="number">0x08</span>, <span class="number">0x09</span>, <span class="number">0x0a</span>, <span class="number">0x0b</span>, <span class="number">0x0c</span>, <span class="number">0x0d</span>,
-<a href=#612 id=612 data-nosnippet>612</a>            <span class="number">0x0e</span>, <span class="number">0x0f</span>, <span class="number">0x10</span>, <span class="number">0x11</span>, <span class="number">0x12</span>, <span class="number">0x13</span>, <span class="number">0x14</span>, <span class="number">0x15</span>, <span class="number">0x16</span>, <span class="number">0x17</span>, <span class="number">0x18</span>, <span class="number">0x19</span>, <span class="number">0x1a</span>, <span class="number">0x1b</span>,
-<a href=#613 id=613 data-nosnippet>613</a>            <span class="number">0x1c</span>, <span class="number">0x1d</span>, <span class="number">0x1e</span>, <span class="number">0x1f</span>,
-<a href=#614 id=614 data-nosnippet>614</a>        ];
-<a href=#615 id=615 data-nosnippet>615</a>        <span class="kw">let </span>nonce: [u8; <span class="number">12</span>] =
-<a href=#616 id=616 data-nosnippet>616</a>            [<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>];
-<a href=#617 id=617 data-nosnippet>617</a>        <span class="kw">let </span>plaintext: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Test message for AES-256-GCM"</span>;
-<a href=#618 id=618 data-nosnippet>618</a>        <span class="kw">let </span>aad: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Additional data"</span>;
-<a href=#619 id=619 data-nosnippet>619</a>
-<a href=#620 id=620 data-nosnippet>620</a>        <span class="kw">let </span>cipher = AesGcm256::new(<span class="kw-2">&amp;</span>key).unwrap();
-<a href=#621 id=621 data-nosnippet>621</a>        <span class="kw">let </span>(ciphertext, tag) = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, plaintext, <span class="prelude-val">Some</span>(aad)).unwrap();
-<a href=#622 id=622 data-nosnippet>622</a>
-<a href=#623 id=623 data-nosnippet>623</a>        <span class="comment">// Verify decryption works
-<a href=#624 id=624 data-nosnippet>624</a>        </span><span class="kw">let </span>decrypted = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">Some</span>(aad)).unwrap();
-<a href=#625 id=625 data-nosnippet>625</a>        <span class="macro">assert_eq!</span>(plaintext, decrypted.as_slice());
-<a href=#626 id=626 data-nosnippet>626</a>    }
-<a href=#627 id=627 data-nosnippet>627</a>
-<a href=#628 id=628 data-nosnippet>628</a>    <span class="attr">#[test]
-<a href=#629 id=629 data-nosnippet>629</a>    </span><span class="kw">fn </span>test_aes_gcm_128_encryption_size_limit_has_correct_size() {
-<a href=#630 id=630 data-nosnippet>630</a>        <span class="kw">let </span>key = AesGcm128::generate_key();
-<a href=#631 id=631 data-nosnippet>631</a>        <span class="kw">let </span>cipher = AesGcm128::new(<span class="kw-2">&amp;*</span>key).unwrap();
-<a href=#632 id=632 data-nosnippet>632</a>        <span class="kw">let </span>nonce = AesGcm128::generate_nonce();
+<a href=#585 id=585 data-nosnippet>585</a>    <span class="comment">// Round-29 follow-up: the previous comment here claimed
+<a href=#586 id=586 data-nosnippet>586</a>    // "NIST test vectors may produce different tags because aws-lc-rs
+<a href=#587 id=587 data-nosnippet>587</a>    // uses hardware-accelerated implementations that may have subtle
+<a href=#588 id=588 data-nosnippet>588</a>    // differences in intermediate computations while still producing
+<a href=#589 id=589 data-nosnippet>589</a>    // correct results." That was **factually incorrect** — aws-lc-rs
+<a href=#590 id=590 data-nosnippet>590</a>    // is FIPS 140-3 validated and produces bit-exact NIST KAT outputs.
+<a href=#591 id=591 data-nosnippet>591</a>    // The comment was a rationalization for not wiring KATs in this
+<a href=#592 id=592 data-nosnippet>592</a>    // file rather than a true description of the backend.
+<a href=#593 id=593 data-nosnippet>593</a>    //
+<a href=#594 id=594 data-nosnippet>594</a>    // Real NIST AES-GCM KAT vectors (CAVP-derived) live in the
+<a href=#595 id=595 data-nosnippet>595</a>    // `latticearc-tests` integration crate
+<a href=#596 id=596 data-nosnippet>596</a>    // (`tests/tests/fips_kat_aead.rs`, `AES_128_GCM_VECTORS` /
+<a href=#597 id=597 data-nosnippet>597</a>    // `AES_256_GCM_VECTORS` plus `run_aes_128_gcm_kat` /
+<a href=#598 id=598 data-nosnippet>598</a>    // `run_aes_256_gcm_kat` helpers). The src-level tests below stay
+<a href=#599 id=599 data-nosnippet>599</a>    // roundtrip-only **by design** — kept fast, kept self-contained,
+<a href=#600 id=600 data-nosnippet>600</a>    // no multi-KiB hard-coded vector blobs in primitive source. The
+<a href=#601 id=601 data-nosnippet>601</a>    // KAT crate is the authoritative cross-validation surface.
+<a href=#602 id=602 data-nosnippet>602</a>    </span><span class="attr">#[test]
+<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="kw">fn </span>test_aes_gcm_128_roundtrip_consistency_roundtrip() {
+<a href=#604 id=604 data-nosnippet>604</a>        <span class="comment">// Roundtrip-only by design — see comment block above.
+<a href=#605 id=605 data-nosnippet>605</a>        </span><span class="kw">let </span>key: [u8; <span class="number">16</span>] = [
+<a href=#606 id=606 data-nosnippet>606</a>            <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>, <span class="number">0x05</span>, <span class="number">0x06</span>, <span class="number">0x07</span>, <span class="number">0x08</span>, <span class="number">0x09</span>, <span class="number">0x0a</span>, <span class="number">0x0b</span>, <span class="number">0x0c</span>, <span class="number">0x0d</span>,
+<a href=#607 id=607 data-nosnippet>607</a>            <span class="number">0x0e</span>, <span class="number">0x0f</span>,
+<a href=#608 id=608 data-nosnippet>608</a>        ];
+<a href=#609 id=609 data-nosnippet>609</a>        <span class="kw">let </span>nonce: [u8; <span class="number">12</span>] =
+<a href=#610 id=610 data-nosnippet>610</a>            [<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>];
+<a href=#611 id=611 data-nosnippet>611</a>        <span class="kw">let </span>plaintext: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Test message for AES-128-GCM"</span>;
+<a href=#612 id=612 data-nosnippet>612</a>        <span class="kw">let </span>aad: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Additional data"</span>;
+<a href=#613 id=613 data-nosnippet>613</a>
+<a href=#614 id=614 data-nosnippet>614</a>        <span class="kw">let </span>cipher = AesGcm128::new(<span class="kw-2">&amp;</span>key).unwrap();
+<a href=#615 id=615 data-nosnippet>615</a>        <span class="kw">let </span>(ciphertext, tag) = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, plaintext, <span class="prelude-val">Some</span>(aad)).unwrap();
+<a href=#616 id=616 data-nosnippet>616</a>
+<a href=#617 id=617 data-nosnippet>617</a>        <span class="comment">// Verify decryption works
+<a href=#618 id=618 data-nosnippet>618</a>        </span><span class="kw">let </span>decrypted = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">Some</span>(aad)).unwrap();
+<a href=#619 id=619 data-nosnippet>619</a>        <span class="macro">assert_eq!</span>(plaintext, decrypted.as_slice());
+<a href=#620 id=620 data-nosnippet>620</a>    }
+<a href=#621 id=621 data-nosnippet>621</a>
+<a href=#622 id=622 data-nosnippet>622</a>    <span class="attr">#[test]
+<a href=#623 id=623 data-nosnippet>623</a>    </span><span class="kw">fn </span>test_aes_gcm_256_roundtrip_consistency_roundtrip() {
+<a href=#624 id=624 data-nosnippet>624</a>        <span class="kw">let </span>key: [u8; <span class="number">32</span>] = [
+<a href=#625 id=625 data-nosnippet>625</a>            <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>, <span class="number">0x05</span>, <span class="number">0x06</span>, <span class="number">0x07</span>, <span class="number">0x08</span>, <span class="number">0x09</span>, <span class="number">0x0a</span>, <span class="number">0x0b</span>, <span class="number">0x0c</span>, <span class="number">0x0d</span>,
+<a href=#626 id=626 data-nosnippet>626</a>            <span class="number">0x0e</span>, <span class="number">0x0f</span>, <span class="number">0x10</span>, <span class="number">0x11</span>, <span class="number">0x12</span>, <span class="number">0x13</span>, <span class="number">0x14</span>, <span class="number">0x15</span>, <span class="number">0x16</span>, <span class="number">0x17</span>, <span class="number">0x18</span>, <span class="number">0x19</span>, <span class="number">0x1a</span>, <span class="number">0x1b</span>,
+<a href=#627 id=627 data-nosnippet>627</a>            <span class="number">0x1c</span>, <span class="number">0x1d</span>, <span class="number">0x1e</span>, <span class="number">0x1f</span>,
+<a href=#628 id=628 data-nosnippet>628</a>        ];
+<a href=#629 id=629 data-nosnippet>629</a>        <span class="kw">let </span>nonce: [u8; <span class="number">12</span>] =
+<a href=#630 id=630 data-nosnippet>630</a>            [<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>];
+<a href=#631 id=631 data-nosnippet>631</a>        <span class="kw">let </span>plaintext: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Test message for AES-256-GCM"</span>;
+<a href=#632 id=632 data-nosnippet>632</a>        <span class="kw">let </span>aad: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Additional data"</span>;
 <a href=#633 id=633 data-nosnippet>633</a>
-<a href=#634 id=634 data-nosnippet>634</a>        <span class="comment">// Try to encrypt data exceeding 100MB limit (101MB)
-<a href=#635 id=635 data-nosnippet>635</a>        </span><span class="kw">let </span>plaintext = <span class="macro">vec!</span>[<span class="number">0xAB</span>; <span class="number">101 </span>* <span class="number">1024 </span>* <span class="number">1024</span>];
+<a href=#634 id=634 data-nosnippet>634</a>        <span class="kw">let </span>cipher = AesGcm256::new(<span class="kw-2">&amp;</span>key).unwrap();
+<a href=#635 id=635 data-nosnippet>635</a>        <span class="kw">let </span>(ciphertext, tag) = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, plaintext, <span class="prelude-val">Some</span>(aad)).unwrap();
 <a href=#636 id=636 data-nosnippet>636</a>
-<a href=#637 id=637 data-nosnippet>637</a>        <span class="kw">let </span>result = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>plaintext, <span class="prelude-val">None</span>);
-<a href=#638 id=638 data-nosnippet>638</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should fail with resource limit exceeded"</span>);
-<a href=#639 id=639 data-nosnippet>639</a>
-<a href=#640 id=640 data-nosnippet>640</a>        <span class="comment">// Round-28 H1: Pattern 6 opacity sweep collapsed every encrypt
-<a href=#641 id=641 data-nosnippet>641</a>        // failure to the same opaque "encryption failed" string, so this
-<a href=#642 id=642 data-nosnippet>642</a>        // test now only asserts the variant shape.
-<a href=#643 id=643 data-nosnippet>643</a>        </span><span class="macro">assert!</span>(
-<a href=#644 id=644 data-nosnippet>644</a>            <span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(AeadError::EncryptionFailed(<span class="kw">_</span>))),
-<a href=#645 id=645 data-nosnippet>645</a>            <span class="string">"Expected EncryptionFailed variant, got {result:?}"
-<a href=#646 id=646 data-nosnippet>646</a>        </span>);
-<a href=#647 id=647 data-nosnippet>647</a>    }
-<a href=#648 id=648 data-nosnippet>648</a>
-<a href=#649 id=649 data-nosnippet>649</a>    <span class="attr">#[test]
-<a href=#650 id=650 data-nosnippet>650</a>    </span><span class="kw">fn </span>test_aes_gcm_256_decryption_size_limit_has_correct_size() {
-<a href=#651 id=651 data-nosnippet>651</a>        <span class="kw">let </span>key = AesGcm256::generate_key();
-<a href=#652 id=652 data-nosnippet>652</a>        <span class="kw">let </span>cipher = AesGcm256::new(<span class="kw-2">&amp;*</span>key).unwrap();
-<a href=#653 id=653 data-nosnippet>653</a>        <span class="kw">let </span>nonce = AesGcm256::generate_nonce();
-<a href=#654 id=654 data-nosnippet>654</a>
-<a href=#655 id=655 data-nosnippet>655</a>        <span class="comment">// Try to decrypt data exceeding 100MB limit
-<a href=#656 id=656 data-nosnippet>656</a>        </span><span class="kw">let </span>ciphertext = <span class="macro">vec!</span>[<span class="number">0xCD</span>; <span class="number">101 </span>* <span class="number">1024 </span>* <span class="number">1024</span>];
-<a href=#657 id=657 data-nosnippet>657</a>        <span class="kw">let </span>tag = [<span class="number">0u8</span>; TAG_LEN];
-<a href=#658 id=658 data-nosnippet>658</a>
-<a href=#659 id=659 data-nosnippet>659</a>        <span class="kw">let </span>result = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">None</span>);
-<a href=#660 id=660 data-nosnippet>660</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should fail with resource limit exceeded"</span>);
-<a href=#661 id=661 data-nosnippet>661</a>
-<a href=#662 id=662 data-nosnippet>662</a>        <span class="comment">// Round-27 H2: Pattern 6 opacity sweep collapsed every decrypt
-<a href=#663 id=663 data-nosnippet>663</a>        // failure to the same opaque "decryption failed" string, so this
-<a href=#664 id=664 data-nosnippet>664</a>        // test now only asserts the variant shape.
-<a href=#665 id=665 data-nosnippet>665</a>        </span><span class="macro">assert!</span>(
-<a href=#666 id=666 data-nosnippet>666</a>            <span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(AeadError::DecryptionFailed(<span class="kw">_</span>))),
-<a href=#667 id=667 data-nosnippet>667</a>            <span class="string">"Expected DecryptionFailed variant, got {result:?}"
-<a href=#668 id=668 data-nosnippet>668</a>        </span>);
-<a href=#669 id=669 data-nosnippet>669</a>    }
-<a href=#670 id=670 data-nosnippet>670</a>}
+<a href=#637 id=637 data-nosnippet>637</a>        <span class="comment">// Verify decryption works
+<a href=#638 id=638 data-nosnippet>638</a>        </span><span class="kw">let </span>decrypted = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">Some</span>(aad)).unwrap();
+<a href=#639 id=639 data-nosnippet>639</a>        <span class="macro">assert_eq!</span>(plaintext, decrypted.as_slice());
+<a href=#640 id=640 data-nosnippet>640</a>    }
+<a href=#641 id=641 data-nosnippet>641</a>
+<a href=#642 id=642 data-nosnippet>642</a>    <span class="attr">#[test]
+<a href=#643 id=643 data-nosnippet>643</a>    </span><span class="kw">fn </span>test_aes_gcm_128_encryption_size_limit_has_correct_size() {
+<a href=#644 id=644 data-nosnippet>644</a>        <span class="kw">let </span>key = AesGcm128::generate_key();
+<a href=#645 id=645 data-nosnippet>645</a>        <span class="kw">let </span>cipher = AesGcm128::new(<span class="kw-2">&amp;*</span>key).unwrap();
+<a href=#646 id=646 data-nosnippet>646</a>        <span class="kw">let </span>nonce = AesGcm128::generate_nonce();
+<a href=#647 id=647 data-nosnippet>647</a>
+<a href=#648 id=648 data-nosnippet>648</a>        <span class="comment">// Try to encrypt data exceeding 100MB limit (101MB)
+<a href=#649 id=649 data-nosnippet>649</a>        </span><span class="kw">let </span>plaintext = <span class="macro">vec!</span>[<span class="number">0xAB</span>; <span class="number">101 </span>* <span class="number">1024 </span>* <span class="number">1024</span>];
+<a href=#650 id=650 data-nosnippet>650</a>
+<a href=#651 id=651 data-nosnippet>651</a>        <span class="kw">let </span>result = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>plaintext, <span class="prelude-val">None</span>);
+<a href=#652 id=652 data-nosnippet>652</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should fail with resource limit exceeded"</span>);
+<a href=#653 id=653 data-nosnippet>653</a>
+<a href=#654 id=654 data-nosnippet>654</a>        <span class="comment">// Round-28 H1: Pattern 6 opacity sweep collapsed every encrypt
+<a href=#655 id=655 data-nosnippet>655</a>        // failure to the same opaque "encryption failed" string, so this
+<a href=#656 id=656 data-nosnippet>656</a>        // test now only asserts the variant shape.
+<a href=#657 id=657 data-nosnippet>657</a>        </span><span class="macro">assert!</span>(
+<a href=#658 id=658 data-nosnippet>658</a>            <span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(AeadError::EncryptionFailed(<span class="kw">_</span>))),
+<a href=#659 id=659 data-nosnippet>659</a>            <span class="string">"Expected EncryptionFailed variant, got {result:?}"
+<a href=#660 id=660 data-nosnippet>660</a>        </span>);
+<a href=#661 id=661 data-nosnippet>661</a>    }
+<a href=#662 id=662 data-nosnippet>662</a>
+<a href=#663 id=663 data-nosnippet>663</a>    <span class="attr">#[test]
+<a href=#664 id=664 data-nosnippet>664</a>    </span><span class="kw">fn </span>test_aes_gcm_256_decryption_size_limit_has_correct_size() {
+<a href=#665 id=665 data-nosnippet>665</a>        <span class="kw">let </span>key = AesGcm256::generate_key();
+<a href=#666 id=666 data-nosnippet>666</a>        <span class="kw">let </span>cipher = AesGcm256::new(<span class="kw-2">&amp;*</span>key).unwrap();
+<a href=#667 id=667 data-nosnippet>667</a>        <span class="kw">let </span>nonce = AesGcm256::generate_nonce();
+<a href=#668 id=668 data-nosnippet>668</a>
+<a href=#669 id=669 data-nosnippet>669</a>        <span class="comment">// Try to decrypt data exceeding 100MB limit
+<a href=#670 id=670 data-nosnippet>670</a>        </span><span class="kw">let </span>ciphertext = <span class="macro">vec!</span>[<span class="number">0xCD</span>; <span class="number">101 </span>* <span class="number">1024 </span>* <span class="number">1024</span>];
+<a href=#671 id=671 data-nosnippet>671</a>        <span class="kw">let </span>tag = [<span class="number">0u8</span>; TAG_LEN];
+<a href=#672 id=672 data-nosnippet>672</a>
+<a href=#673 id=673 data-nosnippet>673</a>        <span class="kw">let </span>result = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">None</span>);
+<a href=#674 id=674 data-nosnippet>674</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should fail with resource limit exceeded"</span>);
+<a href=#675 id=675 data-nosnippet>675</a>
+<a href=#676 id=676 data-nosnippet>676</a>        <span class="comment">// Round-27 H2: Pattern 6 opacity sweep collapsed every decrypt
+<a href=#677 id=677 data-nosnippet>677</a>        // failure to the same opaque "decryption failed" string, so this
+<a href=#678 id=678 data-nosnippet>678</a>        // test now only asserts the variant shape.
+<a href=#679 id=679 data-nosnippet>679</a>        </span><span class="macro">assert!</span>(
+<a href=#680 id=680 data-nosnippet>680</a>            <span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(AeadError::DecryptionFailed(<span class="kw">_</span>))),
+<a href=#681 id=681 data-nosnippet>681</a>            <span class="string">"Expected DecryptionFailed variant, got {result:?}"
+<a href=#682 id=682 data-nosnippet>682</a>        </span>);
+<a href=#683 id=683 data-nosnippet>683</a>    }
+<a href=#684 id=684 data-nosnippet>684</a>}
 </code></pre></div></section></main></body></html>
