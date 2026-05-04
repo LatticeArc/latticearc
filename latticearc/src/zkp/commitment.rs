@@ -405,7 +405,13 @@ impl PedersenCommitment {
     /// # Errors
     /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard)
     /// or if no valid curve point is found within 256 iterations.
-    fn generator_h() -> Result<ProjectivePoint> {
+    /// Round-29 M7: now `pub` (was private) so callers — including
+    /// integration tests in `tests/` — can construct
+    /// discrete-log-equality statements over the canonical
+    /// NUMS-derived H. External callers should generally rely on the
+    /// `DlogEqualityStatement::canonical(...)` constructor rather
+    /// than calling this directly; both routes pin the same H.
+    pub fn generator_h() -> Result<ProjectivePoint> {
         use k256::EncodedPoint;
         use k256::elliptic_curve::sec1::FromEncodedPoint;
 
@@ -439,6 +445,16 @@ impl PedersenCommitment {
                 .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
 
             let mut compressed = [0u8; 33];
+            // Round-29 N8: even-y SEC1 prefix. We only try `0x02` (even-y)
+            // candidates rather than alternating `0x02`/`0x03` because the
+            // try-and-increment counter already gives us a fresh `x` per
+            // iteration; restricting to a single y-parity halves the curve
+            // points we consider but the search remains complete (every
+            // x-coord on the curve has either an even-y or odd-y point on
+            // the curve, and we only need ONE valid H — not a uniformly
+            // random one). This doubles the expected counter at success
+            // versus a parity-alternating loop, with no security impact:
+            // H is still NUMS (no peer learns the discrete log).
             compressed[0] = 0x02;
             compressed[1..33].copy_from_slice(&hash);
 

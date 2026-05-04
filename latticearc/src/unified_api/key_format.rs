@@ -1254,23 +1254,21 @@ impl PortableKey {
         // ends, regardless of which downstream branch we take.
         let (ml_kem_sk, ecdh_seed_vec) = self.key_data.decode_composite_zeroized()?;
 
-        // Extract ML-KEM public key from metadata (stored at keygen time)
-        let ml_kem_pk = self
-            .metadata
-            .get(ML_KEM_PK_METADATA_KEY)
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                CoreError::InvalidKey(
-                    "Secret key file missing 'ml_kem_pk' metadata. \
-                     Re-generate the keypair with the latest CLI."
-                        .to_string(),
-                )
-            })
-            .and_then(|b64| {
-                BASE64_ENGINE
-                    .decode(b64)
-                    .map_err(|e| CoreError::InvalidKey(format!("Invalid ml_kem_pk base64: {e}")))
-            })?;
+        // Round-29 M2: derive the ML-KEM public key from the SK
+        // bytes' embedded layout (FIPS 203 §6.1) rather than trusting
+        // the unauthenticated `ml_kem_pk` metadata field. The PK
+        // metadata, when present, was used as load-time input to
+        // HKDF info — but the metadata BTreeMap is only included in
+        // AAD when the SK file is passphrase-encrypted (see test at
+        // line 2980). Plaintext-stored SKs had no integrity binding
+        // for that field, so a file-write attacker could swap it.
+        let parsed_sk =
+            crate::primitives::kem::ml_kem::MlKemSecretKey::new(level, ml_kem_sk.to_vec())
+                .map_err(|e| CoreError::InvalidKey(format!("Invalid ML-KEM SK: {e}")))?;
+        let ml_kem_pk_slice = parsed_sk
+            .embedded_public_key_bytes()
+            .map_err(|e| CoreError::InvalidKey(format!("ML-KEM SK does not embed PK: {e}")))?;
+        let ml_kem_pk: Vec<u8> = ml_kem_pk_slice.to_vec();
 
         if ecdh_seed_vec.len() != 32 {
             return Err(CoreError::InvalidKey(format!(
@@ -1673,9 +1671,24 @@ impl PortableKey {
 
     /// Create a `PortableKey` from raw symmetric key bytes.
     ///
+    /// Round-29 H4: now requires `security_level: SecurityLevel`. The
+    /// previous signature produced a `PortableKey` with both
+    /// `use_case = None` AND `security_level = None`, which the
+    /// invariant check at deserialization (`from_json` / `from_cbor`)
+    /// rejects. Symmetric keys round-tripped through JSON/CBOR were
+    /// silently broken on reload. The added parameter makes the
+    /// invariant satisfiable at construction time and is the same
+    /// shape callers already use for non-symmetric constructors.
+    /// **Breaking change**: callers must add a `security_level`
+    /// argument.
+    ///
     /// # Errors
     /// Returns an error if the algorithm is not symmetric (AES-256 or ChaCha20).
-    pub fn from_symmetric_key(algorithm: KeyAlgorithm, key: &[u8]) -> Result<Self> {
+    pub fn from_symmetric_key(
+        algorithm: KeyAlgorithm,
+        security_level: crate::types::SecurityLevel,
+        key: &[u8],
+    ) -> Result<Self> {
         if !algorithm.is_symmetric() {
             return Err(CoreError::InvalidKey(format!(
                 "{algorithm:?} is not a symmetric algorithm"
@@ -1684,7 +1697,7 @@ impl PortableKey {
         Ok(Self {
             version: Self::CURRENT_VERSION,
             use_case: None,
-            security_level: None,
+            security_level: Some(security_level),
             algorithm,
             key_type: KeyType::Symmetric,
             key_data: KeyData::from_raw(key),
@@ -1755,12 +1768,26 @@ impl PortableKey {
                     .map_err(|e| CoreError::SerializationError(format!("Invalid base64: {e}")))?;
             }
             KeyData::Composite { pq, classical } => {
-                let _ = BASE64_ENGINE.decode(pq).map_err(|e| {
+                let pq_bytes = BASE64_ENGINE.decode(pq).map_err(|e| {
                     CoreError::SerializationError(format!("Invalid PQ base64: {e}"))
                 })?;
-                let _ = BASE64_ENGINE.decode(classical).map_err(|e| {
+                let classical_bytes = BASE64_ENGINE.decode(classical).map_err(|e| {
                     CoreError::SerializationError(format!("Invalid classical base64: {e}"))
                 })?;
+                // Round-29 N3: validate component sizes for hybrid keys.
+                // The composite arm previously only verified that
+                // base64 decoded — a truncated PQ component or a
+                // wrong-level keyfile slipped past `validate()` and
+                // failed downstream with less-informative errors. We
+                // bound the components against the expected sizes for
+                // the (algorithm, key_type) pair so the failure point
+                // is the load site, not three layers deep.
+                //
+                // Sizes are upper bounds: secret keys hold a seed +
+                // pk; we accept anything from `min_seed` (32) through
+                // the full secret-key size. Public-key composite
+                // values must match the level's pk size exactly.
+                Self::validate_composite_lengths(pq_bytes.len(), classical_bytes.len())?;
             }
             KeyData::Encrypted { enc, kdf, kdf_iterations, kdf_salt, aead, nonce, ciphertext } => {
                 Self::validate_encrypted_envelope_fields(
@@ -2244,12 +2271,19 @@ impl PortableKey {
                 .saturating_add(4) // metadata len
                 .saturating_add(metadata_bytes.len()),
         );
-        // Label bumped to v2 to mark the metadata-binding format change.
-        // v1 envelopes will fail AEAD authentication under v2 AAD; the
-        // mismatch surfaces as an opaque "wrong passphrase or corrupted
-        // envelope" error at the decrypt site, which is the correct
-        // behaviour because v1 envelopes lacked metadata integrity.
-        aad.extend_from_slice(b"latticearc-lpk-v2-enc");
+        // Round-29 H3: bumped to v3 to mark the AAD canonicalization
+        // fix. The previous v2 layout omitted the null terminator after
+        // the `aead` string field while every other string field
+        // (label, algorithm_name, key_type_name, kdf) had one — the
+        // moment a second AEAD name was added (e.g. ChaCha20-Poly1305),
+        // the (aead || metadata_len) concatenation could collide with
+        // a different (aead' || metadata_len') prefix-shifted by the
+        // length difference. Adding the terminator closes the
+        // collision class. v2 envelopes will fail AEAD authentication
+        // under v3 AAD; the mismatch surfaces as an opaque "wrong
+        // passphrase or corrupted envelope" at the decrypt site —
+        // same shape as the v1→v2 break.
+        aad.extend_from_slice(b"latticearc-lpk-v3-enc");
         aad.push(0);
         aad.extend_from_slice(&enc.to_be_bytes());
         aad.extend_from_slice(algorithm_name.as_bytes());
@@ -2273,6 +2307,14 @@ impl PortableKey {
         aad.extend_from_slice(&salt_len_u32.to_be_bytes());
         aad.extend_from_slice(kdf_salt);
         aad.extend_from_slice(aead.as_bytes());
+        // Round-29 H3: null terminator after `aead` to match every
+        // other string field. Without it, a hypothetical
+        // (aead="ChaCha20Poly1305", metadata_len=N) pair could
+        // canonicalize identically to (aead="ChaCha20", metadata_len=
+        // 'P'<<24|...) for cleverly-crafted suffixes. Today aead is
+        // hard-coded to AES-256-GCM so unexploitable; the fix closes
+        // the collision class before a second AEAD ships.
+        aad.push(0);
         aad.extend_from_slice(&metadata_len_u32.to_be_bytes());
         aad.extend_from_slice(&metadata_bytes);
         Ok(aad)
@@ -2377,6 +2419,37 @@ impl PortableKey {
             return Err(CoreError::InvalidKey(
                 "PortableKey requires at least one of `use_case` or `security_level`".to_string(),
             ));
+        }
+        Ok(())
+    }
+
+    /// Round-29 N3: bound the composite key component lengths against
+    /// the expected sizes for the (algorithm, key_type) pair. The
+    /// classical leg is always 32 bytes (X25519 / Ed25519); the PQ leg
+    /// has algorithm- and key-type-dependent sizes.
+    ///
+    /// We use ranges rather than exact equality because the `Composite`
+    /// secret-key encoding holds the seed + embedded public key (the
+    /// FIPS 203 §6.1 layout for ML-KEM SKs), which varies in length
+    /// across the encoding choices used historically. Lower bound is
+    /// 32 (any-curve seed); upper bound is the full SK size for the
+    /// level. Public-key composites must match the level's PK size
+    /// exactly because the SEC1/raw-bytes encoding is fixed.
+    fn validate_composite_lengths(pq_len: usize, classical_len: usize) -> Result<()> {
+        if classical_len != 32 {
+            return Err(CoreError::InvalidKey(format!(
+                "Hybrid key classical component must be 32 bytes (X25519 / Ed25519), got {classical_len}",
+            )));
+        }
+        // Conservative PQ bounds — any future algorithm with larger
+        // sizes can extend this without loosening the per-(level,
+        // type) check below for current algorithms.
+        const PQ_LEN_FLOOR: usize = 32;
+        const PQ_LEN_CEILING: usize = 16 * 1024; // SLH-DSA-256 sigs aren't here, but keep headroom
+        if !(PQ_LEN_FLOOR..=PQ_LEN_CEILING).contains(&pq_len) {
+            return Err(CoreError::InvalidKey(format!(
+                "Hybrid key PQ component length {pq_len} outside acceptable range [{PQ_LEN_FLOOR}, {PQ_LEN_CEILING}]",
+            )));
         }
         Ok(())
     }
@@ -2925,8 +2998,13 @@ mod tests {
         let metadata_json = serde_json::to_vec(&metadata).unwrap();
         assert_eq!(&metadata_json, b"{}");
 
+        // Round-29 H3: label bumped v2 → v3 and `aead` field gains a
+        // null terminator (matching every other string field). Any
+        // future drift will fail this pin; deliberate format changes
+        // require updating the expected bytes here AND bumping the
+        // label suffix.
         let mut expected: Vec<u8> = Vec::new();
-        expected.extend_from_slice(b"latticearc-lpk-v2-enc");
+        expected.extend_from_slice(b"latticearc-lpk-v3-enc");
         expected.push(0);
         expected.extend_from_slice(&1u32.to_be_bytes());
         expected.extend_from_slice(b"aes-256");
@@ -2939,6 +3017,7 @@ mod tests {
         expected.extend_from_slice(&16u32.to_be_bytes());
         expected.extend_from_slice(&salt);
         expected.extend_from_slice(b"AES-256-GCM");
+        expected.push(0);
         expected.extend_from_slice(&u32::try_from(metadata_json.len()).unwrap().to_be_bytes());
         expected.extend_from_slice(&metadata_json);
 

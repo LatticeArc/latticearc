@@ -199,8 +199,12 @@ fn decrypt_pq_ml_kem_internal(
     // embedded `ek` per FIPS 203 §6.1) AND the KEM ciphertext. Must
     // match the encrypt path byte-for-byte; `pq_kem_aead_key_info` is
     // the single canonical helper to prevent encrypt / decrypt drift.
-    let info =
-        pq_kem_aead_key_info(sk.embedded_public_key_bytes(), ct_bytes).map_err(|_e| opaque())?;
+    // Round-29 L1: `embedded_public_key_bytes()` now returns Result;
+    // a malformed SK that bypassed validation surfaces as an opaque
+    // decrypt failure rather than the previous silent-empty-slice
+    // path that would silently corrupt the channel binding.
+    let embedded_pk = sk.embedded_public_key_bytes().map_err(|_e| opaque())?;
+    let info = pq_kem_aead_key_info(embedded_pk, ct_bytes).map_err(|_e| opaque())?;
     let hkdf_result =
         crate::primitives::kdf::hkdf::hkdf(shared_secret.expose_secret(), None, Some(&info), 32)
             .map_err(|_e| {

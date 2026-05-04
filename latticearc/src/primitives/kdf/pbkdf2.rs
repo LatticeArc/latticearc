@@ -164,6 +164,56 @@ impl Pbkdf2Params {
         Self { salt: salt.to_vec(), iterations: 600_000, key_length: 32, prf: PrfType::HmacSha256 }
     }
 
+    /// Round-29 L4: early validation entry point. The original audit
+    /// complaint was that [`Self::with_salt`] is infallible, so a
+    /// short or otherwise-bad salt is accepted at construction and
+    /// only fails at the [`pbkdf2`] call site (the "late-error"
+    /// pattern). [`Self::with_salt`] keeps its infallible signature
+    /// for backwards compatibility (~30 callsites would otherwise
+    /// need to thread `?` through), but callers that want
+    /// fail-closed-at-construction semantics can chain
+    /// `Pbkdf2Params::with_salt(s).validate()?` to surface the same
+    /// `LatticeArcError::InvalidParameter` early.
+    ///
+    /// Validates: salt length ≥ [`Self::MIN_SALT_LEN`], salt is not
+    /// all-zero, iteration count meets the per-PRF OWASP 2023 floor
+    /// (600 k for HMAC-SHA256, 210 k for HMAC-SHA512), key length is
+    /// non-zero.
+    ///
+    /// # Errors
+    /// Returns [`LatticeArcError::InvalidParameter`] when any of the
+    /// above predicates fail.
+    pub fn validate(self) -> Result<Self> {
+        if self.salt.len() < Self::MIN_SALT_LEN {
+            return Err(LatticeArcError::InvalidParameter(format!(
+                "Salt length {} below NIST SP 800-132 §5.1 minimum of {} bytes",
+                self.salt.len(),
+                Self::MIN_SALT_LEN,
+            )));
+        }
+        if self.salt.iter().all(|&b| b == 0) {
+            return Err(LatticeArcError::InvalidParameter(
+                "Salt is all-zero (uninitialised-memory guard)".to_string(),
+            ));
+        }
+        let owasp_min = match self.prf {
+            PrfType::HmacSha256 => 600_000,
+            PrfType::HmacSha512 => 210_000,
+        };
+        if self.iterations < owasp_min {
+            return Err(LatticeArcError::InvalidParameter(format!(
+                "Iterations {} below OWASP 2023 floor of {} for {:?}",
+                self.iterations, owasp_min, self.prf
+            )));
+        }
+        if self.key_length == 0 {
+            return Err(LatticeArcError::InvalidParameter(
+                "key_length must be non-zero".to_string(),
+            ));
+        }
+        Ok(self)
+    }
+
     /// Set iteration count
     #[must_use]
     pub fn iterations(mut self, iterations: u32) -> Self {

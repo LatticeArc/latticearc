@@ -125,23 +125,13 @@ fn decrypt_pq_only(
 
     let sk_bytes = key_file.key_bytes()?;
 
-    // PqOnlySecretKey now requires the recipient PK so the HKDF info on
-    // decrypt can bind to identity (HPKE / RFC 9180 §5.1). The PK is
-    // stored in the key file's metadata at keygen time under the same
-    // `ml_kem_pk` slot used by the hybrid path.
-    let pk_b64 =
-        key_file.portable_key().metadata().get("ml_kem_pk").and_then(|v| v.as_str()).ok_or_else(
-            || {
-                anyhow::anyhow!(
-                    "PQ-only secret key file is missing the 'ml_kem_pk' metadata field; \
-                 regenerate the keypair with the latest CLI."
-                )
-            },
-        )?;
-    let pk_bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, pk_b64)
-        .map_err(|e| anyhow::anyhow!("Invalid 'ml_kem_pk' base64 in metadata: {e}"))?;
-
-    let pq_sk = latticearc::PqOnlySecretKey::from_bytes(level, &sk_bytes, &pk_bytes)
+    // Round-29 M2: derive the recipient PK from the SK's embedded PK
+    // (FIPS 203 §6.1) instead of trusting the unauthenticated
+    // `ml_kem_pk` metadata field. A file-write attacker who could
+    // previously swap that metadata to break the HPKE channel binding
+    // can no longer affect the derivation — the PK comes from inside
+    // the SK blob itself.
+    let pq_sk = latticearc::PqOnlySecretKey::from_sk_bytes(level, &sk_bytes)
         .map_err(|e| anyhow::anyhow!("Invalid PQ-only secret key: {e}"))?;
 
     latticearc::decrypt(

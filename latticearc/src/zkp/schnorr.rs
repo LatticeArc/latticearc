@@ -243,11 +243,29 @@ impl SchnorrProver {
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.secret)).into();
         let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
-        // Generate random nonce k via primitives layer (already Zeroizing).
-        let nonce_bytes = crate::primitives::rand::csprng::random_bytes(32);
-        let k = Zeroizing::new(<Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(
-            &nonce_bytes,
-        )));
+        // Round-29 M6: rejection sampling for the nonce. The previous
+        // `Reduce<U256>::reduce_bytes(32 bytes)` had a modular bias of
+        // ~2^-128 on secp256k1 (q is close to but less than 2^256, so
+        // values `[q, 2^256)` map disproportionately to `[0, 2^256-q)`).
+        // The bias is currently non-exploitable but consumes the
+        // safety margin against future Bleichenbacher-class lattice
+        // attacks. `Scalar::from_repr` returns `None` for byte
+        // representations `>= q`, giving us textbook rejection
+        // sampling: each retry succeeds with probability q/2^256 ≈
+        // 1 - 2^-128, so the loop terminates in expectation in 1 + ε
+        // iterations and is bounded above by ~256 with overwhelming
+        // probability. Also rejects k = 0 (otherwise R = O is invalid).
+        let k_scalar: Scalar = loop {
+            let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
+            let candidate: Option<Scalar> =
+                Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
+            if let Some(s) = candidate {
+                if s != Scalar::ZERO {
+                    break s;
+                }
+            }
+        };
+        let k = Zeroizing::new(k_scalar);
 
         // Compute commitment R = k*G
         let r_point = ProjectivePoint::GENERATOR * *k;
@@ -262,9 +280,15 @@ impl SchnorrProver {
         // the secret-laden registers — keep s in Zeroizing so any
         // residue is scrubbed on drop.
         let s = Zeroizing::new(*k + c * *x);
-        let s_bytes: [u8; 32] = s.to_bytes().into();
+        // Round-29 N2: the byte-extracted copy of `s` is also
+        // Zeroized. Although `s` itself reveals nothing about `x`
+        // alone (it's a linear combination of nonce and secret),
+        // careless reuse of the stack frame can leak the
+        // intermediate `k + c*x` arithmetic. Treating `s_bytes` as
+        // sensitive matches the discipline applied to `k` and `x`.
+        let s_bytes: Zeroizing<[u8; 32]> = Zeroizing::new(s.to_bytes().into());
 
-        Ok(SchnorrProof { commitment: r_bytes, response: s_bytes })
+        Ok(SchnorrProof { commitment: r_bytes, response: *s_bytes })
     }
 
     /// Get the public key

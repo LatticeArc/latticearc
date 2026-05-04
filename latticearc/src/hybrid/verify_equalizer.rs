@@ -43,6 +43,8 @@
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 
+use crate::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature as Ed25519SignatureOps};
+use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 use crate::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature,
 };
@@ -88,11 +90,58 @@ pub struct HybridVerifyDummy {
     pub ed_pk: Vec<u8>,
     /// Raw zero-byte Ed25519 signature (64 bytes).
     pub ed_sig: Vec<u8>,
-    /// Pre-parsed valid ML-DSA material for fallback when caller's
-    /// bytes fail to parse. `None` if init keygen+sign failed
-    /// (extremely rare — RNG/PCT failure). Consumer must handle
-    /// `None` by falling back to the legacy raw-bytes-only behavior.
-    pub parsed: Option<HybridVerifyDummyParsed>,
+    /// Round-29 L6: pre-parsed material is now wrapped in a `Mutex<Option<>>`
+    /// so a transient init failure (RNG hiccup, FIPS PCT) doesn't
+    /// permanently degrade the equalizer for the entire process
+    /// lifetime. The previous `OnceLock<HybridVerifyDummy>` cached
+    /// whatever the first init produced (including `None`). Now the
+    /// outer cell still caches the `HybridVerifyDummy` shell, but
+    /// callers go through [`Self::parsed_or_init`] which retries
+    /// init when `parsed` is `None`. The `MlDsaParameterSet` is
+    /// stored alongside so retries know which keypair to attempt.
+    pub parsed: std::sync::Mutex<Option<HybridVerifyDummyParsed>>,
+    /// Parameter set this dummy was constructed for (needed by the
+    /// retry-on-None path to know which keypair to (re)init).
+    pub param_set: MlDsaParameterSet,
+}
+
+impl HybridVerifyDummy {
+    /// Round-29 L6: get the pre-parsed equalizer material, retrying
+    /// the keygen+sign init when previous attempts produced `None`.
+    /// Returns a clone of the parsed material (the parsed struct is
+    /// cheap to clone — it holds public-key bytes and a signature, no
+    /// secrets).
+    ///
+    /// Behaviour:
+    /// - Some(parsed) cached → return clone immediately
+    /// - None cached → attempt re-init; if successful cache and
+    ///   return Some, otherwise leave None in place and return None
+    ///
+    /// Locking: a single Mutex serializes init attempts across
+    /// threads. A failed init is fast; a successful init is rare
+    /// (only on first-of-process or post-failure recovery).
+    #[must_use]
+    pub fn parsed_or_init(&self) -> Option<HybridVerifyDummyParsed> {
+        // Avoid the `.unwrap()` lint by explicitly handling poison.
+        let mut guard = match self.parsed.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if guard.is_none() {
+            *guard = try_init_parsed(self.param_set);
+        }
+        guard.as_ref().map(HybridVerifyDummyParsed::clone)
+    }
+}
+
+impl Clone for HybridVerifyDummyParsed {
+    fn clone(&self) -> Self {
+        Self {
+            pq_pk: self.pq_pk.clone(),
+            pq_sig: self.pq_sig.clone(),
+            pq_test_message: self.pq_test_message.clone(),
+        }
+    }
 }
 
 /// Lazy-initialized per-parameter-set dummy material.
@@ -123,7 +172,8 @@ pub fn hybrid_verify_dummy_material(param_set: MlDsaParameterSet) -> &'static Hy
         pq_sig: vec![0u8; param_set.signature_size()],
         ed_pk: vec![0u8; 32],
         ed_sig: vec![0u8; 64],
-        parsed: try_init_parsed(param_set),
+        parsed: std::sync::Mutex::new(try_init_parsed(param_set)),
+        param_set,
     })
 }
 
@@ -148,6 +198,89 @@ fn try_init_parsed(param_set: MlDsaParameterSet) -> Option<HybridVerifyDummyPars
     Some(HybridVerifyDummyParsed { pq_pk, pq_sig, pq_test_message })
 }
 
+/// Round-29 M1: Ed25519 timing equalizer. Pre-generated keypair +
+/// signature whose verify cost (one EC scalar multiplication ≈ tens
+/// of microseconds) matches a real Ed25519 verify. Used by
+/// `sig_hybrid::verify` when the caller's Ed25519 signature bytes
+/// fail the parse step — running verify against the cached material
+/// makes the parse-fail path pay the same wall-clock as
+/// parse-then-verify.
+///
+/// The previous `sig_hybrid` short-circuit ran no scalar mul on
+/// length-fail, leaving a parse-vs-verify timing oracle that the
+/// ML-DSA leg's equalizer mostly masked but couldn't close on the
+/// Ed25519 side. The doc comment claimed "same order of magnitude"
+/// but parse cost is empirically ~3 orders of magnitude smaller
+/// than verify.
+pub struct Ed25519VerifyDummy {
+    /// Pre-parsed material; `Mutex<Option<>>` so a transient init
+    /// failure can be retried (same posture as the ML-DSA equalizer).
+    pub parsed: std::sync::Mutex<Option<Ed25519VerifyDummyParsed>>,
+}
+
+/// Inner parsed Ed25519 equalizer material — public PK bytes (32),
+/// signature bytes (64), and the fixed test message they sign.
+pub struct Ed25519VerifyDummyParsed {
+    /// Real Ed25519 public key (32 bytes).
+    pub ed_pk: Vec<u8>,
+    /// Real Ed25519 signature (64 bytes), valid against `ed_pk` over `ed_test_message`.
+    pub ed_sig: Vec<u8>,
+    /// Fixed test message that `ed_sig` signs. Verifying against this
+    /// is what consumes the verify-time wall-clock budget.
+    pub ed_test_message: Vec<u8>,
+}
+
+impl Clone for Ed25519VerifyDummyParsed {
+    fn clone(&self) -> Self {
+        Self {
+            ed_pk: self.ed_pk.clone(),
+            ed_sig: self.ed_sig.clone(),
+            ed_test_message: self.ed_test_message.clone(),
+        }
+    }
+}
+
+impl Ed25519VerifyDummy {
+    /// Get pre-parsed Ed25519 equalizer material, retrying init when
+    /// previous attempts produced None. Mirrors
+    /// [`HybridVerifyDummy::parsed_or_init`].
+    #[must_use]
+    pub fn parsed_or_init(&self) -> Option<Ed25519VerifyDummyParsed> {
+        let mut guard = match self.parsed.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if guard.is_none() {
+            *guard = try_init_ed25519_parsed();
+        }
+        guard.as_ref().map(Ed25519VerifyDummyParsed::clone)
+    }
+}
+
+/// Lazy-initialised Ed25519 equalizer material (process-wide).
+#[must_use]
+pub fn ed25519_verify_dummy_material() -> &'static Ed25519VerifyDummy {
+    use std::sync::OnceLock;
+    static CELL: OnceLock<Ed25519VerifyDummy> = OnceLock::new();
+    CELL.get_or_init(|| Ed25519VerifyDummy {
+        parsed: std::sync::Mutex::new(try_init_ed25519_parsed()),
+    })
+}
+
+/// Best-effort init: keygen + sign over a fixed test message. Returns
+/// None on RNG/PCT failure. Caller must treat None as "equalizer
+/// degraded; fall back to legacy fast-fail."
+fn try_init_ed25519_parsed() -> Option<Ed25519VerifyDummyParsed> {
+    let test_message: Vec<u8> = b"latticearc/verify-equalizer/dummy-ed25519-v1".to_vec();
+    let keypair = Ed25519KeyPair::generate().ok()?;
+    let signature = keypair.sign(&test_message).ok()?;
+    let ed_pk = keypair.public_key_bytes();
+    let ed_sig = Ed25519SignatureOps::signature_bytes(&signature);
+    // SK is dropped here — zeroized via Ed25519KeyPair Drop.
+    drop(keypair);
+    Some(Ed25519VerifyDummyParsed { ed_pk, ed_sig, ed_test_message: test_message })
+}
+
 #[cfg(test)]
 #[allow(clippy::panic)] // Tests panic on missing init material
 mod tests {
@@ -163,7 +296,8 @@ mod tests {
             [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
         {
             let dummy = hybrid_verify_dummy_material(param_set);
-            let Some(parsed) = dummy.parsed.as_ref() else {
+            // Round-29 L6: retrieve via the retry-on-None getter.
+            let Some(parsed) = dummy.parsed_or_init() else {
                 panic!("init keygen + sign must succeed under test conditions for {param_set:?}");
             };
             let result = parsed.pq_pk.verify(&parsed.pq_test_message, &parsed.pq_sig, &[]);

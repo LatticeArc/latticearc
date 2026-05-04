@@ -377,7 +377,15 @@ pub fn deserialize_encrypted_output(data: &str) -> Result<EncryptedOutput> {
 /// allows 10 MiB + base64 expansion + envelope overhead) and well below
 /// the bands that would let a single inbound JSON payload exhaust a
 /// process's working set on a typical 8 GiB server.
-pub(crate) const MAX_DESERIALIZE_INPUT_SIZE: usize = 16 * 1024 * 1024;
+// Round-29 L5: 16 MiB was too generous — it sat above the per-field
+// 10 MiB cap (line 290) plus base64 expansion (~13.4 MiB worst case)
+// plus envelope overhead, so the per-field rejection always fired
+// AFTER `serde_json::from_str` already materialized the full
+// `SerializableEncryptedOutput` (raw JSON + decoded String + decoded
+// Vec — ~2.5× per accepted message). Tighten to 12 MiB so the input
+// gate fires before any serde allocation on payloads that would only
+// be rejected at the field-cap stage.
+pub(crate) const MAX_DESERIALIZE_INPUT_SIZE: usize = 12 * 1024 * 1024;
 
 fn enforce_max_input_size(data: &str, kind: &'static str) -> Result<()> {
     if data.len() > MAX_DESERIALIZE_INPUT_SIZE {

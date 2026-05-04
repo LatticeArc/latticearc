@@ -94,7 +94,7 @@ latticearc-cli encrypt --use-case healthcare-records \
 - **22 use cases** with automatic algorithm selection — `UseCase::HealthcareRecords` → ML-KEM-1024, `UseCase::IoTDevice` → ML-KEM-512
 - **Two orthogonal axes** — `SecurityLevel` (NIST 1/3/5) × `CryptoMode` (Hybrid/PqOnly)
 - **Multi-layered verification** — formal proofs (Kani + SAW), 3-way constant-time gates, cross-impl differential testing, 31 fuzz targets, mutation testing at 80% floor. See [Verification](#verification).
-- **Opt-in FIPS backend** — `--features fips` routes AES-GCM, ML-KEM, HKDF, SHA-2 through a CMVP-validated aws-lc-rs build. PQ signatures use NIST-conformant but non-validated crates. See [Algorithms & Backends](#algorithms--backends).
+- **Opt-in FIPS backend** — `--features fips` routes AES-GCM, ML-KEM, X25519, and HKDF through a CMVP-validated aws-lc-rs build. SHA-2 hashing remains on the RustCrypto `sha2` crate (see Algorithms table for why); PQ signatures use NIST-conformant but non-validated crates. See [Algorithms & Backends](#algorithms--backends).
 - **Single crate** — `cargo add latticearc` and go
 
 ## When to Use / When Not To
@@ -282,6 +282,12 @@ Designed with the assumption that any single algorithm may be broken — hybrid 
 - **Not independently audited.** We welcome security researchers to review our code.
 - **Pre-1.0 software.** API may change between versions.
 
+### CLI environment variables
+
+- `LATTICEARC_PASSPHRASE` — non-interactive passphrase for encrypted keyfiles (CI/automation only). Visible to same-UID processes via `/proc/<pid>/environ`; emits a `tracing::warn!` on every read. Unset immediately after the wrapping command exits.
+- `LATTICEARC_ALLOW_SYMLINK_KEYS` — set to `1` (or `true`, case-insensitive) to permit reading key files via symlinks. Round-29 N7: previously read at runtime but not advertised in `--help` or this README; documenting now. Default rejection prevents a symlink from silently redirecting reads to unintended targets (e.g. `~/.ssh/id_rsa`).
+- `LATTICEARC_KDF_INPUT` — KDF input string for `latticearc-cli kdf` when `--input-stdin` is not used. See `docs/MODULE_PATTERNS.md`.
+
 ### Upstream Contributions
 
 - **[aws-lc-rs#1029](https://github.com/aws/aws-lc-rs/pull/1029)** — ML-KEM `DecapsulationKey` serialization (shipped in v1.16.0)
@@ -307,7 +313,7 @@ cargo build --features fips
 
 | Feature | Default | What it enables |
 |---|:---:|---|
-| `fips` | off | Routes AES-GCM, ML-KEM, HKDF, and SHA-2 through the CMVP-validated `aws-lc-rs` build. Required for `ComplianceMode::Fips140_3` and `Cnsa2_0`. **Transitively enables `fips-self-test`** so power-on KATs run as required by FIPS 140-3 §10.3.1. If you specifically want the validated backend without the self-test wiring, set `default-features = false` and enable `aws-lc-rs/fips` directly. |
+| `fips` | off | Routes AES-GCM, ML-KEM, X25519, and HKDF through the CMVP-validated `aws-lc-rs` build. Required for `ComplianceMode::Fips140_3` and `Cnsa2_0`. **SHA-2 stays on the RustCrypto `sha2` crate even with this feature on** (see the SHA-2 row in the Algorithms table). **Transitively enables `fips-self-test`** so power-on KATs run as required by FIPS 140-3 §10.3.1. If you specifically want the validated backend without the self-test wiring, set `default-features = false` and enable `aws-lc-rs/fips` directly. |
 | `fips-self-test` | off | Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). Pulled in transitively by `fips`; can be enabled standalone for non-FIPS builds that still want the self-test KAT coverage. |
 | `tracing-init` | off | Exposes `init_tracing` / `init_tracing_with_file` helpers and the `tracing-subscriber` + `tracing-appender` deps that back them. **Library code should NOT enable this** — subscriber wiring is the binary's responsibility, and a transitive library that calls `init_tracing` will `panic!` the first downstream consumer that calls their own subscriber init. `latticearc-cli` enables this. |
 | `secret-mlock` | off | Locks heap-backed `SecretVec` buffers into RAM via `mlock(2)` / `VirtualLock`, preventing them from appearing in swap or core dumps. |

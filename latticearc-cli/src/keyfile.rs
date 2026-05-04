@@ -411,9 +411,24 @@ pub(crate) fn read_passphrase(prompt: &str) -> Result<zeroize::Zeroizing<String>
 /// Read a *new* passphrase from the terminal, prompting twice and rejecting
 /// mismatches or empty values. Used at keygen time.
 pub(crate) fn read_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
+    // Round-29 N4: minimum length matches the codebase's broader OWASP
+    // hygiene posture (PBKDF2 600k floor, AEAD weak-key rejection).
+    // 12 chars is the OWASP 2023 minimum for "user-chosen passwords"
+    // when paired with a high-iteration KDF; below that we recommend
+    // passphrases (multi-word). Empty alone is too lax.
+    const MIN_PASSPHRASE_LEN: usize = 12;
+
     let pp1 = read_passphrase("Enter passphrase to protect secret key: ")?;
     if pp1.is_empty() {
         bail!("Passphrase must not be empty");
+    }
+    if pp1.chars().count() < MIN_PASSPHRASE_LEN {
+        bail!(
+            "Passphrase must be at least {MIN_PASSPHRASE_LEN} characters \
+             (got {}). For high-entropy automation use a randomly-generated \
+             string; for user-chosen secrets prefer a multi-word passphrase.",
+            pp1.chars().count()
+        );
     }
     let pp2 = read_passphrase("Confirm passphrase: ")?;
     if pp1.as_bytes() != pp2.as_bytes() {
@@ -467,10 +482,17 @@ fn resolve_passphrase(
         // in scripts should `unset LATTICEARC_PASSPHRASE` immediately
         // after the latticearc-cli invocation completes.
         //
-        // We additionally warn loudly if a TTY is attached — that's the
-        // strongest signal that the env-var path was unintentional
-        // (a stale shell-export from a prior session).
-        if std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        // Round-29 N6: emit a tracing::warn! on EVERY env-var read,
+        // not only the TTY case. The original code only warned when
+        // stdin was a TTY (presumed-accidental usage); non-interactive
+        // scripts got no warning despite the documented inheritance/
+        // leak risk being exactly the same. Audit pipelines that
+        // scrape `warn` events now see every env-var-passphrase use.
+        // Stderr `eprintln!` is retained on the TTY path so an
+        // interactive operator sees the human-readable reminder
+        // immediately even with no tracing subscriber configured.
+        let is_tty = std::io::IsTerminal::is_terminal(&std::io::stdin());
+        if is_tty {
             eprintln!(
                 "warning: LATTICEARC_PASSPHRASE is set on an interactive TTY session. \
                  Env-var passphrases are visible to same-UID processes via \
@@ -479,6 +501,16 @@ fn resolve_passphrase(
                  prompt unless you are running in non-interactive automation. \
                  Scripts that intentionally use this path should `unset \
                  LATTICEARC_PASSPHRASE` immediately after this command exits."
+            );
+            tracing::warn!(
+                tty = true,
+                "LATTICEARC_PASSPHRASE used on interactive TTY (likely accidental)"
+            );
+        } else {
+            tracing::warn!(
+                tty = false,
+                "LATTICEARC_PASSPHRASE used non-interactively; ensure the wrapping \
+                 script unsets it immediately after the command exits"
             );
         }
         return Ok(zeroize::Zeroizing::new(pp));

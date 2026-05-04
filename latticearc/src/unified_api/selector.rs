@@ -76,13 +76,38 @@ impl CryptoPolicyEngine {
     /// Recommends a cryptographic scheme based on use case.
     /// All encryption use cases default to hybrid for quantum safety.
     ///
+    /// Round-29 follow-up: each use case is pre-mapped to a security
+    /// level (e.g. `IoTDevice` → ML-KEM-512, `EmailEncryption` →
+    /// ML-KEM-1024). The `config.security_level` is **not** used to
+    /// override the use-case mapping — that's a deliberate design
+    /// choice (use cases are self-documenting and a per-use-case
+    /// mapping prevents configuration drift). However, when a caller
+    /// supplies a non-default `config.security_level`, we now log a
+    /// `tracing::debug!` so it's visible in audit-trail pipelines that
+    /// the override was ignored. Callers wanting strict-level routing
+    /// should use `select_pq_encryption_scheme` / `select_encryption_scheme`
+    /// (level-driven), or call `force_scheme` to bypass use-case
+    /// mapping entirely.
+    ///
     /// # Errors
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     #[must_use = "scheme recommendation should be used for algorithm selection"]
-    pub fn recommend_scheme(use_case: &UseCase, _config: &CoreConfig) -> Result<String> {
-        // _config is retained for API stability; scheme selection is use-case-driven.
+    pub fn recommend_scheme(use_case: &UseCase, config: &CoreConfig) -> Result<String> {
+        // Round-29 follow-up: surface the no-op so it's not silent.
+        // Default `SecurityLevel` is `High`; anything else means the
+        // caller passed it explicitly and would reasonably expect it
+        // to influence selection. It does not — log so the divergence
+        // is visible.
+        if config.security_level != SecurityLevel::default() {
+            tracing::debug!(
+                use_case = ?use_case,
+                requested_level = ?config.security_level,
+                "recommend_scheme: config.security_level is not consulted in the use-case path; \
+                 use select_pq_encryption_scheme or force_scheme for level-driven routing"
+            );
+        }
         match *use_case {
             // Communication
             UseCase::SecureMessaging => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),

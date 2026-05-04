@@ -126,6 +126,19 @@ impl HkdfResult {
 /// Returns an error if the extraction operation fails.
 #[instrument(level = "debug", skip(salt, ikm), fields(has_salt = salt.is_some(), ikm_len = ikm.len()))]
 pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<Zeroizing<[u8; 32]>> {
+    // Round-29 L3: empty IKM is RFC-conformant (HKDF-Extract over zero
+    // bytes produces a deterministic PRK) but is almost always a caller
+    // bug — the rest of this codebase rejects all-zero AEAD keys
+    // (`AeadError::WeakKey`) and all-zero PBKDF2 salts on the same
+    // grounds. Match that fail-closed posture: if a caller has zero IKM,
+    // they wanted a hash of nothing and should say so explicitly via
+    // `sha256(&[])`, not derive a key from it.
+    if ikm.is_empty() {
+        return Err(LatticeArcError::InvalidParameter(
+            "HKDF-Extract IKM must not be empty (round-29 L3 fail-closed)".to_string(),
+        ));
+    }
+
     // Per RFC 5869: If salt is not provided, use a string of HashLen zeros
     const DEFAULT_SALT: [u8; 32] = [0u8; 32];
     let salt_bytes = match salt {
@@ -309,6 +322,16 @@ pub fn hkdf(
 /// Returns an error if key derivation fails.
 #[instrument(level = "debug", skip(ikm), fields(ikm_len = ikm.len(), output_length = length))]
 pub fn hkdf_simple(ikm: &[u8], length: usize) -> Result<HkdfResult> {
+    // Round-29 L3 (mirror): same empty-IKM rejection as `hkdf_extract`.
+    // `hkdf()` below ultimately calls `hkdf_extract` which now rejects
+    // empty IKM, but checking up-front keeps the error point near the
+    // caller and avoids the salt allocation on the failing path.
+    if ikm.is_empty() {
+        return Err(LatticeArcError::InvalidParameter(
+            "hkdf_simple IKM must not be empty (round-29 L3 fail-closed)".to_string(),
+        ));
+    }
+
     // Round-20 audit fix #15: NIST SP 800-56C Rev2 §4.1 recommends salt
     // length ≥ hash output length (32 bytes for SHA-256). The previous
     // 16-byte salt was below recommendation; the doc above claimed

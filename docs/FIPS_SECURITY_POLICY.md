@@ -87,7 +87,7 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 | SLH-DSA-SHAKE-128s/f, 192s/f, 256s/f | FIPS 205 | fips205 crate | Hash-based signatures |
 | FN-DSA-512/1024 | draft FIPS 206 | fn-dsa crate | Lattice signatures |
 | AES-256-GCM | SP 800-38D | aws-lc-rs | Authenticated encryption |
-| SHA-256 | FIPS 180-4 | aws-lc-rs | Hashing |
+| SHA-256 | FIPS 180-4 | RustCrypto `sha2` (NOT FIPS-routed) | Hashing — see note below |
 | SHA3-256 | FIPS 202 | sha3 crate | Hashing |
 | HMAC-SHA256 | FIPS 198-1 | hmac + sha2 crates (MAC module), aws-lc-rs (HKDF module) | Message authentication |
 | HKDF-SHA256 | SP 800-56C | aws-lc-rs HMAC-based (`aws_lc_rs::hmac::HMAC_SHA256`) | Key derivation |
@@ -104,6 +104,18 @@ The following algorithms are available in the default (non-FIPS) build but are n
 | ChaCha20-Poly1305 | chacha20poly1305 | Runtime: `ComplianceMode` rejects in `Fips140_3`/`Cnsa2_0` |
 
 > **Note:** Non-approved algorithms are currently enforced at runtime via `ComplianceMode`, not at compile time via `cfg` gates. When `ComplianceMode::Fips140_3` or `Cnsa2_0` is set, the `CryptoPolicyEngine` rejects non-approved algorithm selections. For future CMVP submission, compile-time `cfg(not(feature = "fips"))` gating should be implemented to fully exclude non-approved code paths from the FIPS binary.
+>
+> **SHA-2 routing (round-29 H1 disclosure):** SHA-2 implementations
+> (SHA-256/384/512 in `latticearc/src/primitives/hash/sha2.rs`) are
+> provided by the RustCrypto `sha2` crate **regardless of the `fips`
+> feature flag**. The `--features fips` switch routes AES-GCM, ML-KEM,
+> X25519, and HKDF to aws-lc-rs's CMVP-validated module, but SHA-2
+> hashing is not currently swapped. Earlier revisions of this policy
+> document and the README claimed otherwise — those claims were wrong
+> and have been corrected. CMVP submitters relying on a CMVP-validated
+> SHA-2 path must either route to aws-lc-rs's `digest::SHA256` directly
+> or wait for a future revision that wires the SHA-2 backend behind
+> the same feature flag.
 
 ---
 

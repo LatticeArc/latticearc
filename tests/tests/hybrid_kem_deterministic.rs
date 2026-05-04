@@ -56,7 +56,8 @@ const EPHEMERAL_PK: [u8; 32] = [
 fn independent_hkdf(
     ml_kem_ss: &[u8],
     ecdh_ss: &[u8],
-    static_pk: &[u8],
+    ecdh_static_pk: &[u8],
+    ml_kem_static_pk: &[u8],
     ephemeral_pk: &[u8],
     kem_ct: &[u8],
 ) -> Vec<u8> {
@@ -65,16 +66,19 @@ fn independent_hkdf(
     ikm.extend_from_slice(ml_kem_ss);
     ikm.extend_from_slice(ecdh_ss);
 
-    // Info = domain_label || len(static_pk) || static_pk
-    //                    || len(eph_pk) || eph_pk
-    //                    || len(kem_ct) || kem_ct
-    // Round-19 M2: kem_ct binding aligns the transcript with X-Wing /
-    // KitchenSink guidance (substituted ct must not yield same shared secret).
+    // Round-29 M5: info layout now binds BOTH static legs (ECDH + ML-KEM)
+    // following HPKE §5.1 channel-binding for hybrid KEMs. Previous layout
+    // bound only one static_pk.
     let mut info = Vec::new();
     info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS-v1");
-    let static_pk_len = u32::try_from(static_pk.len()).expect("public key within u32 range");
-    info.extend_from_slice(&static_pk_len.to_be_bytes());
-    info.extend_from_slice(static_pk);
+    let ecdh_static_pk_len =
+        u32::try_from(ecdh_static_pk.len()).expect("public key within u32 range");
+    info.extend_from_slice(&ecdh_static_pk_len.to_be_bytes());
+    info.extend_from_slice(ecdh_static_pk);
+    let ml_kem_static_pk_len =
+        u32::try_from(ml_kem_static_pk.len()).expect("public key within u32 range");
+    info.extend_from_slice(&ml_kem_static_pk_len.to_be_bytes());
+    info.extend_from_slice(ml_kem_static_pk);
     let ephemeral_pk_len = u32::try_from(ephemeral_pk.len()).expect("public key within u32 range");
     info.extend_from_slice(&ephemeral_pk_len.to_be_bytes());
     info.extend_from_slice(ephemeral_pk);
@@ -95,13 +99,15 @@ fn test_hybrid_kdf_matches_independent_hkdf_succeeds() {
     let actual = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
     .unwrap();
 
-    let expected = independent_hkdf(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK, &[]);
+    let expected =
+        independent_hkdf(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &STATIC_PK, &EPHEMERAL_PK, &[]);
 
     assert_eq!(
         actual.expose_secret(),
@@ -116,7 +122,8 @@ fn test_hybrid_kdf_output_length_has_correct_size() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -132,7 +139,8 @@ fn test_domain_separator_affects_output_produces_different_secret_succeeds() {
     let with_domain = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -162,7 +170,8 @@ fn test_ikm_ordering_ml_kem_first_produces_different_output_when_swapped_succeed
     let correct_order = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -172,7 +181,8 @@ fn test_ikm_ordering_ml_kem_first_produces_different_output_when_swapped_succeed
     let reversed_order = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ECDH_SS,
         ecdh_ss: &ML_KEM_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -191,7 +201,8 @@ fn test_ikm_ordering_matches_spec_succeeds() {
     let actual = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -207,7 +218,12 @@ fn test_ikm_ordering_matches_spec_succeeds() {
     // the ephemeral PK to align with X-Wing / KitchenSink transcript guidance.
     let mut info = Vec::new();
     info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS-v1");
+    // Round-29 M5: bind BOTH static legs (ECDH + ML-KEM); test uses the
+    // same STATIC_PK for both, treating them as opaque domain-separated
+    // bytes for the determinism check.
     let static_pk_len = u32::try_from(STATIC_PK.len()).expect("public key within u32 range");
+    info.extend_from_slice(&static_pk_len.to_be_bytes());
+    info.extend_from_slice(&STATIC_PK);
     info.extend_from_slice(&static_pk_len.to_be_bytes());
     info.extend_from_slice(&STATIC_PK);
     let eph_pk_len = u32::try_from(EPHEMERAL_PK.len()).expect("public key within u32 range");
@@ -250,7 +266,8 @@ fn test_static_pk_binding_produces_different_output_for_different_keys_succeeds(
     let result1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -262,7 +279,8 @@ fn test_static_pk_binding_produces_different_output_for_different_keys_succeeds(
     let result2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &different_pk,
+        ecdh_static_pk: &different_pk,
+        ml_kem_static_pk: &different_pk,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -280,7 +298,8 @@ fn test_ephemeral_pk_binding_produces_different_output_for_different_keys_succee
     let result1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -292,7 +311,8 @@ fn test_ephemeral_pk_binding_produces_different_output_for_different_keys_succee
     let result2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &different_epk,
         kem_ct: &[],
     })
@@ -310,7 +330,8 @@ fn test_roundtrip_determinism_roundtrip() {
     let reference = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })
@@ -320,7 +341,8 @@ fn test_roundtrip_determinism_roundtrip() {
         let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ML_KEM_SS,
             ecdh_ss: &ECDH_SS,
-            static_pk: &STATIC_PK,
+            ecdh_static_pk: &STATIC_PK,
+            ml_kem_static_pk: &STATIC_PK,
             ephemeral_pk: &EPHEMERAL_PK,
             kem_ct: &[],
         })
@@ -340,7 +362,8 @@ fn test_invalid_ml_kem_ss_length_fails() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &short_ss,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     });
@@ -350,7 +373,8 @@ fn test_invalid_ml_kem_ss_length_fails() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &long_ss,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     });
@@ -364,7 +388,8 @@ fn test_invalid_ecdh_ss_length_fails() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &short_ss,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     });
@@ -374,7 +399,8 @@ fn test_invalid_ecdh_ss_length_fails() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &long_ss,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     });
@@ -387,7 +413,8 @@ fn test_output_is_nontrivial_succeeds() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ML_KEM_SS,
         ecdh_ss: &ECDH_SS,
-        static_pk: &STATIC_PK,
+        ecdh_static_pk: &STATIC_PK,
+        ml_kem_static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
         kem_ct: &[],
     })

@@ -633,6 +633,10 @@ pub fn verify(
     // Now: ANY path that doesn't reach a successful real verify falls
     // through to the dummy verify so the wall-clock cost is equal
     // across all reject reasons.
+    // Round-29 L6: pre-parsed material now goes through `parsed_or_init()`
+    // which retries init when prior attempts produced None. The result is
+    // a clone (cheap — public bytes only); we own it locally.
+    let dummy_parsed = dummy.parsed_or_init();
     let ml_dsa_verify_result = match &parse_ok {
         Ok((parsed_pk, parsed_sig)) => {
             let inner = parsed_pk.verify(message, parsed_sig, &[]);
@@ -642,7 +646,7 @@ pub fn verify(
                 // the short-circuit in `try_from_bytes`). Run the
                 // equalizer dummy verify to spend verify-time budget;
                 // discard its result.
-                Err(_) => match &dummy.parsed {
+                Err(_) => match &dummy_parsed {
                     Some(parsed) => {
                         let _ = parsed.pq_pk.verify(&parsed.pq_test_message, &parsed.pq_sig, &[]);
                         // Bubble the original Err so `matches!(.., Ok(true))`
@@ -653,7 +657,7 @@ pub fn verify(
                 },
             }
         }
-        Err(_) => match &dummy.parsed {
+        Err(_) => match &dummy_parsed {
             // Equalizer fallback: run verify against pre-validated
             // material so the wall-clock cost stays equal between
             // shape-fail-then-parse-fail and shape-good-then-verify.
@@ -661,10 +665,10 @@ pub fn verify(
             // below — its only purpose is to consume verify-time
             // wall-clock budget.
             Some(parsed) => parsed.pq_pk.verify(&parsed.pq_test_message, &parsed.pq_sig, &[]),
-            // Init keygen failed (extremely rare). Equalizer degraded;
-            // legacy fast-fail behavior. Documented; not a correctness
-            // regression because the bit is computed below via AND
-            // with multiple guards.
+            // Init keygen failed (extremely rare; round-29 L6 retries
+            // on every call). Equalizer degraded; legacy fast-fail
+            // behavior. Not a correctness regression because the bit
+            // is computed below via AND with multiple guards.
             None => Ok(false),
         },
     };
@@ -680,24 +684,46 @@ pub fn verify(
             0u8
         };
 
-    // Verify Ed25519. The Ed25519 parse is a simple length check — its
-    // wall-clock cost is in the same order of magnitude as the verify
-    // itself, so a parse-vs-verify timing oracle on this leg is
-    // negligible. Keep the original short-circuit shape for clarity.
-    let ed25519_valid: u8 =
-        match Ed25519SignatureOps::signature_from_bytes(sig.ed25519_sig.as_slice()) {
-            Ok(ed25519_signature) => {
-                match Ed25519SignatureOps::verify(
-                    pk.ed25519_pk.as_slice(),
-                    message,
-                    &ed25519_signature,
-                ) {
-                    Ok(()) => 1u8,
-                    _ => 0u8,
-                }
-            }
+    // Round-29 M1: the Ed25519 leg now has a real verify-time
+    // equalizer. The previous shape claimed parse cost was "in the
+    // same order of magnitude as verify" — empirically wrong (parse
+    // is a 64-byte length check, verify is one EC scalar mul; ~3
+    // orders of magnitude apart). On parse-fail, run verify against
+    // pre-parsed cached material so the wall-clock cost matches a
+    // real verify, mirroring the ML-DSA equalizer above.
+    let ed_dummy = crate::hybrid::verify_equalizer::ed25519_verify_dummy_material();
+    let ed_dummy_parsed = ed_dummy.parsed_or_init();
+    let ed25519_valid: u8 = if let Ok(ed25519_signature) =
+        Ed25519SignatureOps::signature_from_bytes(sig.ed25519_sig.as_slice())
+    {
+        match Ed25519SignatureOps::verify(pk.ed25519_pk.as_slice(), message, &ed25519_signature) {
+            Ok(()) => 1u8,
             _ => 0u8,
-        };
+        }
+    } else {
+        // Parse failure on caller-supplied bytes: still spend a
+        // verify-cost worth of cycles against the dummy material so
+        // the wall-clock between parse-fail and verify-fail is equal.
+        // Discard the result — `0u8` is the verdict because the
+        // caller's input was structurally wrong.
+        if let Some(parsed) = &ed_dummy_parsed
+            && let Ok(parsed_sig) =
+                Ed25519SignatureOps::signature_from_bytes(parsed.ed_sig.as_slice())
+        {
+            // Discarded; runs the EC scalar mul.
+            let _ = Ed25519SignatureOps::verify(
+                parsed.ed_pk.as_slice(),
+                parsed.ed_test_message.as_slice(),
+                &parsed_sig,
+            );
+        }
+        // If `ed_dummy_parsed` is None (RNG/PCT init failure —
+        // round-29 L6 retries on every call), fall through to the
+        // legacy fast-fail. Bit is computed below via AND with
+        // `pq_shape_ok` and `parse_ok.is_ok()`, so a degraded
+        // equalizer cannot affect correctness.
+        0u8
+    };
 
     // One generic event on aggregate failure — preserves the "something
     // went wrong with hybrid verify" alerting signal without leaking

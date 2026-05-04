@@ -25,7 +25,8 @@ fn test_derive_rejects_wrong_mlkem_ss_length_fails() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss,
         ecdh_ss: &ecdh_ss,
-        static_pk: &[0u8; 32],
+        ecdh_static_pk: &[0u8; 32],
+        ml_kem_static_pk: &[0u8; 32],
         ephemeral_pk: &[0u8; 32],
         kem_ct: &[],
     });
@@ -46,7 +47,8 @@ fn test_derive_rejects_wrong_ecdh_ss_length_fails() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss,
         ecdh_ss: &ecdh_ss,
-        static_pk: &[0u8; 32],
+        ecdh_static_pk: &[0u8; 32],
+        ml_kem_static_pk: &[0u8; 32],
         ephemeral_pk: &[0u8; 32],
         kem_ct: &[],
     });
@@ -65,7 +67,8 @@ fn test_derive_rejects_empty_mlkem_ss_fails() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &[],
         ecdh_ss: &[0u8; 32],
-        static_pk: &[0u8; 32],
+        ecdh_static_pk: &[0u8; 32],
+        ml_kem_static_pk: &[0u8; 32],
         ephemeral_pk: &[0u8; 32],
         kem_ct: &[],
     });
@@ -77,7 +80,8 @@ fn test_derive_rejects_empty_ecdh_ss_fails() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &[0u8; 32],
         ecdh_ss: &[],
-        static_pk: &[0u8; 32],
+        ecdh_static_pk: &[0u8; 32],
+        ml_kem_static_pk: &[0u8; 32],
         ephemeral_pk: &[0u8; 32],
         kem_ct: &[],
     });
@@ -93,7 +97,8 @@ fn test_derive_accepts_valid_inputs_succeeds() {
     let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss,
         ecdh_ss: &ecdh_ss,
-        static_pk: &static_pk,
+        ecdh_static_pk: &static_pk,
+        ml_kem_static_pk: &static_pk,
         ephemeral_pk: &ephemeral_pk,
         kem_ct: &[],
     });
@@ -111,7 +116,8 @@ fn test_derive_deterministic_is_deterministic() {
     let s1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss,
         ecdh_ss: &ecdh_ss,
-        static_pk: &static_pk,
+        ecdh_static_pk: &static_pk,
+        ml_kem_static_pk: &static_pk,
         ephemeral_pk: &ephemeral_pk,
         kem_ct: &[],
     })
@@ -119,7 +125,8 @@ fn test_derive_deterministic_is_deterministic() {
     let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss,
         ecdh_ss: &ecdh_ss,
-        static_pk: &static_pk,
+        ecdh_static_pk: &static_pk,
+        ml_kem_static_pk: &static_pk,
         ephemeral_pk: &ephemeral_pk,
         kem_ct: &[],
     })
@@ -136,7 +143,8 @@ fn test_derive_different_inputs_different_outputs_succeeds() {
     let s_a = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss_a,
         ecdh_ss: &ecdh_ss,
-        static_pk: &pk,
+        ecdh_static_pk: &pk,
+        ml_kem_static_pk: &pk,
         ephemeral_pk: &pk,
         kem_ct: &[],
     })
@@ -144,7 +152,8 @@ fn test_derive_different_inputs_different_outputs_succeeds() {
     let s_b = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss_b,
         ecdh_ss: &ecdh_ss,
-        static_pk: &pk,
+        ecdh_static_pk: &pk,
+        ml_kem_static_pk: &pk,
         ephemeral_pk: &pk,
         kem_ct: &[],
     })
@@ -162,7 +171,8 @@ fn test_derive_context_binding_succeeds() {
     let s_a = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss,
         ecdh_ss: &ecdh_ss,
-        static_pk: &pk_a,
+        ecdh_static_pk: &pk_a,
+        ml_kem_static_pk: &pk_a,
         ephemeral_pk: &pk_a,
         kem_ct: &[],
     })
@@ -170,7 +180,8 @@ fn test_derive_context_binding_succeeds() {
     let s_b = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: &ml_kem_ss,
         ecdh_ss: &ecdh_ss,
-        static_pk: &pk_b,
+        ecdh_static_pk: &pk_b,
+        ml_kem_static_pk: &pk_b,
         ephemeral_pk: &pk_b,
         kem_ct: &[],
     })

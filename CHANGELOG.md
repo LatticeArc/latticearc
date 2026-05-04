@@ -9,6 +9,157 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-29 audit — 4 HIGH + 7 MED + 6 LOW + 8 NIT + 2 follow-ups (2026-05-04)
+
+External audit of the post-round-28 tree returned 25 findings; a
+follow-up validation surfaced 2 more. Validated each against actual
+code (1 partial — only the ML-DSA portion of H2 was reachable;
+SLH-DSA already enforced the cap and FN-DSA has no context parameter).
+Applied 26; deferred none.
+
+#### BREAKING (require migration)
+
+- **AAD canonicalization for encrypted keyfiles bumped v2 → v3.**
+  Round-29 H3: `key_format.rs:2275` previously omitted the null
+  terminator after the `aead` string field while every other string
+  field had one. The fix adds the terminator and bumps the AAD label
+  `latticearc-lpk-v2-enc` → `latticearc-lpk-v3-enc`. Existing v2
+  encrypted keyfiles will fail to decrypt under v3 AAD and surface
+  as the standard "wrong passphrase or corrupted envelope" — same
+  shape as the v1 → v2 break (round-26).
+- **Hybrid KEM combiner now binds `ml_kem_static_pk`.** Round-29 M5:
+  the previous combiner only bound the X25519 static public key in
+  the HKDF `info`, while the ML-KEM static PK was bound only at the
+  AEAD-AAD layer (round-26 `DerivationBinding`). HPKE §5.1 wants
+  both legs at the combiner. **Wire-format breaking** — existing
+  hybrid-KEM ciphertexts will not decrypt after this change. Same
+  shape as the round-19 M2 combiner break.
+- **`PortableKey::from_symmetric_key` requires `security_level`.**
+  Round-29 H4: the previous signature produced a key with both
+  `use_case = None` and `security_level = None`, which the
+  invariant check at deserialization (`from_json` / `from_cbor`)
+  rejected — symmetric keys round-tripped through serialization
+  were silently broken on reload. The added parameter makes the
+  invariant satisfiable at construction.
+- **PQ-only secret keys derive `ml_kem_pk` from SK seed, not metadata.**
+  Round-29 M2: removes the
+  `metadata().get("ml_kem_pk")` read in CLI `decrypt` and library
+  `key_format` SK reconstruction; replaces with FIPS 203 §6.1
+  embedded-PK extraction. Closes the file-write attack where an
+  attacker could swap unauthenticated metadata to break the HPKE
+  channel binding. New `PqOnlySecretKey::from_sk_bytes` constructor;
+  the existing `from_bytes` now cross-checks the supplied PK
+  against the SK-embedded PK in constant time.
+- **`MlKemSecretKey::embedded_public_key_bytes` returns `Result`.**
+  Round-29 L1: previously `unwrap_or(&[])` on bounds failure in
+  release builds, which would silently corrupt the channel
+  binding. Now propagates `MlKemError::InvalidKeyLength`.
+- **`DlogEqualityStatement::prove` / `verify` require canonical bases.**
+  Round-29 M7: the `g` and `h` fields remain `pub` but prove/verify
+  now reject any statement whose bases are not the canonical
+  secp256k1 generator and the Pedersen NUMS H. Adversary-supplied
+  `(g, h)` made proofs trivially forgeable. New
+  `DlogEqualityStatement::canonical(p, q)` constructor pre-fills
+  the bases.
+
+#### HIGH
+
+- **H1**: README and FIPS_SECURITY_POLICY claimed SHA-2 routes
+  through aws-lc-rs FIPS — wrong; the code never routed it. Docs
+  corrected; FIPS submitters now have an explicit disclosure.
+- **H2**: ML-DSA sign + verify enforce the FIPS 204 §3.3 255-byte
+  context cap. Collapsed to opaque `SigningError` /
+  `VerificationError` (round-28 H7 / round-26 M1 Pattern 6 posture).
+  SLH-DSA already enforced; FN-DSA has no context parameter.
+- **H3**: AAD `aead` field gains a null terminator + label bump
+  (see BREAKING above).
+- **H4**: `from_symmetric_key` signature change (see BREAKING above).
+
+#### MED
+
+- **M1**: Ed25519 leg of hybrid-signature verify now has its own
+  timing equalizer (`Ed25519VerifyDummy` in `verify_equalizer.rs`).
+  The previous parse-fail short-circuit ran no scalar multiplication,
+  leaving a parse-vs-verify timing oracle ~3 orders of magnitude
+  wide. Mirrors the ML-DSA equalizer pattern.
+- **M2**: PqOnly SK PK derivation (see BREAKING above).
+- **M3**: `VerifiedSession::downgrade_trust_level` added.
+  Implements the documented `Trusted → Partial → Untrusted`
+  state machine; previous code had no public mutator. Monotonic-
+  downgrade only — upgrades require fresh authentication.
+- **M4**: ZK-proof verify now runs signature verification BEFORE
+  the freshness check across all three complexity tiers
+  (Low / Medium / High). Authenticate before acting on
+  adversary-supplied bytes.
+- **M5**: Combiner binds `ml_kem_static_pk` (see BREAKING above).
+- **M6**: ZKP nonce sampling uses rejection (`Scalar::from_repr`
+  returns `None` for byte representations `>= q`) instead of
+  `Reduce<U256>::reduce_bytes`. Eliminates the ~2⁻¹²⁸ modular bias
+  on secp256k1.
+- **M7**: DlogEqualityStatement canonical bases (see BREAKING above).
+
+#### LOW
+
+- **L1**: `embedded_public_key_bytes` returns `Result` (see BREAKING
+  above).
+- **L2**: `NttProcessor::new` rejects `modulus > i32::MAX` to
+  prevent silent `i32` truncation in `mod_mul` for any future
+  param set.
+- **L3**: HKDF rejects empty IKM. Matches the codebase's broader
+  fail-closed posture (PBKDF2 rejects all-zero salts, AEAD rejects
+  all-zero keys).
+- **L4**: `Pbkdf2Params::validate()` added — early-validation
+  entry point so callers can surface the SP 800-132 floor at
+  construction. `with_salt` retains its infallible signature for
+  source-compat with ~30 callsites.
+- **L5**: `MAX_DESERIALIZE_INPUT_SIZE` lowered 16 MiB → 12 MiB so
+  the input gate fires before serde materializes payloads that
+  would only fail the per-field cap.
+- **L6**: `verify_equalizer` `OnceLock<HybridVerifyDummy>` →
+  outer cell with inner `Mutex<Option<HybridVerifyDummyParsed>>`.
+  RNG hiccup at first init no longer permanently degrades the
+  equalizer for the entire process lifetime; `parsed_or_init()`
+  retries.
+
+#### NIT
+
+- **N1**: `verify_proof` asserts `proof.complexity() ==
+  self.config.proof_complexity`; mismatch collapses to `Ok(false)`
+  (Pattern 6).
+- **N2**: Schnorr `s_bytes` wrapped in `Zeroizing<[u8; 32]>`.
+- **N3**: PortableKey `validate()` adds composite-component length
+  bounds for hybrid keys (classical = exact 32; PQ in [32, 16384]).
+- **N4**: CLI `read_new_passphrase` enforces 12-char minimum
+  (OWASP 2023).
+- **N5**: CLI `--allow-weak-iterations` warning emits
+  `tracing::warn!` alongside `eprintln!` so audit pipelines that
+  scrape `warn` events see it.
+- **N6**: CLI `LATTICEARC_PASSPHRASE` warning fires on every read
+  via `tracing::warn!` (was TTY-only).
+- **N7**: CLI env vars (`LATTICEARC_PASSPHRASE`,
+  `LATTICEARC_ALLOW_SYMLINK_KEYS`, `LATTICEARC_KDF_INPUT`)
+  documented in README.
+- **N8**: Pedersen H try-and-increment 0x02 prefix has an
+  explanatory comment.
+
+#### Follow-up findings (validated separately)
+
+- **AES-GCM KAT comment**: deleted the false claim that aws-lc-rs
+  produces "subtly different" tags — aws-lc-rs is FIPS 140-3
+  validated and outputs bit-exact NIST KATs. Comment now points at
+  `latticearc-tests/tests/fips_kat_aead.rs` as the authoritative
+  KAT surface; src-level tests stay roundtrip-only by design.
+- **`recommend_scheme` config no-op**: the `_config: &CoreConfig`
+  parameter is genuinely unused (use cases are pre-mapped to
+  security levels). The function now logs a `tracing::debug!` when
+  a non-default `security_level` is supplied so the no-op is
+  visible in audit-trail pipelines. Doc comment clarifies the
+  level-driven alternatives (`select_pq_encryption_scheme`,
+  `force_scheme`).
+
+Regression coverage: new `latticearc/tests/round29_behavior.rs`
+exercising the H2 / H4 / L1-L4 / L6 / M2 / M5-M7 / N3 contracts.
+
 ### Round-28 audit follow-up — 7 HIGH + 4 MED + regression coverage (2026-05-03)
 
 External audit of the post-round-27 tree returned 14 actionable findings.

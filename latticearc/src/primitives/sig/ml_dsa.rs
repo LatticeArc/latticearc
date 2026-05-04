@@ -229,6 +229,22 @@ impl MlDsaPublicKey {
             return Err(MlDsaError::VerificationError("verification failed".to_string()));
         }
 
+        // Round-29 H2: mirror the sign-side context cap. A verify call
+        // with >255 bytes of context cannot possibly match a valid
+        // signature (sign-side rejects), but the audit's principle is
+        // to fail explicitly here rather than rely on the verifier to
+        // produce a Boolean false on mismatched canonicalization.
+        // Collapsed to the same opaque `VerificationError` (round-26
+        // M1 Pattern 6 posture — no distinguishable `ContextTooLong`
+        // variant on the verify path).
+        if context.len() > 255 {
+            tracing::debug!(
+                ctx_len = context.len(),
+                "ML-DSA verify rejected: context > 255 bytes (FIPS 204 §3.3)"
+            );
+            return Err(MlDsaError::VerificationError("verification failed".to_string()));
+        }
+
         if self.parameter_set() != signature.parameter_set() {
             // Parameter-set mismatch is a configuration bug, not a
             // forgery. Callers that branch on `Ok(false)` for "invalid
@@ -413,6 +429,22 @@ impl MlDsaSecretKey {
                 MlDsaError::SigningError("ML-DSA signing failed".to_string())
             },
         )?;
+
+        // Round-29 H2: FIPS 204 §3.3 caps the context string at 255
+        // bytes. The upstream `fips204` crate's behaviour on >255-byte
+        // input is implementation-defined (panic / truncate / error)
+        // and we should not depend on it. Reject up-front and collapse
+        // to the same opaque `SigningError` (round-28 H7 Pattern 6
+        // posture — no distinguishable `ContextTooLong` variant). The
+        // 255-byte limit was already covered by the round-trip test at
+        // line ~993 but was not enforced in production.
+        if context.len() > 255 {
+            tracing::debug!(
+                ctx_len = context.len(),
+                "ML-DSA sign rejected: context > 255 bytes (FIPS 204 §3.3)"
+            );
+            return Err(MlDsaError::SigningError("ML-DSA signing failed".to_string()));
+        }
 
         let parameter_set = self.parameter_set();
 

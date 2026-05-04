@@ -442,7 +442,7 @@ mod dlog_equality_tests {
 
         // Two different generators
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(2u64);
+        let h = PedersenCommitment::generator_h().unwrap();
 
         // Compute P = x*G and Q = x*H
         let p = g * x_scalar;
@@ -799,7 +799,7 @@ mod sigma_protocol_tests {
         let x_scalar = x_scalar.expect("valid scalar");
 
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(2u64);
+        let h = PedersenCommitment::generator_h().unwrap();
         let p = g * x_scalar;
         let q = h * x_scalar;
 
@@ -817,8 +817,12 @@ mod sigma_protocol_tests {
 
     #[test]
     fn test_dlog_proof_different_generators_succeeds() {
-        // Test with different generator multipliers
-        for multiplier in [2u64, 3, 5, 7] {
+        // Round-29 M7: the per-multiplier sweep was testing arbitrary
+        // h = α·G generators, which now fail prove() because the
+        // canonical H is pinned. Replaced with a single iteration
+        // over the canonical (G, NUMS H) pair — the loop body is
+        // retained to keep the existing assertion structure.
+        for multiplier in [2u64] {
             let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
             let secret: [u8; 32] = secret_key.to_bytes().into();
             let x_scalar: Option<Scalar> =
@@ -826,7 +830,7 @@ mod sigma_protocol_tests {
             let x_scalar = x_scalar.expect("valid scalar");
 
             let g = ProjectivePoint::GENERATOR;
-            let h = g * Scalar::from(multiplier);
+            let h = PedersenCommitment::generator_h().unwrap();
             let p = g * x_scalar;
             let q = h * x_scalar;
 

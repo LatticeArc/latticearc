@@ -499,8 +499,16 @@ impl MlKemSecretKey {
     ///
     /// The returned slice borrows from `self`, so it is zeroized when
     /// `self` drops.
-    #[must_use]
-    pub fn embedded_public_key_bytes(&self) -> &[u8] {
+    /// # Errors
+    /// Round-29 L1: returns `MlKemError::InvalidKeyLength` when the SK
+    /// buffer doesn't match the FIPS 203 layout for the configured
+    /// security level. Previously a release build silently returned
+    /// `&[]` on bounds failure, masking what should be an immediate
+    /// "this SK was deserialized through a path that bypassed
+    /// validation" signal. Callers feed this slice into HKDF info for
+    /// channel binding; an empty slice would corrupt the binding
+    /// silently rather than fail closed.
+    pub fn embedded_public_key_bytes(&self) -> Result<&[u8], MlKemError> {
         // dk_pke length is 384·k, where 384·k = (sk_size − 96) / 2.
         // `saturating_sub` and `saturating_div` here are conservative;
         // the FIPS 203 SK sizes are constants well above 96, so the
@@ -509,16 +517,14 @@ impl MlKemSecretKey {
         let sk_size = self.security_level.secret_key_size();
         let dk_pke_len = sk_size.saturating_sub(96) / 2;
         let pk_size = self.security_level.public_key_size();
+        let end = dk_pke_len.saturating_add(pk_size);
         // Bounds-checked slice — `dk_pke_len + pk_size` is exactly
         // `sk_size − 64` per the FIPS 203 layout, so this never panics
         // for a well-formed SK (length validated in `Self::new`).
         // Round-26 code-review follow-up: `debug_assert!` makes the
-        // well-formed-SK invariant visible. If a future deserialization
-        // path bypasses `Self::new` and lets `data.len()` drift from
-        // `secret_key_size()`, the silent-empty-slice behaviour would
-        // mask a real invariant violation in release builds — the
-        // assert turns it into an immediate test-time failure.
-        let end = dk_pke_len.saturating_add(pk_size);
+        // well-formed-SK invariant visible at test time. Round-29 L1
+        // turns the release-mode silent-empty path into an explicit
+        // error.
         debug_assert!(
             self.data.len() == sk_size && end <= self.data.len(),
             "MlKemSecretKey::embedded_public_key_bytes invariant violated: \
@@ -527,7 +533,12 @@ impl MlKemSecretKey {
             sk_size,
             end
         );
-        self.data.get(dk_pke_len..end).unwrap_or(&[])
+        self.data.get(dk_pke_len..end).ok_or_else(|| MlKemError::InvalidKeyLength {
+            variant: self.security_level.name().to_string(),
+            size: sk_size,
+            actual: self.data.len(),
+            key_type: "embedded public key".to_string(),
+        })
     }
 }
 

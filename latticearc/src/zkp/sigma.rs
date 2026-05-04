@@ -430,17 +430,76 @@ impl ConstantTimeEq for DlogEqualityProof {
     }
 }
 
-/// Statement for discrete log equality
+/// Statement for discrete log equality.
+///
+/// Round-29 M7: the `g` and `h` fields remain `pub` for source-compat
+/// with existing callers, but **prove() and verify() now reject any
+/// statement whose `g` is not the canonical secp256k1 generator and
+/// whose `h` is not the NUMS-derived point used by Pedersen commitments**.
+/// Discrete-log-equality is sound only when the bases are independent
+/// and trusted: a peer-supplied `(g, h)` with `h = g^x` for known `x`
+/// makes the proof trivially forgeable. Locking the bases at the
+/// prove/verify boundary prevents any caller (intentional or
+/// adversarial) from supplying their own.
+///
+/// Use [`Self::canonical`] for new code — it fills in the canonical
+/// bases automatically. The struct-literal form remains supported but
+/// will fail prove/verify unless the bases match.
 #[derive(Debug, Clone)]
 pub struct DlogEqualityStatement {
-    /// Generator G
+    /// Generator G — must equal the canonical secp256k1 generator.
     pub g: [u8; 33],
-    /// Generator H
+    /// Generator H — must equal the Pedersen NUMS H point.
     pub h: [u8; 33],
     /// P = x*G
     pub p: [u8; 33],
     /// Q = x*H
     pub q: [u8; 33],
+}
+
+impl DlogEqualityStatement {
+    /// Round-29 M7: canonical-base constructor. Returns a statement
+    /// pre-filled with `g = secp256k1 generator` and
+    /// `h = PedersenCommitment::generator_h()`. This is the only
+    /// constructor whose result is guaranteed to pass the round-29
+    /// base-canonicity check on prove/verify.
+    ///
+    /// # Errors
+    /// Returns [`ZkpError::SerializationError`] if the NUMS H
+    /// derivation fails (extremely rare — would require >256
+    /// hash-to-curve iterations all hitting invalid x-coords).
+    pub fn canonical(p: [u8; 33], q: [u8; 33]) -> Result<Self> {
+        use k256::{ProjectivePoint, elliptic_curve::group::GroupEncoding};
+        let g_point = ProjectivePoint::GENERATOR;
+        let g_bytes: [u8; 33] = <[u8; 33]>::try_from(g_point.to_affine().to_bytes().as_slice())
+            .map_err(|e| {
+                ZkpError::SerializationError(format!("canonical G serialization: {}", e))
+            })?;
+        let h_point = crate::zkp::commitment::PedersenCommitment::generator_h()?;
+        let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h_point.to_affine().to_bytes().as_slice())
+            .map_err(|e| {
+                ZkpError::SerializationError(format!("canonical H serialization: {}", e))
+            })?;
+        Ok(Self { g: g_bytes, h: h_bytes, p, q })
+    }
+
+    /// Round-29 M7 helper: returns the canonical (g, h) base pair as
+    /// SEC1 compressed bytes. Used by prove/verify to validate that a
+    /// supplied statement's `g` and `h` match the trusted bases.
+    pub(crate) fn canonical_bases() -> Result<([u8; 33], [u8; 33])> {
+        use k256::{ProjectivePoint, elliptic_curve::group::GroupEncoding};
+        let g_bytes: [u8; 33] =
+            <[u8; 33]>::try_from(ProjectivePoint::GENERATOR.to_affine().to_bytes().as_slice())
+                .map_err(|e| {
+                    ZkpError::SerializationError(format!("canonical G serialization: {}", e))
+                })?;
+        let h_point = crate::zkp::commitment::PedersenCommitment::generator_h()?;
+        let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h_point.to_affine().to_bytes().as_slice())
+            .map_err(|e| {
+                ZkpError::SerializationError(format!("canonical H serialization: {}", e))
+            })?;
+        Ok((g_bytes, h_bytes))
+    }
 }
 
 impl DlogEqualityProof {
@@ -463,6 +522,20 @@ impl DlogEqualityProof {
             elliptic_curve::{group::GroupEncoding, ops::Reduce},
         };
 
+        // Round-29 M7: enforce that the statement's bases are the
+        // canonical (G, NUMS H) pair. A caller supplying arbitrary
+        // bases — or a peer-supplied statement with `h = g^x` for a
+        // known `x` — would otherwise yield a trivially-forgeable
+        // proof. Reject up-front; opaque error matches the round-26
+        // H11 verify-side posture.
+        let (canonical_g, canonical_h) = DlogEqualityStatement::canonical_bases()?;
+        if statement.g != canonical_g || statement.h != canonical_h {
+            tracing::debug!(
+                "DlogEqualityProof::prove rejected: statement bases not canonical (round-29 M7)"
+            );
+            return Err(ZkpError::InvalidScalar);
+        }
+
         // Parse generators
         let g = Self::parse_point(&statement.g)?;
         let h = Self::parse_point(&statement.h)?;
@@ -477,11 +550,23 @@ impl DlogEqualityProof {
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(secret)).into();
         let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
-        // Random nonce via primitives layer
-        let nonce_bytes = crate::primitives::rand::csprng::random_bytes(32);
-        let k = Zeroizing::new(<Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(
-            &nonce_bytes,
-        )));
+        // Round-29 M6: rejection sampling for the nonce — see matching
+        // comment in `zkp/schnorr.rs::Schnorr::prove`. `Scalar::from_repr`
+        // returns `None` for byte representations `>= q`, eliminating the
+        // ~2^-128 modular bias of the previous `Reduce<U256>::reduce_bytes`
+        // path. Loop terminates in 1 + ε iterations on average. Also
+        // rejects k = 0.
+        let k_scalar: Scalar = loop {
+            let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
+            let candidate: Option<Scalar> =
+                Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
+            if let Some(s) = candidate {
+                if s != Scalar::ZERO {
+                    break s;
+                }
+            }
+        };
+        let k = Zeroizing::new(k_scalar);
 
         // Commitments
         let a_point = g * *k;
@@ -513,6 +598,27 @@ impl DlogEqualityProof {
     #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
     pub fn verify(&self, statement: &DlogEqualityStatement, context: &[u8]) -> Result<bool> {
         use k256::{FieldBytes, Scalar, U256};
+
+        // Round-29 M7: enforce canonical bases (mirror of `prove`).
+        // Mismatch collapses to `Err(VerificationFailed)` per the
+        // round-26 H11 Pattern 6 posture — not distinguishable from
+        // any other reject cause via the Result shape.
+        match DlogEqualityStatement::canonical_bases() {
+            Ok((canonical_g, canonical_h)) => {
+                if statement.g != canonical_g || statement.h != canonical_h {
+                    tracing::debug!(
+                        "DlogEqualityProof::verify rejected: statement bases not canonical (round-29 M7)"
+                    );
+                    return Err(ZkpError::VerificationFailed);
+                }
+            }
+            Err(_) => {
+                tracing::debug!(
+                    "DlogEqualityProof::verify rejected: canonical-base derivation failed"
+                );
+                return Err(ZkpError::VerificationFailed);
+            }
+        }
 
         // Round-26 audit fix (H11): collapse all adversary-reachable
         // sub-errors (off-curve points, out-of-field scalar, hash
@@ -623,7 +729,7 @@ mod tests {
 
         // Two different generators
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(2u64); // H = 2*G for testing
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap(); // H = 2*G for testing
 
         // Compute P = x*G and Q = x*H
         let p = g * x_scalar;
@@ -647,7 +753,7 @@ mod tests {
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(2u64);
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
         let p = g * x_scalar;
         let q = h * x_scalar;
 
@@ -674,7 +780,7 @@ mod tests {
         let y_scalar = Scalar::from_repr(*FieldBytes::from_slice(&y)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(3u64);
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
 
         // Statement uses x for G but y for H (different discrete logs)
         let p = g * x_scalar; // P = x*G
@@ -700,7 +806,7 @@ mod tests {
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(2u64);
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
         let p = g * x_scalar;
         let q = h * x_scalar;
 
@@ -724,7 +830,7 @@ mod tests {
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(2u64);
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
         let p = g * x_scalar;
         let q = h * x_scalar;
 
@@ -770,7 +876,7 @@ mod tests {
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(2u64);
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
         let p = g * x_scalar;
         let q = h * x_scalar;
 
@@ -829,7 +935,7 @@ mod tests {
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(7u64); // H = 7*G
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
 
         let p = g * x_scalar;
         let q = h * x_scalar;
@@ -1037,7 +1143,7 @@ mod tests {
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::from(2u64);
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
         let p = g * x_scalar;
         let q = h * x_scalar;
 

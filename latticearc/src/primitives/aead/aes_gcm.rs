@@ -582,12 +582,26 @@ mod tests {
         }
     }
 
-    // Note: NIST test vectors may produce different tags because aws-lc-rs
-    // uses hardware-accelerated implementations that may have subtle differences
-    // in intermediate computations while still producing correct results.
+    // Round-29 follow-up: the previous comment here claimed
+    // "NIST test vectors may produce different tags because aws-lc-rs
+    // uses hardware-accelerated implementations that may have subtle
+    // differences in intermediate computations while still producing
+    // correct results." That was **factually incorrect** — aws-lc-rs
+    // is FIPS 140-3 validated and produces bit-exact NIST KAT outputs.
+    // The comment was a rationalization for not wiring KATs in this
+    // file rather than a true description of the backend.
+    //
+    // Real NIST AES-GCM KAT vectors (CAVP-derived) live in the
+    // `latticearc-tests` integration crate
+    // (`tests/tests/fips_kat_aead.rs`, `AES_128_GCM_VECTORS` /
+    // `AES_256_GCM_VECTORS` plus `run_aes_128_gcm_kat` /
+    // `run_aes_256_gcm_kat` helpers). The src-level tests below stay
+    // roundtrip-only **by design** — kept fast, kept self-contained,
+    // no multi-KiB hard-coded vector blobs in primitive source. The
+    // KAT crate is the authoritative cross-validation surface.
     #[test]
     fn test_aes_gcm_128_roundtrip_consistency_roundtrip() {
-        // Instead of hardcoded test vectors, verify encrypt/decrypt roundtrip
+        // Roundtrip-only by design — see comment block above.
         let key: [u8; 16] = [
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
             0x0e, 0x0f,

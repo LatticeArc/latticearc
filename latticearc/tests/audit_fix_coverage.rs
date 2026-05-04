@@ -209,6 +209,7 @@ mod m2_zkp_constant_time {
         ProjectivePoint, Scalar,
         elliptic_curve::{Field, group::GroupEncoding},
     };
+    use latticearc::zkp::commitment::PedersenCommitment;
     use latticearc::zkp::schnorr::{SchnorrProver, SchnorrVerifier};
     use latticearc::zkp::sigma::{DlogEqualityProof, DlogEqualityStatement};
 
@@ -234,7 +235,7 @@ mod m2_zkp_constant_time {
     fn m2_dlog_equality_verify_valid_proof() {
         let x = Scalar::random(&mut rand_core_0_6::OsRng);
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::random(&mut rand_core_0_6::OsRng);
+        let h = PedersenCommitment::generator_h().unwrap();
         let p = g * x;
         let q = h * x;
 
@@ -256,7 +257,7 @@ mod m2_zkp_constant_time {
         let x = Scalar::random(&mut rand_core_0_6::OsRng);
         let y = Scalar::random(&mut rand_core_0_6::OsRng); // wrong secret
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::random(&mut rand_core_0_6::OsRng);
+        let h = PedersenCommitment::generator_h().unwrap();
         let p = g * x;
         let q = h * x;
 
@@ -469,13 +470,14 @@ mod m10_dlog_equality_debug_redaction {
         ProjectivePoint, Scalar,
         elliptic_curve::{Field, group::GroupEncoding},
     };
+    use latticearc::zkp::commitment::PedersenCommitment;
     use latticearc::zkp::sigma::{DlogEqualityProof, DlogEqualityStatement};
 
     #[test]
     fn m10_debug_output_redacts_response() {
         let x = Scalar::random(&mut rand_core_0_6::OsRng);
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::random(&mut rand_core_0_6::OsRng);
+        let h = PedersenCommitment::generator_h().unwrap();
         let p = g * x;
         let q = h * x;
 
@@ -506,7 +508,7 @@ mod m10_dlog_equality_debug_redaction {
     fn m10_debug_shows_commitments() {
         let x = Scalar::random(&mut rand_core_0_6::OsRng);
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::random(&mut rand_core_0_6::OsRng);
+        let h = PedersenCommitment::generator_h().unwrap();
 
         let statement = DlogEqualityStatement {
             g: g.to_affine().to_bytes().as_slice().try_into().unwrap(),

@@ -754,7 +754,8 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
     let shared_secret = derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: ml_kem_ss.expose_secret(),
         ecdh_ss: &*ecdh_shared_secret,
-        static_pk: pk.ecdh_pk.as_slice(),
+        ecdh_static_pk: pk.ecdh_pk.as_slice(),
+        ml_kem_static_pk: pk.ml_kem_pk.as_slice(),
         ephemeral_pk: &ecdh_ephemeral_public,
         kem_ct: &ml_kem_ct,
     })
@@ -848,10 +849,12 @@ pub fn decapsulate_from_parts(
     })?;
 
     let static_public = sk.ecdh_public_key_bytes();
+    let ml_kem_static_pk = sk.ml_kem_pk_bytes();
     derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: ml_kem_ss.expose_secret(),
         ecdh_ss: &*ecdh_shared_secret,
-        static_pk: &static_public,
+        ecdh_static_pk: &static_public,
+        ml_kem_static_pk: &ml_kem_static_pk,
         ephemeral_pk: ecdh_pk,
         kem_ct: ml_kem_ct,
     })
@@ -875,9 +878,18 @@ pub struct HybridSharedSecretInputs<'a> {
     pub ml_kem_ss: &'a [u8],
     /// ECDH (X25519) agreed shared secret (32 bytes). Second leg of the IKM.
     pub ecdh_ss: &'a [u8],
-    /// Static recipient public key. Binds the derivation to the intended
-    /// peer. Included in the HKDF `info` field with a length prefix.
-    pub static_pk: &'a [u8],
+    /// Static recipient ECDH (X25519) public key. Binds the derivation
+    /// to the intended ECDH peer identity. Renamed from `static_pk`
+    /// in round-29 M5 to disambiguate from the new `ml_kem_static_pk`
+    /// (HPKE §5.1 wants both legs bound at the combiner, not just one).
+    pub ecdh_static_pk: &'a [u8],
+    /// Static recipient ML-KEM public key (round-29 M5). The previous
+    /// combiner only bound the X25519 static PK; the AEAD-AAD layer
+    /// (round-26 `DerivationBinding`) bound the ML-KEM PK but the
+    /// combiner did not. HPKE / X-Wing guidance is to bind both legs
+    /// at the combiner, so a substituted ML-KEM PK cannot yield the
+    /// same shared secret even if the AEAD layer is stripped.
+    pub ml_kem_static_pk: &'a [u8],
     /// Ephemeral sender public key. Binds the derivation to this specific
     /// session. Included in the HKDF `info` field with a length prefix.
     pub ephemeral_pk: &'a [u8],
@@ -898,7 +910,8 @@ impl std::fmt::Debug for HybridSharedSecretInputs<'_> {
         f.debug_struct("HybridSharedSecretInputs")
             .field("ml_kem_ss", &"[REDACTED; 32]")
             .field("ecdh_ss", &"[REDACTED; 32]")
-            .field("static_pk_len", &self.static_pk.len())
+            .field("ecdh_static_pk_len", &self.ecdh_static_pk.len())
+            .field("ml_kem_static_pk_len", &self.ml_kem_static_pk.len())
             .field("ephemeral_pk_len", &self.ephemeral_pk.len())
             .field("kem_ct_len", &self.kem_ct.len())
             .finish()
@@ -922,7 +935,14 @@ impl std::fmt::Debug for HybridSharedSecretInputs<'_> {
 pub fn derive_hybrid_shared_secret(
     inputs: HybridSharedSecretInputs<'_>,
 ) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
-    let HybridSharedSecretInputs { ml_kem_ss, ecdh_ss, static_pk, ephemeral_pk, kem_ct } = inputs;
+    let HybridSharedSecretInputs {
+        ml_kem_ss,
+        ecdh_ss,
+        ecdh_static_pk,
+        ml_kem_static_pk,
+        ephemeral_pk,
+        kem_ct,
+    } = inputs;
     if ml_kem_ss.len() != 32 {
         return Err(HybridKemError::InvalidKeyMaterial(
             "ML-KEM shared secret must be 32 bytes".to_string(),
@@ -949,19 +969,30 @@ pub fn derive_hybrid_shared_secret(
     // Context info for domain separation and public-key binding, using
     // length-prefixed encoding to prevent canonicalization collisions
     // between the variable-length fields (HPKE §5.1 / RFC 9180 "LabeledExtract").
-    // Layout: [domain_label][static_pk_len: u32 BE][static_pk][ephemeral_pk_len: u32 BE][ephemeral_pk].
-    // Public keys happen to be fixed 32 bytes today, so the ambiguity is not
-    // currently exploitable, but length-prefixing keeps the construction
-    // consistent with `encrypt_hybrid::derive_encryption_key` (P5.1) and
-    // protects against any future variable-length component.
-    if static_pk.len() > u32::MAX as usize
+    // Round-29 M5 layout (BREAKING WIRE FORMAT — bumps the wire after
+    // round-19 M2's prior bump):
+    //   [domain]
+    //   [ecdh_static_pk_len: u32 BE][ecdh_static_pk]
+    //   [ml_kem_static_pk_len: u32 BE][ml_kem_static_pk]
+    //   [ephemeral_pk_len: u32 BE][ephemeral_pk]
+    //   [kem_ct_len: u32 BE][kem_ct]
+    // The previous layout omitted ml_kem_static_pk; the AEAD-AAD layer
+    // (round-26 DerivationBinding) bound it but the combiner did not,
+    // so a peer-substituted ML-KEM PK with the same X25519 PK would
+    // produce the same shared secret pre-AEAD. HPKE §5.1 wants both
+    // legs bound at the combiner.
+    if ecdh_static_pk.len() > u32::MAX as usize
+        || ml_kem_static_pk.len() > u32::MAX as usize
         || ephemeral_pk.len() > u32::MAX as usize
         || kem_ct.len() > u32::MAX as usize
     {
         return Err(HybridKemError::KdfError("HKDF info component exceeds 2^32 bytes".to_string()));
     }
-    let static_pk_len = u32::try_from(static_pk.len()).map_err(|_e| {
-        HybridKemError::KdfError("static public key exceeds 2^32 bytes".to_string())
+    let ecdh_static_pk_len = u32::try_from(ecdh_static_pk.len()).map_err(|_e| {
+        HybridKemError::KdfError("ECDH static public key exceeds 2^32 bytes".to_string())
+    })?;
+    let ml_kem_static_pk_len = u32::try_from(ml_kem_static_pk.len()).map_err(|_e| {
+        HybridKemError::KdfError("ML-KEM static public key exceeds 2^32 bytes".to_string())
     })?;
     let ephemeral_pk_len = u32::try_from(ephemeral_pk.len()).map_err(|_e| {
         HybridKemError::KdfError("ephemeral public key exceeds 2^32 bytes".to_string())
@@ -972,22 +1003,21 @@ pub fn derive_hybrid_shared_secret(
     let total = domain
         .len()
         .saturating_add(4)
-        .saturating_add(static_pk.len())
+        .saturating_add(ecdh_static_pk.len())
+        .saturating_add(4)
+        .saturating_add(ml_kem_static_pk.len())
         .saturating_add(4)
         .saturating_add(ephemeral_pk.len())
         .saturating_add(4)
         .saturating_add(kem_ct.len());
     let mut info = Vec::with_capacity(total);
     info.extend_from_slice(domain);
-    info.extend_from_slice(&static_pk_len.to_be_bytes());
-    info.extend_from_slice(static_pk);
+    info.extend_from_slice(&ecdh_static_pk_len.to_be_bytes());
+    info.extend_from_slice(ecdh_static_pk);
+    info.extend_from_slice(&ml_kem_static_pk_len.to_be_bytes());
+    info.extend_from_slice(ml_kem_static_pk);
     info.extend_from_slice(&ephemeral_pk_len.to_be_bytes());
     info.extend_from_slice(ephemeral_pk);
-    // X-Wing / HPKE-style binding: include the KEM ciphertext so a
-    // substituted ct cannot yield the same shared secret. **BREAKING WIRE
-    // FORMAT**: existing hybrid-KEM ciphertexts will not decrypt after
-    // this change (round-19 audit M2). The AEAD AAD already binds kem_ct
-    // for defense-in-depth; this puts the binding in the transcript itself.
     info.extend_from_slice(&kem_ct_len.to_be_bytes());
     info.extend_from_slice(kem_ct);
 
@@ -1103,7 +1133,8 @@ mod tests {
         let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         });
@@ -1116,7 +1147,8 @@ mod tests {
         let result2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         });
@@ -1128,7 +1160,8 @@ mod tests {
         let result3 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &different_ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         });
@@ -1143,7 +1176,8 @@ mod tests {
         let result4 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &invalid_ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         });
@@ -1287,7 +1321,8 @@ mod tests {
         let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         });
@@ -1307,7 +1342,8 @@ mod tests {
         let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         });
@@ -1479,7 +1515,8 @@ mod tests {
         let secret1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk1,
+            ecdh_static_pk: &static_pk1,
+            ml_kem_static_pk: &static_pk1,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         })
@@ -1487,7 +1524,8 @@ mod tests {
         let secret2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk2,
+            ecdh_static_pk: &static_pk2,
+            ml_kem_static_pk: &static_pk2,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         })
@@ -1510,7 +1548,8 @@ mod tests {
         let secret1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &eph1,
             kem_ct: &[],
         })
@@ -1518,7 +1557,8 @@ mod tests {
         let secret2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &eph2,
             kem_ct: &[],
         })
@@ -1671,7 +1711,8 @@ mod tests {
         let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &[0u8; 16],
             ecdh_ss: &[0u8; 32],
-            static_pk: &[0u8; 32],
+            ecdh_static_pk: &[0u8; 32],
+            ml_kem_static_pk: &[0u8; 32],
             ephemeral_pk: &[0u8; 32],
             kem_ct: &[],
         });
@@ -1684,7 +1725,8 @@ mod tests {
         let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &[0u8; 32],
             ecdh_ss: &[0u8; 16],
-            static_pk: &[0u8; 32],
+            ecdh_static_pk: &[0u8; 32],
+            ml_kem_static_pk: &[0u8; 32],
             ephemeral_pk: &[0u8; 32],
             kem_ct: &[],
         });
@@ -1702,7 +1744,8 @@ mod tests {
         let s1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         })
@@ -1710,7 +1753,8 @@ mod tests {
         let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
             kem_ct: &[],
         })
@@ -1730,7 +1774,8 @@ mod tests {
         let s1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &eph1,
             kem_ct: &[],
         })
@@ -1738,7 +1783,8 @@ mod tests {
         let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
             ml_kem_ss: &ml_kem_ss,
             ecdh_ss: &ecdh_ss,
-            static_pk: &static_pk,
+            ecdh_static_pk: &static_pk,
+            ml_kem_static_pk: &static_pk,
             ephemeral_pk: &eph2,
             kem_ct: &[],
         })

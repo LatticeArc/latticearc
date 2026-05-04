@@ -339,12 +339,25 @@ fn derive_pbkdf2_with_input(
         );
     }
     if args.iterations < owasp_min {
+        // Round-29 N5: emit BOTH eprintln! (so an interactive operator
+        // sees the warning even with no tracing subscriber configured)
+        // AND tracing::warn! (so audit-log pipelines that scrape `warn`
+        // events from JSON-formatted tracing output capture it). Stderr
+        // alone is lost when the CLI is invoked from a script that
+        // redirects 2>/dev/null; tracing alone is silent on a default
+        // CLI install with no subscriber. Both is the safe default.
         eprintln!(
             "warning: PBKDF2 iteration count {iters} is below the OWASP 2023 \
              minimum ({min}) for {prf:?}; --allow-weak-iterations was passed.",
             iters = args.iterations,
             min = owasp_min,
             prf = args.prf,
+        );
+        tracing::warn!(
+            iterations = args.iterations,
+            owasp_minimum = owasp_min,
+            prf = ?args.prf,
+            "PBKDF2 iteration count below OWASP 2023 minimum; --allow-weak-iterations bypassed"
         );
     }
 

@@ -202,7 +202,48 @@ impl PqOnlySecretKey {
                 level.name()
             )));
         }
+        // Round-29 M2: cross-check the supplied PK against the PK
+        // embedded in the ML-KEM SK (FIPS 203 §6.1 layout). The PK is
+        // passed in for backwards-compat with callers that already
+        // had it on hand, but the authoritative source is the SK
+        // itself — a substituted `pk_bytes` (e.g. from unauthenticated
+        // metadata) would silently corrupt the channel binding.
+        let embedded = ml_kem_sk
+            .embedded_public_key_bytes()
+            .map_err(|e| PqOnlyError::InvalidInput(format!("ML-KEM SK does not embed PK: {e}")))?;
+        // Constant-time comparison so the caller cannot probe equality
+        // bit-by-bit.
+        use subtle::ConstantTimeEq;
+        if embedded.ct_eq(pk_bytes).unwrap_u8() != 1 {
+            return Err(PqOnlyError::InvalidInput(
+                "supplied ML-KEM PK does not match SK-embedded PK \
+                 (round-29 M2: SK is authoritative; reject mismatched metadata)"
+                    .to_string(),
+            ));
+        }
         Ok(Self { ml_kem_sk, ml_kem_pk_bytes: pk_bytes.to_vec(), security_level: level })
+    }
+
+    /// Round-29 M2: construct from SK bytes only — derive the PK from
+    /// the SK's embedded layout (FIPS 203 §6.1). Eliminates the
+    /// metadata-trust attack from earlier rounds: a file-write
+    /// attacker that swaps the `ml_kem_pk` field of an unencrypted
+    /// keyfile no longer breaks the channel binding because the PK
+    /// comes from inside the (cryptographically-authenticated) SK
+    /// blob itself.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PqOnlyError::InvalidInput`] if `sk_bytes` is malformed
+    /// for the specified security level.
+    pub fn from_sk_bytes(level: MlKemSecurityLevel, sk_bytes: &[u8]) -> Result<Self, PqOnlyError> {
+        let ml_kem_sk = MlKemSecretKey::new(level, sk_bytes.to_vec())
+            .map_err(|e| PqOnlyError::InvalidInput(format!("Invalid ML-KEM secret key: {e}")))?;
+        let pk_bytes = ml_kem_sk
+            .embedded_public_key_bytes()
+            .map_err(|e| PqOnlyError::InvalidInput(format!("ML-KEM SK does not embed PK: {e}")))?
+            .to_vec();
+        Ok(Self { ml_kem_sk, ml_kem_pk_bytes: pk_bytes, security_level: level })
     }
 
     /// Borrow the recipient's ML-KEM public key bytes.

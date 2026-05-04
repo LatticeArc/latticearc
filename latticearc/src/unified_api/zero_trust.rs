@@ -420,6 +420,45 @@ impl VerifiedSession {
         self.trust_level
     }
 
+    /// Downgrade the session's trust level. Round-29 M3: previously the
+    /// `trust_level` field was set once at construction (always to
+    /// `Trusted`) and no public mutator existed, so the
+    /// `Trusted -> Partial -> Untrusted` transitions described in the
+    /// type-level documentation were unreachable. This method
+    /// implements the downgrade path: callers (continuous-auth poll
+    /// loops, integrity-check failures, anomaly detectors) can reduce
+    /// trust as evidence accumulates.
+    ///
+    /// Only **monotonic downgrades** are permitted — `new_level` must
+    /// be strictly lower than the current level (per `Ord` on
+    /// `TrustLevel`, which orders `Untrusted < Partial < Trusted <
+    /// FullyTrusted`). Attempting to upgrade or no-op yields
+    /// `CoreError::InvalidParameter`. Re-acquiring trust requires a
+    /// fresh authentication, not a setter.
+    ///
+    /// # Errors
+    /// Returns `CoreError::InvalidParameter` when `new_level` is not
+    /// strictly lower than the current trust level.
+    pub fn downgrade_trust_level(&mut self, new_level: TrustLevel) -> Result<()> {
+        if new_level >= self.trust_level {
+            return Err(CoreError::InvalidInput(format!(
+                "downgrade_trust_level: new={new_level:?} not strictly lower than \
+                 current={current:?}; upgrades require re-authentication",
+                current = self.trust_level,
+            )));
+        }
+        let prev = self.trust_level;
+        self.trust_level = new_level;
+        let session_id_hex = hex::encode(self.session_id);
+        tracing::warn!(
+            session_id = %session_id_hex,
+            previous = ?prev,
+            new = ?new_level,
+            "VerifiedSession trust level downgraded"
+        );
+        Ok(())
+    }
+
     /// Get the unique session identifier for audit logging.
     #[must_use]
     pub fn session_id(&self) -> &[u8; 32] {
@@ -650,6 +689,24 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
         proof: &Self::Proof,
         challenge: &[u8],
     ) -> std::result::Result<bool, Self::Error> {
+        // Round-29 N1: the prover writes `proof.complexity` from its own
+        // config (line 633) but the verifier previously only consulted
+        // `self.config.proof_complexity` for dispatch — so a prover
+        // claiming Low complexity could ship a proof verified under the
+        // verifier's Medium policy (or vice versa). Pin the field by
+        // requiring it to match the verifier's expected complexity;
+        // mismatch collapses to `Ok(false)` (Pattern 6 — no
+        // distinguishable error per round-26 audit posture).
+        if proof.complexity() != &self.config.proof_complexity {
+            tracing::debug!(
+                expected = ?self.config.proof_complexity,
+                got = ?proof.complexity(),
+                "ZK proof rejected: complexity field mismatch"
+            );
+            log_zero_trust_proof_verified!(false);
+            return Ok(false);
+        }
+
         // SECURITY: Use constant-time comparison to prevent timing attacks
         // An attacker should not be able to determine which bytes of the challenge matched
         let len_eq = proof.challenge().len().ct_eq(&challenge.len());
@@ -1189,6 +1246,30 @@ impl ZeroTrustAuth {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
 
+                // Round-29 M4: verify signature BEFORE applying the
+                // freshness check. The original ordering parsed the
+                // timestamp out of `proof[64..72]` and ran the 30-s/
+                // 5-min checks on raw adversary-supplied bytes; even
+                // though signature verification would still catch a
+                // tampered timestamp downstream, the principle
+                // "authenticate before acting on adversary content"
+                // wants verify first. Mirrored across Medium / High
+                // branches below.
+                let mut message = vec![0x01];
+                message.extend_from_slice(challenge);
+                message.extend_from_slice(&timestamp_bytes);
+                message.extend_from_slice(self.public_key.as_slice());
+                let sig_ok = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
+                    &message,
+                    signature,
+                    self.public_key.as_slice(),
+                )?;
+                if !sig_ok {
+                    return Ok(false);
+                }
+
+                // Timestamp is now authenticated — freshness check is
+                // safe to run on `timestamp_bytes`.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
                 let now_ms = Utc::now().timestamp_millis();
                 // Round-12 audit fix (L-3): tighten the future-skew cap
@@ -1212,15 +1293,7 @@ impl ZeroTrustAuth {
                     return Ok(false);
                 }
 
-                let mut message = vec![0x01];
-                message.extend_from_slice(challenge);
-                message.extend_from_slice(&timestamp_bytes);
-                message.extend_from_slice(self.public_key.as_slice());
-                crate::unified_api::convenience::ed25519::verify_ed25519_internal(
-                    &message,
-                    signature,
-                    self.public_key.as_slice(),
-                )
+                Ok(true)
             }
             ProofComplexity::Medium => {
                 // Extract signature and timestamp
@@ -1237,6 +1310,24 @@ impl ZeroTrustAuth {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
 
+                // Round-29 M4: verify before freshness (mirrors Low).
+                // Reconstruct signed message. The 0x02 domain tag
+                // distinguishes Medium from Low/High; the public-key
+                // suffix binds the signature to this specific
+                // verifier identity (HPKE-style channel binding).
+                let mut message = vec![0x02];
+                message.extend_from_slice(challenge);
+                message.extend_from_slice(&timestamp_bytes);
+                message.extend_from_slice(self.public_key.as_slice());
+                let sig_ok = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
+                    &message,
+                    signature,
+                    self.public_key.as_slice(),
+                )?;
+                if !sig_ok {
+                    return Ok(false);
+                }
+
                 // Reject stale proofs (>5 min drift).
                 // Timestamp is encoded as chrono milliseconds in little-endian.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
@@ -1262,20 +1353,7 @@ impl ZeroTrustAuth {
                     return Ok(false);
                 }
 
-                // Reconstruct signed message. The 0x02 domain tag
-                // distinguishes Medium from Low/High; the public-key
-                // suffix binds the signature to this specific
-                // verifier identity (HPKE-style channel binding).
-                let mut message = vec![0x02];
-                message.extend_from_slice(challenge);
-                message.extend_from_slice(&timestamp_bytes);
-                message.extend_from_slice(self.public_key.as_slice());
-
-                crate::unified_api::convenience::ed25519::verify_ed25519_internal(
-                    &message,
-                    signature,
-                    self.public_key.as_slice(),
-                )
+                Ok(true)
             }
             ProofComplexity::High => {
                 // Extract signature and timestamp
@@ -1292,6 +1370,24 @@ impl ZeroTrustAuth {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
 
+                // Round-29 M4: verify before freshness (mirrors Low).
+                // Reconstruct signed message with public key binding.
+                // Round-20 audit fix #6: High prepends a 0x03 domain
+                // tag so it is byte-distinguishable from both Low and
+                // Medium.
+                let mut message = vec![0x03];
+                message.extend_from_slice(challenge);
+                message.extend_from_slice(&timestamp_bytes);
+                message.extend_from_slice(self.public_key.as_slice());
+                let sig_ok = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
+                    &message,
+                    signature,
+                    self.public_key.as_slice(),
+                )?;
+                if !sig_ok {
+                    return Ok(false);
+                }
+
                 // Reject stale proofs (>5 min drift).
                 // Timestamp is encoded as chrono milliseconds in little-endian.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
@@ -1317,20 +1413,7 @@ impl ZeroTrustAuth {
                     return Ok(false);
                 }
 
-                // Reconstruct signed message with public key binding.
-                // Round-20 audit fix #6: High prepends a 0x03 domain
-                // tag so it is byte-distinguishable from both Low and
-                // Medium.
-                let mut message = vec![0x03];
-                message.extend_from_slice(challenge);
-                message.extend_from_slice(&timestamp_bytes);
-                message.extend_from_slice(self.public_key.as_slice());
-
-                crate::unified_api::convenience::ed25519::verify_ed25519_internal(
-                    &message,
-                    signature,
-                    self.public_key.as_slice(),
-                )
+                Ok(true)
             }
         }
     }

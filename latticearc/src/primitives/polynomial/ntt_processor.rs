@@ -155,6 +155,20 @@ impl NttProcessor {
             ));
         }
 
+        // Round-29 L2: `mod_mul` casts the i64 product through `as i32`
+        // (line 254). For the supported lattice parameter sets (3329 and
+        // 12289) this is safe — both fit comfortably in i32 — but a
+        // future caller passing a modulus above i32::MAX would silently
+        // truncate every multiplication. Reject up-front so the truncation
+        // can never happen, instead of relying on the table-of-known-roots
+        // to enforce the bound implicitly.
+        if modulus > i64::from(i32::MAX) {
+            return Err(LatticeArcError::InvalidInput(format!(
+                "Modulus {} exceeds i32::MAX; mod_mul i32 truncation would silently corrupt output",
+                modulus
+            )));
+        }
+
         // Find primitive NTT root of unity
         let primitive_root = Self::find_primitive_root(n, modulus)?;
 
