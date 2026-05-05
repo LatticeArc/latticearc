@@ -944,15 +944,33 @@ impl MlKem {
             MlKemSecretKey::new(config.security_level, sk_bytes_obj.as_ref().to_vec())?;
 
         // FIPS 140-3 §9.2 / IG 10.3.A: PCT runs on the just-generated
-        // keypair (round-30 H2). The `public_key` clone is structural
-        // — we need it back as the return value after the PCT
-        // consumes the keypair wrapper. NLL drops `pct_keypair` at
-        // its last use; no explicit `drop` needed.
+        // keypair. The `public_key` clone is structural — we need it
+        // back as the return value after the PCT consumes the keypair
+        // wrapper. NLL drops `pct_keypair` at its last use; no
+        // explicit `drop` needed.
         let pct_keypair =
             MlKemDecapsulationKeyPair::new(public_key.clone(), decaps_key, config.security_level);
         crate::primitives::pct::pct_ml_kem(&pct_keypair).map_err(|e| {
             MlKemError::KeyGenerationError(format!(
                 "Post-keygen PCT failed (FIPS 140-3 §9.2): {}",
+                e
+            ))
+        })?;
+
+        // The native PCT above only exercises the in-memory
+        // `DecapsulationKey`. The production decap path that callers
+        // actually run (key file load → `from_key_bytes` →
+        // `decapsulate`) goes through serialization. Run a second
+        // PCT on a keypair reconstructed from the serialized bytes
+        // so a broken round-trip cannot escape keygen unnoticed.
+        let roundtrip_keypair = MlKemDecapsulationKeyPair::from_key_bytes(
+            config.security_level,
+            sk_bytes_obj.as_ref(),
+            pk_bytes.as_ref(),
+        )?;
+        crate::primitives::pct::pct_ml_kem(&roundtrip_keypair).map_err(|e| {
+            MlKemError::KeyGenerationError(format!(
+                "Post-keygen serialized-roundtrip PCT failed: {}",
                 e
             ))
         })?;

@@ -57,8 +57,7 @@ impl NttProcessor {
     fn find_primitive_root(n: usize, modulus: i64) -> Result<i32> {
         match (n, modulus) {
             (256, 3329) => Ok(17), // ML-KEM (Kyber) — q = 3329
-            // the
-            // table previously listed 49 for BOTH (512, 12289) and
+            // The table previously listed 49 for BOTH (512, 12289) and
             // (1024, 12289), which is wrong for the n=512 entry. The
             // arithmetic that explains why:
             //

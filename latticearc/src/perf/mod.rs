@@ -160,16 +160,30 @@ impl Histogram {
         Self::new(100)
     }
 
-    /// Record a timing sample
+    /// Round-31 L8: bound a single histogram's sample buffer so that
+    /// a long-running process recording into the same operation name
+    /// does not grow without limit. 65 536 samples gives generous
+    /// statistical resolution (well past the noise floor for any
+    /// percentile of interest) at fixed memory cost (~1 MiB per
+    /// histogram).
+    const MAX_SAMPLES_PER_HISTOGRAM: usize = 65_536;
+
+    /// Record a timing sample. Once the histogram has accumulated
+    /// `MAX_SAMPLES_PER_HISTOGRAM` samples, further `record` calls
+    /// drop oldest-first (FIFO). This preserves a moving window of
+    /// the most recent measurements rather than freezing the
+    /// histogram or panicking on overflow.
     pub fn record(&mut self, duration: Duration) {
+        if self.samples.len() >= Self::MAX_SAMPLES_PER_HISTOGRAM {
+            self.samples.remove(0);
+        }
         self.samples.push(duration.as_nanos());
     }
 
-    /// Record multiple timing samples
+    /// Record multiple timing samples. Same FIFO bound as `record`.
     pub fn record_batch(&mut self, durations: &[Duration]) {
-        self.samples.reserve(durations.len());
         for &duration in durations {
-            self.samples.push(duration.as_nanos());
+            self.record(duration);
         }
     }
 
@@ -254,7 +268,13 @@ impl Histogram {
         } else {
             0.0
         };
-        let std_dev = Duration::from_nanos(variance.sqrt().to_bits());
+        // Round-31 H1: previously this used `.to_bits()` which returns
+        // the IEEE-754 bit pattern as u64, not the rounded numeric
+        // value — every `std_dev` was off by ~18 orders of magnitude.
+        // `as u64` (saturating, IEEE-754-conformant) is the correct
+        // cast for non-negative finite f64 → integer ns.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let std_dev = Duration::from_nanos(variance.sqrt() as u64);
 
         TimingStatistics {
             count,
@@ -301,6 +321,15 @@ pub struct MetricsCollector {
 }
 
 impl MetricsCollector {
+    /// Round-31 L8: cap the number of distinct operation names so that
+    /// a caller passing arbitrary or attacker-influenced strings (e.g.
+    /// per-request labels) cannot grow the map unboundedly. 1024
+    /// distinct names is well above the expected steady-state of an
+    /// instrumented build (a few dozen operations across the API).
+    /// Once full, new names are silently dropped with a `tracing::warn`
+    /// so operators can detect labels they didn't expect.
+    const MAX_DISTINCT_OPERATIONS: usize = 1024;
+
     /// Create a new metrics collector
     #[must_use]
     pub fn new() -> Self {
@@ -319,10 +348,22 @@ impl MetricsCollector {
         // caused the panic that poisoned the mutex.
         match self.histograms.lock() {
             Ok(mut histograms) => {
-                histograms
-                    .entry(name.to_string())
-                    .or_insert_with(Histogram::new_default)
-                    .record(duration);
+                if histograms.contains_key(name) {
+                    if let Some(h) = histograms.get_mut(name) {
+                        h.record(duration);
+                    }
+                } else if histograms.len() < Self::MAX_DISTINCT_OPERATIONS {
+                    histograms
+                        .entry(name.to_string())
+                        .or_insert_with(Histogram::new_default)
+                        .record(duration);
+                } else {
+                    tracing::warn!(
+                        operation = name,
+                        cap = Self::MAX_DISTINCT_OPERATIONS,
+                        "perf::MetricsCollector: distinct-operation cap reached; metric dropped"
+                    );
+                }
             }
             Err(_) => {
                 tracing::warn!(
@@ -334,8 +375,16 @@ impl MetricsCollector {
 
         match self.operation_counts.lock() {
             Ok(mut counts) => {
-                let current_count = counts.entry(name.to_string()).or_insert(0);
-                *current_count = current_count.saturating_add(1);
+                if counts.contains_key(name) {
+                    if let Some(c) = counts.get_mut(name) {
+                        *c = c.saturating_add(1);
+                    }
+                } else if counts.len() < Self::MAX_DISTINCT_OPERATIONS {
+                    counts.insert(name.to_string(), 1);
+                }
+                // Else: drop silently here; the histograms branch
+                // above has already emitted the cap warning for this
+                // operation name on this same call.
             }
             Err(_) => {
                 tracing::warn!(

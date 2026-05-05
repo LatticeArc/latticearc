@@ -135,22 +135,20 @@ pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<Zeroizing<[u8; 32
     // `sha256(&[])`, not derive a key from it.
     if ikm.is_empty() {
         return Err(LatticeArcError::InvalidParameter(
-            "HKDF-Extract IKM must not be empty (round-29 L3 fail-closed)".to_string(),
+            "HKDF-Extract IKM must not be empty".to_string(),
         ));
     }
 
-    // distinguish `Some(&[])` from `None` — both
-    // previously collapsed to the default zero-salt, silently erasing
-    // caller intent. Round-29 L3 added the symmetric empty-IKM
-    // rejection; this is the matching salt-side check. `None` is
-    // RFC-conformant (default to HashLen zeros); `Some(&[])` is
+    // Distinguish `Some(&[])` from `None` — both previously collapsed
+    // to the default zero-salt, silently erasing caller intent. `None`
+    // is RFC-conformant (default to HashLen zeros); `Some(&[])` is
     // almost always a caller bug and is rejected outright.
     if let Some(s) = salt
         && s.is_empty()
     {
         return Err(LatticeArcError::InvalidParameter(
-            "HKDF-Extract Some(&[]) salt rejected (round-30 L5: \
-             use None for the RFC default, or supply real salt bytes)"
+            "HKDF-Extract Some(&[]) salt rejected; \
+             use None for the RFC default, or supply real salt bytes"
                 .to_string(),
         ));
     }
@@ -343,7 +341,7 @@ pub fn hkdf_simple(ikm: &[u8], length: usize) -> Result<HkdfResult> {
     // caller and avoids the salt allocation on the failing path.
     if ikm.is_empty() {
         return Err(LatticeArcError::InvalidParameter(
-            "hkdf_simple IKM must not be empty (round-29 L3 fail-closed)".to_string(),
+            "hkdf_simple IKM must not be empty".to_string(),
         ));
     }
 

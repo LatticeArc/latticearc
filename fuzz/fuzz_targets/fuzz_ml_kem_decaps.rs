@@ -21,12 +21,21 @@ fuzz_target!(|data: &[u8]| {
         _ => (MlKemSecurityLevel::MlKem1024, 1568),
     };
 
-    // Test 1: Generate valid keypair and test with valid ciphertext
-    if let Ok((pk, sk)) = MlKem::generate_keypair(level) {
-        if let Ok((_ss1, ct)) = MlKem::encapsulate(&pk) {
-            // Decapsulation should not crash
-            let _ = MlKem::decapsulate(&sk, &ct);
-        }
+    // Test 1: Generate valid keypair and test with valid ciphertext.
+    // Round-31 M6: a happy-path encapsulate -> decapsulate roundtrip is
+    // an oracle, not a crash check. If decapsulation silently returns
+    // a *different* shared secret, the fuzzer must catch it — not just
+    // a panic. So assert decapsulate succeeds and the SS matches.
+    if let Ok((pk, sk)) = MlKem::generate_keypair(level)
+        && let Ok((ss1, ct)) = MlKem::encapsulate(&pk)
+    {
+        let ss2 = MlKem::decapsulate(&sk, &ct)
+            .expect("decapsulate must succeed on a valid (sk, ct) pair from this keypair");
+        assert_eq!(
+            ss1.expose_secret(),
+            ss2.expose_secret(),
+            "encapsulated and decapsulated shared secrets must be equal"
+        );
     }
 
     // Test 2: Test with fuzzed ciphertext bytes

@@ -1102,8 +1102,7 @@ mod tests {
         assert!(matches!(result, Ok(false)));
     }
 
-    /// the
-    /// resource-cap gate at the top of `sign()` rejects oversized
+    /// The resource-cap gate at the top of `sign()` rejects oversized
     /// messages before reaching the upstream slh-dsa crate. Round-28
     /// collapsed the variant to the opaque `SigningFailed` (was
     /// distinguishable `MessageTooLong`).

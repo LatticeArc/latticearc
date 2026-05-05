@@ -684,30 +684,70 @@ impl DlogEqualityProof {
     }
 
     /// # Errors
-    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
+    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard),
+    /// or — astronomically rarely — if the rejection-sampling counter
+    /// overflows `u32::MAX` without finding a hash output `< q`.
+    ///
+    /// # Domain bump
+    /// Label is `arc-zkp/dlog-equality-v2` because the hash input now
+    /// includes a 4-byte big-endian counter suffix. v1 proofs are not
+    /// wire-compatible with v2 verifiers; pre-1.0, that's intentional.
     fn compute_challenge(
         statement: &DlogEqualityStatement,
         a: &[u8; 33],
         b: &[u8; 33],
         context: &[u8],
     ) -> Result<[u8; 32]> {
-        // Accumulate into a buffer and route through the primitives wrapper
-        // so hash backends remain swappable in one place.
-        let label = b"arc-zkp/dlog-equality-v1";
-        let mut buf = Vec::with_capacity(
-            label.len().saturating_add(33 * 4).saturating_add(33 * 2).saturating_add(context.len()),
-        );
-        buf.extend_from_slice(label);
-        buf.extend_from_slice(&statement.g);
-        buf.extend_from_slice(&statement.h);
-        buf.extend_from_slice(&statement.p);
-        buf.extend_from_slice(&statement.q);
-        buf.extend_from_slice(a);
-        buf.extend_from_slice(b);
-        buf.extend_from_slice(context);
+        use k256::{FieldBytes, Scalar, elliptic_curve::PrimeField};
 
-        // 200 bytes of compressed points and labels — well below SHA-256 DoS cap.
-        sha256(&buf).map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))
+        // Round-31 L4: rejection-sample so the resulting challenge is
+        // *uniformly* distributed in [0, q), matching the round-29 M6
+        // nonce treatment. Without this, `Reduce<U256>::reduce_bytes`
+        // applies a residue map with ~2^-128 modular bias. The bias
+        // is not a known attack vector for Fiat-Shamir on Schnorr-
+        // family protocols, but inconsistency with the nonce path is
+        // an audit liability — both should follow the same discipline.
+        //
+        // Termination: P(SHA-256 output < q) ≈ 1 - 2^-128, so the
+        // expected number of iterations is 1 + ε. The counter loop
+        // matches the standard Fiat-Shamir reject-with-counter idiom
+        // (e.g., RFC 9591 §4.2). Both prover and verifier execute
+        // identical loops on identical inputs and converge to the
+        // same challenge bytes.
+        let label = b"arc-zkp/dlog-equality-v2";
+        let mut counter: u32 = 0;
+        loop {
+            let mut buf = Vec::with_capacity(
+                label
+                    .len()
+                    .saturating_add(33 * 4)
+                    .saturating_add(33 * 2)
+                    .saturating_add(context.len())
+                    .saturating_add(4),
+            );
+            buf.extend_from_slice(label);
+            buf.extend_from_slice(&statement.g);
+            buf.extend_from_slice(&statement.h);
+            buf.extend_from_slice(&statement.p);
+            buf.extend_from_slice(&statement.q);
+            buf.extend_from_slice(a);
+            buf.extend_from_slice(b);
+            buf.extend_from_slice(context);
+            buf.extend_from_slice(&counter.to_be_bytes());
+
+            // ~210 bytes — well below the 1 GiB SHA-256 DoS cap.
+            let hash = sha256(&buf)
+                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+            let cand: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
+            if cand.is_some() {
+                return Ok(hash);
+            }
+            counter = counter.checked_add(1).ok_or_else(|| {
+                ZkpError::SerializationError(
+                    "challenge derivation: counter overflow (statistically impossible)".to_string(),
+                )
+            })?;
+        }
     }
 }
 

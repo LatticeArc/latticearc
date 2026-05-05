@@ -1113,8 +1113,8 @@ mod tests {
             .expect("Thread join failed");
     }
 
-    /// the `MessageTooLong` variant must be
-    /// triggerable through the public sign path. Default global cap is
+    /// The `MessageTooLong` variant must be triggerable through the
+    /// public sign path. Default global cap is
     /// 64 KiB; pass 64 KiB + 1 to exceed it before the upstream
     /// `fn-dsa` signer runs. Round-28 H7 collapsed the variant to the
     /// opaque `SigningFailed`. FN-DSA uses a stack-heavy signer so the

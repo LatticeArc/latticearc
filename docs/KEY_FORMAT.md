@@ -302,7 +302,8 @@ CBOR is the recommended format for:
 | Identifier | Standard | PK Size | SK Size |
 |------------|----------|---------|---------|
 | `slh-dsa-shake-128s` | FIPS 205 | 32 B | 64 B |
-| `slh-dsa-shake-256f` | FIPS 205 | 64 B | 128 B |
+| `slh-dsa-shake-192s` | FIPS 205 | 48 B | 96 B |
+| `slh-dsa-shake-256s` | FIPS 205 | 64 B | 128 B |
 
 ### Lattice Signatures (draft FIPS 206)
 

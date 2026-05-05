@@ -9,6 +9,142 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-31 audit — 1 HIGH + 6 MED + 8 LOW + 3 doc-drift + 5 strip-script repairs (2026-05-04)
+
+External audit of the post-round-30 tree returned 25 findings. Validated 22,
+applied 23 (the audit's 22 plus a co-located cleanup of `slh-dsa-*-f` and
+`slh-dsa-sha2-*` strings in `unified_api/types.rs::scheme_security_level`,
+which were the *cause* of the docs drift fixed under D1-D3). Skipped 2:
+- N1 — test-scoped widening; the cited path is `#[cfg(test)]`-only
+- N2 — pedantic cast style with no behavioural impact
+
+This round also cleans up regex damage left by the round-30 strip script:
+the regex `[^:\n]*:` over-ate text through the *first* colon, breaking
+backticked `Path::method` references in 6 sites. Each was rewritten by
+hand from the original sentence subject.
+
+#### Why round-31 found things round-30's self-audit didn't
+
+- **Diff-scoped review.** My round-30 self-audit walked only the diff,
+  not the post-merge state. Round-31's H1 (`f64::to_bits()` returning
+  the IEEE-754 bit pattern as a `u64` in `Histogram::std_dev`) was an
+  unmodified-since-round-19 site that sat outside any round-30 diff.
+- **Pattern-class sweep skipped.** When ML-DSA `sign()` collapsed length
+  rejects to opaque errors, I swept *production* sign paths but did not
+  walk SK-length validation sites in convenience wrappers — M1 lived on
+  in three of them.
+- **Strip-script regex bug.** The Python regex assumed audit-marker
+  prefixes ended at the first colon, but doc comments like
+  `` `Ed25519KeyPair::sign` is fallible `` contain `::` paths. The script
+  swallowed the sentence subject in 6 sites; only on a careful re-read
+  did the broken comments surface.
+- **Independent doc/code drift.** D1-D3 fixed three Markdown sites that
+  recommended SLH-DSA-SHAKE-128f / 256f; the typed-Rust matrix in
+  `scheme_security_level()` accepted those strings *and* `slh-dsa-sha2-*`
+  forms even though no enum variant corresponds to them. The docs and
+  the matrix had drifted independently because nothing fails on dead
+  match arms.
+
+#### HIGH
+
+- **H1**: `Histogram::calculate_statistics` no longer reports an
+  IEEE-754 bit pattern as the standard deviation. Previously the code
+  did `Duration::from_nanos(variance.sqrt().to_bits())`; `.to_bits()`
+  returns the bit-level representation as a `u64`, not the rounded
+  numeric value, so a true std-dev of 10ns surfaced as ~146 years.
+  Replaced with a guarded `as u64` cast (saturating, IEEE-754-conformant
+  for non-negative finite f64).
+
+#### MED
+
+- **M1**: `MlDsaSigningKey::sign` length-mismatch arms (all of MlDsa44 /
+  65 / 87) now collapse to `opaque_sign_err()` with `log_reject(...)`,
+  matching the Pattern-6 posture already applied to the other sign error
+  paths. Previously they returned `MlDsaError::InvalidKeyLength { expected,
+  actual }`, leaking both the precise SK size and the "this is a length
+  problem, not a content problem" distinction.
+- **M2**: `SecurityMode::validate()` now emits
+  `log_zero_trust_session_verification_failed!` (not
+  `log_zero_trust_session_expired!`) when the session has been downgraded
+  to `TrustLevel::Untrusted`. Downgrade-rejection ≠ clock expiry; SIEM
+  rules counting `session_expired` were getting false positives on every
+  policy-driven trust drop.
+- **M3**: `SecurityMode::validate()` no longer double-logs. It used to
+  re-emit `session_verified` / `session_expired` at the call site even
+  though `VerifiedSession::verify_valid()` already logs both internally.
+- **M4**: `MlKem::generate_keypair_with_config` now runs a *second* PCT
+  on a keypair reconstructed via `from_key_bytes(level, sk_bytes,
+  pk_bytes)`. The original PCT only exercised the in-memory aws-lc-rs
+  `DecapsulationKey`; production decap goes through serialization, and
+  a broken round-trip would not have surfaced on keygen.
+- **M5**: `fuzz_ed25519` now `assert!`s that verification under a
+  *non-matching* fuzzed public key fails. Previously `let _ = result`
+  swallowed the outcome — the test would have noticed nothing if a
+  real-world bug let arbitrary keys verify any message.
+- **M6**: `fuzz_ml_kem_decaps` now asserts the encapsulate→decapsulate
+  shared secret matches. Previously the result was discarded with
+  `let _ = ...`, treating decapsulation as a crash check rather than
+  the oracle it actually is.
+
+#### LOW
+
+- **L1**: HKDF error strings no longer carry round-NN markers. The
+  user-visible message is the contract; internal audit history belongs
+  in `CHANGELOG.md` and `git log`, not in production error text.
+- **L2**: `SecurityMode::validate()` `# Errors` doc now lists
+  `CoreError::ZeroTrustVerificationFailed` alongside `SessionExpired`.
+- **L3**: `DEFAULT_SESSION_LIFETIME_SECS` is now pinned to `> 0` by a
+  `const _: () = assert!(...)`. The `from_authenticated()` cast to `u64`
+  is a `const` cast over an asserted-positive value, so the previous
+  `unwrap_or(u64::MAX)` saturating fallback (which silently produced a
+  ~10^11-year lifetime on a misconfigured constant) is gone.
+- **L4**: `DlogEqualityProof::compute_challenge` now rejection-samples
+  with a counter suffix until the SHA-256 output is `< q`, matching the
+  round-29 M6 nonce treatment. Domain label bumped to
+  `arc-zkp/dlog-equality-v2`; v1 proofs do not verify against v2
+  verifiers (pre-1.0, intentional).
+- **L5**: `verify_cmac_192` and `verify_cmac_256` no longer perform
+  misleading "dummy" `ct_eq` calls on the Err arm. The Ok arm runs a
+  full AES computation; the dummy compares were not equalising
+  anything. Honesty fix matches `verify_cmac_128` (already cleaned up).
+- **L6**: `PedersenCommitment::add` rejects the identity (point at
+  infinity) result. Allowing it would leak `m1+m2 ≡ 0 (mod q)` and
+  `r1+r2 ≡ 0 (mod q)` simultaneously to anyone who can recognise the
+  all-zero compressed encoding.
+- **L7**: The `test_rotation_requirement_succeeds` test now drives
+  the `KeyLifecycleRecord` through the state machine
+  (`transition(Active, ...)`) before back-dating `activated_at`,
+  rather than reaching into the field directly on a fresh record.
+- **L8**: `MetricsCollector` is now bounded:
+  `MAX_DISTINCT_OPERATIONS = 1024` caps the histograms / counts maps,
+  and each `Histogram` caps its sample buffer at
+  `MAX_SAMPLES_PER_HISTOGRAM = 65 536` with FIFO drop-oldest. A caller
+  passing arbitrary or attacker-influenced operation labels can no
+  longer grow the collector unboundedly.
+
+#### Doc drift
+
+- **D1**: `docs/KEY_FORMAT.md` SLH-DSA table now lists `slh-dsa-shake-128s`,
+  `slh-dsa-shake-192s`, `slh-dsa-shake-256s` (the variants that actually
+  exist as `SlhDsaSecurityLevel` enum values). The previous table listed
+  `slh-dsa-shake-256f`, which has no corresponding code path.
+- **D2**: `docs/NIST_COMPLIANCE.md` recommendation row for
+  "constrained environments" now reads `SLH-DSA-SHAKE-128s` (not `-128f`).
+- **D3**: `docs/SECURITY_GUIDE.md` recommendation row for
+  "embedded/constrained" now reads `SLH-DSA-SHAKE-128s` (not `-128f`).
+- **Co-located fix**: `unified_api/types.rs::scheme_security_level()`
+  no longer accepts `slh-dsa-shake-{128,192,256}f` or `slh-dsa-sha2-*`
+  strings. Those arms had no production code path producing them and
+  were the source of the docs drift fixed under D1-D3.
+
+#### Strip-script repairs (round-30 follow-up)
+
+The round-30 Python strip script's regex `[^:\n]*:` over-ate text through
+the *first* colon. Six doc comments survived round-30 with their sentence
+subjects deleted; this round rewrites each from the original meaning:
+- `pct.rs`, `ntt_processor.rs`, `ml_dsa.rs:1376`, `slh_dsa.rs:1105`,
+  `fndsa.rs:1116` (5 sites + 1 `// the` orphan).
+
 ### Round-30 audit — 3 HIGH + 7 MED + 7 LOW + 2 doc-drift + audit-marker cleanup (2026-05-04)
 
 External audit of the post-round-29 tree returned 27 findings. Validated

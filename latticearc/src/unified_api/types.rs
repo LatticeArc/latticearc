@@ -444,15 +444,21 @@ fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
     // Helper: split on '-' and check if a token is present.
     let has_token = |needle: &str| s.split('-').any(|t| t == needle);
 
+    // Round-31 D1-D3: only the SLH-DSA `*-shake-*s` (small) variants
+    // exist as `SlhDsaSecurityLevel` enum values today. The previous
+    // arms accepted `*-shake-*f` (fast) and `*-sha2-*` strings that
+    // would never reach this function from a real keygen path —
+    // their presence here was the source of the doc-vs-code drift
+    // flagged in KEY_FORMAT.md, NIST_COMPLIANCE.md, SECURITY_GUIDE.md.
+    // Remove the dead arms so the matrix here is the *single* source
+    // of truth for what string forms are recognised.
+
     // Standard (Category 1 / 128-bit PQ)
     if matches!(
         s.as_str(),
         "ml-kem-512"
             | "ml-dsa-44"
             | "slh-dsa-shake-128s"
-            | "slh-dsa-shake-128f"
-            | "slh-dsa-sha2-128s"
-            | "slh-dsa-sha2-128f"
             | "fn-dsa-512"
             | "ed25519"
             | "aes-256-gcm"
@@ -462,28 +468,15 @@ fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
         || (s.starts_with("hybrid-") && (s.contains("ml-kem-512") || s.contains("ml-dsa-44")))
     {
         Some(SecurityLevel::Standard)
-    } else if matches!(
-        s.as_str(),
-        "ml-kem-768"
-            | "ml-dsa-65"
-            | "slh-dsa-shake-192s"
-            | "slh-dsa-shake-192f"
-            | "slh-dsa-sha2-192s"
-            | "slh-dsa-sha2-192f"
-    ) || has_token("ml-kem-768")
+    } else if matches!(s.as_str(), "ml-kem-768" | "ml-dsa-65" | "slh-dsa-shake-192s")
+        || has_token("ml-kem-768")
         || has_token("ml-dsa-65")
         || (s.starts_with("hybrid-") && (s.contains("ml-kem-768") || s.contains("ml-dsa-65")))
     {
         Some(SecurityLevel::High)
     } else if matches!(
         s.as_str(),
-        "ml-kem-1024"
-            | "ml-dsa-87"
-            | "slh-dsa-shake-256s"
-            | "slh-dsa-shake-256f"
-            | "slh-dsa-sha2-256s"
-            | "slh-dsa-sha2-256f"
-            | "fn-dsa-1024"
+        "ml-kem-1024" | "ml-dsa-87" | "slh-dsa-shake-256s" | "fn-dsa-1024"
     ) || has_token("ml-kem-1024")
         || has_token("ml-dsa-87")
         || (s.starts_with("hybrid-") && (s.contains("ml-kem-1024") || s.contains("ml-dsa-87")))

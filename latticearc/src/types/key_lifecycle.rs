@@ -635,7 +635,26 @@ mod tests {
             7,
         );
 
-        // Manually set activation date to 100 days ago
+        // Round-31 L7: transition through the state machine first so
+        // `current_state == Active`, `state_history` has the
+        // Generation→Active record, and `generator` is populated. The
+        // previous test reached into `activated_at` directly and left
+        // every other field in the inconsistent "fresh record" state,
+        // which means it would have masked any future rotation-policy
+        // change that consults more than just the timestamp.
+        record
+            .transition(
+                KeyLifecycleState::Active,
+                "alice".to_string(),
+                "test activation".to_string(),
+                None,
+            )
+            .unwrap();
+        // Back-date the activation timestamp so the rotation policy
+        // (90 days) sees a 100-day-old key. The state-history entry
+        // keeps the real activation timestamp; only the cached
+        // `activated_at` field is shifted, mirroring how a real key
+        // restored from a long-lived backing store would look.
         record.activated_at = Some(chrono::Utc::now() - chrono::Duration::days(100));
 
         assert!(record.requires_rotation());

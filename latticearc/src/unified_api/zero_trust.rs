@@ -217,29 +217,36 @@ impl<'a> SecurityMode<'a> {
     ///
     /// # Errors
     ///
-    /// Returns `CoreError::SessionExpired` if the mode is `Verified` but the
-    /// session has expired.
+    /// Returns `CoreError::ZeroTrustVerificationFailed` if the session
+    /// has been downgraded to `TrustLevel::Untrusted`.
+    /// Returns `CoreError::SessionExpired` if the session is still
+    /// trusted but past its policy lifetime.
     ///
     /// Returns `Ok(())` for `Unverified` mode (no validation performed).
     pub fn validate(&self) -> Result<()> {
         match self {
             Self::Verified(session) => {
-                // trust_level must gate validation;
-                // otherwise downgrade_trust_level() (round-29 M3) has
-                // no observable effect.
+                // trust_level must gate validation; otherwise
+                // downgrade_trust_level() has no observable effect.
                 if session.trust_level() == TrustLevel::Untrusted {
-                    log_zero_trust_session_expired!(hex::encode(session.session_id()));
+                    // Round-31 M2: emit `verification_failed`, NOT
+                    // `session_expired`. Downgrade-rejection ≠ clock
+                    // expiry; SIEM rules counting `session_expired`
+                    // were getting false positives.
+                    log_zero_trust_session_verification_failed!(
+                        hex::encode(session.session_id()),
+                        "trust_level downgraded to Untrusted"
+                    );
                     return Err(CoreError::ZeroTrustVerificationFailed(
                         "session trust_level is Untrusted; re-authenticate".to_string(),
                     ));
                 }
-                let result = session.verify_valid();
-                if result.is_ok() {
-                    log_zero_trust_session_verified!(hex::encode(session.session_id()));
-                } else {
-                    log_zero_trust_session_expired!(hex::encode(session.session_id()));
-                }
-                result
+                // Round-31 M3: do NOT re-log on the success/failure
+                // branches. `verify_valid()` already emits the
+                // appropriate `session_verified` / `session_expired`
+                // event internally (see line ~522). Logging here
+                // produced two identical events per check.
+                session.verify_valid()
             }
             Self::Unverified => {
                 log_zero_trust_unverified_mode!("validate");
@@ -318,6 +325,17 @@ impl std::fmt::Debug for VerifiedSession {
 
 /// Default session lifetime in seconds (30 minutes).
 const DEFAULT_SESSION_LIFETIME_SECS: i64 = 30 * 60;
+
+// Round-31 L3: a future maintainer who flips the lifetime to 0 or
+// negative would silently get a u64::MAX `Duration` (i.e. "never
+// expires") via the saturating `unwrap_or(u64::MAX)` below — the
+// exact opposite of the intended meaning. Pin both invariants at
+// compile time so that mistake aborts the build.
+const _: () = assert!(
+    DEFAULT_SESSION_LIFETIME_SECS > 0,
+    "DEFAULT_SESSION_LIFETIME_SECS must be > 0; otherwise sessions become \
+     non-expiring under the i64→u64 saturation in `from_authenticated`."
+);
 
 impl VerifiedSession {
     /// Quick session establishment for the common case.
@@ -414,9 +432,13 @@ impl VerifiedSession {
         // capture a monotonic instant at construction.
         // The wall-clock `expires_at` above remains for audit display,
         // but `is_valid` consults `Instant::elapsed()` instead.
-        let lifetime = std::time::Duration::from_secs(
-            u64::try_from(DEFAULT_SESSION_LIFETIME_SECS).unwrap_or(u64::MAX),
-        );
+        // The const_assert above guarantees
+        // `DEFAULT_SESSION_LIFETIME_SECS > 0`, so the cast is well
+        // defined — `as u64` on a positive `i64` value produces the
+        // exact same numeric value, with no saturation surprise.
+        #[allow(clippy::cast_sign_loss)]
+        const DEFAULT_SESSION_LIFETIME_SECS_U64: u64 = DEFAULT_SESSION_LIFETIME_SECS as u64;
+        let lifetime = std::time::Duration::from_secs(DEFAULT_SESSION_LIFETIME_SECS_U64);
         Ok(Self {
             session_id,
             authenticated_at: now,

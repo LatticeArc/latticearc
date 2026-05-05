@@ -454,10 +454,8 @@ impl MlDsaSecretKey {
                 // Stack-allocated secret key bytes wrapped in Zeroizing for guaranteed wipe.
                 let mut sk_bytes: Zeroizing<[u8; 2560]> = Zeroizing::new([0u8; 2560]);
                 if self.expose_secret().len() != 2560 {
-                    return Err(MlDsaError::InvalidKeyLength {
-                        expected: 2560,
-                        actual: self.len(),
-                    });
+                    log_reject("SK length mismatch", &(2560usize, self.len()));
+                    return Err(opaque_sign_err());
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_44::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
@@ -473,10 +471,8 @@ impl MlDsaSecretKey {
             MlDsaParameterSet::MlDsa65 => {
                 let mut sk_bytes: Zeroizing<[u8; 4032]> = Zeroizing::new([0u8; 4032]);
                 if self.expose_secret().len() != 4032 {
-                    return Err(MlDsaError::InvalidKeyLength {
-                        expected: 4032,
-                        actual: self.len(),
-                    });
+                    log_reject("SK length mismatch", &(4032usize, self.len()));
+                    return Err(opaque_sign_err());
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_65::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
@@ -492,10 +488,8 @@ impl MlDsaSecretKey {
             MlDsaParameterSet::MlDsa87 => {
                 let mut sk_bytes: Zeroizing<[u8; 4896]> = Zeroizing::new([0u8; 4896]);
                 if self.expose_secret().len() != 4896 {
-                    return Err(MlDsaError::InvalidKeyLength {
-                        expected: 4896,
-                        actual: self.len(),
-                    });
+                    log_reject("SK length mismatch", &(4896usize, self.len()));
+                    return Err(opaque_sign_err());
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_87::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
@@ -1373,9 +1367,9 @@ mod tests {
         assert_eq!(sk.parameter_set(), MlDsaParameterSet::MlDsa65);
     }
 
-    /// oversized
-    /// message must be rejected by `sign()` before reaching the upstream
-    /// crate. Round-28 collapsed the cap-rejection variant to the opaque
+    /// An oversized message must be rejected by `sign()` before
+    /// reaching the upstream crate. Round-28 collapsed the
+    /// cap-rejection variant to the opaque
     /// `SigningError` (was distinguishable `MessageTooLong`) so a caller
     /// probing the cap cannot recover its configured value from the
     /// returned variant.

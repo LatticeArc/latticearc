@@ -427,10 +427,10 @@ pub fn pct_ed25519(keypair: &crate::primitives::ec::ed25519::Ed25519KeyPair) -> 
     // pattern — explicit Ok(false) handling and pct_finalize so a
     // genuine Ed25519 pairwise inconsistency enters the FIPS 140-3 IG
     // 10.3.A error state instead of returning an ad-hoc error code.
-    // :sign` fallible
-    // (validate_signature_size); the 24-byte PCT message is well under
-    // the cap, so this path never trips the new gate, but using `?`
-    // keeps the surface honest if the cap is ever lowered.
+    // `Ed25519KeyPair::sign` is fallible (validate_signature_size); the
+    // 24-byte PCT message is well under the cap, so this path never
+    // trips the gate, but using `?` keeps the surface honest if the cap
+    // is ever lowered.
     let signature =
         keypair.sign(PCT_TEST_MESSAGE).map_err(|e| PctError::SigningFailed(e.to_string()))?;
 

@@ -294,7 +294,7 @@ flowchart LR
 |----------|-------------------|------------|
 | General purpose | 3 | ML-KEM-768, ML-DSA-65 |
 | Maximum security | 5 | ML-KEM-1024, ML-DSA-87 |
-| Constrained environments | 1 | ML-KEM-512, SLH-DSA-SHAKE-128f |
+| Constrained environments | 1 | ML-KEM-512, SLH-DSA-SHAKE-128s |
 | Long-term protection | 5 | ML-KEM-1024, ML-DSA-87 |
 
 ## Validation Testing

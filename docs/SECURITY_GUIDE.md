@@ -344,7 +344,7 @@ flowchart LR
 |----------|-------------|-----|
 | General purpose | ML-KEM-768, ML-DSA-65 | Balance of security and performance |
 | Long-term secrets | ML-KEM-1024, ML-DSA-87 | Maximum post-quantum security |
-| Embedded/constrained | ML-KEM-512, SLH-DSA-SHAKE-128f | Smaller keys/signatures |
+| Embedded/constrained | ML-KEM-512, SLH-DSA-SHAKE-128s | Smaller keys/signatures |
 | Regulatory compliance | Check specific requirements | May mandate specific algorithms |
 
 ### Hybrid Mode
