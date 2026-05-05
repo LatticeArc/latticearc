@@ -9,6 +9,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-33 audit — 1 HIGH + 2 MED + 3 LOW + 4 DOC (2026-05-05)
+
+External round-33 audit returned 11 findings. Validated 10, applied 10
+(skipped L4 — the audit confused X25519 with secp256k1; the existing
+comment is correct because LatticeArc's hybrid uses X25519, not
+secp256k1).
+
+This round mostly cleans up loose ends from rounds 31 and 32: the
+H1 finding catches a Pattern-class miss in round-32's M2 (verify-side
+PK arms collapsed but signature arms left structured); M1 hardens
+round-32's M7 with the additional `current_state` ↔ `state_history`
+checks; M2 fixes the contradictory error introduced by round-32's L9.
+
+#### HIGH
+
+- **H1**: `MlDsaVerifyingKey::verify` `try_into` for the signature
+  bytes now returns `MlDsaError::VerificationError("verification
+  failed")` for all three parameter sets (MlDsa44/65/87). Round-32's
+  M2 collapsed the public-key arms but left the signature arms
+  emitting `MlDsaError::InvalidSignatureLength { expected, actual }`
+  — letting an attacker fingerprint the active parameter set by
+  submitting signatures of varying length and reading the structured
+  error.
+
+#### MED
+
+- **M1**: `KeyLifecycleRecordRaw::try_from` now also checks: (a)
+  `current_state ∈ {Active, Rotating, Retired}` requires
+  `activated_at.is_some()` (you must have passed through Active);
+  (b) for non-`Generation` states, `state_history.last().to_state`
+  must equal `current_state`. Previously a tampered file with
+  `current_state = Rotating` and empty `state_history` deserialised
+  cleanly because the only state-vs-history check was for `Destroyed`.
+- **M2**: `MlKemPublicKey::new` now returns
+  `MlKemError::InvalidKeyFormat(String)` (new variant) when
+  `EncapsulationKey::new` rejects structurally-malformed bytes.
+  Previously round-32's L9 returned `InvalidKeyLength { size: N,
+  actual: N }` — internally contradictory (the length pre-check
+  already asserted `actual == size`), making "wrong length" and
+  "right length, malformed bytes" indistinguishable.
+
+#### LOW
+
+- **L1**: `schnorr.rs::fiat_shamir_challenge` and
+  `sigma.rs::compute_challenge` (both round-32 sites) now reject
+  `c == Scalar::ZERO` symmetrically with the nonce path. With `c =
+  0`, the response collapses to `s = k + 0·x = k` — exposing the
+  nonce. Probability ~2⁻²⁵⁶, defense-in-depth.
+- **L2**: `KeyLifecycleRecord::transition` validates `approval_id`
+  inside the `Some(_)` arm as non-optional. `Some("")` previously
+  passed through (because `optional=true` skipped the empty check)
+  and produced an `"approval_id": ""` field that confused
+  presence-vs-content matching downstream. Helper signature
+  simplified — the `optional` flag was dead at all call sites.
+- **L3**: `Histogram::record_batch` now reserves capacity bounded
+  by remaining headroom to `MAX_SAMPLES_PER_HISTOGRAM`, instead of
+  unconditionally `reserve(durations.len())`. At the cap the FIFO
+  drops most of the over-allocation immediately; the cap-aware
+  reserve preserves the L8 DoS bound under merge-style workloads.
+
+#### DOC
+
+- **D1**: `MlDsaPublicKey::verify` `# Errors` doc now lists the
+  255-byte `context` cap (FIPS 204 §3.3) and the
+  `ParameterSetMismatch` variant alongside the existing reasons.
+- **D2**: `MlDsaSecretKey::sign` `# Errors` doc now lists the
+  context-cap rejection.
+- **D3**: `MlKemPublicKey::new` doc now documents BOTH the length
+  check AND the structural validation (round-32 L9 added the
+  latter without updating the doc).
+- **D4**: `README.md` gained a brief "Migration" section pointing
+  to the post-0.7.1 breaking changes (one row per breaking item,
+  links into `CHANGELOG.md`). Authoritative record stays in
+  CHANGELOG; the README pointer addresses the audit's concern that
+  README-only readers miss them.
+
 ### Round-32 audit — 7 MED + 7 LOW + 1 DOC + /simplify follow-up + 5 CI repairs (2026-05-05)
 
 External round-32 audit returned 25 findings. Validated 18 (skipped L2 as

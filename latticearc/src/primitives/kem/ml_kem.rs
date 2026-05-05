@@ -136,6 +136,13 @@ pub enum MlKemError {
         /// Type of key (public/secret)
         key_type: String,
     },
+    /// Key bytes are the correct length but failed structural
+    /// validation (e.g. malformed encoding, off-curve points, or
+    /// rejected by aws-lc-rs `EncapsulationKey::new`). Distinct from
+    /// `InvalidKeyLength` so callers can tell "wrong size" from
+    /// "right size, malformed bytes".
+    #[error("Invalid key format: {0}")]
+    InvalidKeyFormat(String),
     /// Invalid ciphertext length
     #[error("Invalid ciphertext length for {variant}: expected {expected}, got {actual}")]
     InvalidCiphertextLength {
@@ -268,14 +275,24 @@ pub struct MlKemPublicKey {
 }
 
 impl MlKemPublicKey {
-    /// Creates a new public key from raw bytes
+    /// Creates a new public key from raw bytes.
+    ///
+    /// Validates BOTH length AND structural encoding: the bytes must
+    /// match the parameter-set's expected size, AND aws-lc-rs must
+    /// accept them as a parseable encapsulation key. An all-zeros (or
+    /// otherwise malformed) PK is rejected here rather than at first
+    /// encap.
     ///
     /// # Arguments
     /// * `security_level` - The security level of the key
     /// * `data` - Raw public key bytes
     ///
     /// # Errors
-    /// Returns error if the key length doesn't match the security level
+    /// Returns `MlKemError::InvalidKeyLength` if `data.len()` does not
+    /// match `security_level.public_key_size()`.
+    ///
+    /// Returns `MlKemError::InvalidKeyFormat` if the length is correct
+    /// but the bytes fail aws-lc-rs structural validation.
     pub fn new(security_level: MlKemSecurityLevel, data: Vec<u8>) -> Result<Self, MlKemError> {
         let expected_size = security_level.public_key_size();
         if data.len() != expected_size {
@@ -289,13 +306,16 @@ impl MlKemPublicKey {
         // Structural validation: ensure aws-lc-rs accepts these bytes
         // as a parseable encapsulation key. Without this, an all-zeros
         // (or otherwise malformed) PK loaded from a key file passes
-        // here and only fails at first encap.
+        // here and only fails at first encap. Use `InvalidKeyFormat`
+        // (not `InvalidKeyLength`) — the length pre-check above
+        // already passed, so a length-shaped error here would be
+        // self-contradictory (`size == actual`).
         let algorithm = security_level.as_aws_algorithm();
-        EncapsulationKey::new(algorithm, &data).map_err(|_e| MlKemError::InvalidKeyLength {
-            variant: security_level.name().to_string(),
-            size: expected_size,
-            actual: data.len(),
-            key_type: "public key".to_string(),
+        EncapsulationKey::new(algorithm, &data).map_err(|_e| {
+            MlKemError::InvalidKeyFormat(format!(
+                "ML-KEM-{} public key bytes failed structural validation",
+                security_level.name()
+            ))
         })?;
         Ok(Self { security_level, data })
     }

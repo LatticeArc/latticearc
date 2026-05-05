@@ -206,8 +206,16 @@ impl MlDsaPublicKey {
     /// match.
     ///
     /// # Errors
-    /// Returns an error if the key or signature bytes fail to parse at the
-    /// upstream `ml-dsa` crate (e.g. wrong length for the parameter set).
+    /// Returns `MlDsaError::VerificationError` if:
+    /// - `message.len()` exceeds the configured resource-limit cap
+    ///   (DoS guard mirroring the sign-side resource limit).
+    /// - `context.len() > 255` bytes (FIPS 204 §3.3 — sign-side
+    ///   rejects the same; verify rejects symmetrically).
+    /// - The key or signature bytes fail to parse at the upstream
+    ///   `ml-dsa` crate (e.g. wrong length for the parameter set).
+    ///
+    /// Returns `MlDsaError::ParameterSetMismatch` if the public key and
+    /// signature were generated for different ML-DSA parameter sets.
     #[instrument(level = "debug", skip(self, message, signature, context), fields(parameter_set = ?self.parameter_set(), message_len = message.len(), signature_len = signature.as_bytes().len()))]
     pub fn verify(
         &self,
@@ -265,10 +273,7 @@ impl MlDsaPublicKey {
                     MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 let sig_bytes: [u8; 2420] = signature.as_bytes().try_into().map_err(|_e| {
-                    MlDsaError::InvalidSignatureLength {
-                        expected: 2420,
-                        actual: signature.as_bytes().len(),
-                    }
+                    MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 pk.verify(message, &sig_bytes, context)
             }
@@ -280,10 +285,7 @@ impl MlDsaPublicKey {
                     MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 let sig_bytes: [u8; 3309] = signature.as_bytes().try_into().map_err(|_e| {
-                    MlDsaError::InvalidSignatureLength {
-                        expected: 3309,
-                        actual: signature.as_bytes().len(),
-                    }
+                    MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 pk.verify(message, &sig_bytes, context)
             }
@@ -295,10 +297,7 @@ impl MlDsaPublicKey {
                     MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 let sig_bytes: [u8; 4627] = signature.as_bytes().try_into().map_err(|_e| {
-                    MlDsaError::InvalidSignatureLength {
-                        expected: 4627,
-                        actual: signature.as_bytes().len(),
-                    }
+                    MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 pk.verify(message, &sig_bytes, context)
             }
@@ -412,8 +411,11 @@ impl MlDsaSecretKey {
     /// opacity; the `MessageTooLong` variant is now `#[deprecated]`).
     ///
     /// # Errors
-    /// Returns an error if signing fails, the key fails to parse at the
-    /// upstream `ml-dsa` crate, or the message exceeds the resource limit.
+    /// Returns `MlDsaError::SigningError` (Pattern-6 opaque) if:
+    /// - signing fails at the upstream `ml-dsa` crate,
+    /// - the SK bytes fail to parse,
+    /// - the message exceeds the configured resource limit,
+    /// - or `context.len() > 255` bytes (FIPS 204 §3.3 cap).
     #[instrument(level = "debug", skip(self, message, context), fields(parameter_set = ?self.parameter_set(), message_len = message.len(), context_len = context.len()))]
     pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<MlDsaSignature, MlDsaError> {
         // Pattern-6 opacity: every reject path returns the same opaque

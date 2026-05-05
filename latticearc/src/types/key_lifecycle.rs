@@ -43,11 +43,14 @@ use serde::{Deserialize, Serialize};
 const MAX_AUDIT_FIELD_LEN: usize = 512;
 
 /// Validate an audit-trail string. Rejects:
-/// - empty (unless `optional` is true)
+/// - empty
 /// - control characters (including newlines, which break JSONL)
 /// - more than `MAX_AUDIT_FIELD_LEN` bytes
-fn validate_audit_field(name: &str, value: &str, optional: bool) -> Result<()> {
-    if value.is_empty() && !optional {
+///
+/// `Option<String>` callers should validate inside the `Some(_)` arm:
+/// presence is decided at the caller; content is validated here.
+fn validate_audit_field(name: &str, value: &str) -> Result<()> {
+    if value.is_empty() {
         return Err(TypeError::InvalidAuditInput(format!("{} must not be empty", name)));
     }
     if value.len() > MAX_AUDIT_FIELD_LEN {
@@ -242,34 +245,55 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
         // Re-validate state-machine invariants on load so a corrupted
         // or tampered persisted record cannot bypass the rules
         // `transition()` enforces in memory.
-        match (raw.current_state, raw.activated_at, raw.state_history.last()) {
-            (KeyLifecycleState::Generation, Some(_), _) => {
+
+        // (1) `current_state` must be reachable from the persisted
+        //     `activated_at` value. Rotating and Retired both require
+        //     having passed through Active, so `activated_at` MUST be
+        //     `Some` for those — and Generation MUST NOT have one.
+        match (raw.current_state, raw.activated_at) {
+            (KeyLifecycleState::Generation, Some(_)) => {
                 return Err(TypeError::InvalidAuditInput(
                     "current_state=Generation with activated_at set".to_string(),
                 ));
             }
-            (KeyLifecycleState::Active, None, _) => {
-                return Err(TypeError::InvalidAuditInput(
-                    "current_state=Active without activated_at".to_string(),
-                ));
-            }
-            (KeyLifecycleState::Destroyed, _, None) => {
-                return Err(TypeError::InvalidAuditInput(
-                    "current_state=Destroyed with empty state_history".to_string(),
-                ));
-            }
-            (KeyLifecycleState::Destroyed, _, Some(t))
-                if t.to_state != KeyLifecycleState::Destroyed =>
-            {
-                return Err(TypeError::InvalidAuditInput(
-                    "current_state=Destroyed but last state_history entry disagrees".to_string(),
-                ));
+            (
+                KeyLifecycleState::Active
+                | KeyLifecycleState::Rotating
+                | KeyLifecycleState::Retired,
+                None,
+            ) => {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "current_state={:?} requires activated_at",
+                    raw.current_state
+                )));
             }
             _ => {}
         }
-        // Per-state timestamp consistency: the timestamp for a state
-        // must be present iff that state has been entered (i.e. appears
-        // in state_history).
+
+        // (2) For non-Generation states, the last state_history entry
+        //     must agree with `current_state`. Otherwise a tampered
+        //     file with `current_state = Active` and a `state_history`
+        //     ending in `Rotating` (or empty) would deserialize cleanly.
+        match (raw.current_state, raw.state_history.last()) {
+            (KeyLifecycleState::Generation, _) => {}
+            (_, None) => {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "current_state={:?} with empty state_history",
+                    raw.current_state
+                )));
+            }
+            (current, Some(t)) if t.to_state != current => {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "current_state={:?} but last state_history entry is {:?}",
+                    current, t.to_state
+                )));
+            }
+            _ => {}
+        }
+
+        // (3) Per-state timestamp consistency: the timestamp for a
+        //     state must be present iff that state has been entered
+        //     (i.e. appears in state_history).
         let entered = |st: KeyLifecycleState| raw.state_history.iter().any(|t| t.to_state == st);
         if entered(KeyLifecycleState::Rotating) != raw.rotated_at.is_some() {
             return Err(TypeError::InvalidAuditInput(
@@ -382,10 +406,13 @@ impl KeyLifecycleRecord {
         // Audit-trail input gates: empty / control-chars / oversized
         // strings break JSONL audit consumers and produce attribution-
         // free entries. Reject up front rather than persisting them.
-        validate_audit_field("custodian_id", &custodian_id, false)?;
-        validate_audit_field("justification", &justification, false)?;
+        validate_audit_field("custodian_id", &custodian_id)?;
+        validate_audit_field("justification", &justification)?;
+        // Inside `Some(_)` the caller has explicitly chosen to send a
+        // value; empty-string is a sentinel that confuses
+        // presence-vs-content matching downstream. Reject it here.
         if let Some(ref approval_id) = approval_id {
-            validate_audit_field("approval_id", approval_id, true)?;
+            validate_audit_field("approval_id", approval_id)?;
         }
 
         if !KeyStateMachine::is_valid_transition(Some(self.current_state), to_state) {

@@ -90,8 +90,15 @@ fn fiat_shamir_challenge(
         // ~104 bytes — well below the 1 GiB SHA-256 DoS cap.
         let hash = sha256(&buf)
             .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+        // Reject `c == 0` symmetrically with the nonce path
+        // (`Schnorr::prove` lines ~290): if the challenge were zero,
+        // the response would collapse to `s = k + 0·x = k`, exposing
+        // the nonce. Probability is ~2^-256 — defense-in-depth, not
+        // an exploitable attack.
         let cand: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
-        if let Some(s) = cand {
+        if let Some(s) = cand
+            && !bool::from(s.ct_eq(&Scalar::ZERO))
+        {
             return Ok(s);
         }
         counter = counter.checked_add(1).ok_or_else(|| {

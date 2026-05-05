@@ -326,6 +326,27 @@ cargo build --features fips
 | `cc not found` (Linux) | `sudo apt install build-essential` |
 | Long initial build | First build compiles AWS-LC from source (~2-3 min) |
 
+## Migration
+
+LatticeArc is **pre-1.0**: each audit round may ship breaking changes
+without a major-version bump. The authoritative record of breaking
+items lives in [CHANGELOG.md](CHANGELOG.md). The headline post-0.7.1
+breaking changes downstream consumers should know about:
+
+| Round | Item | Reference |
+|-------|------|-----------|
+| 31 | `pct_ml_kem` now takes the keypair (not a fresh sibling) | CHANGELOG round-30 H1 |
+| 31 | `SecurityMode::validate` rejects `TrustLevel::Untrusted` | CHANGELOG round-31 M2 |
+| 31 | `VerifiedSession::is_valid` consults a monotonic clock | CHANGELOG round-29 M3 |
+| 31 | `arc-zkp/dlog-equality-v2`: v1 dlog-equality proofs do not verify under v2 | CHANGELOG round-31 L4 |
+| 32 | `KeyLifecycleRecord` re-validates state-machine invariants on `Deserialize` | CHANGELOG round-32 M7 |
+| 32 | `arc-zkp/schnorr-v2`: v1 Schnorr proofs do not verify under v2 | CHANGELOG round-32 (/simplify follow-up) |
+| 32 | `MlKemPublicKey::new` now performs structural validation; new `MlKemError::InvalidKeyFormat` variant | CHANGELOG round-32 L9 + round-33 M2 |
+| 32 | ML-DSA 255-byte context cap rejects on both sign and verify | CHANGELOG round-26 M1 |
+
+For full per-round details (HIGH/MED/LOW + reasoning), read
+`CHANGELOG.md` from the top.
+
 ## Documentation
 
 | Document | Description |

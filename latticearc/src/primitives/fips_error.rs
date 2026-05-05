@@ -629,6 +629,7 @@ impl FipsError for crate::primitives::kem::ml_kem::MlKemError {
             Self::EncapsulationError(_) => FipsErrorCode::EncapsulationFailed,
             Self::DecapsulationError(_) => FipsErrorCode::DecapsulationFailed,
             Self::InvalidKeyLength { .. } => FipsErrorCode::InvalidKeyLength,
+            Self::InvalidKeyFormat(_) => FipsErrorCode::InvalidParameter,
             Self::InvalidCiphertextLength { .. } => FipsErrorCode::InvalidCiphertext,
             Self::UnsupportedSecurityLevel(_) => FipsErrorCode::UnsupportedAlgorithm,
             // route upstream crypto-primitive

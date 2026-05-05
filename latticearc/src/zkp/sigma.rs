@@ -737,8 +737,14 @@ impl DlogEqualityProof {
             // ~210 bytes — well below the 1 GiB SHA-256 DoS cap.
             let hash = sha256(&buf)
                 .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+            // Reject both `>= q` and `== 0`: with `c == 0`, the
+            // dlog-equality response collapses to `s = k + 0·x = k`,
+            // exposing the nonce. Symmetric with the nonce-side
+            // `s != Scalar::ZERO` guard in `prove`.
             let cand: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
-            if cand.is_some() {
+            if let Some(s) = cand
+                && !bool::from(s.ct_eq(&Scalar::ZERO))
+            {
                 return Ok(hash);
             }
             counter = counter.checked_add(1).ok_or_else(|| {
