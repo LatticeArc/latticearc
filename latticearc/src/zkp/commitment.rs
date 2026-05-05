@@ -405,7 +405,7 @@ impl PedersenCommitment {
     /// # Errors
     /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard)
     /// or if no valid curve point is found within 256 iterations.
-    /// Round-29 M7: now `pub` (was private) so callers — including
+    /// now `pub` (was private) so callers — including
     /// integration tests in `tests/` — can construct
     /// discrete-log-equality statements over the canonical
     /// NUMS-derived H. External callers should generally rely on the
@@ -445,7 +445,7 @@ impl PedersenCommitment {
                 .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
 
             let mut compressed = [0u8; 33];
-            // Round-29 N8: even-y SEC1 prefix. We only try `0x02` (even-y)
+            // even-y SEC1 prefix. We only try `0x02` (even-y)
             // candidates rather than alternating `0x02`/`0x03` because the
             // try-and-increment counter already gives us a fresh `x` per
             // iteration; restricting to a single y-parity halves the curve
@@ -539,7 +539,7 @@ mod tests {
         assert!(!commitment.verify(&opening).unwrap());
     }
 
-    /// Round-27 M3 (Pattern 14): `verify` must return
+    /// `verify` must return
     /// `Err(VerificationFailed)` for an opening whose `value` scalar
     /// reduces to zero. Existing wrong-value tests use a non-zero scalar
     /// and so hit `Ok(false)` instead — this test exercises the
@@ -557,7 +557,7 @@ mod tests {
         }
     }
 
-    /// Round-27 M3 (Pattern 14): `verify` must return
+    /// `verify` must return
     /// `Err(VerificationFailed)` for an opening whose `blinding` scalar
     /// reduces to zero.
     #[test]
@@ -573,7 +573,7 @@ mod tests {
         }
     }
 
-    /// Round-27 M3 (Pattern 14): `verify` must return
+    /// `verify` must return
     /// `Err(VerificationFailed)` when an opening scalar lies outside the
     /// secp256k1 field. All-0xFF bytes form 2^256 - 1, well above the
     /// group order n ≈ 2^256 - 2^32 - 977, so `Scalar::from_repr` returns

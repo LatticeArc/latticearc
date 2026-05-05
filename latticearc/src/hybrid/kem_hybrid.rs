@@ -307,12 +307,31 @@ impl HybridKemPublicKey {
             let arr: [u8; 4] = slice.try_into().map_err(|_e| inv())?;
             Ok(u32::from_be_bytes(arr))
         };
+        // validate the prefixed lengths against the
+        // claimed security level BEFORE the `to_vec()` slice — pre-fix,
+        // a buffer claiming Level 5 but carrying a Level 3-shaped
+        // ML-KEM PK parsed successfully and failed opaquely at first
+        // encap.
         let ml_len = usize::try_from(read_len(bytes, cursor)?).map_err(|_e| inv())?;
+        if ml_len != security_level.public_key_size() {
+            return Err(HybridKemError::InvalidKeyMaterial(format!(
+                "ML-KEM PK length {} does not match security level {} (expects {})",
+                ml_len,
+                security_level.name(),
+                security_level.public_key_size()
+            )));
+        }
         cursor = cursor.checked_add(4).ok_or_else(inv)?;
         let ml_end = cursor.checked_add(ml_len).ok_or_else(inv)?;
         let ml_kem_pk = bytes.get(cursor..ml_end).ok_or_else(inv)?.to_vec();
         cursor = ml_end;
         let ed_len = usize::try_from(read_len(bytes, cursor)?).map_err(|_e| inv())?;
+        if ed_len != X25519_KEY_SIZE {
+            return Err(HybridKemError::InvalidKeyMaterial(format!(
+                "X25519 PK length {} does not match expected {}",
+                ed_len, X25519_KEY_SIZE
+            )));
+        }
         cursor = cursor.checked_add(4).ok_or_else(inv)?;
         let ed_end = cursor.checked_add(ed_len).ok_or_else(inv)?;
         let ecdh_pk = bytes.get(cursor..ed_end).ok_or_else(inv)?.to_vec();

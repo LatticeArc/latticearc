@@ -76,7 +76,7 @@ impl CryptoPolicyEngine {
     /// Recommends a cryptographic scheme based on use case.
     /// All encryption use cases default to hybrid for quantum safety.
     ///
-    /// Round-29 follow-up: each use case is pre-mapped to a security
+    /// each use case is pre-mapped to a security
     /// level (e.g. `IoTDevice` → ML-KEM-512, `EmailEncryption` →
     /// ML-KEM-1024). The `config.security_level` is **not** used to
     /// override the use-case mapping — that's a deliberate design
@@ -95,7 +95,7 @@ impl CryptoPolicyEngine {
     /// for future compatibility with validation logic.
     #[must_use = "scheme recommendation should be used for algorithm selection"]
     pub fn recommend_scheme(use_case: &UseCase, config: &CoreConfig) -> Result<String> {
-        // Round-29 follow-up: surface the no-op so it's not silent.
+        // surface the no-op so it's not silent.
         // Default `SecurityLevel` is `High`; anything else means the
         // caller passed it explicitly and would reasonably expect it
         // to influence selection. It does not — log so the divergence

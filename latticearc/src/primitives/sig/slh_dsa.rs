@@ -79,7 +79,7 @@ pub enum SlhDsaError {
     #[error("Signature verification failed")]
     VerificationFailed,
 
-    // Round-27 M4: `DeserializationError` removed — declared but never
+    // `DeserializationError` removed — declared but never
     // returned by any production path. SLH-DSA byte-shape errors surface
     // as `InvalidPublicKey` / `InvalidSecretKey` / `VerificationFailed`.
     // Safe under `#[non_exhaustive]`: external matches must already have
@@ -94,7 +94,7 @@ pub enum SlhDsaError {
     /// unbounded-message DoS when callers bypass the unified-api resource
     /// checks.
     ///
-    /// Round-28 H7: kept for ABI compatibility but no longer returned from
+    /// kept for ABI compatibility but no longer returned from
     /// `sign()` — the cap-rejection now collapses to `SigningFailed` so
     /// the sign path matches Pattern 6 opacity (round-26 M1 closed the
     /// verify-side; this completes the sign-side symmetry). Will be
@@ -247,7 +247,7 @@ impl VerifyingKey {
         let mut key_bytes = [0u8; shake_256s::PK_LEN];
         key_bytes[..expected_len].copy_from_slice(bytes);
 
-        // Round-26 audit fix (M9): the previous implementation called
+        // the previous implementation called
         // `try_from_bytes` here as eager validation, then `verify()`
         // called it again on every signature check — two parses per
         // PK, with the constructor's parsed result immediately
@@ -322,7 +322,7 @@ impl VerifyingKey {
         // hyper-tree; an attacker who can submit arbitrary bytes through
         // any verify entry point can force unbounded hashing work. The
         // bound here mirrors the one in `sign()`.
-        // Round-26 audit fix (M1): collapse into the generic
+        // collapse into the generic
         // verification-failure variant. `MessageTooLong` on verify
         // leaked the configured cap to a probing attacker.
         if let Err(e) = crate::primitives::resource_limits::validate_signature_size(message.len()) {
@@ -520,7 +520,7 @@ impl SigningKey {
 
         // FIPS 140-3 Pairwise Consistency Test (PCT)
         // Sign and verify a test message to ensure the keypair is consistent.
-        // Round-20 audit fix #12: PCT failure now maps to the dedicated
+        // PCT failure now maps to the dedicated
         // `PctFailed` variant. The previous `RngError` mapping let a
         // FIPS error-state monitor mis-categorize a corrupted-keypair
         // event as transient entropy failure and likely retry — wrong
@@ -694,7 +694,7 @@ impl SigningKey {
     #[instrument(level = "debug", skip(self, message, context), fields(security_level = ?self.security_level, message_len = message.len(), context_len = context.len()))]
     pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<Vec<u8>, SlhDsaError> {
         // DoS bound: SLH-DSA signing cost scales with message length.
-        // Round-28 H7 (Pattern 6): collapse the resource-cap rejection
+        // collapse the resource-cap rejection
         // to the new `SigningFailed` variant. Cap probing was the same
         // leak round-26 M1 closed on the verify-side; this completes
         // the sign-side symmetry. Trace captures the actual cause for
@@ -1102,7 +1102,7 @@ mod tests {
         assert!(matches!(result, Ok(false)));
     }
 
-    /// Round-27 H5 + Round-28 H7 (Pattern 14 + Pattern 6): the
+    /// the
     /// resource-cap gate at the top of `sign()` rejects oversized
     /// messages before reaching the upstream slh-dsa crate. Round-28
     /// collapsed the variant to the opaque `SigningFailed` (was

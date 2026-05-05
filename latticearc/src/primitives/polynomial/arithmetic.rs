@@ -10,7 +10,7 @@
 
 /// Modular exponentiation.
 ///
-/// Round-26 audit fix (L22): added a debug-assert precondition that
+/// added a debug-assert precondition that
 /// `modulus > 0`. The `i64` parameter type lets callers pass a
 /// negative or zero modulus, which (a) panics on `base %= modulus`
 /// when `modulus == 0`, and (b) produces undefined-by-convention
@@ -70,7 +70,7 @@ pub fn mod_inverse(a: i64, m: i64) -> crate::prelude::error::Result<i64> {
         x += m;
     }
 
-    // Round-26 audit fix (L21): tighten post-check to `a != 1`.
+    // tighten post-check to `a != 1`.
     // The previous `a > 1` check let `a == 0` (i.e. `gcd(input, m) == m`,
     // which means the inverse doesn't exist) slip through with `Ok(x)`,
     // returning garbage. `a == 1` is the unique correct termination

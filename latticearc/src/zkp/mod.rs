@@ -40,6 +40,14 @@
 #![deny(unsafe_code)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
+// relax `unwrap_used` and `panic` inside `#[cfg(test)]`
+// blocks. Several in-source unit tests use `panic!("expected ...")`
+// for "should-not-reach" arms and `.unwrap()` for setup helpers; the
+// strict deny was firing on those under `cargo clippy --workspace
+// --all-targets -- -D warnings` (turning CI red) even though the
+// production code is clean. Test-only suppressions match the pattern
+// used in `latticearc/tests/round*.rs` files.
+#![cfg_attr(test, allow(clippy::panic, clippy::unwrap_used, clippy::expect_used))]
 
 /// Commitment schemes (Pedersen, hash-based).
 pub mod commitment;

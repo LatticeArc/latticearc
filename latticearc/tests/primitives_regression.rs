@@ -198,30 +198,24 @@ fn regression_sha512_block_boundary() {
     assert!(sha512(&over).is_ok(), "SHA-512 over-block should succeed");
 }
 
-/// Regression: HKDF with empty salt handling
-/// Guards against: Null/empty salt causing incorrect key derivation
+/// Regression: HKDF salt-presence handling.
+/// `Some(&[])` is now rejected
+/// (was silently equivalent to `None`); only `None` opts into the
+/// RFC 5869 §2.2 "HashLen zeros" default. Test pins the new
+/// behaviour so a future regression is caught.
 #[test]
 fn regression_hkdf_empty_salt() {
     use latticearc::primitives::kdf::hkdf;
 
     let ikm = b"input key material";
 
-    // Empty salt
+    // `Some(&[])` is rejected outright (round-30 L5).
     let result_empty = hkdf(ikm, Some(&[]), None, 32);
-    assert!(result_empty.is_ok(), "HKDF with empty salt should succeed");
+    assert!(result_empty.is_err(), "HKDF with explicit empty salt must be rejected (round-30 L5)");
 
-    // None salt (should be equivalent)
+    // `None` (RFC default) still succeeds.
     let result_none = hkdf(ikm, None, None, 32);
-    assert!(result_none.is_ok(), "HKDF with None salt should succeed");
-
-    // Both should produce the same output
-    if let (Ok(r1), Ok(r2)) = (result_empty, result_none) {
-        assert_eq!(
-            r1.expose_secret(),
-            r2.expose_secret(),
-            "Empty salt and None salt should produce same output"
-        );
-    }
+    assert!(result_none.is_ok(), "HKDF with None salt must still succeed");
 }
 
 /// Regression: HKDF output at exact hash length boundary

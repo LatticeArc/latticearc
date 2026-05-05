@@ -107,7 +107,7 @@ pub(crate) struct KeygenArgs {
     /// Overwrite existing key files at the destination paths.
     ///
     /// Without this flag, keygen refuses to clobber an existing key file.
-    // Round-28 H4 audit context (kept out of `--help`): keygen previously
+    // keygen previously
     // had no escape hatch, so re-running over a stale keypair failed on
     // the first SK-write (SK is written first to avoid orphan PKs from
     // round-8 fix #4); the inverse failure mode still bit users running
@@ -131,6 +131,19 @@ fn resolve_keygen_passphrase(args: &KeygenArgs) -> Result<Option<zeroize::Zeroiz
 
 /// Execute the keygen command.
 pub(crate) fn run(args: KeygenArgs) -> Result<()> {
+    // create the output dir with 0700 on Unix so the
+    // filenames inside (which encode algorithm choice — e.g.
+    // `ml-dsa-65.sec.json`) aren't world-listable. The secret files
+    // themselves are written with 0600, but the directory containing
+    // them was previously created with the user's umask (typically
+    // 0755), leaking algorithm identity to any same-host reader. No
+    // public-API impact; behaviour is purely "tighter perms by default."
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&args.output)?;
+    }
+    #[cfg(not(unix))]
     std::fs::create_dir_all(&args.output)?;
 
     // Use-case-driven path: let the library select the algorithm
@@ -223,7 +236,7 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
                 .encrypt_with_passphrase(pp.as_bytes())
                 .map_err(|e| anyhow::anyhow!("Failed to encrypt secret key: {e}"))?;
         }
-        // Round-8 audit fix #4: write SK first. If we wrote PK first and
+        // write SK first. If we wrote PK first and
         // the SK write failed (disk full, permission), the PK would be
         // orphaned on disk; subsequent retry would hit the new
         // "refusing to overwrite" guard against the orphan and surface
@@ -300,7 +313,7 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
 
 fn generate_symmetric(args: &KeygenArgs) -> Result<()> {
     let passphrase = resolve_keygen_passphrase(args)?;
-    // Round-12 audit fix (M-3): wrap the intermediate Vec in
+    // wrap the intermediate Vec in
     // `Zeroizing` so the 32-byte CSPRNG draw doesn't leak via heap
     // copies after we've split it into the stack-allocated `key` array.
     let rand_bytes =

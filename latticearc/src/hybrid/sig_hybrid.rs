@@ -494,7 +494,7 @@ pub fn sign(
     // state; failures here indicate a programmer / storage bug, but keep the
     // public error uniform to avoid exposing upstream detail.
     //
-    // Round-13 audit fix (M-4-followup): the round-12 attempt at this
+    // the round-12 attempt at this
     // wrapped the clone in `Zeroizing<Vec<u8>>` but then immediately
     // re-cloned to pass into `MlDsaSecretKey::new(... Vec<u8>)`,
     // creating a second bare copy that would leak on the `new()` error
@@ -523,7 +523,7 @@ pub fn sign(
             log_crypto_operation_error!(op::HYBRID_SIGN, "Ed25519 SK init failed");
             HybridSignatureError::Ed25519Error("signing failed".to_string())
         })?;
-    // Round-26 audit fix (H4): `Ed25519KeyPair::sign` is now fallible
+    // `Ed25519KeyPair::sign` is now fallible
     // (validate_signature_size). Message length is already gated by
     // the hybrid sig API above; this `?` is the boundary safety net.
     let ed25519_signature = ed25519_keypair.sign(message).map_err(|_e| {
@@ -620,7 +620,7 @@ pub fn verify(
             MlDsaSignature::from_bytes(pq_sig_bytes, pk.parameter_set)
                 .map(|parsed_sig| (parsed_pk, parsed_sig))
         });
-    // Round-26 audit fix (H3): the previous shape was
+    // the previous shape was
     //   `Ok(parsed) => parsed.verify(...)`,
     //   `Err(_) => dummy.verify(...)`.
     // But `MlDsaPublicKey::verify` internally calls
@@ -633,7 +633,7 @@ pub fn verify(
     // Now: ANY path that doesn't reach a successful real verify falls
     // through to the dummy verify so the wall-clock cost is equal
     // across all reject reasons.
-    // Round-29 L6: pre-parsed material now goes through `parsed_or_init()`
+    // pre-parsed material now goes through `parsed_or_init()`
     // which retries init when prior attempts produced None. The result is
     // a clone (cheap — public bytes only); we own it locally.
     let dummy_parsed = dummy.parsed_or_init();
@@ -684,7 +684,7 @@ pub fn verify(
             0u8
         };
 
-    // Round-29 M1: the Ed25519 leg now has a real verify-time
+    // the Ed25519 leg now has a real verify-time
     // equalizer. The previous shape claimed parse cost was "in the
     // same order of magnitude as verify" — empirically wrong (parse
     // is a 64-byte length check, verify is one EC scalar mul; ~3

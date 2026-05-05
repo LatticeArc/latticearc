@@ -57,7 +57,7 @@ impl NttProcessor {
     fn find_primitive_root(n: usize, modulus: i64) -> Result<i32> {
         match (n, modulus) {
             (256, 3329) => Ok(17), // ML-KEM (Kyber) — q = 3329
-            // Round-26 audit fix (M3) + Round-28 M4 comment cleanup: the
+            // the
             // table previously listed 49 for BOTH (512, 12289) and
             // (1024, 12289), which is wrong for the n=512 entry. The
             // arithmetic that explains why:
@@ -89,7 +89,7 @@ impl NttProcessor {
     ///   - `root^N ≡ 1 (mod modulus)`
     ///   - `root^(N/2) ≡ -1 (mod modulus)` (i.e. `modulus - 1`)
     ///
-    /// Round-26 audit fix (M3): catches table copy-paste errors that
+    /// catches table copy-paste errors that
     /// would silently produce wrong NTT outputs. Called from
     /// `NttProcessor::new` immediately after `find_primitive_root`.
     fn validate_primitive_root(n: usize, modulus: i64, root: i32) -> Result<()> {
@@ -155,7 +155,7 @@ impl NttProcessor {
             ));
         }
 
-        // Round-29 L2: `mod_mul` casts the i64 product through `as i32`
+        // `mod_mul` casts the i64 product through `as i32`
         // (line 254). For the supported lattice parameter sets (3329 and
         // 12289) this is safe — both fit comfortably in i32 — but a
         // future caller passing a modulus above i32::MAX would silently
@@ -172,7 +172,7 @@ impl NttProcessor {
         // Find primitive NTT root of unity
         let primitive_root = Self::find_primitive_root(n, modulus)?;
 
-        // Round-26 audit fix (M3): self-check the chosen root before
+        // self-check the chosen root before
         // burning O(N) work into precomputed twiddles based on a
         // possibly-corrupted table entry.
         Self::validate_primitive_root(n, modulus, primitive_root)?;

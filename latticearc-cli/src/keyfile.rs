@@ -103,7 +103,6 @@ impl KeyFile {
     /// returning. Plaintext key files are returned as-is.
     pub fn read_from(path: &std::path::Path) -> Result<Self> {
         use std::io::Read;
-        // Round-20 audit fix #14 + Round-26 audit fixes (H15, M17):
         //
         // (M17) Reject symlinks unless the operator opts in via
         //       LATTICEARC_ALLOW_SYMLINK_KEYS=1. `metadata()` follows
@@ -158,7 +157,7 @@ impl KeyFile {
         // inode-metadata-time size was small but which grew between
         // `metadata` and `read` (e.g. live append) is still bounded.
         let cap = MAX_KEYFILE_BYTES.saturating_add(1);
-        // Round-26 audit fix: use try_from to avoid `as usize` truncation
+        // use try_from to avoid `as usize` truncation
         // warning on 32-bit targets. `MAX_KEYFILE_BYTES` is 1 MiB, well
         // below `u32::MAX`, so this conversion never actually fails on
         // any supported target.
@@ -240,7 +239,7 @@ pub(crate) fn parse_hybrid_sign_sk(
 /// Write a single-component key to a JSON file using `PortableKey`.
 ///
 /// `overwrite = false` refuses to clobber an existing file; `true` replaces.
-/// Round-28 H4: keygen now threads its `--force` flag through this surface
+/// keygen now threads its `--force` flag through this surface
 /// so a re-run with `--force` no longer hits the partial-state bug
 /// (round-8 fix #4 wrote SK first to avoid orphan PKs; without `--force`,
 /// re-running orphans the SK retry on the existing-file refusal — symmetric
@@ -386,7 +385,7 @@ fn encrypt_if_secret(
 /// they match) and by load paths to prompt for an existing passphrase.
 pub(crate) fn read_passphrase(prompt: &str) -> Result<zeroize::Zeroizing<String>> {
     let pp = rpassword::prompt_password(prompt).map_err(|e| {
-        // Round-7 audit fix #7: rpassword opens /dev/tty (or the
+        // rpassword opens /dev/tty (or the
         // Windows console handle) directly; in CI / Docker / non-tty
         // pipelines the open fails with a generic I/O error and the
         // user has no obvious next step. Detect that case and point
@@ -411,7 +410,7 @@ pub(crate) fn read_passphrase(prompt: &str) -> Result<zeroize::Zeroizing<String>
 /// Read a *new* passphrase from the terminal, prompting twice and rejecting
 /// mismatches or empty values. Used at keygen time.
 pub(crate) fn read_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
-    // Round-29 N4: minimum length matches the codebase's broader OWASP
+    // minimum length matches the codebase's broader OWASP
     // hygiene posture (PBKDF2 600k floor, AEAD weak-key rejection).
     // 12 chars is the OWASP 2023 minimum for "user-chosen passwords"
     // when paired with a high-iteration KDF; below that we recommend
@@ -482,7 +481,7 @@ fn resolve_passphrase(
         // in scripts should `unset LATTICEARC_PASSPHRASE` immediately
         // after the latticearc-cli invocation completes.
         //
-        // Round-29 N6: emit a tracing::warn! on EVERY env-var read,
+        // emit a tracing::warn! on EVERY env-var read,
         // not only the TTY case. The original code only warned when
         // stdin was a TTY (presumed-accidental usage); non-interactive
         // scripts got no warning despite the documented inheritance/

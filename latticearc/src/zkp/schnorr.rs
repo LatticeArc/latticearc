@@ -231,7 +231,7 @@ impl SchnorrProver {
     /// These are modular arithmetic in a finite field.
     #[allow(clippy::arithmetic_side_effects)] // EC scalar math is modular, cannot overflow
     pub fn prove(&self, context: &[u8]) -> Result<SchnorrProof> {
-        // Round-26 audit fix (M6): wrap scalars k, x, s in `Zeroizing`
+        // wrap scalars k, x, s in `Zeroizing`
         // so the stack-resident copies are scrubbed when the function
         // returns. Previously `k256::Scalar` left bare on the stack
         // would persist until overwritten by a later frame; leak of
@@ -243,7 +243,7 @@ impl SchnorrProver {
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.secret)).into();
         let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
-        // Round-29 M6: rejection sampling for the nonce. The previous
+        // rejection sampling for the nonce. The previous
         // `Reduce<U256>::reduce_bytes(32 bytes)` had a modular bias of
         // ~2^-128 on secp256k1 (q is close to but less than 2^256, so
         // values `[q, 2^256)` map disproportionately to `[0, 2^256-q)`).
@@ -280,7 +280,7 @@ impl SchnorrProver {
         // the secret-laden registers — keep s in Zeroizing so any
         // residue is scrubbed on drop.
         let s = Zeroizing::new(*k + c * *x);
-        // Round-29 N2: the byte-extracted copy of `s` is also
+        // the byte-extracted copy of `s` is also
         // Zeroized. Although `s` itself reveals nothing about `x`
         // alone (it's a linear combination of nonce and secret),
         // careless reuse of the stack frame can leak the

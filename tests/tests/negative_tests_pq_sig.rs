@@ -183,7 +183,7 @@ fn test_ml_dsa_verify_corrupted_signature_fails() {
         public_key.as_slice(),
         MlDsaParameterSet::MlDsa44,
     );
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     assert_eq!(result.ok(), Some(false), "corrupted signature must yield Ok(false)");
 }
 
@@ -204,7 +204,7 @@ fn test_ml_dsa_verify_modified_message_fails() {
         public_key.as_slice(),
         MlDsaParameterSet::MlDsa44,
     );
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     assert_eq!(result.ok(), Some(false), "modified message must yield Ok(false)");
 }
 
@@ -262,7 +262,7 @@ fn test_ml_dsa_verify_with_wrong_public_key_fails() {
     )
     .expect("signing should succeed");
 
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     let result = verify_pq_ml_dsa_unverified(
         message,
         &signature,
@@ -299,7 +299,7 @@ fn test_slh_dsa_verify_empty_signature_fails() {
         public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     assert_eq!(result.ok(), Some(false), "empty signature must yield Ok(false)");
 }
 
@@ -327,7 +327,7 @@ fn test_slh_dsa_verify_corrupted_signature_fails() {
         public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     assert_eq!(result.ok(), Some(false), "corrupted signature must yield Ok(false)");
 }
 
@@ -353,7 +353,7 @@ fn test_slh_dsa_verify_truncated_signature_fails() {
         public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     assert_eq!(result.ok(), Some(false), "truncated signature must yield Ok(false)");
 }
 
@@ -387,7 +387,7 @@ fn test_slh_dsa_verify_wrong_public_key_fails() {
     )
     .expect("signing should succeed");
 
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     let result = verify_pq_slh_dsa_unverified(
         message,
         &signature,
@@ -449,7 +449,7 @@ fn test_fn_dsa_verify_corrupted_signature_fails() {
         public_key.as_slice(),
         FnDsaSecurityLevel::Level512,
     );
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     assert_eq!(result.ok(), Some(false), "corrupted signature must yield Ok(false)");
 }
 
@@ -477,7 +477,7 @@ fn test_fn_dsa_verify_wrong_public_key_fails() {
     )
     .expect("signing should succeed");
 
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     let result = verify_pq_fn_dsa_unverified(
         message,
         &signature,
@@ -501,7 +501,7 @@ fn test_fn_dsa_verify_junk_signature_fails() {
         public_key.as_slice(),
         FnDsaSecurityLevel::Level512,
     );
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     assert_eq!(result.ok(), Some(false), "junk signature must yield Ok(false)");
 }
 
@@ -524,7 +524,7 @@ fn test_ml_dsa_signature_with_slh_dsa_verify_fails() {
     )
     .expect("signing should succeed");
 
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     let result = verify_pq_slh_dsa_unverified(
         message,
         &ml_signature,
@@ -613,6 +613,6 @@ fn test_fn_dsa_verify_modified_single_bit_fails() {
         public_key.as_slice(),
         FnDsaSecurityLevel::Level512,
     );
-    // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+    // verify path collapses Err to Ok(false) (Pattern 6).
     assert_eq!(result.ok(), Some(false), "single-bit modification must yield Ok(false)");
 }

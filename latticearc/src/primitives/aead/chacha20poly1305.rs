@@ -27,18 +27,18 @@ use crate::primitives::resource_limits::{
 };
 use chacha20poly1305::{
     ChaCha20Poly1305,
-    aead::{Aead, AeadCore, KeyInit, OsRng},
+    aead::{Aead, KeyInit},
 };
 use rand::RngCore;
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-// Round-27 H2: single opaque string for every decrypt failure path. Pattern
+// single opaque string for every decrypt failure path. Pattern
 // 6 forbids stage-distinguishing error strings on AEAD decrypt — see the
 // detailed comment in aes_gcm.rs for the full rationale.
 const DECRYPTION_FAILED: &str = "decryption failed";
 
-// Round-28 H1: matching opacity sweep for the encrypt path. See aes_gcm.rs
+// matching opacity sweep for the encrypt path. See aes_gcm.rs
 // for the full rationale; same string constant per cipher.
 const ENCRYPTION_FAILED: &str = "encryption failed";
 
@@ -89,19 +89,12 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
     }
 
     fn generate_nonce() -> Nonce {
-        let nonce_bytes = ChaCha20Poly1305::generate_nonce(&mut OsRng);
-        // The chacha20poly1305 crate returns a fixed 12-byte nonce
-        // (`<ChaCha20Poly1305 as KeyInit>::NonceSize` = U12). A
-        // best-effort `if let Some(src) = nonce_bytes.get(..12)` would
-        // silently fall back to all-zero bytes if the slice were ever
-        // shorter — a nonce-reuse vulnerability waiting to happen if
-        // upstream changes the type. Use `try_into` so a shape change
-        // becomes a panic at the call site instead of an undetectable
-        // weak nonce.
-        let bytes: [u8; 12] = nonce_bytes
-            .as_slice()
-            .try_into()
-            .expect("chacha20poly1305::generate_nonce contract: returns 12 bytes");
+        // Fill via CSPRNG directly — the upstream
+        // `ChaCha20Poly1305::generate_nonce` requires an `expect` on
+        // its `try_into` to a fixed-length array, violating the
+        // workspace `expect_used` lint.
+        let mut bytes = [0u8; 12];
+        crate::primitives::rand::secure_rng().fill_bytes(&mut bytes);
         bytes
     }
 
@@ -111,7 +104,7 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
-        // Round-28 H1: Pattern 6 opacity sweep on the encrypt path —
+        // Pattern 6 opacity sweep on the encrypt path —
         // every adversary-reachable failure (size caps, AEAD seal,
         // post-seal buffer-shape) collapses to the same opaque string.
         // See aes_gcm.rs for the full rationale; matching constant is
@@ -164,7 +157,7 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         tag: &Tag,
         aad: Option<&[u8]>,
     ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
-        // Round-27 H2: Pattern 6 opacity sweep — every decrypt failure
+        // Pattern 6 opacity sweep — every decrypt failure
         // collapses to the same opaque string so the primitives layer no
         // longer leaks a stage-identifying oracle (size-check vs MAC-check
         // vs buffer-shape) to direct callers. See aes_gcm.rs for the full
@@ -213,7 +206,7 @@ impl ChaCha20Poly1305Cipher {
     ///
     /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop.
     ///
-    /// Round-26 audit fix (L14): the previous shape called
+    /// the previous shape called
     /// `ChaCha20Poly1305::generate_key(&mut OsRng)` and copied the
     /// resulting `GenericArray` into the destination, leaving an
     /// un-zeroed transient on the stack. We now fill the destination
@@ -323,10 +316,13 @@ impl XChaCha20Poly1305Cipher {
     /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop.
     #[must_use]
     pub fn generate_key() -> Zeroizing<[u8; CHACHA20_POLY1305_KEY_LEN]> {
-        let key_bytes = chacha20poly1305::XChaCha20Poly1305::generate_key(&mut OsRng);
-        let mut result = Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
-        result.copy_from_slice(key_bytes.as_slice());
-        result
+        // Fill the Zeroizing buffer directly. Upstream
+        // `XChaCha20Poly1305::generate_key` returns a `GenericArray`
+        // on the stack that copy_from_slice would leave un-zeroized
+        // when the stack frame unwinds.
+        let mut key = Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
+        crate::primitives::rand::secure_rng().fill_bytes(&mut *key);
+        key
     }
 
     /// Generate a full 24-byte random nonce for XChaCha20-Poly1305.
@@ -351,7 +347,7 @@ impl XChaCha20Poly1305Cipher {
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
-        // Round-28 H1: Pattern 6 opacity sweep — symmetric with the
+        // Pattern 6 opacity sweep — symmetric with the
         // AeadCipher trait impl above and the AES-GCM macro. Every
         // adversary-reachable encrypt failure collapses to the same
         // opaque string; per-stage diagnostics live in tracing::debug!.
@@ -408,7 +404,7 @@ impl XChaCha20Poly1305Cipher {
         tag: &Tag,
         aad: Option<&[u8]>,
     ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
-        // Round-27 H2: Pattern 6 opacity sweep — every decrypt failure
+        // Pattern 6 opacity sweep — every decrypt failure
         // collapses to the same opaque string. Symmetric with the
         // ChaCha20Poly1305 trait impl above and the AES-GCM macro.
         validate_decryption_size(ciphertext.len()).map_err(
@@ -874,7 +870,7 @@ mod tests {
         let result = cipher.encrypt(&nonce, &plaintext, None);
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
-        // Round-28 H1: Pattern 6 opacity sweep collapsed every encrypt
+        // Pattern 6 opacity sweep collapsed every encrypt
         // failure to the same opaque "encryption failed" string.
         assert!(
             matches!(result, Err(AeadError::EncryptionFailed(_))),
@@ -895,7 +891,7 @@ mod tests {
         let result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
-        // Round-27 H2: Pattern 6 opacity sweep collapsed every decrypt
+        // Pattern 6 opacity sweep collapsed every decrypt
         // failure to the same opaque "decryption failed" string, so this
         // test now only asserts the variant shape.
         assert!(

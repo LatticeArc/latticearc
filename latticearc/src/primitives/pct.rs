@@ -193,21 +193,26 @@ pub fn pct_ml_dsa(
 /// Returns `PctError::VerificationFailed` if decapsulation fails.
 /// Returns `PctError::KeyPairInconsistent` if shared secrets don't match.
 pub fn pct_ml_kem(
-    security_level: crate::primitives::kem::ml_kem::MlKemSecurityLevel,
+    keypair: &crate::primitives::kem::ml_kem::MlKemDecapsulationKeyPair,
 ) -> PctResult<()> {
     use crate::primitives::kem::ml_kem::MlKem;
     use subtle::ConstantTimeEq;
 
-    // Generate keypair with decapsulation capability
-    let dk = MlKem::generate_decapsulation_keypair(security_level)
-        .map_err(|e| PctError::SigningFailed(format!("ML-KEM key generation failed: {}", e)))?;
+    // Test the actual keypair the caller is about to
+    // expose, not a freshly-generated sibling. FIPS 140-3 IG 10.3.A
+    // requires the PCT to apply to the keypair being introduced —
+    // testing a different keypair satisfies the wording but not the
+    // intent. The other PCT helpers (`pct_ml_dsa`, `pct_slh_dsa`,
+    // `pct_fn_dsa`) all already take the keypair; this brings ML-KEM
+    // into parity. Round-30 H1 wires this into
+    // `generate_decapsulation_keypair` (the missing call site).
 
     // Encapsulate
-    let (ss_encap, ct) = MlKem::encapsulate(dk.public_key())
+    let (ss_encap, ct) = MlKem::encapsulate(keypair.public_key())
         .map_err(|e| PctError::SigningFailed(format!("ML-KEM encapsulation failed: {}", e)))?;
 
-    // Decapsulate
-    let ss_decap = dk
+    // Decapsulate against the SAME keypair we just encapsulated to
+    let ss_decap = keypair
         .decapsulate(&ct)
         .map_err(|e| PctError::VerificationFailed(format!("ML-KEM decapsulation failed: {}", e)))?;
 
@@ -418,11 +423,11 @@ pub fn pct_fn_dsa_keypair(keypair: &mut crate::primitives::sig::fndsa::KeyPair) 
 pub fn pct_ed25519(keypair: &crate::primitives::ec::ed25519::Ed25519KeyPair) -> PctResult<()> {
     use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 
-    // Round-26 audit fix (M11): mirror the pct_ml_dsa / pct_slh_dsa
+    // mirror the pct_ml_dsa / pct_slh_dsa
     // pattern — explicit Ok(false) handling and pct_finalize so a
     // genuine Ed25519 pairwise inconsistency enters the FIPS 140-3 IG
     // 10.3.A error state instead of returning an ad-hoc error code.
-    // Round-26 audit fix (H4) made `Ed25519KeyPair::sign` fallible
+    // :sign` fallible
     // (validate_signature_size); the 24-byte PCT message is well under
     // the cap, so this path never trips the new gate, but using `?`
     // keeps the surface honest if the cap is ever lowered.
@@ -473,7 +478,7 @@ pub fn pct_secp256k1(
 ) -> PctResult<()> {
     use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 
-    // Round-26 audit fix (M11): align with pct_ml_dsa / pct_slh_dsa via
+    // align with pct_ml_dsa / pct_slh_dsa via
     // pct_finalize so genuine pairwise inconsistencies enter the FIPS
     // 140-3 IG 10.3.A error state instead of producing an ad-hoc error
     // code that callers downstream of `enter_pct_error_state` never see.
@@ -506,15 +511,24 @@ mod tests {
 
     #[test]
     fn test_pct_ml_kem_768_passes() {
-        use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
-        let result = pct_ml_kem(MlKemSecurityLevel::MlKem768);
+        use crate::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+        let keypair = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768)
+            .expect("keygen should succeed under test conditions");
+        // PCT now takes the keypair, not the level.
+        // `generate_decapsulation_keypair` ALSO runs PCT internally
+        // post-fix (round-30 H1), so this is technically redundant —
+        // we re-run it to assert the externally-callable PCT passes
+        // on a known-good keypair.
+        let result = pct_ml_kem(&keypair);
         assert!(result.is_ok(), "PCT should pass for ML-KEM-768");
     }
 
     #[test]
     fn test_pct_ml_kem_1024_passes() {
-        use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
-        let result = pct_ml_kem(MlKemSecurityLevel::MlKem1024);
+        use crate::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+        let keypair = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem1024)
+            .expect("keygen should succeed under test conditions");
+        let result = pct_ml_kem(&keypair);
         assert!(result.is_ok(), "PCT should pass for ML-KEM-1024");
     }
 

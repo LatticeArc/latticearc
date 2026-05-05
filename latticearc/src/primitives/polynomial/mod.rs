@@ -27,7 +27,7 @@
 //! independent verification, where SIMD acceleration would require
 //! nightly Rust (`portable_simd`) and is not currently in scope.
 //!
-//! Round-21 audit #23: a `simd/` subtree (avx2.rs, neon.rs, ntt.rs, …)
+//! a `simd/` subtree (avx2.rs, neon.rs, ntt.rs, …)
 //! was previously present but never declared via `pub mod simd;`. It
 //! compiled only as standalone test scaffolding and contained latent
 //! bugs — deleted to remove the maintenance trap.

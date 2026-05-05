@@ -398,7 +398,7 @@ pub struct MlKemSecretKey {
     security_level: MlKemSecurityLevel,
     /// Serialized secret key bytes (zeroized on drop, private).
     ///
-    /// Round-14 audit fix (M-4 sibling site): wrapped in
+    /// wrapped in
     /// `Zeroizing<Vec<u8>>` so the moved-in `Vec` is wiped on
     /// `MlKemSecretKey::new()`'s length-validation error path too. The
     /// custom `impl Zeroize for MlKemSecretKey` + `impl ZeroizeOnDrop`
@@ -427,7 +427,7 @@ impl MlKemSecretKey {
     /// # Errors
     /// Returns error if the key length doesn't match the security level
     pub fn new(security_level: MlKemSecurityLevel, data: Vec<u8>) -> Result<Self, MlKemError> {
-        // Round-14 audit fix (M-4 sibling): wrap on entry so the
+        // wrap on entry so the
         // moved-in `Vec` is zeroized on the length-validation error
         // path too.
         let data = Zeroizing::new(data);
@@ -500,7 +500,7 @@ impl MlKemSecretKey {
     /// The returned slice borrows from `self`, so it is zeroized when
     /// `self` drops.
     /// # Errors
-    /// Round-29 L1: returns `MlKemError::InvalidKeyLength` when the SK
+    /// returns `MlKemError::InvalidKeyLength` when the SK
     /// buffer doesn't match the FIPS 203 layout for the configured
     /// security level. Previously a release build silently returned
     /// `&[]` on bounds failure, masking what should be an immediate
@@ -521,7 +521,7 @@ impl MlKemSecretKey {
         // Bounds-checked slice — `dk_pke_len + pk_size` is exactly
         // `sk_size − 64` per the FIPS 203 layout, so this never panics
         // for a well-formed SK (length validated in `Self::new`).
-        // Round-26 code-review follow-up: `debug_assert!` makes the
+        // `debug_assert!` makes the
         // well-formed-SK invariant visible at test time. Round-29 L1
         // turns the release-mode silent-empty path into an explicit
         // error.
@@ -739,6 +739,19 @@ pub struct MlKemDecapsulationKeyPair {
 }
 
 impl MlKemDecapsulationKeyPair {
+    /// Construct from the three component parts.
+    ///
+    /// `pub(crate)` so all three private fields stay encapsulated to
+    /// the crate; production callers go through
+    /// [`MlKem::generate_decapsulation_keypair`] and friends.
+    pub(crate) fn new(
+        public_key: MlKemPublicKey,
+        decaps_key: DecapsulationKey,
+        security_level: MlKemSecurityLevel,
+    ) -> Self {
+        Self { public_key, decaps_key, security_level }
+    }
+
     /// Get the public key.
     #[must_use]
     pub fn public_key(&self) -> &MlKemPublicKey {
@@ -812,7 +825,7 @@ impl MlKemDecapsulationKeyPair {
         &self,
         ciphertext: &MlKemCiphertext,
     ) -> Result<MlKemSharedSecret, MlKemError> {
-        // Round-26 audit fix (M2): the keypair-method form skipped the
+        // the keypair-method form skipped the
         // resource-limit pre-check the static helper enforces, leaving
         // an asymmetric defense surface. All adversary-reachable failure
         // paths (DoS-size rejection, parameter-set mismatch, and the
@@ -930,17 +943,14 @@ impl MlKem {
         let secret_key =
             MlKemSecretKey::new(config.security_level, sk_bytes_obj.as_ref().to_vec())?;
 
-        // FIPS 140-3 §9.2 / IG 10.3.A: Pairwise Consistency Test after
-        // every key generation. Verifies encapsulation + decapsulation
-        // consistency with a fresh keypair. Round-26 audit fix (C5)
-        // dropped the `fips-self-test` gate that was here previously: IG
-        // 10.3.A requires PCT on every asymmetric keygen, period, and
-        // gating it asymmetrically (ML-DSA, SLH-DSA, FN-DSA, Ed25519,
-        // and secp256k1 PCTs all run unconditionally) broke any FIPS
-        // posture claim for builds that omitted the feature. The cost
-        // is ~50µs at the smallest parameter set; acceptable for
-        // session-rate keygen.
-        crate::primitives::pct::pct_ml_kem(config.security_level).map_err(|e| {
+        // FIPS 140-3 §9.2 / IG 10.3.A: PCT runs on the just-generated
+        // keypair (round-30 H2). The `public_key` clone is structural
+        // — we need it back as the return value after the PCT
+        // consumes the keypair wrapper. NLL drops `pct_keypair` at
+        // its last use; no explicit `drop` needed.
+        let pct_keypair =
+            MlKemDecapsulationKeyPair::new(public_key.clone(), decaps_key, config.security_level);
+        crate::primitives::pct::pct_ml_kem(&pct_keypair).map_err(|e| {
             MlKemError::KeyGenerationError(format!(
                 "Post-keygen PCT failed (FIPS 140-3 §9.2): {}",
                 e
@@ -979,8 +989,19 @@ impl MlKem {
         })?;
 
         let public_key = MlKemPublicKey::new(security_level, pk_bytes.as_ref().to_vec())?;
+        let keypair = MlKemDecapsulationKeyPair::new(public_key, decaps_key, security_level);
 
-        Ok(MlKemDecapsulationKeyPair { public_key, decaps_key, security_level })
+        // this path (used by hybrid keygen) was missing
+        // the FIPS 140-3 IG 10.3.A PCT that `generate_keypair_with_config`
+        // already ran. PCT must apply to the keypair being introduced.
+        crate::primitives::pct::pct_ml_kem(&keypair).map_err(|e| {
+            MlKemError::KeyGenerationError(format!(
+                "Post-keygen PCT failed (FIPS 140-3 §9.2): {}",
+                e
+            ))
+        })?;
+
+        Ok(keypair)
     }
 
     /// Encapsulate a shared secret using the public key
@@ -1002,7 +1023,7 @@ impl MlKem {
     pub fn encapsulate(
         public_key: &MlKemPublicKey,
     ) -> Result<(MlKemSharedSecret, MlKemCiphertext), MlKemError> {
-        // Round-26 audit fix (C3): the duplicate `validate_encryption_size`
+        // the duplicate `validate_encryption_size`
         // pre-check here previously mapped failure via `e.to_string()`,
         // surfacing `requested=N, limit=M` from `ResourceError::Display`
         // — a structurally distinguishable error string that leaked the
@@ -1026,7 +1047,7 @@ impl MlKem {
     pub fn encapsulate_with_config(
         public_key: &MlKemPublicKey,
     ) -> Result<(MlKemSharedSecret, MlKemCiphertext), MlKemError> {
-        // Round-26 audit fix (C3): map `validate_encryption_size`
+        // map `validate_encryption_size`
         // failure to an opaque error string so the public-key length
         // and configured cap are not leaked through `Display`. The
         // upstream `requested=N, limit=M` detail is logged at
@@ -1085,7 +1106,7 @@ impl MlKem {
         secret_key: &MlKemSecretKey,
         ciphertext: &MlKemCiphertext,
     ) -> Result<MlKemSharedSecret, MlKemError> {
-        // Round-26 audit fix (C2): the duplicate `validate_decryption_size`
+        // the duplicate `validate_decryption_size`
         // pre-check here previously mapped failure via `e.to_string()`,
         // surfacing `requested=N, limit=M` and breaking the FIPS 203
         // §6.3 implicit-rejection contract — a chosen-ciphertext

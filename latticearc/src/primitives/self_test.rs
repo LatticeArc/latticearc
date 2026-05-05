@@ -172,7 +172,7 @@ pub fn run_power_up_tests() -> SelfTestResult {
 
     // 6-9. PQ algorithm self-consistency tests.
     //
-    // Round-21 audit fix #1: these were previously named `kat_*` but
+    // these were previously named `kat_*` but
     // are NOT Known Answer Tests in the FIPS 140-3 §10.3.1 / CAVP
     // sense — they generate a fresh keypair (random seed) and verify
     // a roundtrip rather than comparing against precomputed test
@@ -1069,7 +1069,7 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
         return false;
     };
     let lower = file_name.to_ascii_lowercase();
-    // Round-26 audit fix (M12): tightened from a permissive
+    // tightened from a permissive
     // `starts_with("latticearc")` plus a blanket `target/deps/` accept
     // to (a) an exact list of names produced by this build, plus
     // (b) cargo-test binary recognition via the `<crate-name>-<16-hex>`
@@ -1480,7 +1480,7 @@ pub fn is_module_operational() -> bool {
 /// is intended solely for test isolation in negative-path tests that
 /// deliberately trip `set_module_error`.
 ///
-/// Round-11 audit fix (HIGH #3): the previous `pub` + `#[doc(hidden)]`
+/// the previous `pub` + `#[doc(hidden)]`
 /// shape was reachable from any downstream crate and let an external
 /// caller silently restore "operational" without re-validating. Now
 /// gated behind `#[cfg(any(test, feature = "test-utils"))]` so:
@@ -1503,7 +1503,7 @@ pub fn clear_error_state() {
 /// tests running in the same process. Unlike `clear_error_state`, this restores
 /// `SELF_TEST_PASSED` to `true` so the module remains operational.
 ///
-/// Round-11 audit fix (HIGH #3): same gating as `clear_error_state` above —
+/// same gating as `clear_error_state` above —
 /// FIPS 140-3 §9.6 forbids external recovery from error state without re-
 /// running POST.
 #[cfg(any(test, feature = "test-utils"))]

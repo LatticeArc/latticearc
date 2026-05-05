@@ -25,7 +25,7 @@ pub(crate) fn run(_args: InfoArgs) -> Result<()> {
     println!("LatticeArc CLI v{}", env!("CARGO_PKG_VERSION"));
     println!("Library:  latticearc v{}", latticearc::VERSION);
     println!();
-    // Round-26 audit fix (L30): cross-reference `self_tests_passed()`
+    // cross-reference `self_tests_passed()`
     // before printing the "validated backend" claim. The compile-time
     // `fips_available()` flag is necessary but not sufficient — a
     // FIPS-validated module is only operational while POST has
@@ -35,7 +35,7 @@ pub(crate) fn run(_args: InfoArgs) -> Result<()> {
     println!(
         "FIPS 140-3 backend: {}",
         if latticearc::fips_available() && post_ok {
-            // Round-21 audit fix #11: distinguish "validated backend"
+            // distinguish "validated backend"
             // (aws-lc-rs is FIPS 140-3 validated as a stand-alone
             // module) from "validated module" (this binary linking
             // aws-lc-rs is NOT itself certified). The previous

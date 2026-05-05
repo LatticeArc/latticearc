@@ -1235,7 +1235,7 @@ fn test_ml_kem_keygen_all_levels_succeeds() {
         let dir = temp_dir();
         let d = dir.path().to_str().unwrap();
 
-        // Round-7 audit fix #6: status messages on stderr now.
+        // status messages on stderr now.
         let out = run_ok_combined(&["keygen", "--algorithm", alg, "--output", d]);
         assert!(out.contains(name));
 
@@ -2834,7 +2834,7 @@ fn test_signature_algorithm_field_tampered_fails() {
 // Verify correct operation with messages larger than typical block sizes.
 // AES block = 16 bytes, SHA chunk = 64 bytes.
 //
-// Round-26 audit fix (H4): Ed25519 sign/verify now enforce
+// Ed25519 sign/verify now enforce
 // `validate_signature_size`, which caps message length at 64 KiB by
 // default. This test previously used 1 MB; shrunk to 50 KiB to stay
 // safely under the cap while still exercising a multi-page message
@@ -4724,7 +4724,7 @@ fn test_cli_reads_cbor_encoded_symmetric_key() {
 // that still passes after the fix is gone is theatre.
 // ============================================================================
 
-/// Round-20 audit fix #14: `KeyFile::read_from` must reject files larger
+/// `KeyFile::read_from` must reject files larger
 /// than `MAX_KEYFILE_BYTES` (1 MiB). Pre-round-20, an oversized key file
 /// (e.g., a symlink to /dev/zero, a sparse file, or a malicious 2 GiB
 /// file at a path the user thought was a key) was read into memory in
@@ -4773,13 +4773,13 @@ fn round20_fix14_keyfile_size_cap_rejects_oversized_input() {
     // "maximum supported size").
     assert!(
         stderr.contains("maximum supported size"),
-        "Round-20 fix #14: oversized key file must be rejected by the CLI's \
+        "oversized key file must be rejected by the CLI's \
          MAX_KEYFILE_BYTES gate (which produces 'maximum supported size') BEFORE \
          std::fs::read attempts to load it. Got stderr:\n{stderr}"
     );
 }
 
-/// Round-20 audit fix #5 (reframed): `decrypt --output <path>` must
+/// `decrypt --output <path>` must
 /// write the decrypted plaintext with mode 0o600 — owner read+write
 /// only, never world-readable.
 ///
@@ -4840,7 +4840,7 @@ fn round20_fix5_decrypt_output_is_chmod_0o600() {
     let mode = meta.permissions().mode() & 0o777;
     assert_eq!(
         mode, 0o600,
-        "Round-20 fix #5: decrypted plaintext file must be chmod 0o600 (got 0o{mode:o}). \
+        "decrypted plaintext file must be chmod 0o600 (got 0o{mode:o}). \
          The decrypt path must call AtomicWrite::secret_mode() so plaintext at rest is \
          not world-readable."
     );

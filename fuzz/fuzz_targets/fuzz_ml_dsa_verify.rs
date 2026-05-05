@@ -55,7 +55,7 @@ fuzz_target!(|data: &[u8]| {
             corrupted_data[idx] ^= b;
         }
 
-        // Round-11 audit fix (MEDIUM #19 prior): the XOR can collapse to
+        // the XOR can collapse to
         // a no-op when `data` is empty or all-zero — both are common
         // libfuzzer corpus seeds. Skip the assertion in that case rather
         // than panic on a still-valid signature. Without this guard, the

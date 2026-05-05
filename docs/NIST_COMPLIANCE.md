@@ -212,13 +212,17 @@ let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MlD
 
 ### Algorithm Variants
 
+Round-30 D2: only the FIPS 205 *small* parameter sets are exposed
+today; the `*f` (fast) variants are FIPS-defined but not implemented
+by the upstream `fips205` backend (see
+`latticearc/src/unified_api/key_format.rs` lines 164-175 for the
+backend gating). When the upstream adds them this table will restore
+the full six-row form.
+
 | Parameter Set | Security | Signature Size | Performance |
 |--------------|----------|----------------|-------------|
-| SLH-DSA-SHAKE-128f | Level 1 | 17,088 bytes | Fast |
 | SLH-DSA-SHAKE-128s | Level 1 | 7,856 bytes | Small |
-| SLH-DSA-SHAKE-192f | Level 3 | 35,664 bytes | Fast |
 | SLH-DSA-SHAKE-192s | Level 3 | 16,224 bytes | Small |
-| SLH-DSA-SHAKE-256f | Level 5 | 49,856 bytes | Fast |
 | SLH-DSA-SHAKE-256s | Level 5 | 29,792 bytes | Small |
 
 ### Usage with LatticeArc API

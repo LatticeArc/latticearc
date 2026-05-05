@@ -430,7 +430,7 @@ fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
     // Hybrid schemes inherit the level of their PQ component (the
     // classical sidecar contributes zero PQ security).
     //
-    // Round-26 audit fix (M15): the previous shape used
+    // the previous shape used
     // `s.contains("128")`/`"192"`/`"256"` substring matching, which
     // accepted any future scheme name containing those literals
     // (e.g. `sha-256`, `slh-dsa-shake-256s`, hypothetical

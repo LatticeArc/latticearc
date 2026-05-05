@@ -149,30 +149,44 @@ pub(crate) const CLI_MAX_SIGNATURE_INPUT_BYTES: u64 = 100 * 1024 * 1024;
 /// larger blobs (use streaming instead).
 pub(crate) const CLI_MAX_HASH_INPUT_BYTES: u64 = 1024 * 1024 * 1024;
 
-/// Reject `path` if its file size exceeds `limit_bytes`.
+/// read a file with a hard size cap by opening
+/// once and using a `Take` adapter. The previous
+/// `enforce_input_size_limit` + `std::fs::read` pattern was removed
+/// in this round — it stat'd via `metadata().len()`, which returns 0
+/// for `/dev/zero`, FIFOs, `/proc/*`, etc., letting the subsequent
+/// read consume unbounded bytes from those special files. The
+/// stat-then-open pattern was also a TOCTOU surface (round-26 H15
+/// fixed the same shape in `keyfile.rs`). This open-once helper is
+/// the single canonical entry point for capped CLI reads — used by
+/// every command that takes a file path (encrypt / sign / hash /
+/// verify / kdf).
 ///
-/// Pre-checked before `std::fs::read` so the CLI fails fast with a clear
-/// error rather than allocating gigabytes only to hit a library limit later.
-/// Returns `Ok(())` if the file does not exist (the read call will surface
-/// the missing-file error with its own context).
-pub(crate) fn enforce_input_size_limit(
+/// this helper does not stat first, so the
+/// previous "non-ENOENT silent bypass" failure mode is gone by
+/// construction — `File::open` surfaces every error path uniformly.
+///
+/// Returns the file contents (≤ `limit_bytes`) or a user-facing error
+/// referencing `operation`.
+pub(crate) fn read_file_with_cap(
     path: &std::path::Path,
     limit_bytes: u64,
     operation: &str,
-) -> anyhow::Result<()> {
-    let Ok(meta) = std::fs::metadata(path) else {
-        // Let the subsequent read produce a more useful error message.
-        return Ok(());
-    };
-    if meta.len() > limit_bytes {
+) -> anyhow::Result<Vec<u8>> {
+    use anyhow::Context;
+    use std::io::Read;
+    let file =
+        std::fs::File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
+    let mut buf = Vec::new();
+    let mut limited = file.take(limit_bytes.saturating_add(1));
+    limited.read_to_end(&mut buf).with_context(|| format!("Failed to read {}", path.display()))?;
+    if buf.len() as u64 > limit_bytes {
         anyhow::bail!(
-            "Input file {} is {} bytes; the {operation} command rejects inputs larger than {limit_bytes} bytes. \
-             Split the file or use a streaming workflow.",
+            "Input from {} exceeded {limit_bytes} bytes; the {operation} command rejects \
+             inputs larger than this. Split the file or use a streaming workflow.",
             path.display(),
-            meta.len(),
         );
     }
-    Ok(())
+    Ok(buf)
 }
 
 /// Read bytes from stdin, capped at `limit_bytes`.
@@ -212,10 +226,15 @@ pub(crate) fn read_file_or_stdin(
     limit_bytes: u64,
     operation: &str,
 ) -> anyhow::Result<Vec<u8>> {
-    use anyhow::Context;
     if let Some(p) = path {
-        enforce_input_size_limit(p, limit_bytes, operation)?;
-        std::fs::read(p).with_context(|| format!("Failed to read {}", p.display()))
+        // use the open-once `read_file_with_cap` helper
+        // instead of `enforce_input_size_limit` + `std::fs::read`.
+        // The old shape relied on `metadata().len()` which returns 0
+        // for `/dev/zero`, FIFOs, and `/proc/*` — letting the
+        // subsequent read consume unbounded bytes. This helper is
+        // used by encrypt / sign / hash / verify --input, so the gap
+        // affected every CLI command that takes a file path.
+        read_file_with_cap(p, limit_bytes, operation)
     } else {
         read_stdin_with_limit(limit_bytes, operation)
     }
@@ -224,7 +243,6 @@ pub(crate) fn read_file_or_stdin(
 /// Like [`read_file_or_stdin`] but returns a UTF-8 `String`. Used by
 /// commands that operate on JSON envelopes (e.g. `decrypt` parses an
 /// `EncryptedOutput` JSON envelope before any cryptographic work).
-/// Round-9 audit fix #3.
 ///
 /// # Errors
 ///
@@ -237,8 +255,12 @@ pub(crate) fn read_file_or_stdin_string(
 ) -> anyhow::Result<String> {
     use anyhow::Context;
     if let Some(p) = path {
-        enforce_input_size_limit(p, limit_bytes, operation)?;
-        std::fs::read_to_string(p).with_context(|| format!("Failed to read {}", p.display()))
+        // same open-once pattern as
+        // `read_file_or_stdin`. UTF-8 validation happens after the
+        // capped read so a multi-gig non-UTF-8 file can't OOM the
+        // process before the validity check.
+        let bytes = read_file_with_cap(p, limit_bytes, operation)?;
+        String::from_utf8(bytes).with_context(|| format!("{} is not valid UTF-8", p.display()))
     } else {
         read_stdin_string_with_limit(limit_bytes, operation)
     }

@@ -377,7 +377,7 @@ pub fn deserialize_encrypted_output(data: &str) -> Result<EncryptedOutput> {
 /// allows 10 MiB + base64 expansion + envelope overhead) and well below
 /// the bands that would let a single inbound JSON payload exhaust a
 /// process's working set on a typical 8 GiB server.
-// Round-29 L5: 16 MiB was too generous — it sat above the per-field
+// 16 MiB was too generous — it sat above the per-field
 // 10 MiB cap (line 290) plus base64 expansion (~13.4 MiB worst case)
 // plus envelope overhead, so the per-field rejection always fired
 // AFTER `serde_json::from_str` already materialized the full

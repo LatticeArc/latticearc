@@ -55,7 +55,7 @@ impl HkdfResult {
 
     /// Consume `self` and return the inner `Zeroizing<Vec<u8>>`.
     ///
-    /// Round-26 audit fix (M22): convenience callers used to do
+    /// convenience callers used to do
     /// `Zeroizing::new(result.expose_secret().to_vec())`, which
     /// allocated an un-zeroed transient `Vec<u8>` between the borrow
     /// and the wrap. This consuming accessor avoids the transient.
@@ -126,7 +126,7 @@ impl HkdfResult {
 /// Returns an error if the extraction operation fails.
 #[instrument(level = "debug", skip(salt, ikm), fields(has_salt = salt.is_some(), ikm_len = ikm.len()))]
 pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<Zeroizing<[u8; 32]>> {
-    // Round-29 L3: empty IKM is RFC-conformant (HKDF-Extract over zero
+    // empty IKM is RFC-conformant (HKDF-Extract over zero
     // bytes produces a deterministic PRK) but is almost always a caller
     // bug — the rest of this codebase rejects all-zero AEAD keys
     // (`AeadError::WeakKey`) and all-zero PBKDF2 salts on the same
@@ -139,11 +139,26 @@ pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<Zeroizing<[u8; 32
         ));
     }
 
+    // distinguish `Some(&[])` from `None` — both
+    // previously collapsed to the default zero-salt, silently erasing
+    // caller intent. Round-29 L3 added the symmetric empty-IKM
+    // rejection; this is the matching salt-side check. `None` is
+    // RFC-conformant (default to HashLen zeros); `Some(&[])` is
+    // almost always a caller bug and is rejected outright.
+    if let Some(s) = salt
+        && s.is_empty()
+    {
+        return Err(LatticeArcError::InvalidParameter(
+            "HKDF-Extract Some(&[]) salt rejected (round-30 L5: \
+             use None for the RFC default, or supply real salt bytes)"
+                .to_string(),
+        ));
+    }
     // Per RFC 5869: If salt is not provided, use a string of HashLen zeros
     const DEFAULT_SALT: [u8; 32] = [0u8; 32];
     let salt_bytes = match salt {
-        Some(s) if !s.is_empty() => s,
-        _ => &DEFAULT_SALT,
+        Some(s) => s,
+        None => &DEFAULT_SALT,
     };
 
     // HKDF-Extract: PRK = HMAC-Hash(salt, IKM)
@@ -322,7 +337,7 @@ pub fn hkdf(
 /// Returns an error if key derivation fails.
 #[instrument(level = "debug", skip(ikm), fields(ikm_len = ikm.len(), output_length = length))]
 pub fn hkdf_simple(ikm: &[u8], length: usize) -> Result<HkdfResult> {
-    // Round-29 L3 (mirror): same empty-IKM rejection as `hkdf_extract`.
+    // same empty-IKM rejection as `hkdf_extract`.
     // `hkdf()` below ultimately calls `hkdf_extract` which now rejects
     // empty IKM, but checking up-front keeps the error point near the
     // caller and avoids the salt allocation on the failing path.
@@ -332,7 +347,7 @@ pub fn hkdf_simple(ikm: &[u8], length: usize) -> Result<HkdfResult> {
         ));
     }
 
-    // Round-20 audit fix #15: NIST SP 800-56C Rev2 §4.1 recommends salt
+    // NIST SP 800-56C Rev2 §4.1 recommends salt
     // length ≥ hash output length (32 bytes for SHA-256). The previous
     // 16-byte salt was below recommendation; the doc above claimed
     // "recommended default parameters" and overstated.
@@ -372,16 +387,14 @@ mod tests {
     }
 
     #[test]
-    fn test_hkdf_extract_empty_salt_equals_none_salt_succeeds() {
+    fn test_hkdf_extract_explicit_empty_salt_is_rejected() {
+        // `Some(&[])` is now rejected outright; only
+        // `None` opts into the RFC 5869 §2.2 "HashLen zeros" default.
+        // The previous behaviour (Some(&[]) ≡ None) silently erased
+        // caller intent.
         let ikm = b"test input key material";
-
-        // With empty salt
-        let prk1 = hkdf_extract(Some(&[]), ikm).unwrap();
-
-        // With None salt (should be same as empty)
-        let prk2 = hkdf_extract(None, ikm).unwrap();
-
-        assert_eq!(prk1, prk2);
+        assert!(hkdf_extract(Some(&[]), ikm).is_err());
+        assert!(hkdf_extract(None, ikm).is_ok());
     }
 
     #[test]
@@ -625,10 +638,12 @@ mod tests {
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
         ];
-        let salt = [];
+        // RFC 5869 Test Case 3 specifies "salt absent",
+        // which we now express as `None` (the only RFC-default-salt
+        // path post-L5). Passing `Some(&[])` here would be rejected.
         let info = [];
 
-        let okm = hkdf(&ikm, Some(&salt), Some(&info), 42).unwrap();
+        let okm = hkdf(&ikm, None, Some(&info), 42).unwrap();
 
         let expected_okm = [
             0x8d, 0xa4, 0xe7, 0x75, 0xa5, 0x63, 0xc1, 0x8f, 0x71, 0x5f, 0x80, 0x2a, 0x06, 0x3c,

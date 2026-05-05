@@ -164,7 +164,7 @@ impl Pbkdf2Params {
         Self { salt: salt.to_vec(), iterations: 600_000, key_length: 32, prf: PrfType::HmacSha256 }
     }
 
-    /// Round-29 L4: early validation entry point. The original audit
+    /// early validation entry point. The original audit
     /// complaint was that [`Self::with_salt`] is infallible, so a
     /// short or otherwise-bad salt is accepted at construction and
     /// only fails at the [`pbkdf2`] call site (the "late-error"

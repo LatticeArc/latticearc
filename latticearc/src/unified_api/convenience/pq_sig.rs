@@ -44,7 +44,7 @@ use crate::unified_api::error::{CoreError, Result};
 /// Err(e)    → Ok(false), with `tracing::debug!` capturing the cause
 /// ```
 ///
-/// Round-28 H6 (Pattern 6): the previous mapping returned distinguishable
+/// the previous mapping returned distinguishable
 /// `Err(VerificationFailed)` and `Err(InvalidInput("{alg} ... {e}"))`
 /// variants on adversary-reachable input, leaking both the algorithm
 /// name and upstream parse failure detail. Round-27 H7 closed the same
@@ -52,7 +52,7 @@ use crate::unified_api::error::{CoreError, Result};
 /// mapper. Now the only observable boolean to a verifier is `Ok(false)`
 /// for any rejection (correct shape *or* malformed bytes); diagnosis
 /// goes through `tracing::debug!` at developer log level.
-// Round-28 H6: the post-collapse signature always returns `Ok(...)`, but
+// the post-collapse signature always returns `Ok(...)`, but
 // the wrapping `Result<bool>` is required to match the call sites that
 // previously could fail and to keep the public-API shape stable across
 // the Pattern 6 sweep. `unnecessary_wraps` is silenced for that reason.
@@ -128,7 +128,7 @@ fn sign_pq_ml_dsa_internal(
 ) -> Result<Vec<u8>> {
     log_crypto_operation_start!(op::ML_DSA_SIGN, algorithm = ?parameter_set, message_len = message.len());
 
-    // Round-26 audit fix (H7): opaque ResourceExceeded — never expose
+    // opaque ResourceExceeded — never expose
     // the configured `max_signature_size_bytes` cap via Display.
     if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::ML_DSA_SIGN, e);
@@ -161,7 +161,7 @@ fn verify_pq_ml_dsa_internal(
 ) -> Result<bool> {
     log_crypto_operation_start!(op::ML_DSA_VERIFY, algorithm = ?parameter_set, message_len = message.len());
 
-    // Round-26 code-review follow-up: collapse "message exceeds
+    // collapse "message exceeds
     // resource limit" to `Ok(false)` on the verify path so an adversary
     // cannot binary-search the configured cap from the Result variant.
     // The earlier H7 fix made this `CoreError::ResourceExceeded`, which
@@ -220,7 +220,7 @@ fn sign_pq_slh_dsa_internal(
         CoreError::InvalidInput("Invalid SLH-DSA private key format".to_string())
     })?;
 
-    // Round-26 audit fix (H2): use empty context to match every other
+    // use empty context to match every other
     // signature path in this crate (ML-DSA convenience and dispatcher,
     // hybrid SLH-DSA) and the FIPS 205 §10.2 default. The previous
     // `b"context"` magic string produced signatures that were not
@@ -249,7 +249,7 @@ fn verify_pq_slh_dsa_internal(
 ) -> Result<bool> {
     log_crypto_operation_start!(op::SLH_DSA_VERIFY, algorithm = ?security_level, message_len = message.len());
 
-    // Round-26 code-review follow-up: see ML-DSA verify above for rationale.
+    // see ML-DSA verify above for rationale.
     if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::SLH_DSA_VERIFY, e);
         return Ok(false);
@@ -260,7 +260,7 @@ fn verify_pq_slh_dsa_internal(
         CoreError::InvalidInput("Invalid SLH-DSA public key format".to_string())
     })?;
 
-    // Round-26 audit fix (H2): empty context matches FIPS 205 §10.2
+    // empty context matches FIPS 205 §10.2
     // default, hybrid SLH-DSA, and ML-DSA convenience path.
     let result = map_verify_result(pk.verify(message, signature, &[]), "SLH-DSA");
 
@@ -334,7 +334,7 @@ fn verify_pq_fn_dsa_internal(
         message_len = message.len()
     );
 
-    // Round-26 code-review follow-up: see ML-DSA verify above for rationale.
+    // see ML-DSA verify above for rationale.
     if let Err(e) = validate_signature_size(message.len()) {
         log_crypto_operation_error!(op::FN_DSA_VERIFY, e);
         return Ok(false);
@@ -1084,7 +1084,7 @@ mod tests {
             pk.as_slice(),
             MlDsaParameterSet::MlDsa65,
         );
-        // Round-28 H6: verify path collapses Err to Ok(false) for
+        // verify path collapses Err to Ok(false) for
         // adversary-reachable input (Pattern 6).
         assert_eq!(result.ok(), Some(false), "verify must return Ok(false) for wrong message");
     }
@@ -1218,7 +1218,7 @@ mod tests {
             pk.as_slice(),
             SlhDsaSecurityLevel::Shake128s,
         );
-        // Round-28 H6: verify path collapses Err to Ok(false).
+        // verify path collapses Err to Ok(false).
         assert_eq!(result.ok(), Some(false), "verify must return Ok(false) for wrong message");
     }
 
@@ -1300,7 +1300,7 @@ mod tests {
 
         let signature =
             sign_pq_fn_dsa_unverified(message, sk.expose_secret(), FnDsaSecurityLevel::Level512)?;
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         // The pre-round-28 comment said "FN-DSA returns Err" — that
         // was the leaky behaviour the H6 sweep closed.
         let result = verify_pq_fn_dsa_unverified(
@@ -1585,7 +1585,7 @@ mod tests {
             pk2.as_slice(),
             MlDsaParameterSet::MlDsa44,
         );
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "verify must return Ok(false)");
     }
 
@@ -1610,7 +1610,7 @@ mod tests {
             pk2.as_slice(),
             SlhDsaSecurityLevel::Shake128s,
         );
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "verify must return Ok(false)");
     }
 
@@ -1633,7 +1633,7 @@ mod tests {
             pk.as_slice(),
             MlDsaParameterSet::MlDsa44,
         );
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "verify must return Ok(false)");
     }
 
@@ -1656,7 +1656,7 @@ mod tests {
             pk.as_slice(),
             SlhDsaSecurityLevel::Shake128s,
         );
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "verify must return Ok(false)");
     }
 

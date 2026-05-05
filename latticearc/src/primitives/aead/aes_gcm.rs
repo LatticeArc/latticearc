@@ -32,12 +32,12 @@ use crate::primitives::resource_limits::{
     validate_aad_size, validate_decryption_size, validate_encryption_size,
 };
 
-// Round-27 H2: single opaque string for every decrypt failure path. Pattern
+// single opaque string for every decrypt failure path. Pattern
 // 6 forbids stage-distinguishing error strings on AEAD decrypt — see the
 // detailed comment in the macro body below.
 const DECRYPTION_FAILED: &str = "decryption failed";
 
-// Round-28 H1: matching opacity sweep on the AEAD encrypt path. Encrypt
+// matching opacity sweep on the AEAD encrypt path. Encrypt
 // errors are reachable by callers who probe the configured size cap with
 // chosen plaintext lengths — collapsing to a single uniform string blocks
 // that side channel without losing operator diagnosability (the per-stage
@@ -116,7 +116,7 @@ macro_rules! impl_aes_gcm {
                 plaintext: &[u8],
                 aad: Option<&[u8]>,
             ) -> Result<(Vec<u8>, Tag), AeadError> {
-                // Round-28 H1: Pattern 6 opacity sweep on the encrypt
+                // Pattern 6 opacity sweep on the encrypt
                 // path mirrors the decrypt-side sweep at round-27 H2.
                 // Every adversary-reachable failure (size caps, AEAD
                 // seal, post-seal buffer-shape checks) collapses to a
@@ -176,7 +176,7 @@ macro_rules! impl_aes_gcm {
                 tag: &Tag,
                 aad: Option<&[u8]>,
             ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
-                // Round-27 H2: Pattern 6 opacity sweep. All decrypt failure
+                // Pattern 6 opacity sweep. All decrypt failure
                 // paths now share the same opaque error string. Size-check
                 // branches at the top are still reachable before key init,
                 // but they no longer distinguish which size limit was
@@ -582,7 +582,7 @@ mod tests {
         }
     }
 
-    // Round-29 follow-up: the previous comment here claimed
+    // the previous comment here claimed
     // "NIST test vectors may produce different tags because aws-lc-rs
     // uses hardware-accelerated implementations that may have subtle
     // differences in intermediate computations while still producing
@@ -651,7 +651,7 @@ mod tests {
         let result = cipher.encrypt(&nonce, &plaintext, None);
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
-        // Round-28 H1: Pattern 6 opacity sweep collapsed every encrypt
+        // Pattern 6 opacity sweep collapsed every encrypt
         // failure to the same opaque "encryption failed" string, so this
         // test now only asserts the variant shape.
         assert!(
@@ -673,7 +673,7 @@ mod tests {
         let result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
-        // Round-27 H2: Pattern 6 opacity sweep collapsed every decrypt
+        // Pattern 6 opacity sweep collapsed every decrypt
         // failure to the same opaque "decryption failed" string, so this
         // test now only asserts the variant shape.
         assert!(

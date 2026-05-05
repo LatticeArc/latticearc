@@ -1,6 +1,6 @@
 //! Performance benchmark / timing-bound suite.
 //!
-//! Round-16 audit fix: the throughput-floor assertions
+//! the throughput-floor assertions
 //! (`throughput_mbps > 10.0`, `rate > 10.0/s`) are tuned for an
 //! unloaded release build. They flake on debug builds and on loaded
 //! release builds, so the throughput tests are individually

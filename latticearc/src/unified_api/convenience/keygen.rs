@@ -81,7 +81,7 @@ fn validate_ed25519_keypair(keypair: &Ed25519KeyPair) -> Result<()> {
     let public_bytes = keypair.public_key_bytes();
 
     // Validate that public key is not the identity element (all zeros).
-    // Round-26 audit fix (M21): the previous `iter().all(|&b| b == 0)`
+    // the previous `iter().all(|&b| b == 0)`
     // short-circuits on the first non-zero byte, leaking the position
     // of the first non-zero byte to a timing observer. PK bytes are
     // public input — leakage is harmless here — but the same check is
@@ -98,7 +98,7 @@ fn validate_ed25519_keypair(keypair: &Ed25519KeyPair) -> Result<()> {
     // Validate private key format (32 bytes guaranteed by Ed25519KeyPair type)
     let private_bytes = keypair.secret_key_bytes();
 
-    // Round-26 audit fix (M21): non-short-circuit fold — leak of the
+    // non-short-circuit fold — leak of the
     // first-non-zero-byte position would be a side-channel into the
     // structure of the secret key. The fold loops over all 32 bytes
     // unconditionally, so the operation is data-independent.
@@ -113,7 +113,7 @@ fn validate_ed25519_keypair(keypair: &Ed25519KeyPair) -> Result<()> {
     // Perform a test signature to ensure keypair consistency. Both sign and
     // verify go through the primitives API. Ed25519 signing is infallible.
     let test_message = b"key_validation_test";
-    // Round-26 audit fix (H4): `Ed25519KeyPair::sign` is now fallible
+    // `Ed25519KeyPair::sign` is now fallible
     // (validate_signature_size); the test message is well under the
     // cap, so the gate never trips here, but the `?` keeps the surface
     // honest if the cap is ever lowered.
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_ed25519_cross_keypair_verification_returns_false() -> Result<()> {
-        // Round-26 audit fix (H10): cross-keypair verification is the
+        // cross-keypair verification is the
         // canonical "wrong PK" adversary-reachable path. Verify collapses
         // it to `Ok(false)` rather than `Err`.
         let (_pk1, sk1) = generate_keypair()?;
@@ -643,7 +643,7 @@ mod tests {
             pk2.as_slice(),
             MlDsaParameterSet::MlDsa65,
         );
-        // Round-28 H6: verify collapses Err to Ok(false) (Pattern 6).
+        // verify collapses Err to Ok(false) (Pattern 6).
         assert_eq!(
             result.ok(),
             Some(false),

@@ -69,7 +69,7 @@ const ML_KEM_PK_METADATA_KEY: &str = "ml_kem_pk";
 
 /// Current version of the encrypted-key envelope schema.
 ///
-/// Round-26 audit fix (M8): bumped from `1` to `2` to mark the AAD
+/// bumped from `1` to `2` to mark the AAD
 /// label change introduced by round-24's metadata-binding fix
 /// (`lpk-v1-enc` → `lpk-v2-enc`). Pre-fix v1 envelopes have the same
 /// `enc: 1` field but a different AEAD AAD; decrypting them with v2
@@ -88,7 +88,7 @@ const PBKDF2_DEFAULT_ITERATIONS: u32 = 600_000;
 const PBKDF2_MIN_ITERATIONS: u32 = 100_000;
 /// PBKDF2 maximum iteration count accepted when loading an encrypted key.
 ///
-/// Round-11 audit fix: an attacker-supplied envelope with `kdf_iterations =
+/// an attacker-supplied envelope with `kdf_iterations =
 /// u32::MAX` (4.3 billion) would force tens of minutes of HMAC-SHA256 work
 /// per decrypt attempt, denying service to the legitimate keyholder. This
 /// upper bound is two orders of magnitude above the OWASP-2023
@@ -1254,7 +1254,7 @@ impl PortableKey {
         // ends, regardless of which downstream branch we take.
         let (ml_kem_sk, ecdh_seed_vec) = self.key_data.decode_composite_zeroized()?;
 
-        // Round-29 M2: derive the ML-KEM public key from the SK
+        // derive the ML-KEM public key from the SK
         // bytes' embedded layout (FIPS 203 §6.1) rather than trusting
         // the unauthenticated `ml_kem_pk` metadata field. The PK
         // metadata, when present, was used as load-time input to
@@ -1671,7 +1671,7 @@ impl PortableKey {
 
     /// Create a `PortableKey` from raw symmetric key bytes.
     ///
-    /// Round-29 H4: now requires `security_level: SecurityLevel`. The
+    /// now requires `security_level: SecurityLevel`. The
     /// previous signature produced a `PortableKey` with both
     /// `use_case = None` AND `security_level = None`, which the
     /// invariant check at deserialization (`from_json` / `from_cbor`)
@@ -1774,7 +1774,7 @@ impl PortableKey {
                 let classical_bytes = BASE64_ENGINE.decode(classical).map_err(|e| {
                     CoreError::SerializationError(format!("Invalid classical base64: {e}"))
                 })?;
-                // Round-29 N3: validate component sizes for hybrid keys.
+                // validate component sizes for hybrid keys.
                 // The composite arm previously only verified that
                 // base64 decoded — a truncated PQ component or a
                 // wrong-level keyfile slipped past `validate()` and
@@ -1821,7 +1821,7 @@ impl PortableKey {
         nonce: &str,
         ciphertext: &str,
     ) -> Result<()> {
-        // Round-26 audit fix (M8): emit a distinct error for the v1
+        // emit a distinct error for the v1
         // → v2 transition so users know to re-encrypt rather than
         // chase a passphrase that was already correct (the v1 AAD
         // doesn't match the v2 verifier; AEAD authentication fails
@@ -1855,7 +1855,7 @@ impl PortableKey {
             )));
         }
         if kdf_iterations > PBKDF2_MAX_ITERATIONS {
-            // Round-11 audit fix: reject adversary-supplied envelopes with
+            // reject adversary-supplied envelopes with
             // pathological `kdf_iterations` before any HMAC-SHA256 rounds run.
             return Err(CoreError::InvalidKey(format!(
                 "PBKDF2 iteration count {kdf_iterations} exceeds maximum {PBKDF2_MAX_ITERATIONS}",
@@ -2271,7 +2271,7 @@ impl PortableKey {
                 .saturating_add(4) // metadata len
                 .saturating_add(metadata_bytes.len()),
         );
-        // Round-29 H3: bumped to v3 to mark the AAD canonicalization
+        // bumped to v3 to mark the AAD canonicalization
         // fix. The previous v2 layout omitted the null terminator after
         // the `aead` string field while every other string field
         // (label, algorithm_name, key_type_name, kdf) had one — the
@@ -2293,7 +2293,7 @@ impl PortableKey {
         aad.extend_from_slice(kdf.as_bytes());
         aad.push(0);
         aad.extend_from_slice(&kdf_iterations.to_be_bytes());
-        // Round-28 H5: round-26 L1/L2 collapsed `unwrap_or(u32::MAX)`
+        // round-26 L1/L2 collapsed `unwrap_or(u32::MAX)`
         // saturation at four other length-prefix sites; this one was
         // missed. Saturation collapses every `>4 GiB` salt onto the same
         // length prefix, leading to an AAD canonicalization collision.
@@ -2307,7 +2307,7 @@ impl PortableKey {
         aad.extend_from_slice(&salt_len_u32.to_be_bytes());
         aad.extend_from_slice(kdf_salt);
         aad.extend_from_slice(aead.as_bytes());
-        // Round-29 H3: null terminator after `aead` to match every
+        // null terminator after `aead` to match every
         // other string field. Without it, a hypothetical
         // (aead="ChaCha20Poly1305", metadata_len=N) pair could
         // canonicalize identically to (aead="ChaCha20", metadata_len=
@@ -2423,7 +2423,7 @@ impl PortableKey {
         Ok(())
     }
 
-    /// Round-29 N3: bound the composite key component lengths against
+    /// bound the composite key component lengths against
     /// the expected sizes for the (algorithm, key_type) pair. The
     /// classical leg is always 32 bytes (X25519 / Ed25519); the PQ leg
     /// has algorithm- and key-type-dependent sizes.
@@ -2506,7 +2506,7 @@ impl PortableKey {
     ///                        the creator and break key-distribution
     ///                        flows.
     ///
-    /// Round-9 audit fix #4: lifted out of `write_to_file_with_overwrite`
+    /// lifted out of `write_to_file_with_overwrite`
     /// so the JSON and CBOR write paths share one source of truth for
     /// mode selection. Drift between the two would silently regress the
     /// secret-key threat model.
@@ -2589,7 +2589,7 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if the JSON is invalid or the algorithm is unrecognized.
     pub fn from_legacy_json(json: &str) -> Result<Self> {
-        // Round-11 audit fix: parallel `from_json` enforces a 1 MiB size
+        // parallel `from_json` enforces a 1 MiB size
         // guard before parsing to prevent memory exhaustion from
         // maliciously crafted payloads. The legacy path was missing this
         // check, leaving a DoS vector when migrating older keyfiles.
@@ -2998,7 +2998,7 @@ mod tests {
         let metadata_json = serde_json::to_vec(&metadata).unwrap();
         assert_eq!(&metadata_json, b"{}");
 
-        // Round-29 H3: label bumped v2 → v3 and `aead` field gains a
+        // label bumped v2 → v3 and `aead` field gains a
         // null terminator (matching every other string field). Any
         // future drift will fail this pin; deliberate format changes
         // require updating the expected bytes here AND bumping the

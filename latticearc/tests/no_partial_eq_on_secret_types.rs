@@ -68,7 +68,7 @@ use latticearc::zkp::{DlogEqualityProof, HashOpening, PedersenOpening, SchnorrPr
 // Serialization
 use latticearc::unified_api::serialization::SerializableKeyPair;
 
-// Round-28 M3: `SigningKeypair` (the unified-API ergonomic wrapper that
+// `SigningKeypair` (the unified-API ergonomic wrapper that
 // holds `Zeroizing<Vec<u8>>` for `secret_key`) is `pub` but lives in a
 // private module so it cannot be reached from this integration-test
 // crate. The matching `assert_not_impl_any!` lives inline in

@@ -491,7 +491,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "Verification should fail with different keypair");
     }
 
@@ -519,7 +519,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(
             result.ok(),
             Some(false),
@@ -551,7 +551,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(
             result.ok(),
             Some(false),
@@ -583,7 +583,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(
             result.ok(),
             Some(false),
@@ -613,7 +613,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(
             result.ok(),
             Some(false),
@@ -654,7 +654,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "Corrupted signature should be rejected");
     }
 
@@ -684,7 +684,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "Signature with corrupted first byte should fail");
     }
 
@@ -715,7 +715,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "Signature with corrupted last byte should fail");
     }
 
@@ -747,7 +747,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "SLH-DSA corrupted signature should be rejected");
     }
 
@@ -778,7 +778,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "FN-DSA corrupted signature should be rejected");
     }
 
@@ -1593,7 +1593,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "Signature should not verify different message");
     }
 
@@ -1621,7 +1621,7 @@ mod convenience {
             SecurityMode::Unverified,
         );
 
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(
             result.ok(),
             Some(false),
@@ -1810,7 +1810,7 @@ mod error_paths {
             &bad_pk,
             SlhDsaSecurityLevel::Shake128s,
         );
-        // Round-28 H6: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         // SLH-DSA has no pre-map_verify_result sig parse; wrong-length bytes reach
         // pk.verify() and are collapsed by map_verify_result to Ok(false).
         assert_eq!(result.ok(), Some(false));
@@ -1878,7 +1878,7 @@ mod error_paths {
 
     #[test]
     fn test_fn_dsa_verify_invalid_sig_format_returns_error() {
-        // Round-28 H6: FnDsaSignature::from_bytes only rejects empty,
+        // FnDsaSignature::from_bytes only rejects empty,
         // so a 100-byte 0xFF blob passes parse and reaches pk.verify(),
         // where the malformed-signature failure is collapsed to
         // Ok(false) by map_verify_result (Pattern 6).

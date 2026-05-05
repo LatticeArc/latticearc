@@ -119,10 +119,6 @@ impl HybridCiphertext {
     ///
     /// - `kem_ciphertext`: ML-KEM ciphertext for key decapsulation (1088 bytes for ML-KEM-768).
     /// - `ecdh_ephemeral_pk`: X25519 ephemeral public key (exactly 32 bytes).
-    ///   Round-20 audit fix #13: a previous version of this doc said
-    ///   `vec![]` was valid for "legacy ML-KEM-only" ciphertexts; in practice
-    ///   `decrypt_hybrid` always rejected anything other than 32 bytes, so
-    ///   the documented legacy path was unreachable.
     /// - `symmetric_ciphertext`: AES-256-GCM encrypted message data.
     /// - `nonce`: 12-byte nonce used for AES-GCM encryption.
     /// - `tag`: 16-byte AES-GCM authentication tag.
@@ -203,7 +199,14 @@ impl HybridCiphertext {
 ///
 /// This structure provides domain separation and additional authenticated data
 /// for the key derivation and encryption operations, following RFC 9180 (HPKE).
-#[derive(Debug, Clone)]
+// manual `Debug` (below) redacts `aad`. The previous
+// `#[derive(Debug)]` would dump the full AAD to any
+// `tracing::debug!("{:?}", ctx)` call — and AAD here is documented as
+// per-message application data (transport headers, request IDs, version
+// tags), much of which is reasonably treated as confidential by callers.
+// `info` is the domain-separation label, also redacted to its length to
+// keep both fields opaque-by-default.
+#[derive(Clone)]
 pub struct HybridEncryptionContext {
     /// Application-specific info string for key derivation domain separation.
     ///
@@ -230,6 +233,19 @@ pub struct HybridEncryptionContext {
     /// cap; the limit exists to bound DoS surface, not to constrain
     /// legitimate callers.
     pub aad: Vec<u8>,
+}
+
+impl std::fmt::Debug for HybridEncryptionContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // redact both fields to lengths. `aad` is
+        // application-controlled (request IDs, headers) that callers
+        // may consider confidential; `info` is a domain-separation
+        // label whose contents would just be noise in a log.
+        f.debug_struct("HybridEncryptionContext")
+            .field("info_len", &self.info.len())
+            .field("aad_len", &self.aad.len())
+            .finish()
+    }
 }
 
 impl Default for HybridEncryptionContext {
@@ -511,7 +527,7 @@ pub fn encrypt_hybrid(
     // Derive AES-256 encryption key from 64-byte hybrid shared secret.
     // Pattern 7 / HPKE: bind recipient PK + ephemeral PK + KEM ciphertext
     // into the HKDF info, on top of the upstream combiner's binding.
-    // Round-26 audit fix (M4 / M19): bind ML-KEM PK explicitly into the
+    // bind ML-KEM PK explicitly into the
     // AEAD KDF info, not just transitively through the KEM ciphertext.
     let binding = DerivationBinding {
         recipient_static_pk: hybrid_pk.ecdh_pk(),
@@ -623,7 +639,7 @@ pub fn decrypt_hybrid(
     // Pattern 7 / HPKE: bind recipient PK + ephemeral PK + KEM ciphertext
     // into the HKDF info (must match the encrypt-side binding exactly).
     let recipient_static_pk = hybrid_sk.ecdh_public_key_bytes();
-    // Round-26 audit fix (M4 / M19): mirror the encrypt-side ML-KEM
+    // mirror the encrypt-side ML-KEM
     // PK binding. The ML-KEM PK is reconstructible from the SK via the
     // FIPS 203 §6.1 layout; `ml_kem_public_key_bytes()` exposes the
     // embedded `ek` slice.

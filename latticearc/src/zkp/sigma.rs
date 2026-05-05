@@ -244,7 +244,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         proof: &SigmaProof,
         context: &[u8],
     ) -> Result<bool> {
-        // Round-26 audit fix (H11): collapse all adversary-reachable
+        // collapse all adversary-reachable
         // sub-errors (challenge hash failure, malformed commitment,
         // malformed response) to `Err(VerificationFailed)` so a probing
         // attacker cannot distinguish reject reasons from the Result
@@ -293,7 +293,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         // Accumulate into a buffer and route through the primitives wrapper
         // so hash backends remain swappable in one place.
         let statement_bytes = self.protocol.serialize_statement(statement);
-        // Round-21 audit fix #7: previously these used
+        // previously these used
         // `unwrap_or(u32::MAX)` which silently saturated on a 4 GiB+
         // input, producing the same length-prefix bytes for any input
         // at or above 4 GiB and breaking transcript collision-
@@ -432,7 +432,7 @@ impl ConstantTimeEq for DlogEqualityProof {
 
 /// Statement for discrete log equality.
 ///
-/// Round-29 M7: the `g` and `h` fields remain `pub` for source-compat
+/// the `g` and `h` fields remain `pub` for source-compat
 /// with existing callers, but **prove() and verify() now reject any
 /// statement whose `g` is not the canonical secp256k1 generator and
 /// whose `h` is not the NUMS-derived point used by Pedersen commitments**.
@@ -458,7 +458,7 @@ pub struct DlogEqualityStatement {
 }
 
 impl DlogEqualityStatement {
-    /// Round-29 M7: canonical-base constructor. Returns a statement
+    /// canonical-base constructor. Returns a statement
     /// pre-filled with `g = secp256k1 generator` and
     /// `h = PedersenCommitment::generator_h()`. This is the only
     /// constructor whose result is guaranteed to pass the round-29
@@ -483,7 +483,7 @@ impl DlogEqualityStatement {
         Ok(Self { g: g_bytes, h: h_bytes, p, q })
     }
 
-    /// Round-29 M7 helper: returns the canonical (g, h) base pair as
+    /// returns the canonical (g, h) base pair as
     /// SEC1 compressed bytes. Used by prove/verify to validate that a
     /// supplied statement's `g` and `h` match the trusted bases.
     pub(crate) fn canonical_bases() -> Result<([u8; 33], [u8; 33])> {
@@ -522,7 +522,7 @@ impl DlogEqualityProof {
             elliptic_curve::{group::GroupEncoding, ops::Reduce},
         };
 
-        // Round-29 M7: enforce that the statement's bases are the
+        // enforce that the statement's bases are the
         // canonical (G, NUMS H) pair. A caller supplying arbitrary
         // bases — or a peer-supplied statement with `h = g^x` for a
         // known `x` — would otherwise yield a trivially-forgeable
@@ -540,7 +540,7 @@ impl DlogEqualityProof {
         let g = Self::parse_point(&statement.g)?;
         let h = Self::parse_point(&statement.h)?;
 
-        // Round-26 audit fix (M6): wrap scalars in `Zeroizing` so
+        // wrap scalars in `Zeroizing` so
         // stack-resident copies of `k`, `x`, and `s` (computed below)
         // are scrubbed when the function returns. See the matching
         // comment in `zkp/schnorr.rs::Schnorr::prove`.
@@ -550,7 +550,7 @@ impl DlogEqualityProof {
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(secret)).into();
         let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
-        // Round-29 M6: rejection sampling for the nonce — see matching
+        // rejection sampling for the nonce — see matching
         // comment in `zkp/schnorr.rs::Schnorr::prove`. `Scalar::from_repr`
         // returns `None` for byte representations `>= q`, eliminating the
         // ~2^-128 modular bias of the previous `Reduce<U256>::reduce_bytes`
@@ -599,7 +599,7 @@ impl DlogEqualityProof {
     pub fn verify(&self, statement: &DlogEqualityStatement, context: &[u8]) -> Result<bool> {
         use k256::{FieldBytes, Scalar, U256};
 
-        // Round-29 M7: enforce canonical bases (mirror of `prove`).
+        // enforce canonical bases (mirror of `prove`).
         // Mismatch collapses to `Err(VerificationFailed)` per the
         // round-26 H11 Pattern 6 posture — not distinguishable from
         // any other reject cause via the Result shape.
@@ -620,7 +620,7 @@ impl DlogEqualityProof {
             }
         }
 
-        // Round-26 audit fix (H11): collapse all adversary-reachable
+        // collapse all adversary-reachable
         // sub-errors (off-curve points, out-of-field scalar, hash
         // serialization) to `Err(VerificationFailed)` so a probing
         // attacker cannot distinguish reject reasons from the Result

@@ -202,7 +202,7 @@ impl PqOnlySecretKey {
                 level.name()
             )));
         }
-        // Round-29 M2: cross-check the supplied PK against the PK
+        // cross-check the supplied PK against the PK
         // embedded in the ML-KEM SK (FIPS 203 §6.1 layout). The PK is
         // passed in for backwards-compat with callers that already
         // had it on hand, but the authoritative source is the SK
@@ -224,7 +224,7 @@ impl PqOnlySecretKey {
         Ok(Self { ml_kem_sk, ml_kem_pk_bytes: pk_bytes.to_vec(), security_level: level })
     }
 
-    /// Round-29 M2: construct from SK bytes only — derive the PK from
+    /// construct from SK bytes only — derive the PK from
     /// the SK's embedded layout (FIPS 203 §6.1). Eliminates the
     /// metadata-trust attack from earlier rounds: a file-write
     /// attacker that swaps the `ml_kem_pk` field of an unencrypted

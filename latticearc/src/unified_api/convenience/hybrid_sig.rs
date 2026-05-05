@@ -70,7 +70,7 @@ pub fn sign_hybrid(
 ) -> Result<HybridSignature> {
     mode.validate()?;
 
-    // Round-26 audit fix (H7): opaque ResourceExceeded — sign-side
+    // opaque ResourceExceeded — sign-side
     // resource-limit errors stay loud; caller controls input.
     if let Err(e) = validate_signature_size(message.len()) {
         tracing::debug!(error = ?e, msg_len = message.len(), "hybrid sig rejected: message exceeds resource limit");
@@ -99,7 +99,7 @@ pub fn verify_hybrid_signature(
 ) -> Result<bool> {
     mode.validate()?;
 
-    // Round-26 code-review follow-up: collapse to `Ok(false)` on the
+    // collapse to `Ok(false)` on the
     // verify path so an adversary cannot binary-search the configured
     // cap from the Result variant.
     if let Err(e) = validate_signature_size(message.len()) {
@@ -107,7 +107,7 @@ pub fn verify_hybrid_signature(
         return Ok(false);
     }
 
-    // Round-28 M1 (Pattern 6): every adversary-reachable verify failure
+    // every adversary-reachable verify failure
     // collapses to `Ok(false)` here. The previous mapping went through
     // `hybrid_sig_error_to_core`, which kept distinguishable
     // `Hybrid ML-DSA error: ...` vs `Hybrid Ed25519 error: ...`
@@ -314,7 +314,7 @@ mod tests {
         let signature = sign_hybrid_unverified(b"correct message", &sk)?;
         let result = verify_hybrid_signature_unverified(b"wrong message", &signature, &pk);
 
-        // Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "Wrong message must yield Ok(false), not Err");
         Ok(())
     }
@@ -328,7 +328,7 @@ mod tests {
         let signature = sign_hybrid_unverified(message, &sk1)?;
         let result = verify_hybrid_signature_unverified(message, &signature, &pk2);
 
-        // Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         assert_eq!(result.ok(), Some(false), "Wrong key must yield Ok(false), not Err");
         Ok(())
     }

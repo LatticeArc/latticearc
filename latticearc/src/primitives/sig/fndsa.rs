@@ -71,7 +71,7 @@ pub enum FnDsaError {
     /// Message length exceeds the configured resource limit. Unit variant —
     /// length is known to the sender.
     ///
-    /// Round-28 H7: kept for ABI compatibility but no longer returned from
+    /// kept for ABI compatibility but no longer returned from
     /// `sign_with_rng()` — the cap-rejection now collapses to
     /// `SigningFailed` so the sign path matches Pattern 6 opacity
     /// (round-26 M1 closed the verify-side; this completes the sign-side
@@ -97,7 +97,7 @@ impl From<FnDsaError> for LatticeArcError {
             )),
             FnDsaError::InvalidKey(msg) => Self::InvalidKey(msg),
             FnDsaError::InvalidSignature(msg) => Self::InvalidSignature(msg),
-            // Round-28 H7: kept for ABI completeness — production code now
+            // kept for ABI completeness — production code now
             // emits `SigningFailed` instead. The arm preserves the
             // historical mapping for any consumer that constructs the
             // variant directly.
@@ -388,7 +388,7 @@ impl VerifyingKey {
         // point. Mirrors the bound applied in `sign_with_rng()`. The
         // size-limit error is folded into `LatticeArcError` (the public
         // Result type) via the existing `From<FnDsaError>` impl.
-        // Round-26 audit fix (M1): collapse to opaque verification
+        // collapse to opaque verification
         // failure on verify so a probing attacker cannot binary-search
         // the configured cap from the Result shape.
         if let Err(e) = crate::primitives::resource_limits::validate_signature_size(message.len()) {
@@ -563,7 +563,7 @@ impl SigningKey {
         rng: &mut R,
         message: &[u8],
     ) -> Result<Signature> {
-        // Round-28 H7 (Pattern 6): collapse the resource-cap rejection to
+        // collapse the resource-cap rejection to
         // the new `SigningFailed` variant. Cap probing was the same leak
         // round-26 M1 closed on the verify-side; this completes the
         // sign-side symmetry. Trace captures the actual cause for
@@ -1113,7 +1113,7 @@ mod tests {
             .expect("Thread join failed");
     }
 
-    /// Round-27 H5 (Pattern 14): the `MessageTooLong` variant must be
+    /// the `MessageTooLong` variant must be
     /// triggerable through the public sign path. Default global cap is
     /// 64 KiB; pass 64 KiB + 1 to exceed it before the upstream
     /// `fn-dsa` signer runs. Round-28 H7 collapsed the variant to the

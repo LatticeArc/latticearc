@@ -706,7 +706,7 @@ impl FileAuditStorage {
     /// [`crate::primitives::hash::sha2::sha256`] wrapper so audit integrity
     /// uses the same hash call path as the rest of the crate.
     ///
-    /// Round-26 audit fix (M20): made `pub(crate)` so the public
+    /// made `pub(crate)` so the public
     /// `verify_chain` helper below can re-use it without duplicating
     /// the field-encoding rules.
     ///
@@ -961,7 +961,7 @@ impl FileAuditStorage {
         Ok(())
     }
 
-    /// Round-26 audit fix (M20): public hash-chain verification.
+    /// public hash-chain verification.
     ///
     /// Walks every `audit-*.jsonl` file in the storage directory in
     /// filename-timestamp order, recomputes each entry's

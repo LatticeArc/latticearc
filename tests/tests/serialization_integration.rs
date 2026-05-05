@@ -568,7 +568,7 @@ mod encrypted_output_roundtrip {
     }
 
     proptest! {
-        // Round-27 M1: Pattern 15 mandates 1000 cases for roundtrip
+        // Pattern 15 mandates 1000 cases for roundtrip
         // properties. EncryptedOutput JSON+CBOR roundtrip is fast
         // (microseconds per case), so 1000 cases is ~tens of ms overhead
         // — worth it for ser/deser symmetry that protocol implementations

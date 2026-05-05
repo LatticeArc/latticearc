@@ -19,7 +19,7 @@ fuzz_target!(|data: &[u8]| {
     let message = data;
 
     // Test 1: Generate keypair and sign/verify.
-    // Round-26: `Ed25519KeyPair::sign` is now fallible (validate_signature_size).
+    // `Ed25519KeyPair::sign` is now fallible (validate_signature_size).
     // The fuzzer's `message` slice is bounded by libfuzzer to a few KiB, so
     // the sign cap is not exercised here — but the new fallible signature
     // requires `?`-style handling at every site.

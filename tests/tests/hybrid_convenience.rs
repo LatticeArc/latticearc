@@ -732,7 +732,7 @@ mod sig {
         let valid = verify_hybrid_signature_unverified(message, &signature, &pk_a)?;
         assert!(valid, "Correct key should verify");
 
-        // Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         let result = verify_hybrid_signature_unverified(message, &signature, &_pk_b);
         assert_eq!(result.ok(), Some(false), "Wrong key must yield Ok(false)");
         Ok(())
@@ -747,7 +747,7 @@ mod sig {
         // Verify with the correct key
         assert!(verify_hybrid_signature_unverified(message, &signature, &pk_signer)?);
 
-        // Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         for i in 0..5 {
             let (wrong_pk, _) = generate_hybrid_signing_keypair_unverified()?;
             let result = verify_hybrid_signature_unverified(message, &signature, &wrong_pk);
@@ -765,7 +765,7 @@ mod sig {
         let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
         let signature = sign_hybrid_unverified(b"correct message", &sk)?;
 
-        // Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+        // verify path collapses Err to Ok(false) (Pattern 6).
         let result = verify_hybrid_signature_unverified(b"wrong message", &signature, &pk);
         assert_eq!(result.ok(), Some(false), "Wrong message must yield Ok(false)");
         Ok(())
@@ -781,7 +781,7 @@ mod sig {
         let mut tampered = message.to_vec();
         tampered[5] ^= 0x01;
 
-        // Round-28 M1: verify path collapses Err to Ok(false).
+        // verify path collapses Err to Ok(false).
         let result = verify_hybrid_signature_unverified(&tampered, &signature, &pk);
         assert_eq!(result.ok(), Some(false), "Single-byte change must yield Ok(false)");
         Ok(())
@@ -796,7 +796,7 @@ mod sig {
         let mut extended = message.to_vec();
         extended.push(0x00);
 
-        // Round-28 M1: verify path collapses Err to Ok(false).
+        // verify path collapses Err to Ok(false).
         let result = verify_hybrid_signature_unverified(&extended, &signature, &pk);
         assert_eq!(result.ok(), Some(false), "Appended byte must yield Ok(false)");
         Ok(())
@@ -912,7 +912,7 @@ mod sig {
         assert!(verify_hybrid_signature_unverified(b"message A", &sig1, &pk)?);
         assert!(verify_hybrid_signature_unverified(b"message B", &sig2, &pk)?);
 
-        // Round-28 M1: verify path collapses Err to Ok(false).
+        // verify path collapses Err to Ok(false).
         assert_eq!(verify_hybrid_signature_unverified(b"message B", &sig1, &pk).ok(), Some(false));
         assert_eq!(verify_hybrid_signature_unverified(b"message A", &sig2, &pk).ok(), Some(false));
         Ok(())
@@ -973,7 +973,7 @@ mod sig {
         assert!(verify_hybrid_signature_unverified(message, &sig1, &pk1)?);
         assert!(verify_hybrid_signature_unverified(message, &sig2, &pk2)?);
 
-        // Round-28 M1: verify path collapses Err to Ok(false).
+        // verify path collapses Err to Ok(false).
         assert_eq!(verify_hybrid_signature_unverified(message, &sig1, &pk2).ok(), Some(false));
         assert_eq!(verify_hybrid_signature_unverified(message, &sig2, &pk1).ok(), Some(false));
         Ok(())

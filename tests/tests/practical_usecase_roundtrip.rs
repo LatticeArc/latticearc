@@ -1138,7 +1138,7 @@ fn compliance_mode_default_roundtrip() {
     process_isolated_roundtrip(msg, &key, CryptoConfig::new().compliance(ComplianceMode::Default));
 }
 
-// Round-13 audit fix (M-B): `ComplianceMode::Cnsa2_0` paths require the
+// `ComplianceMode::Cnsa2_0` paths require the
 // `fips` cargo feature; the default `cargo test --workspace` (no features)
 // previously panicked with `FeatureNotAvailable`. Cfg-gate so the default
 // test command works on a clean checkout.

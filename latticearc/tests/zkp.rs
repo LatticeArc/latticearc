@@ -817,7 +817,7 @@ mod sigma_protocol_tests {
 
     #[test]
     fn test_dlog_proof_different_generators_succeeds() {
-        // Round-29 M7: the per-multiplier sweep was testing arbitrary
+        // the per-multiplier sweep was testing arbitrary
         // h = α·G generators, which now fail prove() because the
         // canonical H is pinned. Replaced with a single iteration
         // over the canonical (G, NUMS H) pair — the loop body is

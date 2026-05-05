@@ -9,6 +9,164 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-30 audit — 3 HIGH + 7 MED + 7 LOW + 2 doc-drift + audit-marker cleanup (2026-05-04)
+
+External audit of the post-round-29 tree returned 27 findings. Validated
+24, applied 18 (3 HIGH + 7 MED + 7 LOW + 2 doc-drift). Skipped 9 with
+documented reasons:
+- L1, L3, L7 — design choices documented as such
+- L6 — auditor explicitly dropped the finding
+- L11 — proposed fix doesn't actually zeroize the freed buffer; real
+  fix needs `unsafe` which the workspace bans
+- M7 — pure capacity documentation
+- N1, N2 — pedantic style nits
+
+#### Audit-marker cleanup (round-30 follow-up)
+
+- **Source comments**: stripped 382 `Round-NN X##: ...` prefixes from
+  Rust source comments across 87 files. Audit-round labels now live in
+  `CHANGELOG.md` and commit messages only; source explains the WHY
+  (a non-obvious invariant), never the history. `git blame` recovers
+  the round context for free.
+- **Regression test consolidation**: collapsed 6 `roundNN_behavior.rs`
+  files (rounds 20, 21, 26, 27, 29, 30) into 3 topic-organized files:
+  `audit_regression_signatures.rs` (Pattern-6 opacity, ML-DSA / SLH-DSA
+  / Ed25519 / secp256k1 / NTT / ZK proofs),
+  `audit_regression_kem_kdf.rs` (ML-KEM PCT, hybrid combiner, ECDH,
+  HKDF / PBKDF2 input validation, AAD-redaction Debug),
+  `audit_regression_zero_trust.rs` (proof complexity routing, key
+  lifecycle state machine, FIPS power-up, PortableKey discriminator
+  invariants, KeyAlgorithm canonical names).
+- **`CLAUDE.md`** gained a forward-looking rule: no audit-round
+  markers in source code, no `roundNN_behavior.rs` filenames; future
+  rounds use topic-based file names and explain WHY, not history.
+
+#### Pattern sweeps performed (round-29 commitment honoured)
+
+For each Pattern-class finding closed, an `rg` sweep was run across the
+repository before commit:
+- M3 ML-DSA sign Pattern-6 → swept SLH-DSA / FN-DSA sign paths (clean)
+- M4/L4 upstream `&mut OsRng` generate-key → swept all primitives (clean)
+- M5/L10 size-gate metadata bypass → swept all CLI input paths
+- M6/L12 verify-side error interpolation → all 6 sites in `verify.rs`
+- D1 "24 use cases" → swept 2 sites; both fixed
+- M1 `clippy::panic` deny without test allowance → swept all
+  `#![deny(clippy::panic)]` modules; only `zkp` had unresolved test
+  panics (others use local `#[allow]` or have no test panics)
+
+#### HIGH
+
+- **H1**: `MlKem::generate_decapsulation_keypair` now runs the FIPS
+  140-3 IG 10.3.A pairwise consistency test. Previously the sibling
+  `generate_keypair` ran PCT but `generate_decapsulation_keypair` —
+  used by every hybrid KEM keygen — did not. The hybrid path silently
+  exposed unpct'd keys.
+- **H2**: `pct_ml_kem` signature changed to take an
+  `&MlKemDecapsulationKeyPair` instead of just a security level.
+  Previously the helper generated its own internal sibling keypair to
+  test, which satisfied the wording of IG 10.3.A but not the intent
+  (the test must apply to the keypair being introduced). All other
+  PCT helpers (`pct_ml_dsa`, `pct_slh_dsa`, `pct_fn_dsa`) already took
+  the keypair; this brings ML-KEM into parity. **Internal API
+  change** — `pct_ml_kem` is `pub` but in practice called only from
+  `MlKem::generate_*`.
+- **H3**: `SecurityMode::validate` now reads `trust_level` and rejects
+  an `Untrusted` session before consulting clock expiry. Round-29's
+  M3 introduced `downgrade_trust_level` to implement the documented
+  `Trusted → Partial → Untrusted` state machine, but `validate()`
+  never observed the new field — so a session downgraded to
+  `Untrusted` still passed validation until clock expiry, defeating
+  the entire downgrade mechanism. **This is a direct round-29
+  regression caught by round-30.**
+
+#### MED
+
+- **M1**: `latticearc/src/zkp/mod.rs` adds
+  `#![cfg_attr(test, allow(clippy::panic, clippy::unwrap_used,
+  clippy::expect_used))]`. The previous module-level `deny` fired on
+  `panic!("expected ...")` arms in `commitment.rs` / `schnorr.rs`
+  test code, turning `cargo clippy --workspace --all-targets --
+  -D warnings` red on main.
+- **M2**: `HybridEncryptionContext` now has a manual `Debug` impl
+  that redacts `aad` and `info` to lengths. The previous
+  `#[derive(Debug)]` would dump full per-message AAD (request IDs,
+  transport headers) to any `tracing::debug!("{:?}", ctx)` call.
+- **M3**: ML-DSA sign-path Pattern-6 collapse extended to the
+  per-impl `try_from_bytes` and `try_sign` errors. Previously these
+  interpolated upstream `fips204` error wording into the user-facing
+  `MlDsaError::SigningError(format!("...: {e}"))`. Round-26 M1 / 28
+  H7 collapsed the verify-side and cap-rejection paths; this is the
+  third-round Pattern-6 mirror.
+- **M4**: `XChaCha20Poly1305Cipher::generate_key` now fills a
+  `Zeroizing` buffer directly via `secure_rng().fill_bytes` instead
+  of `XChaCha20Poly1305::generate_key(&mut OsRng)` (which returns a
+  stack `GenericArray` that the previous code copied from but never
+  zeroized). AES-GCM was already in this shape; ChaCha now matches.
+- **M5**: New `read_file_with_cap` helper in `latticearc-cli` opens a
+  file once and reads via `take(limit + 1)`. The previous
+  `enforce_input_size_limit` + `std::fs::read` pattern relied on
+  `metadata().len()` which returns 0 for `/dev/zero`, FIFOs, and
+  `/proc/*` — letting the subsequent read consume unbounded bytes.
+  `verify.rs` migrated to the new helper.
+- **M6**: `verify.rs` signature-file read replaced its previous
+  stat-then-`read_to_string` (TOCTOU between size check and read) with
+  `read_file_with_cap`. Round-26 H15 fixed the same pattern in
+  `keyfile.rs`; verify was missed.
+- **M8**: CLI `kdf` now mirrors `decrypt`'s TTY guard — when stdout
+  is a terminal, emit a `eprintln!` warning that derived bytes are
+  going to scrollback. Switched from `println!` to `print!` so the
+  encoded output does not gain a trailing newline that scripts have
+  to strip.
+
+#### LOW
+
+- **L2**: `HybridKemPublicKey::from_bytes` now rejects buffers whose
+  inner ML-KEM PK length doesn't match the claimed security level
+  (and similarly for X25519). Previously these passed parse and
+  failed opaquely at first encap.
+- **L4**: XChaCha20 nonce generation moved off the upstream
+  `ChaCha20Poly1305::generate_nonce(&mut OsRng)` helper (which goes
+  through an `expect("contract: 12 bytes")` violating the workspace
+  `expect_used` lint) onto `secure_rng().fill_bytes`. Pairs with M4.
+- **L5**: HKDF-Extract rejects `Some(&[])` salt explicitly. Previously
+  `Some(&[])` and `None` both collapsed to the default zero-salt,
+  silently erasing caller intent. Round-29 L3 added the symmetric
+  empty-IKM rejection.
+- **L8**: `VerifiedSession::is_valid` now consults a monotonic
+  `Instant::elapsed()` against a captured `lifetime` instead of the
+  wall-clock `expires_at`. The previous wall-clock check let NTP
+  rollback or system-clock manipulation silently extend a session
+  past its policy lifetime. Wall-clock fields are retained for
+  audit display only.
+- **L9**: CLI `keygen` now creates the output directory with mode
+  `0o700` on Unix (was using the user umask, typically `0o755`).
+  Secret files inside are already 0600, but the directory being
+  world-listable leaked algorithm choice via filenames like
+  `ml-dsa-65.sec.json`.
+- **L10**: `enforce_input_size_limit` now propagates non-`ENOENT`
+  metadata errors. The previous `let Ok(meta) = ... else { return
+  Ok(()) }` swallowed permission-denied and `/proc` quirks, silently
+  bypassing the size gate.
+- **L12**: `verify.rs` error path opaque-collapses the inner
+  `latticearc::verify` error (round-28 H3 fixed decrypt's identical
+  path; verify was missed). Cause routes to `tracing::debug!` only.
+
+#### Documentation drift
+
+- **D1**: `docs/UNIFIED_API_GUIDE.md:330` and
+  `docs/ALGORITHM_SELECTION.md:312` claimed "24 use cases"; the
+  `UseCase` enum has 22 variants. Both updated.
+- **D2**: `docs/NIST_COMPLIANCE.md:217-222` listed all 6 SLH-DSA
+  parameter sets (3 small + 3 fast); the codebase only exposes the
+  3 small variants because the upstream `fips205` backend has not
+  yet implemented the `*f` variants. Doc updated to match
+  implementation; restoration note added for when upstream lands.
+
+Regression coverage: new `latticearc/tests/round30_behavior.rs` pinning
+the H1 / L2 / L5 / M2 / M3 / M4 contracts (H3 and L8 are exercised by
+in-source unit tests; the new fields / methods are crate-private at
+construction time).
+
 ### Round-29 audit — 4 HIGH + 7 MED + 6 LOW + 8 NIT + 2 follow-ups (2026-05-04)
 
 External audit of the post-round-28 tree returned 25 findings; a

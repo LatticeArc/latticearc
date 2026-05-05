@@ -170,7 +170,7 @@ impl EncryptionScheme {
 
     /// Returns the [`SecurityLevel`] this scheme provides.
     ///
-    /// Round-26 audit fix (M14): unlike [`Self::ml_kem_level`], this
+    /// unlike [`Self::ml_kem_level`], this
     /// is total over the enum — symmetric AEADs map to
     /// `SecurityLevel::Standard` rather than `None`. The typed
     /// selector / validator gate previously used `ml_kem_level()`,

@@ -1,17 +1,126 @@
-//! Behavioral regression tests for the round-21 audit fixes.
+//! Zero-Trust + key-format invariant regressions.
 //!
-//! Each test asserts a *user-visible* property the corresponding fix is
-//! supposed to provide. To be a genuine regression blocker each test
-//! must:
-//!   1. PASS against the round-21-fixed code.
-//!   2. FAIL if the fix is reverted.
+//! Behavioural regressions for the zero-trust auth subsystem (proof
+//! complexity routing, key lifecycle state machine, FIPS power-up flag),
+//! plus key-format invariant pins (PortableKey discriminator fields,
+//! KeyAlgorithm canonical-name round-trip).
 //!
-//! The second property is what makes the test useful — coverage that
-//! still passes after the fix is gone is theatre.
+//! Each test asserts a *user-visible* property of the corresponding fix;
+//! reverting the fix must make the test fail.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
+
+use latticearc::types::config::{ProofComplexity, ZeroTrustConfig};
+use latticearc::types::traits::ZeroTrustAuthenticable;
+use latticearc::unified_api::zero_trust::ZeroTrustAuth;
+
+/// Helper: spin up a `ZeroTrustAuth` at the given complexity from a
+/// fresh Ed25519 keypair.
+fn auth_at(complexity: ProofComplexity) -> ZeroTrustAuth {
+    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
+    use latticearc::primitives::ec::traits::EcKeyPair;
+    use latticearc::types::{PrivateKey, PublicKey};
+
+    let kp = Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let pk = PublicKey::new(kp.public_key_bytes());
+    // `secret_key_bytes()` is `Zeroizing<Vec<u8>>` on Ed25519KeyPair.
+    let sk_bytes = kp.secret_key_bytes().to_vec();
+    let sk = PrivateKey::new(sk_bytes);
+    ZeroTrustAuth::with_config(pk, sk, ZeroTrustConfig::new().with_complexity(complexity))
+        .expect("ZeroTrustAuth::with_config")
+}
+
+/// Same key, but a fresh `ZeroTrustAuth` built around different config.
+/// Pre-round-20, signed-message bytes for Low and Medium were
+/// byte-identical, so a Low proof verified as Medium and vice versa.
+fn paired_auths(low: ProofComplexity, hi: ProofComplexity) -> (ZeroTrustAuth, ZeroTrustAuth) {
+    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
+    use latticearc::primitives::ec::traits::EcKeyPair;
+    use latticearc::types::{PrivateKey, PublicKey};
+
+    let kp = Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let pk_bytes = kp.public_key_bytes();
+    let sk_bytes = kp.secret_key_bytes().to_vec();
+    // PrivateKey doesn't impl Clone; build two independent copies of the
+    // same bytes so each auth handler owns its own.
+    let pk_a = PublicKey::new(pk_bytes.clone());
+    let sk_a = PrivateKey::new(sk_bytes.clone());
+    let pk_b = PublicKey::new(pk_bytes);
+    let sk_b = PrivateKey::new(sk_bytes);
+    let a = ZeroTrustAuth::with_config(pk_a, sk_a, ZeroTrustConfig::new().with_complexity(low))
+        .expect("auth low");
+    let b = ZeroTrustAuth::with_config(pk_b, sk_b, ZeroTrustConfig::new().with_complexity(hi))
+        .expect("auth hi");
+    (a, b)
+}
+
+/// a Low proof must NOT verify as Medium.
+///
+/// This test fails on pre-round-20 code because Low and Medium produced
+/// byte-identical signed messages (`challenge || timestamp`). With the
+/// round-20 domain tag, Low signs `challenge || timestamp` while Medium
+/// signs `0x02 || challenge || timestamp`, so the Ed25519 signature does
+/// not validate when the verifier reconstructs the Medium message.
+#[test]
+fn low_proof_does_not_verify_as_medium() {
+    let (auth_low, auth_medium) = paired_auths(ProofComplexity::Low, ProofComplexity::Medium);
+    let challenge = b"round20-domain-tag-low-vs-medium";
+
+    let proof_low = auth_low.generate_proof(challenge).expect("Low generate");
+    // Cross-level verification must reject. The API may return either
+    // `Ok(false)` or `Err(VerificationFailed)` depending on where the
+    // mismatch is detected (signed-message bytes differ → signature
+    // fails → typically Err). Either is acceptable; both must NOT be
+    // `Ok(true)`.
+    let outcome = auth_medium.verify_proof(&proof_low, challenge);
+    let accepted = matches!(outcome, Ok(true));
+
+    assert!(
+        !accepted,
+        "Low proof verified as Medium — domain-tag separation is missing. \
+         Round-20 fix #6 must distinguish Low (challenge||ts) from \
+         Medium (0x02||challenge||ts) so cross-level verification fails. \
+         Got: {outcome:?}"
+    );
+}
+
+/// Medium proof must NOT verify as High.
+#[test]
+fn medium_proof_does_not_verify_as_high() {
+    let (auth_medium, auth_high) = paired_auths(ProofComplexity::Medium, ProofComplexity::High);
+    let challenge = b"round20-domain-tag-medium-vs-high";
+
+    let proof_medium = auth_medium.generate_proof(challenge).expect("Medium generate");
+    let outcome = auth_high.verify_proof(&proof_medium, challenge);
+    let accepted = matches!(outcome, Ok(true));
+
+    assert!(
+        !accepted,
+        "Medium proof verified as High — domain tags 0x02 vs 0x03 must differ. Got: {outcome:?}"
+    );
+}
+
+/// same-level Medium roundtrip must still work.
+#[test]
+fn medium_self_roundtrip_succeeds() {
+    let auth = auth_at(ProofComplexity::Medium);
+    let challenge = b"round20-medium-self-roundtrip";
+    let proof = auth.generate_proof(challenge).expect("Medium generate");
+    let valid = auth.verify_proof(&proof, challenge).expect("verify_proof returns Ok(_)");
+    assert!(valid, "Medium proof must verify against Medium config");
+}
+
+/// same-level High roundtrip must still work.
+#[test]
+fn high_self_roundtrip_succeeds() {
+    let auth = auth_at(ProofComplexity::High);
+    let challenge = b"round20-high-self-roundtrip";
+    let proof = auth.generate_proof(challenge).expect("High generate");
+    let valid = auth.verify_proof(&proof, challenge).expect("verify_proof returns Ok(_)");
+    assert!(valid, "High proof must verify against High config");
+}
 
 /// Hand-crafted PortableKey JSON that omits both `use_case` and
 /// `security_level`. Shape mirrors a valid AES256 symmetric key minus
@@ -344,4 +453,39 @@ fn fiat_shamir_transcript_uses_big_endian_length_prefixes() {
         &[0x00, 0x00, 0x00, 0x04],
         "BE length-prefix mismatch: a revert to LE would produce 0x04,0x00,0x00,0x00"
     );
+}
+
+// ---------------------------------------------------------------------------
+// PortableKey::from_symmetric_key roundtrips through JSON with security_level
+// ---------------------------------------------------------------------------
+
+#[test]
+fn from_symmetric_key_roundtrips_through_json() {
+    use latticearc::SecurityLevel;
+    use latticearc::unified_api::key_format::{KeyAlgorithm, PortableKey};
+
+    let key_bytes = [0xAA; 32];
+    let key =
+        PortableKey::from_symmetric_key(KeyAlgorithm::Aes256, SecurityLevel::High, &key_bytes)
+            .expect("from_symmetric_key");
+
+    let json = key.to_json().expect("to_json");
+    let recovered =
+        PortableKey::from_json(&json).expect("from_json must accept a key with security_level set");
+    assert_eq!(recovered.algorithm(), KeyAlgorithm::Aes256);
+}
+
+// ---------------------------------------------------------------------------
+// VerifiedSession::downgrade_trust_level smoke check
+// ---------------------------------------------------------------------------
+//
+// The monotonic-downgrade rule is verified at the implementation site
+// (`latticearc/src/unified_api/zero_trust.rs::downgrade_trust_level`).
+// VerifiedSession is constructed via the full handshake, not directly,
+// so this is a public-API smoke check only.
+#[test]
+fn downgrade_trust_level_types_are_public() {
+    use latticearc::types::zero_trust::TrustLevel;
+    let _ = TrustLevel::Trusted;
+    let _ = TrustLevel::Partial;
 }

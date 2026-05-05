@@ -429,7 +429,7 @@ impl X25519KeyPair {
     ) -> Result<Zeroizing<[u8; X25519_KEY_SIZE]>, EcdhError> {
         // Reject low-order peer keys before reaching aws-lc-rs.
         // `from_bytes` enforces the 7-point blacklist (RFC 7748 §6.1).
-        // Round-26 audit fix (L17): the validated bytes are explicitly
+        // the validated bytes are explicitly
         // documented as the source the aws-lc-rs primitive consumes —
         // `from_bytes` does not transform the bytes (X25519 PKs are
         // their own canonical form modulo the low-order check) so
@@ -793,7 +793,7 @@ impl EcdhP256KeyPair {
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
     pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
-        // Round-28 H2: route the peer key through the LatticeArc-side
+        // route the peer key through the LatticeArc-side
         // validator before delegating to aws-lc-rs `agree_ephemeral`.
         // aws-lc-rs already performs curve-point validation, but its
         // error wording is version-volatile and the all-zero-coordinate
@@ -874,7 +874,7 @@ impl EcdhP384PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
-        // Round-26 L18: defense-in-depth all-zero check mirrors P-256.
+        // defense-in-depth all-zero check mirrors P-256.
         // Length and `0x04` prefix are guaranteed by `Self::from_bytes`
         // (the only public constructor); see the matching comment on
         // `EcdhP256PublicKey::validate`.
@@ -947,7 +947,7 @@ impl EcdhP384KeyPair {
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
     pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
-        // Round-28 H2: validate before delegating — see EcdhP256KeyPair::agree.
+        // validate before delegating — see EcdhP256KeyPair::agree.
         EcdhP384PublicKey::from_bytes(peer_public_bytes)?.validate()?;
         let peer_public = UnparsedPublicKey::new(&ECDH_P384, peer_public_bytes);
 
@@ -1022,7 +1022,7 @@ impl EcdhP521PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
-        // Round-26 L18: defense-in-depth all-zero check mirrors P-256
+        // defense-in-depth all-zero check mirrors P-256
         // / P-384. Length and `0x04` prefix are guaranteed by
         // `Self::from_bytes` (the only public constructor); see the
         // matching comment on `EcdhP256PublicKey::validate`.
@@ -1095,7 +1095,7 @@ impl EcdhP521KeyPair {
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
     pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
-        // Round-28 H2: validate before delegating — see EcdhP256KeyPair::agree.
+        // validate before delegating — see EcdhP256KeyPair::agree.
         EcdhP521PublicKey::from_bytes(peer_public_bytes)?.validate()?;
         let peer_public = UnparsedPublicKey::new(&ECDH_P521, peer_public_bytes);
 

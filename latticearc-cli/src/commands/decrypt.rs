@@ -32,7 +32,6 @@ pub(crate) struct DecryptArgs {
     #[arg(short, long)]
     pub key: PathBuf,
     /// Overwrite the output file if it already exists. Default: false.
-    /// Round-26 audit fix (H12).
     #[arg(long)]
     pub force: bool,
 }
@@ -79,7 +78,7 @@ fn decrypt_symmetric(
         latticearc::DecryptKey::Symmetric(&key_bytes),
         latticearc::CryptoConfig::new(),
     )
-    // Round-28 H3 (Pattern 6): the round-26 M19 fix kept a `(symmetric)`
+    // the round-26 M19 fix kept a `(symmetric)`
     // parenthetical and `{e}` interpolation that re-introduced the
     // oracle the comment claimed to close — scripted callers could
     // distinguish symmetric vs hybrid vs PQ-only branches from stderr,
@@ -110,7 +109,7 @@ fn decrypt_hybrid(
         latticearc::CryptoConfig::new(),
     )
     .map_err(|e| {
-        // Round-28 H3: bare "Decryption failed"; cause to tracing.
+        // bare "Decryption failed"; cause to tracing.
         tracing::debug!(error = %e, scheme = "hybrid", "decrypt failed");
         anyhow::anyhow!("Decryption failed")
     })
@@ -125,7 +124,7 @@ fn decrypt_pq_only(
 
     let sk_bytes = key_file.key_bytes()?;
 
-    // Round-29 M2: derive the recipient PK from the SK's embedded PK
+    // derive the recipient PK from the SK's embedded PK
     // (FIPS 203 §6.1) instead of trusting the unauthenticated
     // `ml_kem_pk` metadata field. A file-write attacker who could
     // previously swap that metadata to break the HPKE channel binding
@@ -140,14 +139,14 @@ fn decrypt_pq_only(
         latticearc::CryptoConfig::new().crypto_mode(latticearc::CryptoMode::PqOnly),
     )
     .map_err(|e| {
-        // Round-28 H3: bare "Decryption failed"; cause to tracing.
+        // bare "Decryption failed"; cause to tracing.
         tracing::debug!(error = %e, scheme = "pq-only", "decrypt failed");
         anyhow::anyhow!("Decryption failed")
     })
 }
 
 fn read_input_string(path: &Option<PathBuf>) -> Result<String> {
-    // Round-9 audit fix #3: route through the shared helper.
+    // route through the shared helper.
     super::common::read_file_or_stdin_string(
         path.as_deref(),
         super::common::CLI_MAX_DECRYPTION_INPUT_BYTES,
@@ -161,7 +160,7 @@ fn write_output(path: &Option<PathBuf>, data: &[u8], force: bool) -> Result<()> 
         // creates files with mode 0o600 and `persist()` preserves that;
         // `.secret_mode()` is retained as defense-in-depth in case
         // tempfile's default ever changes.
-        // Round-26 audit fix (H12): only overwrite when --force is
+        // only overwrite when --force is
         // passed.
         latticearc::unified_api::atomic_write::AtomicWrite::new(data)
             .secret_mode()

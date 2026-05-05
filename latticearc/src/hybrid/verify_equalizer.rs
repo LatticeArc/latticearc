@@ -90,7 +90,7 @@ pub struct HybridVerifyDummy {
     pub ed_pk: Vec<u8>,
     /// Raw zero-byte Ed25519 signature (64 bytes).
     pub ed_sig: Vec<u8>,
-    /// Round-29 L6: pre-parsed material is now wrapped in a `Mutex<Option<>>`
+    /// pre-parsed material is now wrapped in a `Mutex<Option<>>`
     /// so a transient init failure (RNG hiccup, FIPS PCT) doesn't
     /// permanently degrade the equalizer for the entire process
     /// lifetime. The previous `OnceLock<HybridVerifyDummy>` cached
@@ -106,7 +106,7 @@ pub struct HybridVerifyDummy {
 }
 
 impl HybridVerifyDummy {
-    /// Round-29 L6: get the pre-parsed equalizer material, retrying
+    /// get the pre-parsed equalizer material, retrying
     /// the keygen+sign init when previous attempts produced `None`.
     /// Returns a clone of the parsed material (the parsed struct is
     /// cheap to clone — it holds public-key bytes and a signature, no
@@ -198,7 +198,7 @@ fn try_init_parsed(param_set: MlDsaParameterSet) -> Option<HybridVerifyDummyPars
     Some(HybridVerifyDummyParsed { pq_pk, pq_sig, pq_test_message })
 }
 
-/// Round-29 M1: Ed25519 timing equalizer. Pre-generated keypair +
+/// Ed25519 timing equalizer. Pre-generated keypair +
 /// signature whose verify cost (one EC scalar multiplication ≈ tens
 /// of microseconds) matches a real Ed25519 verify. Used by
 /// `sig_hybrid::verify` when the caller's Ed25519 signature bytes
@@ -296,7 +296,7 @@ mod tests {
             [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
         {
             let dummy = hybrid_verify_dummy_material(param_set);
-            // Round-29 L6: retrieve via the retry-on-None getter.
+            // retrieve via the retry-on-None getter.
             let Some(parsed) = dummy.parsed_or_init() else {
                 panic!("init keygen + sign must succeed under test conditions for {param_set:?}");
             };

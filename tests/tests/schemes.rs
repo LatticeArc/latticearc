@@ -698,7 +698,7 @@ mod direct {
     // ============================================================
     // verify() with Ed25519 fallback scheme
     //
-    // Round-11 audit fix #9: the `"ed25519"` verify dispatch arm is
+    // the `"ed25519"` verify dispatch arm is
     // cfg-gated under `not(feature = "fips")` for symmetry with
     // sign_with_key (which has always been cfg-gated). Under
     // `--features fips`, all three Ed25519 dispatch points (keygen,

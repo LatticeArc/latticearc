@@ -865,7 +865,7 @@ mod coverage {
 
     #[test]
     fn test_encrypt_security_level_pq_only_maximum_rejects_symmetric_fallback() {
-        // Round-26 audit fix (M15): `scheme_min_security_level("aes-256-gcm")`
+        // `scheme_min_security_level("aes-256-gcm")`
         // now correctly returns `Standard` instead of substring-matching
         // `"256"` and reporting `Maximum`. Encrypt with
         // `.force_scheme(CryptoScheme::Symmetric)` bypasses the compliance

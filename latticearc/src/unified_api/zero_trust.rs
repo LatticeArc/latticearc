@@ -224,6 +224,15 @@ impl<'a> SecurityMode<'a> {
     pub fn validate(&self) -> Result<()> {
         match self {
             Self::Verified(session) => {
+                // trust_level must gate validation;
+                // otherwise downgrade_trust_level() (round-29 M3) has
+                // no observable effect.
+                if session.trust_level() == TrustLevel::Untrusted {
+                    log_zero_trust_session_expired!(hex::encode(session.session_id()));
+                    return Err(CoreError::ZeroTrustVerificationFailed(
+                        "session trust_level is Untrusted; re-authenticate".to_string(),
+                    ));
+                }
                 let result = session.verify_valid();
                 if result.is_ok() {
                     log_zero_trust_session_verified!(hex::encode(session.session_id()));
@@ -280,14 +289,19 @@ impl<'a> From<&'a VerifiedSession> for SecurityMode<'a> {
 pub struct VerifiedSession {
     /// Unique session identifier.
     session_id: [u8; 32],
-    /// Timestamp when authentication was completed.
+    /// Timestamp when authentication was completed (wall-clock, for
+    /// audit display only — never used for validity decisions).
     authenticated_at: DateTime<Utc>,
     /// Current trust level.
     trust_level: TrustLevel,
     /// Public key that was verified.
     public_key: PublicKey,
-    /// When this session expires.
+    /// When this session expires (wall-clock, for audit display only).
     expires_at: DateTime<Utc>,
+    /// monotonic instant + lifetime drive `is_valid()`.
+    /// NTP rollback can't extend a session past its policy lifetime.
+    issued_at_monotonic: std::time::Instant,
+    lifetime: std::time::Duration,
 }
 
 impl std::fmt::Debug for VerifiedSession {
@@ -397,21 +411,35 @@ impl VerifiedSession {
         log_zero_trust_session_created!(session_id_hex, trust_level, expires_at);
         log_zero_trust_auth_success!(session_id_hex, trust_level);
 
+        // capture a monotonic instant at construction.
+        // The wall-clock `expires_at` above remains for audit display,
+        // but `is_valid` consults `Instant::elapsed()` instead.
+        let lifetime = std::time::Duration::from_secs(
+            u64::try_from(DEFAULT_SESSION_LIFETIME_SECS).unwrap_or(u64::MAX),
+        );
         Ok(Self {
             session_id,
             authenticated_at: now,
             trust_level,
             public_key: session.auth.public_key.clone(),
             expires_at,
+            issued_at_monotonic: std::time::Instant::now(),
+            lifetime,
         })
     }
 
     /// Check if the session is still valid (not expired).
     ///
-    /// A session is valid if the current time is before the expiration time.
+    /// A session is valid if the elapsed time since construction is
+    /// strictly less than the configured lifetime.
+    ///
+    /// Uses a monotonic `Instant` so NTP rollback / system-clock
+    /// manipulation cannot extend a session past its policy lifetime.
+    /// `expires_at` / `authenticated_at` are wall-clock and kept for
+    /// audit display only.
     #[must_use]
     pub fn is_valid(&self) -> bool {
-        Utc::now() < self.expires_at
+        self.issued_at_monotonic.elapsed() < self.lifetime
     }
 
     /// Get the current trust level of this session.
@@ -506,13 +534,18 @@ impl VerifiedSession {
     #[cfg(test)]
     #[must_use]
     pub(crate) fn expired_clone(&self) -> Self {
-        // Use Unix epoch as a guaranteed-past timestamp
+        // force expiry via the monotonic path by using a
+        // zero-duration lifetime — `Instant::elapsed()` will be > 0
+        // immediately after construction. Wall-clock fields are also
+        // pegged at the Unix epoch for audit-display consistency.
         Self {
             session_id: self.session_id,
             authenticated_at: self.authenticated_at,
             trust_level: self.trust_level,
             public_key: self.public_key.clone(),
             expires_at: DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_else(Utc::now),
+            issued_at_monotonic: std::time::Instant::now(),
+            lifetime: std::time::Duration::from_nanos(0),
         }
     }
 }
@@ -689,12 +722,12 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
         proof: &Self::Proof,
         challenge: &[u8],
     ) -> std::result::Result<bool, Self::Error> {
-        // Round-29 N1: the prover writes `proof.complexity` from its own
-        // config (line 633) but the verifier previously only consulted
+        // The prover writes `proof.complexity` from its own config but
+        // the verifier previously only consulted
         // `self.config.proof_complexity` for dispatch — so a prover
-        // claiming Low complexity could ship a proof verified under the
-        // verifier's Medium policy (or vice versa). Pin the field by
-        // requiring it to match the verifier's expected complexity;
+        // claiming Low complexity could ship a proof verified under
+        // the verifier's Medium policy (or vice versa). Pin the field
+        // by requiring it to match the verifier's expected complexity;
         // mismatch collapses to `Ok(false)` (Pattern 6 — no
         // distinguishable error per round-26 audit posture).
         if proof.complexity() != &self.config.proof_complexity {
@@ -738,13 +771,13 @@ impl ProofOfPossession for ZeroTrustAuth {
     /// Returns `CoreError::InvalidInput` if the private key format is invalid.
     fn generate_pop(&self) -> Result<Self::Pop> {
         let timestamp = Utc::now();
-        // Round-26 audit fix (M16 follow-up): include microsecond precision
-        // in the signed message, not just seconds. Ed25519 signatures are
-        // deterministic, so two PoPs generated in the same second by the
-        // same key produce byte-identical wire representations — the
-        // round-26 replay cache (which keys on `pk || sig || ts_secs`)
-        // would then flag a legitimate client regenerating PoPs in a
-        // tight loop as a replay attack. Microseconds are still well
+        // Include microsecond precision in the signed message, not just
+        // seconds. Ed25519 signatures are deterministic, so two PoPs
+        // generated in the same second by the same key produce
+        // byte-identical wire representations — the replay cache
+        // (which keys on `pk || sig || ts_secs`) would then flag a
+        // legitimate client regenerating PoPs in a tight loop as a
+        // replay attack. Microseconds are still well
         // within the 5-minute freshness window's resolution and make
         // each in-second PoP byte-unique.
         let ts_micros = timestamp.timestamp_micros();
@@ -787,7 +820,7 @@ impl ProofOfPossession for ZeroTrustAuth {
             ));
         }
 
-        // Round-26 audit fix (M16 follow-up): mirror generate_pop's use
+        // mirror generate_pop's use
         // of microsecond precision in the verified message.
         let ts_micros = pop.timestamp().timestamp_micros();
         let message = format!("proof-of-possession-{}", ts_micros);
@@ -798,7 +831,7 @@ impl ProofOfPossession for ZeroTrustAuth {
             pop.public_key().as_slice(),
         )?;
 
-        // Round-26 audit fix (M16): reject re-presentation of a
+        // reject re-presentation of a
         // verified PoP within the 5-minute acceptance window. Without
         // a cache, an attacker who captured a single valid PoP at
         // time T could replay it any number of times within
@@ -897,12 +930,12 @@ impl ContinuousVerifiable for ZeroTrustAuth {
     /// Returns `CoreError::InvalidKeyLength` or `CoreError::InvalidInput` if the private
     /// key format is invalid for Ed25519 signing.
     fn reauthenticate(&self) -> Result<()> {
-        // Round-11 audit fix (HIGH #6): the previous implementation
-        // generated a proof, discarded it via `let _proof = ...`, and
-        // bumped `last_verification` regardless. That made `last_verification`
-        // a "now" stamp on every call — an attacker who tampered with the
-        // private-key bytes (use-after-free, fuzz target, etc.) kept the
-        // session perpetually `Verified`. We now actually verify the proof
+        // The previous implementation generated a proof, discarded it
+        // via `let _proof = ...`, and bumped `last_verification`
+        // regardless. That made `last_verification` a "now" stamp on
+        // every call — an attacker who tampered with the private-key
+        // bytes (use-after-free, fuzz target, etc.) kept the session
+        // perpetually `Verified`. We now actually verify the proof
         // against the challenge before bumping `last_verification`, and
         // surface a hard error on mismatch.
         let challenge = self.generate_challenge()?;
@@ -1163,11 +1196,11 @@ impl ZeroTrustAuth {
     fn compute_proof_data(&self, challenge: &[u8]) -> Result<Vec<u8>> {
         let timestamp = Utc::now().timestamp_millis().to_le_bytes();
 
-        // Round-11 audit fix (MEDIUM #16): all complexity levels now
-        // bind the timestamp into the signed message so the verifier
-        // can enforce a freshness window. The previous Low variant
-        // signed only `challenge`, making `(challenge, signature)`
-        // pairs replayable indefinitely until session expiry. Replay
+        // All complexity levels bind the timestamp into the signed
+        // message so the verifier can enforce a freshness window. The
+        // previous Low variant signed only `challenge`, making
+        // `(challenge, signature)` pairs replayable indefinitely
+        // until session expiry. Replay
         // protection is no longer opt-in.
         // Every variant binds the public key into the signed transcript
         // so a verifier holding pk can be sure the proof was produced
@@ -1231,7 +1264,7 @@ impl ZeroTrustAuth {
 
         match self.config.proof_complexity {
             ProofComplexity::Low => {
-                // Round-11 audit fix (MEDIUM #16): Low now requires the
+                // Low now requires the
                 // 8-byte timestamp suffix (mandatory replay protection).
                 if proof.len() < 72 {
                     return Ok(false);
@@ -1246,7 +1279,7 @@ impl ZeroTrustAuth {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
 
-                // Round-29 M4: verify signature BEFORE applying the
+                // verify signature BEFORE applying the
                 // freshness check. The original ordering parsed the
                 // timestamp out of `proof[64..72]` and ran the 30-s/
                 // 5-min checks on raw adversary-supplied bytes; even
@@ -1272,7 +1305,7 @@ impl ZeroTrustAuth {
                 // safe to run on `timestamp_bytes`.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
                 let now_ms = Utc::now().timestamp_millis();
-                // Round-12 audit fix (L-3): tighten the future-skew cap
+                // tighten the future-skew cap
                 // to match the sibling `verify_pop` path. `abs_diff(...)
                 // > 300_000` accepted proofs up to 5 min in the future,
                 // which gives an attacker with a forward-skewed clock a
@@ -1310,7 +1343,7 @@ impl ZeroTrustAuth {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
 
-                // Round-29 M4: verify before freshness (mirrors Low).
+                // verify before freshness (mirrors Low).
                 // Reconstruct signed message. The 0x02 domain tag
                 // distinguishes Medium from Low/High; the public-key
                 // suffix binds the signature to this specific
@@ -1332,7 +1365,7 @@ impl ZeroTrustAuth {
                 // Timestamp is encoded as chrono milliseconds in little-endian.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
                 let now_ms = Utc::now().timestamp_millis();
-                // Round-12 audit fix (L-3): tighten the future-skew cap
+                // tighten the future-skew cap
                 // to match the sibling `verify_pop` path. `abs_diff(...)
                 // > 300_000` accepted proofs up to 5 min in the future,
                 // which gives an attacker with a forward-skewed clock a
@@ -1370,9 +1403,9 @@ impl ZeroTrustAuth {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
 
-                // Round-29 M4: verify before freshness (mirrors Low).
+                // verify before freshness (mirrors Low).
                 // Reconstruct signed message with public key binding.
-                // Round-20 audit fix #6: High prepends a 0x03 domain
+                // High prepends a 0x03 domain
                 // tag so it is byte-distinguishable from both Low and
                 // Medium.
                 let mut message = vec![0x03];
@@ -1392,7 +1425,7 @@ impl ZeroTrustAuth {
                 // Timestamp is encoded as chrono milliseconds in little-endian.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
                 let now_ms = Utc::now().timestamp_millis();
-                // Round-12 audit fix (L-3): tighten the future-skew cap
+                // tighten the future-skew cap
                 // to match the sibling `verify_pop` path. `abs_diff(...)
                 // > 300_000` accepted proofs up to 5 min in the future,
                 // which gives an attacker with a forward-skewed clock a
@@ -2260,12 +2293,19 @@ mod tests {
             VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         // Manually create an expired session by setting expires_at in the past
+        // force expiry via the monotonic path. Wall-clock
+        // `expires_at` is now audit-only; `is_valid` consults
+        // `issued_at_monotonic` + `lifetime`, so we set
+        // `lifetime = 0ns` to make `Instant::elapsed()` exceed it
+        // immediately.
         let expired_session = VerifiedSession {
             session_id: *session.session_id(),
             authenticated_at: session.authenticated_at(),
             trust_level: session.trust_level(),
             public_key: session.public_key().clone(),
             expires_at: Utc::now() - Duration::seconds(1),
+            issued_at_monotonic: std::time::Instant::now(),
+            lifetime: std::time::Duration::from_nanos(0),
         };
         assert!(!expired_session.is_valid());
 
@@ -2284,12 +2324,19 @@ mod tests {
         let session =
             VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
+        // force expiry via the monotonic path. Wall-clock
+        // `expires_at` is now audit-only; `is_valid` consults
+        // `issued_at_monotonic` + `lifetime`, so we set
+        // `lifetime = 0ns` to make `Instant::elapsed()` exceed it
+        // immediately.
         let expired_session = VerifiedSession {
             session_id: *session.session_id(),
             authenticated_at: session.authenticated_at(),
             trust_level: session.trust_level(),
             public_key: session.public_key().clone(),
             expires_at: Utc::now() - Duration::seconds(1),
+            issued_at_monotonic: std::time::Instant::now(),
+            lifetime: std::time::Duration::from_nanos(0),
         };
 
         let mode = SecurityMode::Verified(&expired_session);
@@ -2378,7 +2425,7 @@ mod tests {
         Ok(())
     }
 
-    // Round-13 audit fix (M-C): regression coverage for the
+    // regression coverage for the
     // round-12 L-3 fix that capped forward clock-skew tolerance at
     // 30 s on `verify_proof`. Previously `now_ms.abs_diff(proof_ts_ms)
     // > 300_000` allowed proofs up to 5 min in the future; an
@@ -2514,7 +2561,7 @@ mod tests {
 
     #[test]
     fn test_proof_complexity_influences_proof_data_size_has_correct_size() -> Result<()> {
-        // Round-11 audit fix (MEDIUM #16): Low now also carries the
+        // Low now also carries the
         // 8-byte timestamp suffix (mandatory replay protection), so Low
         // and Medium are byte-identical (72 bytes = signature + ts).
         // The remaining functional difference is that High additionally

@@ -162,8 +162,31 @@ echo "✅ No dead code suppressions in production"
 # ============================================================================
 
 echo "Running tests (release mode)..."
-TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1)
+# Round-29 follow-up: write test output to a file BEFORE shelling it
+# into TEST_OUTPUT. The previous `TEST_OUTPUT=$(...)` shape kept all
+# output in a shell variable, so when cargo test aborted mid-run the
+# bash process died with the variable still un-echoed — the entire
+# diagnostic was lost. The hook log would end at "Running tests..."
+# with no clue what failed (round-29 v6/v8 burned commits this way).
+# Now: cargo's full output is always preserved on disk regardless of
+# subsequent script behaviour. Path is sandbox-friendly.
+TEST_LOG="${LATTICEARC_HOOK_TMPDIR:-/tmp}/pre-commit-test-output.log"
+cargo test --workspace --all-features --release > "$TEST_LOG" 2>&1
+CARGO_TEST_EXIT=$?
+TEST_OUTPUT=$(cat "$TEST_LOG")
 TEST_FAILED=$(echo "$TEST_OUTPUT" | grep -c "test result: FAILED" || true)
+
+# If cargo itself exited non-zero but no "test result: FAILED" line
+# was printed, the test process aborted (panic, signal, OOM). Surface
+# this as a hard failure with a pointer to the full log.
+if [ "$CARGO_TEST_EXIT" -ne 0 ] && [ "$TEST_FAILED" -eq 0 ]; then
+    echo "❌ cargo test exited $CARGO_TEST_EXIT with no FAILED summary"
+    echo "   (likely abort: panic, signal, or OOM during a test)"
+    echo "   Full output: $TEST_LOG"
+    echo "   Tail of test output:"
+    tail -40 "$TEST_LOG" | sed 's/^/     /'
+    exit 1
+fi
 
 if [ "$TEST_FAILED" -gt 0 ]; then
     # Filter out known sandbox failures (only PermissionDenied/TcpListener bind errors)
@@ -174,7 +197,8 @@ if [ "$TEST_FAILED" -gt 0 ]; then
         echo "✅ $TOTAL_PASSED tests passed (TLS sandbox failures ignored)"
     else
         echo "❌ Tests failed"
-        echo "$TEST_OUTPUT" | grep -A 10 "test result: FAILED"
+        echo "   Full output: $TEST_LOG"
+        echo "$TEST_OUTPUT" | grep -B 2 -A 20 "FAILED\b" | head -200
         exit 1
     fi
 else

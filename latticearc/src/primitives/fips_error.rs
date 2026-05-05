@@ -178,7 +178,7 @@ pub enum FipsErrorCode {
 
     /// Cryptographic primitive failure.
     ///
-    /// Round-26 audit fix (M13): a generic algorithm-category bucket
+    /// a generic algorithm-category bucket
     /// for upstream library failures (e.g. aws-lc-rs returning a
     /// non-specific error from a primitive call) that don't map
     /// cleanly to one of the specific algorithm errors above. This is
@@ -631,7 +631,7 @@ impl FipsError for crate::primitives::kem::ml_kem::MlKemError {
             Self::InvalidKeyLength { .. } => FipsErrorCode::InvalidKeyLength,
             Self::InvalidCiphertextLength { .. } => FipsErrorCode::InvalidCiphertext,
             Self::UnsupportedSecurityLevel(_) => FipsErrorCode::UnsupportedAlgorithm,
-            // Round-26 audit fix (M13): route upstream crypto-primitive
+            // route upstream crypto-primitive
             // failures to the dedicated algorithm-category code so they
             // surface through `is_critical()` instead of being buried
             // alongside non-cryptographic operational errors.
@@ -803,7 +803,7 @@ mod tests {
 
         let ml_kem_crypto =
             crate::primitives::kem::ml_kem::MlKemError::CryptoError("test".to_string());
-        // Round-26 audit fix (M13): now `CryptoFailure` (algorithm
+        // now `CryptoFailure` (algorithm
         // category), not `InternalError` (operational).
         assert_eq!(ml_kem_crypto.fips_code(), FipsErrorCode::CryptoFailure);
     }

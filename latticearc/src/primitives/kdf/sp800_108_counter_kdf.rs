@@ -86,7 +86,7 @@ impl std::fmt::Debug for CounterKdfParams {
     }
 }
 
-// Round-26 audit fix (L12): the previous `Default` impl baked the
+// the previous `Default` impl baked the
 // generic label `"Default KDF Label"` into the struct. Two callers
 // using `CounterKdfParams::default()` with the same KI would silently
 // derive identical keys (cross-protocol collision) — labels are the
@@ -185,7 +185,7 @@ pub fn counter_kdf(
     #[allow(clippy::arithmetic_side_effects)]
     let max_len = (1u64 << 32) * HASH_LEN as u64;
 
-    // Round-20 audit fix #16: compare in u64 instead of routing through
+    // compare in u64 instead of routing through
     // `usize::try_from(max_len).unwrap_or(usize::MAX)`. On a 32-bit
     // target, max_len = 2^37 saturates to usize::MAX = 2^32-1, so the
     // guard becomes `key_length > usize::MAX` which is never true and
@@ -605,7 +605,7 @@ mod tests {
 
     #[test]
     fn test_explicit_label_succeeds() {
-        // Round-26 audit fix (L12): the previous test exercised
+        // the previous test exercised
         // `CounterKdfParams::default()` which baked the generic
         // "Default KDF Label" into the params. The Default impl was
         // removed (callers must now supply a domain-specific label

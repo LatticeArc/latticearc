@@ -53,7 +53,7 @@ pub(crate) enum EncryptMode {
 #[derive(Args)]
 pub(crate) struct EncryptArgs {
     /// Encryption mode (expert override). Ignored when --use-case is provided.
-    /// Round-26 audit fix (M20): clap-level `conflicts_with` makes the
+    /// clap-level `conflicts_with` makes the
     /// constraint visible in --help instead of just emitting a runtime
     /// warning.
     #[arg(short, long, value_enum, conflicts_with = "use_case")]
@@ -111,7 +111,7 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
     // produced "Expected symmetric key file, got Public" — accurate
     // but surprising for the common case.
     //
-    // Round-26 audit fix (H13): branch on the key's algorithm so
+    // branch on the key's algorithm so
     // pure-PQ ML-KEM PKs are routed to `PqOnly` and hybrid
     // `HybridMlKem*X25519` PKs to `Hybrid`. Previously we forced
     // `Hybrid` for any `KeyType::Public`, which made the hybrid splitter
@@ -294,7 +294,7 @@ fn encrypt_pq_only_mode(
 }
 
 fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
-    // Round-9 audit fix #3: route through the shared helper.
+    // route through the shared helper.
     super::common::read_file_or_stdin(
         path.as_deref(),
         super::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
@@ -308,7 +308,7 @@ fn write_output(path: &Option<PathBuf>, data: &str, force: bool) -> Result<()> {
             // Atomic write — closes the partial-file confidentiality
             // window for decrypted material at rest. Same helper the
             // keyfile writer uses (round-7 audit fix #18).
-            // Round-26 audit fix (H12): only overwrite when --force is
+            // only overwrite when --force is
             // passed; otherwise refuse to clobber, matching keygen's
             // default-safe behavior.
             // LINT-OK: public-write-ciphertext (encrypted data is not secret)

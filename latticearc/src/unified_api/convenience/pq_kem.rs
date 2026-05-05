@@ -32,7 +32,7 @@ use crate::unified_api::zero_trust::SecurityMode;
 /// Build the HKDF `info` string for `encrypt_pq_ml_kem` /
 /// `decrypt_pq_ml_kem`.
 ///
-/// Round-26 audit fix (H1): now binds both the recipient public key
+/// now binds both the recipient public key
 /// and the KEM ciphertext into the info string per RFC 9180 §5.1 (HPKE
 /// channel binding). The previous label-only variant could not detect
 /// an adversary swapping ciphertext halves if ML-KEM IND-CCA2 ever
@@ -92,7 +92,7 @@ fn encrypt_pq_ml_kem_internal(
         data_len = data.len()
     );
 
-    // Round-26 audit fix (H7): opaque ResourceExceeded.
+    // opaque ResourceExceeded.
     if let Err(e) = validate_encryption_size(data.len()) {
         log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "resource limit exceeded");
         tracing::debug!(error = ?e, data_len = data.len(), "pq_kem encrypt rejected: plaintext exceeds resource limit");
@@ -199,7 +199,7 @@ fn decrypt_pq_ml_kem_internal(
     // embedded `ek` per FIPS 203 §6.1) AND the KEM ciphertext. Must
     // match the encrypt path byte-for-byte; `pq_kem_aead_key_info` is
     // the single canonical helper to prevent encrypt / decrypt drift.
-    // Round-29 L1: `embedded_public_key_bytes()` now returns Result;
+    // `embedded_public_key_bytes()` now returns Result;
     // a malformed SK that bypassed validation surfaces as an opaque
     // decrypt failure rather than the previous silent-empty-slice
     // path that would silently corrupt the channel binding.

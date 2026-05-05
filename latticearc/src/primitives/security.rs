@@ -23,7 +23,7 @@ use crate::types::SecretVec;
 pub fn secure_compare(a: &[u8], b: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
 
-    // Round-26 audit fix (M25): reject mismatched lengths early. The
+    // reject mismatched lengths early. The
     // previous shape allocated `max(a.len(), b.len())` zeroized buffers
     // even on the inevitable-Err path, which an attacker controlling
     // one input length could amplify into MB-sized allocations per
@@ -46,7 +46,7 @@ pub fn secure_zeroize(data: &mut [u8]) {
     data.zeroize();
 }
 
-// Round-26 audit fix (M26): the `MemoryPool` type and `get_memory_pool`
+// the `MemoryPool` type and `get_memory_pool`
 // helper were removed entirely. The pool's `deallocate` was a no-op
 // (it dropped the buffer rather than caching it), so every `allocate`
 // call paid mutex-lock overhead with zero cache benefit. Use

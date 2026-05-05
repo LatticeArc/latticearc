@@ -426,7 +426,7 @@ mod tests {
         assert_eq!(tag.len(), 16);
     }
 
-    /// Round-27 H4 (Pattern 14): `AeadError::InvalidNonceLength` is a
+    /// `AeadError::InvalidNonceLength` is a
     /// fail-closed defence-in-depth variant. The `Nonce` type alias is
     /// `[u8; NONCE_LEN]` (12), so the AEAD trait cannot be called with a
     /// wrong-size nonce — the type system forbids it at compile time.

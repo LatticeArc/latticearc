@@ -197,6 +197,16 @@ pub fn get_fips_validation_result() -> Option<ValidationResult> {
 mod tests {
     use super::*;
 
+    /// serialization lock for tests that mutate
+    /// `FIPS_VALIDATION_RESULT` AND read it back. Cargo runs tests in
+    /// parallel by default, so two tests both calling
+    /// `FIPS_VALIDATION_RESULT.lock().replace(...)` then reading the
+    /// global can interleave: test A stores ID-A, test B stores ID-B
+    /// (overwriting), test A reads ID-B (mismatched assertion). Tests
+    /// that need to observe their own write must hold this serial
+    /// guard for the entire store-then-read window.
+    static FIPS_GLOBAL_SERIAL: Mutex<()> = Mutex::new(());
+
     /// Helper to ensure FIPS is initialized by setting the flag and storing
     /// a valid result directly, bypassing the abort paths in init().
     /// This lets us test run_conditional_self_test and continuous_rng_test
@@ -328,6 +338,12 @@ mod tests {
     /// Covers the .lock().ok().and_then(|result| result.clone()) at line 177.
     #[test]
     fn test_get_fips_validation_result_after_manual_store_succeeds() {
+        // hold the serial guard so a parallel
+        // test can't overwrite our store between the replace and the
+        // read-back assertion below. Without this, the assertion
+        // compared mismatched UUIDs and flaked.
+        let _serial = FIPS_GLOBAL_SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
         // Store a result directly (same logic as init at lines 55-60)
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let val_result = validator.validate_module().expect("Should succeed");
@@ -348,6 +364,10 @@ mod tests {
     /// Test get_fips_validation_result returns consistent data across calls.
     #[test]
     fn test_get_fips_validation_result_consistency_succeeds() {
+        // serialize against other tests that
+        // mutate the global between the two reads below.
+        let _serial = FIPS_GLOBAL_SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
         let r1 = get_fips_validation_result();
         let r2 = get_fips_validation_result();
 

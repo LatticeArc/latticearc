@@ -2,7 +2,7 @@
 //! and run_power_up_tests_with_report error paths.
 
 // self_test module is gated behind fips-self-test feature.
-// Round-11 audit fix (HIGH #3): the test-only `clear_error_state` /
+// the test-only `clear_error_state` /
 // `restore_operational_state` accessors are now `cfg(any(test, feature =
 // "test-utils"))` — this file imports them and therefore also requires
 // `test-utils` to compile.

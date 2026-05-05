@@ -108,11 +108,11 @@ impl HkdfKemLabel {
     }
 }
 
-// Round-26 audit fix (H1): the label-only `hkdf_kem_info` helper was
-// removed once `convenience::pq_kem` was migrated to the PK-binding
-// variant. Every internal KEM-AEAD path now uses
-// `hkdf_kem_info_with_pk` so encrypt/decrypt drift across parallel APIs
-// is structurally impossible. The original doc comment for that
+// The label-only `hkdf_kem_info` helper was removed once
+// `convenience::pq_kem` was migrated to the PK-binding variant. Every
+// internal KEM-AEAD path now uses `hkdf_kem_info_with_pk` so
+// encrypt/decrypt drift across parallel APIs is structurally
+// impossible. The original doc comment for that
 // function described the label-only encoding (`label || 0x00 ||
 // kem_ciphertext`) which no longer exists in the codebase.
 
@@ -143,7 +143,7 @@ pub(crate) fn hkdf_kem_info_with_pk(
     let mut info = Vec::with_capacity(cap);
     info.extend_from_slice(label_bytes);
     info.push(0x00); // domain separator between label and the PK || ct payload
-    // Round-26 audit fix (L1): hard-error on length-prefix overflow
+    // hard-error on length-prefix overflow
     // instead of saturating to `u32::MAX`. Saturation collapses every
     // PK or ciphertext above 4 GiB onto the same prefix, breaking
     // HPKE channel binding's prefix-injectivity guarantee. In

@@ -30,7 +30,7 @@ mod aes_gcm {
 
     // Any single-bit flip in the authentication tag must make decrypt fail.
     // This is the AES-GCM unforgeability contract (NIST SP 800-38D).
-    // Round-27 M1: Pattern 15 mandates ≥ 256 cases for protocol-critical
+    // Pattern 15 mandates ≥ 256 cases for protocol-critical
     // crypto properties. AES-GCM encrypt/decrypt is sub-µs in release
     // mode, so 256 cases per property is well under 1 s overhead.
     proptest! {
@@ -106,7 +106,7 @@ mod aes_gcm {
 // =============================================================================
 // ChaCha20-Poly1305 (LatticeArc wrapper): tag/ct/AAD invariants
 // =============================================================================
-// Round-27 L1: the audit flagged that the LatticeArc wrapper around the
+// the audit flagged that the LatticeArc wrapper around the
 // chacha20poly1305 crate has its own nonce-generation and weak-key guard,
 // but no proptest covers it. Mirrors the AES-GCM coverage above so a
 // regression in either backend is caught by the same shape of test.
@@ -282,7 +282,7 @@ mod ml_dsa {
                 MlDsaSignature::new(MlDsaParameterSet::MlDsa44, sig_bytes).unwrap();
             // Bit-flipped signature must not verify; function either returns
             // Ok(false) or Err — both acceptable per FIPS 204 unforgeability.
-            // Round-10 audit fix #14: previous form was `if let Ok(v) = ...`
+            // previous form was `if let Ok(v) = ...`
             // which silently let the Err branch pass without comment, hiding
             // any future accidental Ok(true). Explicit else-arm makes the
             // intent of "Err is acceptable" visible to readers.
@@ -320,7 +320,7 @@ mod hmac_sha256 {
     use latticearc::primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
 
     proptest! {
-        // Round-27 M1: Pattern 15 mandates ≥ 256 cases for crypto
+        // Pattern 15 mandates ≥ 256 cases for crypto
         // unforgeability properties. HMAC verify is sub-µs in release
         // mode, so 256 cases per property is well under 1 s overhead.
         #![proptest_config(ProptestConfig {
@@ -369,7 +369,7 @@ mod roundtrip {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 
     proptest! {
-        // Round-27 M1: Pattern 15 mandates 1000 cases for roundtrip
+        // Pattern 15 mandates 1000 cases for roundtrip
         // properties (forward(reverse(x)) == x). AES-GCM encrypt+decrypt
         // is sub-µs in release mode, so 1000 cases is ~1 s overhead.
         #![proptest_config(ProptestConfig {

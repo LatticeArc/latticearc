@@ -483,7 +483,7 @@ pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     // Compute CMAC regardless of tag length validation (timing-safe)
     let expected_tag_result = cmac_128(key, data);
 
-    // Round-20 audit fix #23: maintain constant-time-comparison work
+    // maintain constant-time-comparison work
     // even on the Err path so the function signature is uniform across
     // all inputs. The discriminator (key length) is public/structural,
     // so this is hardening rather than a confidentiality fix — but it
@@ -492,7 +492,7 @@ pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
         let tags_match: bool = cmac.tag.ct_eq(tag).into();
         tag_valid & tags_match
     } else {
-        // Round-26 audit fix (M7): the previous "dummy CT work" two
+        // the previous "dummy CT work" two
         // ct_eq calls did NOT equalize timing — the Ok arm runs a full
         // CMAC computation (subkey derivation + AES rounds across the
         // entire data buffer) plus one ct_eq, while the Err arm
@@ -1078,7 +1078,7 @@ mod tests {
         }
     }
 
-    /// Round-27 L2 (Pattern 14): `CmacError::ComputationError` is a
+    /// `CmacError::ComputationError` is a
     /// fail-closed defence-in-depth variant. Both production paths that
     /// emit it (`AES key init failed` and `Block N out of bounds`) are
     /// structurally unreachable — key length is validated to 16/24/32 at

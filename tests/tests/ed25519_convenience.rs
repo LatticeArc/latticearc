@@ -331,7 +331,7 @@ fn test_ed25519_with_config_unverified_succeeds() -> Result<()> {
 // ============================================================================
 // Stress Tests with Messages Crossing Block Boundaries
 //
-// Round-26 audit fix (H4): Ed25519 sign/verify now enforce
+// Ed25519 sign/verify now enforce
 // `validate_signature_size`, which caps message length at 64 KiB by
 // default. The MB-scale fixtures these tests previously used now
 // exceed the cap. Sizes were chosen at 8 KiB / 16 KiB / 32 KiB / 50
@@ -579,7 +579,7 @@ fn test_ed25519_single_null_byte_succeeds() -> Result<()> {
 // ============================================================================
 // Cross-Keypair Verification Failures
 //
-// Round-26 audit fix (H10): verify_ed25519_unverified collapses
+// verify_ed25519_unverified collapses
 // adversary-reachable failures (wrong PK, wrong message, tampered
 // signature) to `Ok(false)` instead of `Err(VerificationFailed)` so
 // a probing attacker cannot distinguish reject reasons from the
@@ -848,7 +848,7 @@ fn test_ed25519_empty_private_key_returns_error() {
 
 #[test]
 fn test_ed25519_invalid_public_key_not_on_curve_returns_false() {
-    // Round-26 audit fix (H10): an off-curve PK (correct length, but
+    // an off-curve PK (correct length, but
     // not on the Ed25519 curve) is adversary-reachable, so verify
     // collapses to `Ok(false)` rather than `Err(InvalidKey)`.
     let message = b"Test invalid curve point";

@@ -188,7 +188,7 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
     // the only actionable signal.
     use crate::primitives::aead::AeadError;
     let cipher = AesGcm256::new(key).map_err(|e| {
-        // Round-26 audit fix (M24): collapse non-WeakKey AES init
+        // collapse non-WeakKey AES init
         // failures to the same opaque "decryption failed" string used
         // by all other adversary-reachable decrypt errors. The
         // previous `"AES key init failed"` was a distinct third

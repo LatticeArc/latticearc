@@ -327,7 +327,7 @@ graph TD
     class SM_ALG,FS_ALG,FT_ALG,IOT_ALG algo
 ```
 
-All 24 use cases with their algorithm mappings (all hybrid PQ + classical by default):
+All 22 use cases with their algorithm mappings (all hybrid PQ + classical by default):
 
 | Category | Use Case | Scheme |
 |----------|----------|--------|

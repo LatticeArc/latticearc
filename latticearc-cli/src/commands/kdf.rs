@@ -128,7 +128,7 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
         );
     }
     let salt = hex::decode(&args.salt).context("Invalid hex in --salt")?;
-    // Round-21 audit fix #15: the previous version's error message
+    // the previous version's error message
     // claimed "PBKDF2 requires ≥16 bytes" but only `is_empty()` was
     // checked. A 1-byte salt (`--salt aa`) silently passed. Enforce
     // the SP 800-132 §5.1 minimum here for PBKDF2 — HKDF tolerates
@@ -177,7 +177,20 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
         }
     };
 
-    println!("{}", encoded.as_str());
+    // TTY guard mirrors `commands/decrypt.rs` —
+    // derived key bytes shouldn't land in interactive scrollback by
+    // default. `print!` (no trailing newline) matches the
+    // length-bound the user sees in scripts; the warning is on stderr
+    // so pipelines aren't polluted.
+    use std::io::IsTerminal;
+    if std::io::stdout().is_terminal() {
+        eprintln!(
+            "warning: derived KDF output is being written to a TTY. \
+             Pipe stdout to a file or downstream tool to avoid leaving \
+             key material in shell scrollback."
+        );
+    }
+    print!("{}", encoded.as_str());
     Ok(())
 }
 
@@ -235,13 +248,13 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
         if env_val.is_empty() {
             bail!("LATTICEARC_KDF_INPUT is set but empty");
         }
-        // Round-20 audit fix #8: emit a TTY warning when the env-var
+        // emit a TTY warning when the env-var
         // path is used. Env vars are visible via `/proc/<pid>/environ`
         // for any process the user can read (typically the same UID).
         // `keyfile.rs::resolve_passphrase` already warns for the
         // analogous LATTICEARC_PASSPHRASE; the kdf path was missing
         // the parallel warning.
-        // Round-26 audit fix (M18): gate on `IsTerminal::is_terminal`
+        // gate on `IsTerminal::is_terminal`
         // so CI/Docker pipelines (where the env var is intentional)
         // don't get spammed. Mirrors `keyfile.rs::resolve_passphrase`.
         use std::io::IsTerminal;
@@ -276,7 +289,7 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
 /// trivial self-DoS (e.g. `--length 1073741824` allocates 1 GiB and
 /// then runs 600k iterations per block).
 ///
-/// Round-20 audit fix #7: previously this constant was 8192 and used
+/// previously this constant was 8192 and used
 /// only by the PBKDF2 path; HKDF independently hardcoded 8160 in its
 /// `bail!` check. The constants silently desynced. Both paths now
 /// reference this single source of truth.
@@ -307,7 +320,7 @@ fn derive_hkdf_with_input(
     Ok(derived)
 }
 
-// Round-26 audit fix (H14): the previous hardcoded
+// the previous hardcoded
 // `OWASP_PBKDF2_MIN_ITERATIONS = 600_000` was the floor for HMAC-SHA256
 // only, regardless of the PRF actually selected. The CLI now looks up
 // the per-PRF floor via `PbkdfPrf::min_iterations()` so HMAC-SHA512
@@ -339,7 +352,7 @@ fn derive_pbkdf2_with_input(
         );
     }
     if args.iterations < owasp_min {
-        // Round-29 N5: emit BOTH eprintln! (so an interactive operator
+        // emit BOTH eprintln! (so an interactive operator
         // sees the warning even with no tracing subscriber configured)
         // AND tracing::warn! (so audit-log pipelines that scrape `warn`
         // events from JSON-formatted tracing output capture it). Stderr

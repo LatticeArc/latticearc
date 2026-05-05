@@ -107,7 +107,7 @@ pub(crate) fn run(args: HashArgs) -> Result<()> {
 }
 
 fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
-    // Round-9 audit fix #3: route through the shared helper.
+    // route through the shared helper.
     super::common::read_file_or_stdin(
         path.as_deref(),
         super::common::CLI_MAX_HASH_INPUT_BYTES,

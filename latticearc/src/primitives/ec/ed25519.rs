@@ -93,13 +93,13 @@ impl EcKeyPair for Ed25519KeyPair {
 
         let keypair = Self { public_key, secret_key };
 
-        // Round-20 audit fix #3: FIPS 140-3 IG 10.3.A doesn't distinguish
+        // FIPS 140-3 IG 10.3.A doesn't distinguish
         // key-introduction paths — every keypair entering the module
         // (whether via fresh generation or import from external bytes)
         // must run a Pairwise Consistency Test before exposure. Importing
         // a corrupted secret key was previously possible without
         // detection.
-        // Round-26 audit fix (H9): opaque error string.
+        // opaque error string.
         crate::primitives::pct::pct_ed25519(&keypair).map_err(|e| {
             tracing::debug!(error = ?e, "Ed25519 from_secret_key PCT failed");
             LatticeArcError::KeyGenerationError("Ed25519 keypair PCT failed".to_string())
@@ -136,7 +136,7 @@ impl EcSignature for Ed25519Signature {
     /// `InvalidKey` if the public key is not on the Ed25519 curve, or
     /// `SignatureVerificationError` if the signature is invalid.
     fn verify(public_key_bytes: &[u8], message: &[u8], signature: &Self::Signature) -> Result<()> {
-        // Round-26 audit fix (H4): bound message length before SHA-512
+        // bound message length before SHA-512
         // hashes the entire payload (RFC 8032 §5.1.7 inner hash). Without
         // this, an attacker forces unbounded hashing through any verify
         // entrypoint — same DoS shape round-24 closed for ML-DSA /
@@ -156,7 +156,7 @@ impl EcSignature for Ed25519Signature {
         }
         let mut pk_bytes = [0u8; 32];
         pk_bytes.copy_from_slice(public_key_bytes);
-        // Round-26 audit fix (H9): opaque InvalidKey string. Upstream
+        // opaque InvalidKey string. Upstream
         // dalek error variants are version-volatile; relaying them
         // verbatim is a side-channel into which check failed (off-curve
         // vs malformed encoding vs small-subgroup).

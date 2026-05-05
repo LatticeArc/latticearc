@@ -170,7 +170,7 @@ pub enum MlDsaError {
 
     /// Message length exceeds the configured resource limit.
     ///
-    /// Round-28 H7: kept for ABI compatibility but no longer returned from
+    /// kept for ABI compatibility but no longer returned from
     /// `sign()` — the cap-rejection now collapses to `SigningError` so the
     /// sign path matches Pattern 6 opacity (round-26 M1 closed the verify
     /// side; this completes the sign-side symmetry). Mirrors the
@@ -219,7 +219,7 @@ impl MlDsaPublicKey {
         // entire message, so an attacker who can submit arbitrary
         // bytes through any verify entry point can force unbounded
         // hashing work. The guard mirrors the one in `sign()`.
-        // Round-26 audit fix (M1): collapse into the generic
+        // collapse into the generic
         // verification-failure variant. The previous `MessageTooLong`
         // surface let an adversary probe verify with varying message
         // lengths and binary-search the configured cap from the error
@@ -229,7 +229,7 @@ impl MlDsaPublicKey {
             return Err(MlDsaError::VerificationError("verification failed".to_string()));
         }
 
-        // Round-29 H2: mirror the sign-side context cap. A verify call
+        // mirror the sign-side context cap. A verify call
         // with >255 bytes of context cannot possibly match a valid
         // signature (sign-side rejects), but the audit's principle is
         // to fail explicitly here rather than rely on the verifier to
@@ -378,7 +378,7 @@ impl MlDsaPublicKey {
 /// - Implements `ConstantTimeEq` for timing-safe comparisons
 /// - Does not implement `Clone` to prevent unzeroized copies
 ///
-/// Round-13 audit follow-up (M-4-followup): `data` is wrapped in
+/// `data` is wrapped in
 /// `Zeroizing<Vec<u8>>` so the moved-in `Vec` is zeroized even on the
 /// `MlDsaSecretKey::new()` length-validation error path. Previously
 /// `data: Vec<u8>` plus struct-level `#[derive(ZeroizeOnDrop)]` only
@@ -416,37 +416,38 @@ impl MlDsaSecretKey {
     /// upstream `ml-dsa` crate, or the message exceeds the resource limit.
     #[instrument(level = "debug", skip(self, message, context), fields(parameter_set = ?self.parameter_set(), message_len = message.len(), context_len = context.len()))]
     pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<MlDsaSignature, MlDsaError> {
+        // Pattern-6 opacity: every reject path returns the same opaque
+        // `SIGN_ERR_MSG` and the cause is logged via tracing::debug!
+        // only. Distinguishable variants would let an attacker probe
+        // message length / context length / SK shape from error wording
+        // (round-26 M1, round-28 H7, round-29 H2, round-30 M3).
+        const SIGN_ERR_MSG: &str = "ML-DSA signing failed";
+        let opaque_sign_err = || MlDsaError::SigningError(SIGN_ERR_MSG.to_string());
+
         // DoS bound: primitive callers bypass unified_api's resource limits.
-        // Round-28 H7 (Pattern 6): collapse the resource-cap rejection to
-        // the same opaque `SigningError` the rest of the path uses. The
-        // previous distinguishable `MessageTooLong` variant leaked the
-        // configured cap to any caller (including privileged processes
-        // probing message lengths). Round-26 M1 already collapsed the
-        // verify-side; this completes the symmetry on the sign-side.
         crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
             |e| {
-                tracing::debug!(error = ?e, msg_len = message.len(), "ML-DSA sign rejected: message exceeds resource limit");
-                MlDsaError::SigningError("ML-DSA signing failed".to_string())
+                tracing::debug!(error = ?e, msg_len = message.len(), "ML-DSA sign rejected: resource limit");
+                opaque_sign_err()
             },
         )?;
 
-        // Round-29 H2: FIPS 204 §3.3 caps the context string at 255
-        // bytes. The upstream `fips204` crate's behaviour on >255-byte
-        // input is implementation-defined (panic / truncate / error)
-        // and we should not depend on it. Reject up-front and collapse
-        // to the same opaque `SigningError` (round-28 H7 Pattern 6
-        // posture — no distinguishable `ContextTooLong` variant). The
-        // 255-byte limit was already covered by the round-trip test at
-        // line ~993 but was not enforced in production.
+        // FIPS 204 §3.3: context cap. Upstream `fips204` behaviour on
+        // >255 bytes is implementation-defined; reject up-front.
         if context.len() > 255 {
-            tracing::debug!(
-                ctx_len = context.len(),
-                "ML-DSA sign rejected: context > 255 bytes (FIPS 204 §3.3)"
-            );
-            return Err(MlDsaError::SigningError("ML-DSA signing failed".to_string()));
+            tracing::debug!(ctx_len = context.len(), "ML-DSA sign rejected: context > 255 bytes");
+            return Err(opaque_sign_err());
         }
 
         let parameter_set = self.parameter_set();
+        let ps_label: &'static str = match parameter_set {
+            MlDsaParameterSet::MlDsa44 => "ML-DSA-44",
+            MlDsaParameterSet::MlDsa65 => "ML-DSA-65",
+            MlDsaParameterSet::MlDsa87 => "ML-DSA-87",
+        };
+        let log_reject = |stage: &'static str, e: &dyn std::fmt::Debug| {
+            tracing::debug!(error = ?e, parameter_set = ps_label, "ML-DSA sign rejected: {stage}");
+        };
 
         let signature = match parameter_set {
             MlDsaParameterSet::MlDsa44 => {
@@ -460,13 +461,12 @@ impl MlDsaSecretKey {
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_44::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
-                    MlDsaError::SigningError(format!(
-                        "Failed to deserialize ML-DSA-44 secret key: {}",
-                        e
-                    ))
+                    log_reject("SK deserialize", &e);
+                    opaque_sign_err()
                 })?;
                 let sig = sk.try_sign(message, context).map_err(|e| {
-                    MlDsaError::SigningError(format!("ML-DSA-44 signing failed: {}", e))
+                    log_reject("try_sign", &e);
+                    opaque_sign_err()
                 })?;
                 MlDsaSignature::new(parameter_set, sig.to_vec())?
             }
@@ -480,13 +480,12 @@ impl MlDsaSecretKey {
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_65::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
-                    MlDsaError::SigningError(format!(
-                        "Failed to deserialize ML-DSA-65 secret key: {}",
-                        e
-                    ))
+                    log_reject("SK deserialize", &e);
+                    opaque_sign_err()
                 })?;
                 let sig = sk.try_sign(message, context).map_err(|e| {
-                    MlDsaError::SigningError(format!("ML-DSA-65 signing failed: {}", e))
+                    log_reject("try_sign", &e);
+                    opaque_sign_err()
                 })?;
                 MlDsaSignature::new(parameter_set, sig.to_vec())?
             }
@@ -500,13 +499,12 @@ impl MlDsaSecretKey {
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_87::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
-                    MlDsaError::SigningError(format!(
-                        "Failed to deserialize ML-DSA-87 secret key: {}",
-                        e
-                    ))
+                    log_reject("SK deserialize", &e);
+                    opaque_sign_err()
                 })?;
                 let sig = sk.try_sign(message, context).map_err(|e| {
-                    MlDsaError::SigningError(format!("ML-DSA-87 signing failed: {}", e))
+                    log_reject("try_sign", &e);
+                    opaque_sign_err()
                 })?;
                 MlDsaSignature::new(parameter_set, sig.to_vec())?
             }
@@ -520,7 +518,7 @@ impl MlDsaSecretKey {
     /// # Errors
     /// Returns an error if the key length does not match the expected size for the parameter set.
     pub fn new(parameter_set: MlDsaParameterSet, data: Vec<u8>) -> Result<Self, MlDsaError> {
-        // Round-13 audit fix (M-4-followup): wrap on entry so the moved-in
+        // wrap on entry so the moved-in
         // `Vec` is zeroized on the length-validation error path too. The
         // previous shape kept `data: Vec<u8>` and relied on struct-level
         // `ZeroizeOnDrop` — which only fires on the success path because
@@ -655,7 +653,7 @@ impl MlDsaSignature {
     /// error paths (e.g., truncated or malformed signatures). The resulting
     /// signature will fail `verify()` if the length is incorrect.
     ///
-    /// Round-26 audit fix (M10): the audit recommended gating this
+    /// the audit recommended gating this
     /// behind `#[cfg(any(test, feature = "test-utils"))]`. We keep the
     /// `pub + #[doc(hidden)]` shape but route every cross-crate caller
     /// through the `test-utils` feature so the API surface is
@@ -1375,7 +1373,7 @@ mod tests {
         assert_eq!(sk.parameter_set(), MlDsaParameterSet::MlDsa65);
     }
 
-    /// Round-27 H5 + Round-28 H7 (Pattern 14 + Pattern 6): oversized
+    /// oversized
     /// message must be rejected by `sign()` before reaching the upstream
     /// crate. Round-28 collapsed the cap-rejection variant to the opaque
     /// `SigningError` (was distinguishable `MessageTooLong`) so a caller

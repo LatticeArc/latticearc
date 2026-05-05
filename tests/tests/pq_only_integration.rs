@@ -144,7 +144,7 @@ fn test_cnsa_pq_only_validation_passes() {
     }
 }
 
-// Round-13 audit fix (M-B): `ComplianceMode::Cnsa2_0` requires the
+// `ComplianceMode::Cnsa2_0` requires the
 // `fips` cargo feature; the default `cargo test --workspace` (no
 // features) panics with `FeatureNotAvailable`. CI ran clean only because
 // `--all-features` masked the gap. Cfg-gate so the default test command
@@ -171,7 +171,7 @@ fn test_cnsa_hybrid_mode_rejected() {
 // Use case + PqOnly produces correct scheme
 // ============================================================================
 
-// Round-13 audit fix (M-B): same gating rationale as
+// same gating rationale as
 // `test_cnsa_hybrid_mode_rejected` above — this test instantiates a
 // `compliance(Cnsa2_0)` path indirectly via the convenience API, which
 // requires the `fips` feature.

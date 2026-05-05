@@ -66,7 +66,7 @@ fn independent_hkdf(
     ikm.extend_from_slice(ml_kem_ss);
     ikm.extend_from_slice(ecdh_ss);
 
-    // Round-29 M5: info layout now binds BOTH static legs (ECDH + ML-KEM)
+    // info layout now binds BOTH static legs (ECDH + ML-KEM)
     // following HPKE §5.1 channel-binding for hybrid KEMs. Previous layout
     // bound only one static_pk.
     let mut info = Vec::new();
@@ -214,11 +214,11 @@ fn test_ikm_ordering_matches_spec_succeeds() {
     ikm_correct.extend_from_slice(&ECDH_SS);
 
     // Info uses HPKE §5.1 / RFC 9180 length-prefix encoding (matches A1 fix).
-    // Round-19 M2: kem_ct (empty here, matching the test caller) is bound after
+    // kem_ct (empty here, matching the test caller) is bound after
     // the ephemeral PK to align with X-Wing / KitchenSink transcript guidance.
     let mut info = Vec::new();
     info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS-v1");
-    // Round-29 M5: bind BOTH static legs (ECDH + ML-KEM); test uses the
+    // bind BOTH static legs (ECDH + ML-KEM); test uses the
     // same STATIC_PK for both, treating them as opaque domain-separated
     // bytes for the determinism check.
     let static_pk_len = u32::try_from(STATIC_PK.len()).expect("public key within u32 range");

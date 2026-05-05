@@ -313,7 +313,7 @@ impl MetricsCollector {
     /// Record a single operation timing
     #[allow(clippy::arithmetic_side_effects)] // Histogram bucket indexing on bounded duration values
     pub fn record_operation(&self, name: &str, duration: Duration) {
-        // Round-26 audit fix (L31): emit a tracing warning on poisoned
+        // emit a tracing warning on poisoned
         // mutex instead of silently dropping the metric. Metrics are
         // observability, so a silent drop hides the symptom that
         // caused the panic that poisoned the mutex.

@@ -42,7 +42,7 @@ pub struct ResourceLimits {
     /// Maximum AEAD additional-authenticated-data (AAD) size in bytes.
     /// Default: `1024 * 1024` (1 MiB).
     ///
-    /// Round-26 audit fix (H8): AEAD MACs run linear time over AAD, so an
+    /// AEAD MACs run linear time over AAD, so an
     /// attacker-controlled AAD bypasses the plaintext/ciphertext caps and
     /// turns into a CPU-amplification DoS. The 1 MiB default is a
     /// conservative ceiling — applications that legitimately need larger
@@ -203,7 +203,7 @@ impl ResourceLimitsManager {
 
     /// Validates that the AEAD AAD size does not exceed the configured limit.
     ///
-    /// Round-26 audit fix (H8): AEAD MACs run linear time over the AAD,
+    /// AEAD MACs run linear time over the AAD,
     /// so an attacker-controlled AAD bypasses the plaintext/ciphertext
     /// caps and turns into a CPU-amplification DoS. Every AEAD encrypt
     /// and decrypt entrypoint must call this before passing AAD to the
@@ -468,7 +468,7 @@ mod tests {
         assert!(validate_decryption_size(1024).is_ok());
     }
 
-    /// Round-27 M2 (Pattern 14): the `AadSizeLimitExceeded` variant must
+    /// the `AadSizeLimitExceeded` variant must
     /// be triggerable through the public API. The default global cap is
     /// 1 MiB; passing 1 MiB + 1 bytes exceeds it.
     #[test]

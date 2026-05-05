@@ -56,7 +56,7 @@ fn test_ml_dsa_parameter_set_mismatch_fails() {
     let (_pk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let sig65 = sk65.sign(TEST_MESSAGE, TEST_CONTEXT).unwrap();
 
-    // Round-19 L10: verify() returns Err(ParameterSetMismatch) on
+    // verify() returns Err(ParameterSetMismatch) on
     // mismatch instead of Ok(false). Configuration errors no longer
     // masquerade as forgeries — callers branching on Ok(false) for
     // "invalid signature" cannot conflate the two.

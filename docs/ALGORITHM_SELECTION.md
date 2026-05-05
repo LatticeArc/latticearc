@@ -309,7 +309,7 @@ LatticeArc builds on and complements existing tools rather than competing.
 ```mermaid
 flowchart TB
     subgraph "LatticeArc"
-        LA["High-level Rust API\nHybrid PQ + Classical\n24 use cases"]
+        LA["High-level Rust API\nHybrid PQ + Classical\n22 use cases"]
     end
 
     subgraph "Foundations"

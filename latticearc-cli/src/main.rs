@@ -60,7 +60,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "latticearc-cli", version, about, long_about = None)]
 #[command(propagate_version = true)]
-// Round-7 audit fix #15: showing the full help when invoked with no args
+// showing the full help when invoked with no args
 // is more discoverable than the default 2-line "USAGE:" stub for
 // first-time users. Costs nothing for scripted callers (they always
 // supply a subcommand) and pays back the discoverability for
@@ -121,7 +121,7 @@ fn main() -> Result<()> {
         Commands::Encrypt(args) => commands::encrypt::run(args),
         Commands::Decrypt(args) => commands::decrypt::run(args),
         Commands::Sign(args) => commands::sign::run(args),
-        // Round-8 audit fix #5: verify returns Ok(true)=VALID,
+        // verify returns Ok(true)=VALID,
         // Ok(false)=INVALID. Translate INVALID into exit 1 here so
         // destructors on the per-command state inside `verify::run`
         // (KeyFile, Vec<u8>, etc.) all get to run before the process

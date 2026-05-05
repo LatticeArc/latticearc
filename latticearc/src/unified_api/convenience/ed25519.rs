@@ -49,14 +49,14 @@ use crate::unified_api::zero_trust::SecurityMode;
 pub(crate) fn sign_ed25519_internal(data: &[u8], ed25519_sk: &[u8]) -> Result<Vec<u8>> {
     log_crypto_operation_start!(op::ED25519_SIGN, algorithm = "Ed25519", data_len = data.len());
 
-    // Round-26 audit fix (H4 / H10): bound message length before
+    // bound message length before
     // SHA-512 hashes the entire payload, opaquely.
     if let Err(e) = validate_signature_size(data.len()) {
         log_crypto_operation_error!(op::ED25519_SIGN, e);
         return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
     }
 
-    // Round-26 audit fix (H10): reject non-canonical SK lengths at the
+    // reject non-canonical SK lengths at the
     // boundary. Previously we accepted any `len >= 32` and silently
     // truncated to the leading 32 bytes via `sk.get(..32)`. libsodium-
     // style 64-byte expanded SKs (seed || derived PK) were misinterpreted
@@ -71,7 +71,7 @@ pub(crate) fn sign_ed25519_internal(data: &[u8], ed25519_sk: &[u8]) -> Result<Ve
         return Err(err);
     }
 
-    // Round-26 audit fix (H9): opaque error mapping — upstream parse
+    // opaque error mapping — upstream parse
     // wording is version-volatile and would leak which exact validity
     // check failed.
     let keypair = Ed25519KeyPair::from_secret_key(ed25519_sk).map_err(|e| {
@@ -103,14 +103,14 @@ pub(crate) fn verify_ed25519_internal(
 ) -> Result<bool> {
     log_crypto_operation_start!(op::ED25519_VERIFY, algorithm = "Ed25519", data_len = data.len());
 
-    // Round-26 audit fix (H4): bound message length before SHA-512
+    // bound message length before SHA-512
     // hashes the payload (RFC 8032 §5.1.7).
     if let Err(e) = validate_signature_size(data.len()) {
         log_crypto_operation_error!(op::ED25519_VERIFY, e);
         return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
     }
 
-    // Round-26 audit fix (H10): reject non-canonical signature/PK
+    // reject non-canonical signature/PK
     // lengths at the boundary. Previously we accepted any `len >=
     // expected` and silently truncated to the leading prefix, which let
     // relays append junk and still verify the signature — a
@@ -133,12 +133,12 @@ pub(crate) fn verify_ed25519_internal(
     // Parse the signature via the primitives layer.
     let signature = Ed25519SignatureOps::signature_from_bytes(signature_bytes).map_err(|e| {
         log_crypto_operation_error!(op::ED25519_VERIFY, e);
-        // Round-26 audit fix (H10): opaque parse-failure mapping —
+        // opaque parse-failure mapping —
         // never relay upstream variant wording.
         CoreError::InvalidInput("invalid Ed25519 signature".to_string())
     })?;
 
-    // Round-26 audit fix (H10): collapse all adversary-reachable verify
+    // collapse all adversary-reachable verify
     // errors (off-curve PK, tampered signature, MAC mismatch) to
     // `Ok(false)` so a probing attacker cannot distinguish reject
     // reasons from the Result shape. The underlying cause is logged
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_verify_ed25519_wrong_message_returns_false() {
-        // Round-26 audit fix (H10): adversary-reachable verify failures
+        // adversary-reachable verify failures
         // now collapse to `Ok(false)` instead of `Err(VerificationFailed)`
         // so a probing attacker cannot distinguish reject reasons from
         // the Result shape. Test renamed to reflect the new contract.
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_verify_ed25519_invalid_signature_returns_false() {
-        // Round-26 audit fix (H10): an all-zero 64-byte buffer is a
+        // an all-zero 64-byte buffer is a
         // valid Ed25519 signature *encoding* (no parse-time validity
         // check exists in RFC 8032), so it goes through the verify path
         // and is rejected with `Ok(false)`, not `Err`.
@@ -451,7 +451,7 @@ mod tests {
         let signature =
             sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
         let result = verify_ed25519_unverified(message, &signature, wrong_pk.as_slice());
-        // Round-26 audit fix (H10): wrong PK is adversary-reachable, so
+        // wrong PK is adversary-reachable, so
         // it collapses to Ok(false).
         assert_eq!(result.ok(), Some(false), "Wrong public key should yield Ok(false)");
     }
@@ -562,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_ed25519_large_message_signs_and_verifies_succeeds() -> Result<()> {
-        // Round-26 audit fix (H4): Ed25519 sign/verify now bound message
+        // Ed25519 sign/verify now bound message
         // length via `validate_signature_size` (default 64 KiB). The
         // previous 100,000-byte fixture exceeded the cap; use 50 KiB so
         // the test still exercises a "large" message under the new
@@ -678,7 +678,7 @@ mod tests {
 
     #[test]
     fn test_ed25519_verify_invalid_public_key_format_returns_false() {
-        // Round-26 audit fix (H10): an off-curve PK (correct length, but
+        // an off-curve PK (correct length, but
         // not a valid Ed25519 point) is adversary-reachable, so verify
         // collapses it to `Ok(false)` rather than `Err(InvalidKey)` —
         // otherwise the variant shape is itself a side-channel into

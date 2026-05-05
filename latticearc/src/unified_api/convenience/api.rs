@@ -434,7 +434,7 @@ pub fn encrypt_with_aad(
     CryptoPolicyEngine::validate_key_matches_scheme(&key, &scheme)
         .map_err(|e| CoreError::ConfigurationError(e.to_string()))?;
 
-    // Round-26 audit fix (H7): opaque error string. Discarding the
+    // opaque error string. Discarding the
     // upstream `ResourceError` on the adversary-reachable path is a
     // Pattern-6 defense — `ResourceError::Display` interpolates
     // `requested=N, limit=M`, leaking the configured cap.
@@ -722,7 +722,7 @@ pub fn decrypt_with_aad(
 
     match result {
         Ok(plaintext) => {
-            // Round-21 audit fix #3: do NOT log `plaintext.len()` on
+            // do NOT log `plaintext.len()` on
             // successful decrypt. Per-call plaintext length is a
             // partial-size oracle for variable-length content (e.g. a
             // request handler that decrypts a per-user blob then
@@ -780,7 +780,7 @@ impl From<(Vec<u8>, Zeroizing<Vec<u8>>, String)> for SigningKeypair {
     }
 }
 
-// Round-28 M2 (Pattern 5 follow-up): the struct's manual `Debug` impl
+// the struct's manual `Debug` impl
 // redacts `secret_key`, but this `From<SigningKeypair>` for a tuple
 // re-exposes raw `Zeroizing<Vec<u8>>` whose `Debug` forwards to the
 // inner `Vec<u8>` — `dbg!(&tuple)` then prints the secret bytes.
@@ -880,7 +880,7 @@ pub fn generate_signing_keypair(
         "hybrid-ml-dsa-87-ed25519" | "ml-dsa-87-hybrid-ed25519" => {
             generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa87)?
         }
-        // Round-11 audit fix (MEDIUM #9 / prior list): the dispatch
+        // the dispatch
         // tables for sign_with_key and verify both have an `"ed25519"`
         // arm (sign cfg-gated to non-FIPS, verify ungated), but
         // `generate_signing_keypair` had none. A caller that resolves
@@ -931,7 +931,7 @@ pub fn sign_with_key(
     let scheme = select_signature_scheme(&config)?;
     config.validate_scheme_compliance(&scheme)?;
 
-    // Round-26 audit fix (H7): opaque ResourceExceeded error.
+    // opaque ResourceExceeded error.
     if let Err(e) = validate_signature_size(message.len()) {
         tracing::debug!(error = ?e, msg_len = message.len(), "sign rejected: message exceeds resource limit");
         return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
@@ -1063,7 +1063,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
 
     log_crypto_operation_start!(op::VERIFY, scheme = ?signed.scheme, message_size = signed.data.len());
 
-    // Round-26 code-review follow-up: collapse to `Ok(false)` on the
+    // collapse to `Ok(false)` on the
     // verify path so an adversary cannot binary-search the configured
     // cap from the Result variant.
     if let Err(e) = validate_signature_size(signed.data.len()) {
@@ -1120,7 +1120,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             &signed.metadata.public_key,
             FnDsaSecurityLevel::Level1024,
         ),
-        // Round-11 audit fix (HIGH #8 prior): replace magic literals
+        // replace magic literals
         // with `MlDsaParameterSet::public_key_size()` / `signature_size()`
         // so a future drift in the FIPS 204 parameter table propagates
         // automatically. The sister `sign_*` path at line ~1118 already
@@ -1149,7 +1149,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             MlDsaParameterSet::MlDsa87.signature_size(),
             MlDsaParameterSet::MlDsa87,
         ),
-        // Round-11 audit fix (MEDIUM #9 / prior list): cfg-gate the
+        // cfg-gate the
         // `"ed25519"` arm under `not(feature = "fips")` for symmetry
         // with the sign_with_key dispatch and the keygen arm. FIPS
         // builds now reject Ed25519 verification at the dispatch
@@ -1301,7 +1301,7 @@ mod tests {
     use crate::{CryptoConfig, CryptoMode, SecurityLevel, UseCase};
     use static_assertions::assert_not_impl_any;
 
-    // Round-28 M3 (Pattern 5 follow-up): SigningKeypair holds
+    // SigningKeypair holds
     // `Zeroizing<Vec<u8>>` for the secret key. A future contributor
     // deriving `PartialEq`/`Eq` would route equality through Vec's
     // short-circuiting `==`, leaking secret-prefix-agreement timing.

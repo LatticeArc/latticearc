@@ -80,16 +80,21 @@ pub(crate) struct VerifyArgs {
 /// decrypt.
 pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
     let input_data = read_verify_input(&args)?;
-    // Same 100 MiB cap as the input-data path. Without this gate a multi-gig
-    // signature file OOMs the process before any library guard fires.
-    super::common::enforce_input_size_limit(
+    // open-once with `take(limit + 1)` instead of the
+    // previous stat-then-read sequence. The old shape was the same
+    // TOCTOU pattern that round-26 H15 fixed for keyfiles — between
+    // the `metadata().len()` check and the `read_to_string` call, a
+    // path swap could let a multi-gig signature file slip past the
+    // 100 MiB cap. Also closes round-30 M5: `metadata().len()`
+    // returns 0 for `/dev/zero` / FIFOs, so the subsequent read was
+    // unbounded for special files.
+    let sig_bytes = super::common::read_file_with_cap(
         &args.signature,
         super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
         "verify",
     )?;
-    let sig_json =
-        std::fs::read_to_string(&args.signature) // LINT-OK: size-gated-by-CLI_MAX_SIGNATURE_INPUT_BYTES (line 85 above)
-            .with_context(|| format!("Failed to read {}", args.signature.display()))?;
+    let sig_json = String::from_utf8(sig_bytes)
+        .with_context(|| format!("{} is not valid UTF-8", args.signature.display()))?;
 
     // Try SignedData format first (produced by sign --public-key)
     if let Ok(signed) = latticearc::unified_api::serialization::deserialize_signed_data(&sig_json) {
@@ -105,10 +110,16 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
 
         let config =
             super::common::build_config(args.use_case, args.security_level, &args.compliance);
-        let valid = latticearc::verify(&signed, config)
-            .map_err(|e| anyhow::anyhow!("Verification failed: {e}"))?;
+        // opaque user-facing message; route the upstream
+        // `e` to tracing::debug! only. Mirrors round-28 H3's decrypt
+        // collapse — the inner library error wording is not part of
+        // the user contract and was leaking implementation detail.
+        let valid = latticearc::verify(&signed, config).map_err(|e| {
+            tracing::debug!(error = ?e, "verify (SignedData path) rejected");
+            anyhow::anyhow!("Verification failed")
+        })?;
 
-        // Round-8 audit fix #5: return the result; `main` does the
+        // return the result; `main` does the
         // exit-code translation after destructors. The 0/1/≥2 contract
         // (round-7 fix #8 + #11) is preserved at the boundary, not
         // here.
@@ -180,7 +191,7 @@ fn verify_legacy(
         alg.clone()
     } else {
         let detected = detect_algorithm(sig_json)?;
-        // Round-21 audit fix #20: algorithm name isn't secret but is
+        // algorithm name isn't secret but is
         // enumerable across log aggregation targets. Demote to debug.
         tracing::debug!(algorithm = %algorithm_name(&detected), "auto-detected legacy verify algorithm");
         detected
@@ -196,7 +207,7 @@ fn verify_legacy(
         _ => verify_standard(&data, sig_json, &pk_bytes, &algorithm)?,
     };
 
-    // Round-8 audit fix #5: return the verdict; `main` translates
+    // return the verdict; `main` translates
     // `Ok(false)` into exit 1 after destructors.
     // See SignedData branch above for the stream-asymmetry rationale.
     if valid {
@@ -266,7 +277,10 @@ fn verify_standard(
             latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
+        .map_err(|e| {
+            tracing::debug!(error = ?e, "verify (legacy path) rejected");
+            anyhow::anyhow!("Verification failed")
+        }),
         VerifyAlgorithm::MlDsa44 => latticearc::verify_pq_ml_dsa(
             data,
             &sig_bytes,
@@ -274,7 +288,10 @@ fn verify_standard(
             latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
+        .map_err(|e| {
+            tracing::debug!(error = ?e, "verify (legacy path) rejected");
+            anyhow::anyhow!("Verification failed")
+        }),
         VerifyAlgorithm::MlDsa87 => latticearc::verify_pq_ml_dsa(
             data,
             &sig_bytes,
@@ -282,7 +299,10 @@ fn verify_standard(
             latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
+        .map_err(|e| {
+            tracing::debug!(error = ?e, "verify (legacy path) rejected");
+            anyhow::anyhow!("Verification failed")
+        }),
         VerifyAlgorithm::SlhDsa => latticearc::verify_pq_slh_dsa(
             data,
             &sig_bytes,
@@ -290,7 +310,10 @@ fn verify_standard(
             latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
+        .map_err(|e| {
+            tracing::debug!(error = ?e, "verify (legacy path) rejected");
+            anyhow::anyhow!("Verification failed")
+        }),
         VerifyAlgorithm::FnDsa => latticearc::verify_pq_fn_dsa(
             data,
             &sig_bytes,
@@ -298,14 +321,20 @@ fn verify_standard(
             latticearc::primitives::sig::fndsa::FnDsaSecurityLevel::Level512,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
+        .map_err(|e| {
+            tracing::debug!(error = ?e, "verify (legacy path) rejected");
+            anyhow::anyhow!("Verification failed")
+        }),
         VerifyAlgorithm::Ed25519 => latticearc::verify_ed25519(
             data,
             &sig_bytes,
             pk_bytes,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
+        .map_err(|e| {
+            tracing::debug!(error = ?e, "verify (legacy path) rejected");
+            anyhow::anyhow!("Verification failed")
+        }),
         VerifyAlgorithm::Hybrid => bail!("Internal error: hybrid handled separately"),
     }
 }
@@ -334,7 +363,7 @@ fn verify_hybrid(data: &[u8], sig_json: &str, pk_bytes: &[u8]) -> Result<bool> {
     let pk = crate::keyfile::parse_hybrid_sign_pk_from_bytes(pk_bytes)?;
     let hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature::new(ml_dsa_sig, ed25519_sig);
 
-    // Round-12 audit fix (L-1): preserve the CLI 0/1/≥2 exit-code
+    // preserve the CLI 0/1/≥2 exit-code
     // contract. The unified-API wrapper maps the underlying
     // `HybridSignatureError::VerificationFailed` → `CoreError::
     // VerificationFailed`; if we surface that as `anyhow::Error` the
