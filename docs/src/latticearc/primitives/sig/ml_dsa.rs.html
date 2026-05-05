@@ -259,7 +259,7 @@
 <a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">let </span>is_valid = <span class="kw">match </span><span class="self">self</span>.parameter_set() {
 <a href=#260 id=260 data-nosnippet>260</a>            MlDsaParameterSet::MlDsa44 =&gt; {
 <a href=#261 id=261 data-nosnippet>261</a>                <span class="kw">let </span>pk_bytes: [u8; <span class="number">1312</span>] = <span class="self">self</span>.as_bytes().try_into().map_err(|_e| {
-<a href=#262 id=262 data-nosnippet>262</a>                    MlDsaError::InvalidKeyLength { expected: <span class="number">1312</span>, actual: <span class="self">self</span>.as_bytes().len() }
+<a href=#262 id=262 data-nosnippet>262</a>                    MlDsaError::VerificationError(<span class="string">"verification failed"</span>.to_string())
 <a href=#263 id=263 data-nosnippet>263</a>                })<span class="question-mark">?</span>;
 <a href=#264 id=264 data-nosnippet>264</a>                <span class="kw">let </span>pk = ml_dsa_44::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
 <a href=#265 id=265 data-nosnippet>265</a>                    MlDsaError::VerificationError(<span class="string">"verification failed"</span>.to_string())
@@ -274,7 +274,7 @@
 <a href=#274 id=274 data-nosnippet>274</a>            }
 <a href=#275 id=275 data-nosnippet>275</a>            MlDsaParameterSet::MlDsa65 =&gt; {
 <a href=#276 id=276 data-nosnippet>276</a>                <span class="kw">let </span>pk_bytes: [u8; <span class="number">1952</span>] = <span class="self">self</span>.as_bytes().try_into().map_err(|_e| {
-<a href=#277 id=277 data-nosnippet>277</a>                    MlDsaError::InvalidKeyLength { expected: <span class="number">1952</span>, actual: <span class="self">self</span>.as_bytes().len() }
+<a href=#277 id=277 data-nosnippet>277</a>                    MlDsaError::VerificationError(<span class="string">"verification failed"</span>.to_string())
 <a href=#278 id=278 data-nosnippet>278</a>                })<span class="question-mark">?</span>;
 <a href=#279 id=279 data-nosnippet>279</a>                <span class="kw">let </span>pk = ml_dsa_65::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
 <a href=#280 id=280 data-nosnippet>280</a>                    MlDsaError::VerificationError(<span class="string">"verification failed"</span>.to_string())
@@ -289,7 +289,7 @@
 <a href=#289 id=289 data-nosnippet>289</a>            }
 <a href=#290 id=290 data-nosnippet>290</a>            MlDsaParameterSet::MlDsa87 =&gt; {
 <a href=#291 id=291 data-nosnippet>291</a>                <span class="kw">let </span>pk_bytes: [u8; <span class="number">2592</span>] = <span class="self">self</span>.as_bytes().try_into().map_err(|_e| {
-<a href=#292 id=292 data-nosnippet>292</a>                    MlDsaError::InvalidKeyLength { expected: <span class="number">2592</span>, actual: <span class="self">self</span>.as_bytes().len() }
+<a href=#292 id=292 data-nosnippet>292</a>                    MlDsaError::VerificationError(<span class="string">"verification failed"</span>.to_string())
 <a href=#293 id=293 data-nosnippet>293</a>                })<span class="question-mark">?</span>;
 <a href=#294 id=294 data-nosnippet>294</a>                <span class="kw">let </span>pk = ml_dsa_87::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
 <a href=#295 id=295 data-nosnippet>295</a>                    MlDsaError::VerificationError(<span class="string">"verification failed"</span>.to_string())
@@ -454,7 +454,7 @@
 <a href=#454 id=454 data-nosnippet>454</a>                <span class="comment">// Stack-allocated secret key bytes wrapped in Zeroizing for guaranteed wipe.
 <a href=#455 id=455 data-nosnippet>455</a>                </span><span class="kw">let </span><span class="kw-2">mut </span>sk_bytes: Zeroizing&lt;[u8; <span class="number">2560</span>]&gt; = Zeroizing::new([<span class="number">0u8</span>; <span class="number">2560</span>]);
 <a href=#456 id=456 data-nosnippet>456</a>                <span class="kw">if </span><span class="self">self</span>.expose_secret().len() != <span class="number">2560 </span>{
-<a href=#457 id=457 data-nosnippet>457</a>                    log_reject(<span class="string">"SK length mismatch"</span>, <span class="kw-2">&amp;</span>(<span class="number">2560usize</span>, <span class="self">self</span>.len()));
+<a href=#457 id=457 data-nosnippet>457</a>                    log_reject(<span class="string">"SK length mismatch"</span>, <span class="kw-2">&amp;</span>());
 <a href=#458 id=458 data-nosnippet>458</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(opaque_sign_err());
 <a href=#459 id=459 data-nosnippet>459</a>                }
 <a href=#460 id=460 data-nosnippet>460</a>                sk_bytes.copy_from_slice(<span class="self">self</span>.expose_secret());
@@ -471,7 +471,7 @@
 <a href=#471 id=471 data-nosnippet>471</a>            MlDsaParameterSet::MlDsa65 =&gt; {
 <a href=#472 id=472 data-nosnippet>472</a>                <span class="kw">let </span><span class="kw-2">mut </span>sk_bytes: Zeroizing&lt;[u8; <span class="number">4032</span>]&gt; = Zeroizing::new([<span class="number">0u8</span>; <span class="number">4032</span>]);
 <a href=#473 id=473 data-nosnippet>473</a>                <span class="kw">if </span><span class="self">self</span>.expose_secret().len() != <span class="number">4032 </span>{
-<a href=#474 id=474 data-nosnippet>474</a>                    log_reject(<span class="string">"SK length mismatch"</span>, <span class="kw-2">&amp;</span>(<span class="number">4032usize</span>, <span class="self">self</span>.len()));
+<a href=#474 id=474 data-nosnippet>474</a>                    log_reject(<span class="string">"SK length mismatch"</span>, <span class="kw-2">&amp;</span>());
 <a href=#475 id=475 data-nosnippet>475</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(opaque_sign_err());
 <a href=#476 id=476 data-nosnippet>476</a>                }
 <a href=#477 id=477 data-nosnippet>477</a>                sk_bytes.copy_from_slice(<span class="self">self</span>.expose_secret());
@@ -488,7 +488,7 @@
 <a href=#488 id=488 data-nosnippet>488</a>            MlDsaParameterSet::MlDsa87 =&gt; {
 <a href=#489 id=489 data-nosnippet>489</a>                <span class="kw">let </span><span class="kw-2">mut </span>sk_bytes: Zeroizing&lt;[u8; <span class="number">4896</span>]&gt; = Zeroizing::new([<span class="number">0u8</span>; <span class="number">4896</span>]);
 <a href=#490 id=490 data-nosnippet>490</a>                <span class="kw">if </span><span class="self">self</span>.expose_secret().len() != <span class="number">4896 </span>{
-<a href=#491 id=491 data-nosnippet>491</a>                    log_reject(<span class="string">"SK length mismatch"</span>, <span class="kw-2">&amp;</span>(<span class="number">4896usize</span>, <span class="self">self</span>.len()));
+<a href=#491 id=491 data-nosnippet>491</a>                    log_reject(<span class="string">"SK length mismatch"</span>, <span class="kw-2">&amp;</span>());
 <a href=#492 id=492 data-nosnippet>492</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(opaque_sign_err());
 <a href=#493 id=493 data-nosnippet>493</a>                }
 <a href=#494 id=494 data-nosnippet>494</a>                sk_bytes.copy_from_slice(<span class="self">self</span>.expose_secret());
