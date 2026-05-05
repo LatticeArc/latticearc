@@ -699,13 +699,14 @@
 <a href=#699 id=699 data-nosnippet>699</a>    <span class="kw">let </span>(pq_pk, ed_pk) = pk_bytes.split_at(pq_pk_len);
 <a href=#700 id=700 data-nosnippet>700</a>    <span class="kw">let </span>(pq_sk, ed_sk) = sk_bytes.split_at(pq_sk_len);
 <a href=#701 id=701 data-nosnippet>701</a>
-<a href=#702 id=702 data-nosnippet>702</a>    <span class="kw">let </span>hybrid_pk = HybridSigPublicKey::new(params, pq_pk.to_vec(), ed_pk.to_vec());
-<a href=#703 id=703 data-nosnippet>703</a>    <span class="kw">let </span>hybrid_sk = HybridSigSecretKey::new(
-<a href=#704 id=704 data-nosnippet>704</a>        params,
-<a href=#705 id=705 data-nosnippet>705</a>        zeroize::Zeroizing::new(pq_sk.to_vec()),
-<a href=#706 id=706 data-nosnippet>706</a>        zeroize::Zeroizing::new(ed_sk.to_vec()),
-<a href=#707 id=707 data-nosnippet>707</a>    );
-<a href=#708 id=708 data-nosnippet>708</a>    latticearc::PortableKey::from_hybrid_sig_keypair(use_case, <span class="kw-2">&amp;</span>hybrid_pk, <span class="kw-2">&amp;</span>hybrid_sk)
-<a href=#709 id=709 data-nosnippet>709</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid signing key export failed: {e}"</span>))
-<a href=#710 id=710 data-nosnippet>710</a>}
+<a href=#702 id=702 data-nosnippet>702</a>    <span class="kw">let </span>hybrid_pk = HybridSigPublicKey::new(params, pq_pk.to_vec(), ed_pk.to_vec())
+<a href=#703 id=703 data-nosnippet>703</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid public key construction failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#704 id=704 data-nosnippet>704</a>    <span class="kw">let </span>hybrid_sk = HybridSigSecretKey::new(
+<a href=#705 id=705 data-nosnippet>705</a>        params,
+<a href=#706 id=706 data-nosnippet>706</a>        zeroize::Zeroizing::new(pq_sk.to_vec()),
+<a href=#707 id=707 data-nosnippet>707</a>        zeroize::Zeroizing::new(ed_sk.to_vec()),
+<a href=#708 id=708 data-nosnippet>708</a>    );
+<a href=#709 id=709 data-nosnippet>709</a>    latticearc::PortableKey::from_hybrid_sig_keypair(use_case, <span class="kw-2">&amp;</span>hybrid_pk, <span class="kw-2">&amp;</span>hybrid_sk)
+<a href=#710 id=710 data-nosnippet>710</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid signing key export failed: {e}"</span>))
+<a href=#711 id=711 data-nosnippet>711</a>}
 </code></pre></div></section></main></body></html>

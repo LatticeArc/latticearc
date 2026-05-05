@@ -400,527 +400,544 @@
 <a href=#400 id=400 data-nosnippet>400</a>            <span class="string">"Key length must be greater than 0"</span>.to_string(),
 <a href=#401 id=401 data-nosnippet>401</a>        ));
 <a href=#402 id=402 data-nosnippet>402</a>    }
-<a href=#403 id=403 data-nosnippet>403</a>
-<a href=#404 id=404 data-nosnippet>404</a>    <span class="comment">// Calculate number of blocks needed
-<a href=#405 id=405 data-nosnippet>405</a>    </span><span class="kw">let </span>prf_output_len = <span class="kw">match </span>params.prf {
-<a href=#406 id=406 data-nosnippet>406</a>        PrfType::HmacSha256 =&gt; <span class="number">32</span>,
-<a href=#407 id=407 data-nosnippet>407</a>        PrfType::HmacSha512 =&gt; <span class="number">64</span>,
-<a href=#408 id=408 data-nosnippet>408</a>    };
-<a href=#409 id=409 data-nosnippet>409</a>
-<a href=#410 id=410 data-nosnippet>410</a>    <span class="kw">let </span>block_count = params.key_length.div_ceil(prf_output_len);
-<a href=#411 id=411 data-nosnippet>411</a>    <span class="comment">// Wrap in Zeroizing so partial key material is erased on early return via `?`.
-<a href=#412 id=412 data-nosnippet>412</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>derived_key: Zeroizing&lt;Vec&lt;u8&gt;&gt; = Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0u8</span>; params.key_length]);
-<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0</span>;
-<a href=#414 id=414 data-nosnippet>414</a>
-<a href=#415 id=415 data-nosnippet>415</a>    <span class="comment">// Generate each block of the derived key
-<a href=#416 id=416 data-nosnippet>416</a>    </span><span class="kw">for </span>block_index <span class="kw">in </span><span class="number">1</span>..=block_count {
-<a href=#417 id=417 data-nosnippet>417</a>        <span class="kw">let </span>block_index_u32 = u32::try_from(block_index).map_err(|_e| {
-<a href=#418 id=418 data-nosnippet>418</a>            LatticeArcError::InvalidParameter(<span class="macro">format!</span>(
-<a href=#419 id=419 data-nosnippet>419</a>                <span class="string">"Block index {} exceeds u32::MAX"</span>,
-<a href=#420 id=420 data-nosnippet>420</a>                block_index
-<a href=#421 id=421 data-nosnippet>421</a>            ))
-<a href=#422 id=422 data-nosnippet>422</a>        })<span class="question-mark">?</span>;
-<a href=#423 id=423 data-nosnippet>423</a>        <span class="kw">let </span>block =
-<a href=#424 id=424 data-nosnippet>424</a>            generate_block(password, <span class="kw-2">&amp;</span>params.salt, params.iterations, block_index_u32, params.prf);
-<a href=#425 id=425 data-nosnippet>425</a>        <span class="kw">let </span>copy_len = std::cmp::min(block.len(), params.key_length.saturating_sub(offset));
-<a href=#426 id=426 data-nosnippet>426</a>        <span class="kw">let </span>end_offset = offset.checked_add(copy_len).ok_or_else(|| {
-<a href=#427 id=427 data-nosnippet>427</a>            LatticeArcError::InvalidParameter(<span class="string">"Derived key offset overflow"</span>.to_string())
-<a href=#428 id=428 data-nosnippet>428</a>        })<span class="question-mark">?</span>;
-<a href=#429 id=429 data-nosnippet>429</a>        <span class="kw">let </span>dest_slice = derived_key.get_mut(offset..end_offset).ok_or_else(|| {
-<a href=#430 id=430 data-nosnippet>430</a>            LatticeArcError::InvalidParameter(<span class="string">"Derived key buffer overflow"</span>.to_string())
-<a href=#431 id=431 data-nosnippet>431</a>        })<span class="question-mark">?</span>;
-<a href=#432 id=432 data-nosnippet>432</a>        <span class="kw">let </span>src_slice = block.get(..copy_len).ok_or_else(|| {
-<a href=#433 id=433 data-nosnippet>433</a>            LatticeArcError::InvalidParameter(<span class="string">"Block slice out of bounds"</span>.to_string())
-<a href=#434 id=434 data-nosnippet>434</a>        })<span class="question-mark">?</span>;
-<a href=#435 id=435 data-nosnippet>435</a>        dest_slice.copy_from_slice(src_slice);
-<a href=#436 id=436 data-nosnippet>436</a>        offset = end_offset;
-<a href=#437 id=437 data-nosnippet>437</a>    }
-<a href=#438 id=438 data-nosnippet>438</a>
-<a href=#439 id=439 data-nosnippet>439</a>    <span class="prelude-val">Ok</span>(Pbkdf2Result { key: derived_key, params: params.clone() })
-<a href=#440 id=440 data-nosnippet>440</a>}
-<a href=#441 id=441 data-nosnippet>441</a>
-<a href=#442 id=442 data-nosnippet>442</a><span class="doccomment">/// Generate a single block of the PBKDF2 output.
-<a href=#443 id=443 data-nosnippet>443</a>///
-<a href=#444 id=444 data-nosnippet>444</a>/// The returned buffer contains derived key material and is wrapped in
-<a href=#445 id=445 data-nosnippet>445</a>/// `Zeroizing` to erase it automatically on drop, including on early error
-<a href=#446 id=446 data-nosnippet>446</a>/// returns from the caller. Infallible: all underlying HMAC operations are
-<a href=#447 id=447 data-nosnippet>447</a>/// infallible for valid key lengths (checked in `pbkdf2()`).
-<a href=#448 id=448 data-nosnippet>448</a></span><span class="kw">fn </span>generate_block(
-<a href=#449 id=449 data-nosnippet>449</a>    password: <span class="kw-2">&amp;</span>[u8],
-<a href=#450 id=450 data-nosnippet>450</a>    salt: <span class="kw-2">&amp;</span>[u8],
-<a href=#451 id=451 data-nosnippet>451</a>    iterations: u32,
-<a href=#452 id=452 data-nosnippet>452</a>    block_index: u32,
-<a href=#453 id=453 data-nosnippet>453</a>    prf: PrfType,
-<a href=#454 id=454 data-nosnippet>454</a>) -&gt; Zeroizing&lt;Vec&lt;u8&gt;&gt; {
-<a href=#455 id=455 data-nosnippet>455</a>    <span class="comment">// Convert block index to bytes (big-endian). `block_input` only
-<a href=#456 id=456 data-nosnippet>456</a>    // carries public bytes today (salt + counter), so this is hygiene —
-<a href=#457 id=457 data-nosnippet>457</a>    // but the surrounding code is `Zeroizing&lt;Vec&lt;u8&gt;&gt;` and a future
-<a href=#458 id=458 data-nosnippet>458</a>    // refactor that adds a secret label here would silently leak. Keep
-<a href=#459 id=459 data-nosnippet>459</a>    // the type discipline consistent.
-<a href=#460 id=460 data-nosnippet>460</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>block_input = Zeroizing::new(salt.to_vec());
-<a href=#461 id=461 data-nosnippet>461</a>    block_input.extend_from_slice(<span class="kw-2">&amp;</span>block_index.to_be_bytes());
-<a href=#462 id=462 data-nosnippet>462</a>
-<a href=#463 id=463 data-nosnippet>463</a>    <span class="comment">// U_1 = PRF(password, salt || INT(block_index))
-<a href=#464 id=464 data-nosnippet>464</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>u = compute_prf(password, <span class="kw-2">&amp;</span>block_input, prf);
-<a href=#465 id=465 data-nosnippet>465</a>    <span class="kw">let </span><span class="kw-2">mut </span>result: Zeroizing&lt;Vec&lt;u8&gt;&gt; = Zeroizing::new(u.to_vec());
-<a href=#466 id=466 data-nosnippet>466</a>
-<a href=#467 id=467 data-nosnippet>467</a>    <span class="comment">// U_2 = PRF(password, U_1) ⊕ U_1
-<a href=#468 id=468 data-nosnippet>468</a>    // U_3 = PRF(password, U_2) ⊕ U_2
-<a href=#469 id=469 data-nosnippet>469</a>    // ...
-<a href=#470 id=470 data-nosnippet>470</a>    // U_c = PRF(password, U_{c-1}) ⊕ U_{c-1}
-<a href=#471 id=471 data-nosnippet>471</a>    </span><span class="kw">for _ in </span><span class="number">1</span>..iterations {
-<a href=#472 id=472 data-nosnippet>472</a>        u = compute_prf(password, <span class="kw-2">&amp;</span>u, prf);
-<a href=#473 id=473 data-nosnippet>473</a>        <span class="kw">for </span>(res_byte, u_byte) <span class="kw">in </span>result.iter_mut().zip(u.iter()) {
-<a href=#474 id=474 data-nosnippet>474</a>            <span class="kw-2">*</span>res_byte ^= u_byte;
-<a href=#475 id=475 data-nosnippet>475</a>        }
-<a href=#476 id=476 data-nosnippet>476</a>    }
-<a href=#477 id=477 data-nosnippet>477</a>
-<a href=#478 id=478 data-nosnippet>478</a>    result
-<a href=#479 id=479 data-nosnippet>479</a>}
-<a href=#480 id=480 data-nosnippet>480</a>
-<a href=#481 id=481 data-nosnippet>481</a><span class="doccomment">/// Compute PRF (HMAC) for PBKDF2.
-<a href=#482 id=482 data-nosnippet>482</a>///
-<a href=#483 id=483 data-nosnippet>483</a>/// Returns the HMAC output wrapped in `Zeroizing` because it is used directly
-<a href=#484 id=484 data-nosnippet>484</a>/// as derived key material (both `U_1` and the XOR-chained iterates `U_i`).
-<a href=#485 id=485 data-nosnippet>485</a>/// Infallible: aws-lc-rs `hmac::Key::new` accepts any key length, and
-<a href=#486 id=486 data-nosnippet>486</a>/// `hmac::sign` cannot fail for HMAC-SHA256/SHA-512.
-<a href=#487 id=487 data-nosnippet>487</a></span><span class="kw">fn </span>compute_prf(password: <span class="kw-2">&amp;</span>[u8], data: <span class="kw-2">&amp;</span>[u8], prf: PrfType) -&gt; Zeroizing&lt;Vec&lt;u8&gt;&gt; {
-<a href=#488 id=488 data-nosnippet>488</a>    <span class="comment">// Delegates to aws-lc-rs HMAC for FIPS-validated constant-time operation.
-<a href=#489 id=489 data-nosnippet>489</a>    // The same backend is used by HKDF, SP800-108, and the mac::hmac wrapper.
-<a href=#490 id=490 data-nosnippet>490</a>    </span><span class="kw">let </span>algorithm = <span class="kw">match </span>prf {
-<a href=#491 id=491 data-nosnippet>491</a>        PrfType::HmacSha256 =&gt; HMAC_SHA256,
-<a href=#492 id=492 data-nosnippet>492</a>        PrfType::HmacSha512 =&gt; HMAC_SHA512,
-<a href=#493 id=493 data-nosnippet>493</a>    };
-<a href=#494 id=494 data-nosnippet>494</a>    <span class="kw">let </span>key = hmac::Key::new(algorithm, password);
-<a href=#495 id=495 data-nosnippet>495</a>    <span class="kw">let </span>tag = hmac::sign(<span class="kw-2">&amp;</span>key, data);
-<a href=#496 id=496 data-nosnippet>496</a>    Zeroizing::new(tag.as_ref().to_vec())
-<a href=#497 id=497 data-nosnippet>497</a>}
-<a href=#498 id=498 data-nosnippet>498</a>
-<a href=#499 id=499 data-nosnippet>499</a><span class="doccomment">/// Password-based key derivation with default parameters
-<a href=#500 id=500 data-nosnippet>500</a>///
-<a href=#501 id=501 data-nosnippet>501</a>/// Convenience function that uses recommended default parameters:
-<a href=#502 id=502 data-nosnippet>502</a>/// - 16-byte random salt
-<a href=#503 id=503 data-nosnippet>503</a>/// - 600,000 iterations (OWASP 2023 recommendation for HMAC-SHA256)
-<a href=#504 id=504 data-nosnippet>504</a>/// - 32-byte key length
-<a href=#505 id=505 data-nosnippet>505</a>/// - HMAC-SHA256 PRF
-<a href=#506 id=506 data-nosnippet>506</a>///
-<a href=#507 id=507 data-nosnippet>507</a>/// # Errors
-<a href=#508 id=508 data-nosnippet>508</a>/// Returns an error if key derivation fails.
-<a href=#509 id=509 data-nosnippet>509</a></span><span class="kw">pub fn </span>pbkdf2_simple(password: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Pbkdf2Result&gt; {
-<a href=#510 id=510 data-nosnippet>510</a>    <span class="kw">let </span>params = Pbkdf2Params::new(<span class="number">16</span>)<span class="question-mark">?</span>.iterations(<span class="number">600_000</span>).key_length(<span class="number">32</span>).prf(PrfType::HmacSha256);
-<a href=#511 id=511 data-nosnippet>511</a>
-<a href=#512 id=512 data-nosnippet>512</a>    pbkdf2(password, <span class="kw-2">&amp;</span>params)
-<a href=#513 id=513 data-nosnippet>513</a>}
-<a href=#514 id=514 data-nosnippet>514</a>
-<a href=#515 id=515 data-nosnippet>515</a><span class="doccomment">/// Verify a password against a previously derived key.
-<a href=#516 id=516 data-nosnippet>516</a>///
-<a href=#517 id=517 data-nosnippet>517</a>/// `prf` MUST match the PRF used at derivation time — calling
-<a href=#518 id=518 data-nosnippet>518</a>/// `verify_password` with the wrong PRF derives different bytes from the
-<a href=#519 id=519 data-nosnippet>519</a>/// same password and the comparison will (correctly) return `false`,
-<a href=#520 id=520 data-nosnippet>520</a>/// indistinguishable from a wrong-password rejection. Storing the PRF
-<a href=#521 id=521 data-nosnippet>521</a>/// alongside the derived key is the caller's responsibility (the
-<a href=#522 id=522 data-nosnippet>522</a>/// envelope formats in `unified_api::key_format` carry it explicitly;
-<a href=#523 id=523 data-nosnippet>523</a>/// see also `Pbkdf2Result::params()` for inline retention).
-<a href=#524 id=524 data-nosnippet>524</a>///
-<a href=#525 id=525 data-nosnippet>525</a>/// # Errors
-<a href=#526 id=526 data-nosnippet>526</a>///
-<a href=#527 id=527 data-nosnippet>527</a>/// Returns an error if the parameters are invalid (short salt, weak
-<a href=#528 id=528 data-nosnippet>528</a>/// iterations, etc.); see [`pbkdf2`] for the exhaustive list.
-<a href=#529 id=529 data-nosnippet>529</a></span><span class="kw">pub fn </span>verify_password(
-<a href=#530 id=530 data-nosnippet>530</a>    password: <span class="kw-2">&amp;</span>[u8],
-<a href=#531 id=531 data-nosnippet>531</a>    derived_key: <span class="kw-2">&amp;</span>[u8],
-<a href=#532 id=532 data-nosnippet>532</a>    salt: <span class="kw-2">&amp;</span>[u8],
-<a href=#533 id=533 data-nosnippet>533</a>    iterations: u32,
-<a href=#534 id=534 data-nosnippet>534</a>    prf: PrfType,
-<a href=#535 id=535 data-nosnippet>535</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
-<a href=#536 id=536 data-nosnippet>536</a>    <span class="kw">let </span>params =
-<a href=#537 id=537 data-nosnippet>537</a>        Pbkdf2Params::with_salt(salt).iterations(iterations).key_length(derived_key.len()).prf(prf);
-<a href=#538 id=538 data-nosnippet>538</a>
-<a href=#539 id=539 data-nosnippet>539</a>    <span class="kw">let </span>result = pbkdf2(password, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
-<a href=#540 id=540 data-nosnippet>540</a>    <span class="kw">let </span>len_eq = derived_key.len().ct_eq(<span class="kw-2">&amp;</span>result.key.len());
-<a href=#541 id=541 data-nosnippet>541</a>    <span class="kw">let </span>bytes_eq = derived_key
-<a href=#542 id=542 data-nosnippet>542</a>        .iter()
-<a href=#543 id=543 data-nosnippet>543</a>        .zip(result.key.iter())
-<a href=#544 id=544 data-nosnippet>544</a>        .fold(subtle::Choice::from(<span class="number">1u8</span>), |acc, (x, y)| acc &amp; x.ct_eq(y));
-<a href=#545 id=545 data-nosnippet>545</a>    <span class="prelude-val">Ok</span>((len_eq &amp; bytes_eq).into())
-<a href=#546 id=546 data-nosnippet>546</a>}
-<a href=#547 id=547 data-nosnippet>547</a>
-<a href=#548 id=548 data-nosnippet>548</a><span class="kw">use </span><span class="kw">super</span>::get_random_bytes;
-<a href=#549 id=549 data-nosnippet>549</a>
-<a href=#550 id=550 data-nosnippet>550</a><span class="attr">#[cfg(test)]
-<a href=#551 id=551 data-nosnippet>551</a>#[allow(clippy::unwrap_used)] </span><span class="comment">// Tests use unwrap for simplicity
-<a href=#552 id=552 data-nosnippet>552</a></span><span class="attr">#[allow(clippy::panic_in_result_fn)] </span><span class="comment">// Tests use assertions for verification
-<a href=#553 id=553 data-nosnippet>553</a></span><span class="attr">#[allow(clippy::indexing_slicing)] </span><span class="comment">// Tests use slice indexing for verification
-<a href=#554 id=554 data-nosnippet>554</a></span><span class="attr">#[allow(clippy::panic)] </span><span class="comment">// `let Else { ... panic!(...) }` is the canonical error-extraction shape under deny(expect_used)
-<a href=#555 id=555 data-nosnippet>555</a></span><span class="kw">mod </span>tests {
-<a href=#556 id=556 data-nosnippet>556</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#557 id=557 data-nosnippet>557</a>
-<a href=#558 id=558 data-nosnippet>558</a>    <span class="attr">#[test]
-<a href=#559 id=559 data-nosnippet>559</a>    </span><span class="kw">fn </span>test_pbkdf2_basic_roundtrip() -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#560 id=560 data-nosnippet>560</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
-<a href=#561 id=561 data-nosnippet>561</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>; <span class="comment">// 16 bytes
-<a href=#562 id=562 data-nosnippet>562</a>        </span><span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
-<a href=#563 id=563 data-nosnippet>563</a>
-<a href=#564 id=564 data-nosnippet>564</a>        <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
-<a href=#565 id=565 data-nosnippet>565</a>        <span class="macro">assert_eq!</span>(result.key.len(), <span class="number">32</span>);
+<a href=#403 id=403 data-nosnippet>403</a>    <span class="comment">// Bound the requested key length BEFORE the allocation.
+<a href=#404 id=404 data-nosnippet>404</a>    // `params.key_length` is `usize`; without this gate, a caller (or
+<a href=#405 id=405 data-nosnippet>405</a>    // a deserialised KDF parameter block from an untrusted source)
+<a href=#406 id=406 data-nosnippet>406</a>    // could request `usize::MAX` and trigger an 18 EiB allocation
+<a href=#407 id=407 data-nosnippet>407</a>    // attempt before the per-block `u32::try_from` check below
+<a href=#408 id=408 data-nosnippet>408</a>    // would have fired. RFC 2898 caps PBKDF2 output at
+<a href=#409 id=409 data-nosnippet>409</a>    // `(2^32 - 1) * hLen`; in practice no legitimate caller asks
+<a href=#410 id=410 data-nosnippet>410</a>    // for more than a few KiB. Cap at 1 MiB — generous slack for
+<a href=#411 id=411 data-nosnippet>411</a>    // anyone composing several large keys, well under the
+<a href=#412 id=412 data-nosnippet>412</a>    // `Vec::with_capacity` failure threshold.
+<a href=#413 id=413 data-nosnippet>413</a>    </span><span class="kw">const </span>PBKDF2_MAX_KEY_LEN: usize = <span class="number">1024 </span>* <span class="number">1024</span>;
+<a href=#414 id=414 data-nosnippet>414</a>    <span class="kw">if </span>params.key_length &gt; PBKDF2_MAX_KEY_LEN {
+<a href=#415 id=415 data-nosnippet>415</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::InvalidParameter(<span class="macro">format!</span>(
+<a href=#416 id=416 data-nosnippet>416</a>            <span class="string">"Key length {} exceeds maximum of {} bytes"</span>,
+<a href=#417 id=417 data-nosnippet>417</a>            params.key_length, PBKDF2_MAX_KEY_LEN
+<a href=#418 id=418 data-nosnippet>418</a>        )));
+<a href=#419 id=419 data-nosnippet>419</a>    }
+<a href=#420 id=420 data-nosnippet>420</a>
+<a href=#421 id=421 data-nosnippet>421</a>    <span class="comment">// Calculate number of blocks needed
+<a href=#422 id=422 data-nosnippet>422</a>    </span><span class="kw">let </span>prf_output_len = <span class="kw">match </span>params.prf {
+<a href=#423 id=423 data-nosnippet>423</a>        PrfType::HmacSha256 =&gt; <span class="number">32</span>,
+<a href=#424 id=424 data-nosnippet>424</a>        PrfType::HmacSha512 =&gt; <span class="number">64</span>,
+<a href=#425 id=425 data-nosnippet>425</a>    };
+<a href=#426 id=426 data-nosnippet>426</a>
+<a href=#427 id=427 data-nosnippet>427</a>    <span class="kw">let </span>block_count = params.key_length.div_ceil(prf_output_len);
+<a href=#428 id=428 data-nosnippet>428</a>    <span class="comment">// Wrap in Zeroizing so partial key material is erased on early return via `?`.
+<a href=#429 id=429 data-nosnippet>429</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>derived_key: Zeroizing&lt;Vec&lt;u8&gt;&gt; = Zeroizing::new(<span class="macro">vec!</span>[<span class="number">0u8</span>; params.key_length]);
+<a href=#430 id=430 data-nosnippet>430</a>    <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0</span>;
+<a href=#431 id=431 data-nosnippet>431</a>
+<a href=#432 id=432 data-nosnippet>432</a>    <span class="comment">// Generate each block of the derived key
+<a href=#433 id=433 data-nosnippet>433</a>    </span><span class="kw">for </span>block_index <span class="kw">in </span><span class="number">1</span>..=block_count {
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">let </span>block_index_u32 = u32::try_from(block_index).map_err(|_e| {
+<a href=#435 id=435 data-nosnippet>435</a>            LatticeArcError::InvalidParameter(<span class="macro">format!</span>(
+<a href=#436 id=436 data-nosnippet>436</a>                <span class="string">"Block index {} exceeds u32::MAX"</span>,
+<a href=#437 id=437 data-nosnippet>437</a>                block_index
+<a href=#438 id=438 data-nosnippet>438</a>            ))
+<a href=#439 id=439 data-nosnippet>439</a>        })<span class="question-mark">?</span>;
+<a href=#440 id=440 data-nosnippet>440</a>        <span class="kw">let </span>block =
+<a href=#441 id=441 data-nosnippet>441</a>            generate_block(password, <span class="kw-2">&amp;</span>params.salt, params.iterations, block_index_u32, params.prf);
+<a href=#442 id=442 data-nosnippet>442</a>        <span class="kw">let </span>copy_len = std::cmp::min(block.len(), params.key_length.saturating_sub(offset));
+<a href=#443 id=443 data-nosnippet>443</a>        <span class="kw">let </span>end_offset = offset.checked_add(copy_len).ok_or_else(|| {
+<a href=#444 id=444 data-nosnippet>444</a>            LatticeArcError::InvalidParameter(<span class="string">"Derived key offset overflow"</span>.to_string())
+<a href=#445 id=445 data-nosnippet>445</a>        })<span class="question-mark">?</span>;
+<a href=#446 id=446 data-nosnippet>446</a>        <span class="kw">let </span>dest_slice = derived_key.get_mut(offset..end_offset).ok_or_else(|| {
+<a href=#447 id=447 data-nosnippet>447</a>            LatticeArcError::InvalidParameter(<span class="string">"Derived key buffer overflow"</span>.to_string())
+<a href=#448 id=448 data-nosnippet>448</a>        })<span class="question-mark">?</span>;
+<a href=#449 id=449 data-nosnippet>449</a>        <span class="kw">let </span>src_slice = block.get(..copy_len).ok_or_else(|| {
+<a href=#450 id=450 data-nosnippet>450</a>            LatticeArcError::InvalidParameter(<span class="string">"Block slice out of bounds"</span>.to_string())
+<a href=#451 id=451 data-nosnippet>451</a>        })<span class="question-mark">?</span>;
+<a href=#452 id=452 data-nosnippet>452</a>        dest_slice.copy_from_slice(src_slice);
+<a href=#453 id=453 data-nosnippet>453</a>        offset = end_offset;
+<a href=#454 id=454 data-nosnippet>454</a>    }
+<a href=#455 id=455 data-nosnippet>455</a>
+<a href=#456 id=456 data-nosnippet>456</a>    <span class="prelude-val">Ok</span>(Pbkdf2Result { key: derived_key, params: params.clone() })
+<a href=#457 id=457 data-nosnippet>457</a>}
+<a href=#458 id=458 data-nosnippet>458</a>
+<a href=#459 id=459 data-nosnippet>459</a><span class="doccomment">/// Generate a single block of the PBKDF2 output.
+<a href=#460 id=460 data-nosnippet>460</a>///
+<a href=#461 id=461 data-nosnippet>461</a>/// The returned buffer contains derived key material and is wrapped in
+<a href=#462 id=462 data-nosnippet>462</a>/// `Zeroizing` to erase it automatically on drop, including on early error
+<a href=#463 id=463 data-nosnippet>463</a>/// returns from the caller. Infallible: all underlying HMAC operations are
+<a href=#464 id=464 data-nosnippet>464</a>/// infallible for valid key lengths (checked in `pbkdf2()`).
+<a href=#465 id=465 data-nosnippet>465</a></span><span class="kw">fn </span>generate_block(
+<a href=#466 id=466 data-nosnippet>466</a>    password: <span class="kw-2">&amp;</span>[u8],
+<a href=#467 id=467 data-nosnippet>467</a>    salt: <span class="kw-2">&amp;</span>[u8],
+<a href=#468 id=468 data-nosnippet>468</a>    iterations: u32,
+<a href=#469 id=469 data-nosnippet>469</a>    block_index: u32,
+<a href=#470 id=470 data-nosnippet>470</a>    prf: PrfType,
+<a href=#471 id=471 data-nosnippet>471</a>) -&gt; Zeroizing&lt;Vec&lt;u8&gt;&gt; {
+<a href=#472 id=472 data-nosnippet>472</a>    <span class="comment">// Convert block index to bytes (big-endian). `block_input` only
+<a href=#473 id=473 data-nosnippet>473</a>    // carries public bytes today (salt + counter), so this is hygiene —
+<a href=#474 id=474 data-nosnippet>474</a>    // but the surrounding code is `Zeroizing&lt;Vec&lt;u8&gt;&gt;` and a future
+<a href=#475 id=475 data-nosnippet>475</a>    // refactor that adds a secret label here would silently leak. Keep
+<a href=#476 id=476 data-nosnippet>476</a>    // the type discipline consistent.
+<a href=#477 id=477 data-nosnippet>477</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>block_input = Zeroizing::new(salt.to_vec());
+<a href=#478 id=478 data-nosnippet>478</a>    block_input.extend_from_slice(<span class="kw-2">&amp;</span>block_index.to_be_bytes());
+<a href=#479 id=479 data-nosnippet>479</a>
+<a href=#480 id=480 data-nosnippet>480</a>    <span class="comment">// U_1 = PRF(password, salt || INT(block_index))
+<a href=#481 id=481 data-nosnippet>481</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>u = compute_prf(password, <span class="kw-2">&amp;</span>block_input, prf);
+<a href=#482 id=482 data-nosnippet>482</a>    <span class="kw">let </span><span class="kw-2">mut </span>result: Zeroizing&lt;Vec&lt;u8&gt;&gt; = Zeroizing::new(u.to_vec());
+<a href=#483 id=483 data-nosnippet>483</a>
+<a href=#484 id=484 data-nosnippet>484</a>    <span class="comment">// U_2 = PRF(password, U_1) ⊕ U_1
+<a href=#485 id=485 data-nosnippet>485</a>    // U_3 = PRF(password, U_2) ⊕ U_2
+<a href=#486 id=486 data-nosnippet>486</a>    // ...
+<a href=#487 id=487 data-nosnippet>487</a>    // U_c = PRF(password, U_{c-1}) ⊕ U_{c-1}
+<a href=#488 id=488 data-nosnippet>488</a>    </span><span class="kw">for _ in </span><span class="number">1</span>..iterations {
+<a href=#489 id=489 data-nosnippet>489</a>        u = compute_prf(password, <span class="kw-2">&amp;</span>u, prf);
+<a href=#490 id=490 data-nosnippet>490</a>        <span class="kw">for </span>(res_byte, u_byte) <span class="kw">in </span>result.iter_mut().zip(u.iter()) {
+<a href=#491 id=491 data-nosnippet>491</a>            <span class="kw-2">*</span>res_byte ^= u_byte;
+<a href=#492 id=492 data-nosnippet>492</a>        }
+<a href=#493 id=493 data-nosnippet>493</a>    }
+<a href=#494 id=494 data-nosnippet>494</a>
+<a href=#495 id=495 data-nosnippet>495</a>    result
+<a href=#496 id=496 data-nosnippet>496</a>}
+<a href=#497 id=497 data-nosnippet>497</a>
+<a href=#498 id=498 data-nosnippet>498</a><span class="doccomment">/// Compute PRF (HMAC) for PBKDF2.
+<a href=#499 id=499 data-nosnippet>499</a>///
+<a href=#500 id=500 data-nosnippet>500</a>/// Returns the HMAC output wrapped in `Zeroizing` because it is used directly
+<a href=#501 id=501 data-nosnippet>501</a>/// as derived key material (both `U_1` and the XOR-chained iterates `U_i`).
+<a href=#502 id=502 data-nosnippet>502</a>/// Infallible: aws-lc-rs `hmac::Key::new` accepts any key length, and
+<a href=#503 id=503 data-nosnippet>503</a>/// `hmac::sign` cannot fail for HMAC-SHA256/SHA-512.
+<a href=#504 id=504 data-nosnippet>504</a></span><span class="kw">fn </span>compute_prf(password: <span class="kw-2">&amp;</span>[u8], data: <span class="kw-2">&amp;</span>[u8], prf: PrfType) -&gt; Zeroizing&lt;Vec&lt;u8&gt;&gt; {
+<a href=#505 id=505 data-nosnippet>505</a>    <span class="comment">// Delegates to aws-lc-rs HMAC for FIPS-validated constant-time operation.
+<a href=#506 id=506 data-nosnippet>506</a>    // The same backend is used by HKDF, SP800-108, and the mac::hmac wrapper.
+<a href=#507 id=507 data-nosnippet>507</a>    </span><span class="kw">let </span>algorithm = <span class="kw">match </span>prf {
+<a href=#508 id=508 data-nosnippet>508</a>        PrfType::HmacSha256 =&gt; HMAC_SHA256,
+<a href=#509 id=509 data-nosnippet>509</a>        PrfType::HmacSha512 =&gt; HMAC_SHA512,
+<a href=#510 id=510 data-nosnippet>510</a>    };
+<a href=#511 id=511 data-nosnippet>511</a>    <span class="kw">let </span>key = hmac::Key::new(algorithm, password);
+<a href=#512 id=512 data-nosnippet>512</a>    <span class="kw">let </span>tag = hmac::sign(<span class="kw-2">&amp;</span>key, data);
+<a href=#513 id=513 data-nosnippet>513</a>    Zeroizing::new(tag.as_ref().to_vec())
+<a href=#514 id=514 data-nosnippet>514</a>}
+<a href=#515 id=515 data-nosnippet>515</a>
+<a href=#516 id=516 data-nosnippet>516</a><span class="doccomment">/// Password-based key derivation with default parameters
+<a href=#517 id=517 data-nosnippet>517</a>///
+<a href=#518 id=518 data-nosnippet>518</a>/// Convenience function that uses recommended default parameters:
+<a href=#519 id=519 data-nosnippet>519</a>/// - 16-byte random salt
+<a href=#520 id=520 data-nosnippet>520</a>/// - 600,000 iterations (OWASP 2023 recommendation for HMAC-SHA256)
+<a href=#521 id=521 data-nosnippet>521</a>/// - 32-byte key length
+<a href=#522 id=522 data-nosnippet>522</a>/// - HMAC-SHA256 PRF
+<a href=#523 id=523 data-nosnippet>523</a>///
+<a href=#524 id=524 data-nosnippet>524</a>/// # Errors
+<a href=#525 id=525 data-nosnippet>525</a>/// Returns an error if key derivation fails.
+<a href=#526 id=526 data-nosnippet>526</a></span><span class="kw">pub fn </span>pbkdf2_simple(password: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Pbkdf2Result&gt; {
+<a href=#527 id=527 data-nosnippet>527</a>    <span class="kw">let </span>params = Pbkdf2Params::new(<span class="number">16</span>)<span class="question-mark">?</span>.iterations(<span class="number">600_000</span>).key_length(<span class="number">32</span>).prf(PrfType::HmacSha256);
+<a href=#528 id=528 data-nosnippet>528</a>
+<a href=#529 id=529 data-nosnippet>529</a>    pbkdf2(password, <span class="kw-2">&amp;</span>params)
+<a href=#530 id=530 data-nosnippet>530</a>}
+<a href=#531 id=531 data-nosnippet>531</a>
+<a href=#532 id=532 data-nosnippet>532</a><span class="doccomment">/// Verify a password against a previously derived key.
+<a href=#533 id=533 data-nosnippet>533</a>///
+<a href=#534 id=534 data-nosnippet>534</a>/// `prf` MUST match the PRF used at derivation time — calling
+<a href=#535 id=535 data-nosnippet>535</a>/// `verify_password` with the wrong PRF derives different bytes from the
+<a href=#536 id=536 data-nosnippet>536</a>/// same password and the comparison will (correctly) return `false`,
+<a href=#537 id=537 data-nosnippet>537</a>/// indistinguishable from a wrong-password rejection. Storing the PRF
+<a href=#538 id=538 data-nosnippet>538</a>/// alongside the derived key is the caller's responsibility (the
+<a href=#539 id=539 data-nosnippet>539</a>/// envelope formats in `unified_api::key_format` carry it explicitly;
+<a href=#540 id=540 data-nosnippet>540</a>/// see also `Pbkdf2Result::params()` for inline retention).
+<a href=#541 id=541 data-nosnippet>541</a>///
+<a href=#542 id=542 data-nosnippet>542</a>/// # Errors
+<a href=#543 id=543 data-nosnippet>543</a>///
+<a href=#544 id=544 data-nosnippet>544</a>/// Returns an error if the parameters are invalid (short salt, weak
+<a href=#545 id=545 data-nosnippet>545</a>/// iterations, etc.); see [`pbkdf2`] for the exhaustive list.
+<a href=#546 id=546 data-nosnippet>546</a></span><span class="kw">pub fn </span>verify_password(
+<a href=#547 id=547 data-nosnippet>547</a>    password: <span class="kw-2">&amp;</span>[u8],
+<a href=#548 id=548 data-nosnippet>548</a>    derived_key: <span class="kw-2">&amp;</span>[u8],
+<a href=#549 id=549 data-nosnippet>549</a>    salt: <span class="kw-2">&amp;</span>[u8],
+<a href=#550 id=550 data-nosnippet>550</a>    iterations: u32,
+<a href=#551 id=551 data-nosnippet>551</a>    prf: PrfType,
+<a href=#552 id=552 data-nosnippet>552</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
+<a href=#553 id=553 data-nosnippet>553</a>    <span class="kw">let </span>params =
+<a href=#554 id=554 data-nosnippet>554</a>        Pbkdf2Params::with_salt(salt).iterations(iterations).key_length(derived_key.len()).prf(prf);
+<a href=#555 id=555 data-nosnippet>555</a>
+<a href=#556 id=556 data-nosnippet>556</a>    <span class="kw">let </span>result = pbkdf2(password, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
+<a href=#557 id=557 data-nosnippet>557</a>    <span class="kw">let </span>len_eq = derived_key.len().ct_eq(<span class="kw-2">&amp;</span>result.key.len());
+<a href=#558 id=558 data-nosnippet>558</a>    <span class="kw">let </span>bytes_eq = derived_key
+<a href=#559 id=559 data-nosnippet>559</a>        .iter()
+<a href=#560 id=560 data-nosnippet>560</a>        .zip(result.key.iter())
+<a href=#561 id=561 data-nosnippet>561</a>        .fold(subtle::Choice::from(<span class="number">1u8</span>), |acc, (x, y)| acc &amp; x.ct_eq(y));
+<a href=#562 id=562 data-nosnippet>562</a>    <span class="prelude-val">Ok</span>((len_eq &amp; bytes_eq).into())
+<a href=#563 id=563 data-nosnippet>563</a>}
+<a href=#564 id=564 data-nosnippet>564</a>
+<a href=#565 id=565 data-nosnippet>565</a><span class="kw">use </span><span class="kw">super</span>::get_random_bytes;
 <a href=#566 id=566 data-nosnippet>566</a>
-<a href=#567 id=567 data-nosnippet>567</a>        <span class="comment">// Verify deterministic output
-<a href=#568 id=568 data-nosnippet>568</a>        </span><span class="kw">let </span>result2 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
-<a href=#569 id=569 data-nosnippet>569</a>        <span class="macro">assert_eq!</span>(result.key, result2.key);
-<a href=#570 id=570 data-nosnippet>570</a>
-<a href=#571 id=571 data-nosnippet>571</a>        <span class="prelude-val">Ok</span>(())
-<a href=#572 id=572 data-nosnippet>572</a>    }
-<a href=#573 id=573 data-nosnippet>573</a>
-<a href=#574 id=574 data-nosnippet>574</a>    <span class="attr">#[test]
-<a href=#575 id=575 data-nosnippet>575</a>    </span><span class="kw">fn </span>test_pbkdf2_different_passwords_produce_different_keys_succeeds()
-<a href=#576 id=576 data-nosnippet>576</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#577 id=577 data-nosnippet>577</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#578 id=578 data-nosnippet>578</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
-<a href=#579 id=579 data-nosnippet>579</a>
-<a href=#580 id=580 data-nosnippet>580</a>        <span class="kw">let </span>result1 = pbkdf2_kat(<span class="string">b"password1"</span>, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
-<a href=#581 id=581 data-nosnippet>581</a>        <span class="kw">let </span>result2 = pbkdf2_kat(<span class="string">b"password2"</span>, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
-<a href=#582 id=582 data-nosnippet>582</a>
-<a href=#583 id=583 data-nosnippet>583</a>        <span class="macro">assert_ne!</span>(result1.key, result2.key);
-<a href=#584 id=584 data-nosnippet>584</a>        <span class="prelude-val">Ok</span>(())
-<a href=#585 id=585 data-nosnippet>585</a>    }
-<a href=#586 id=586 data-nosnippet>586</a>
-<a href=#587 id=587 data-nosnippet>587</a>    <span class="doccomment">/// Pattern 8 Rule 4: parameter-influence test — `Pbkdf2Params.salt`
-<a href=#588 id=588 data-nosnippet>588</a>    /// influences the derived key.
-<a href=#589 id=589 data-nosnippet>589</a>    </span><span class="attr">#[test]
-<a href=#590 id=590 data-nosnippet>590</a>    </span><span class="kw">fn </span>test_salt_influences_pbkdf2() -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#591 id=591 data-nosnippet>591</a>        <span class="kw">let </span>params1 = Pbkdf2Params::with_salt(<span class="string">b"salt123456789012"</span>).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
-<a href=#592 id=592 data-nosnippet>592</a>        <span class="kw">let </span>params2 = Pbkdf2Params::with_salt(<span class="string">b"salt223456789012"</span>).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
-<a href=#593 id=593 data-nosnippet>593</a>
-<a href=#594 id=594 data-nosnippet>594</a>        <span class="kw">let </span>result1 = pbkdf2_kat(<span class="string">b"password"</span>, <span class="kw-2">&amp;</span>params1)<span class="question-mark">?</span>;
-<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">let </span>result2 = pbkdf2_kat(<span class="string">b"password"</span>, <span class="kw-2">&amp;</span>params2)<span class="question-mark">?</span>;
+<a href=#567 id=567 data-nosnippet>567</a><span class="attr">#[cfg(test)]
+<a href=#568 id=568 data-nosnippet>568</a>#[allow(clippy::unwrap_used)] </span><span class="comment">// Tests use unwrap for simplicity
+<a href=#569 id=569 data-nosnippet>569</a></span><span class="attr">#[allow(clippy::panic_in_result_fn)] </span><span class="comment">// Tests use assertions for verification
+<a href=#570 id=570 data-nosnippet>570</a></span><span class="attr">#[allow(clippy::indexing_slicing)] </span><span class="comment">// Tests use slice indexing for verification
+<a href=#571 id=571 data-nosnippet>571</a></span><span class="attr">#[allow(clippy::panic)] </span><span class="comment">// `let Else { ... panic!(...) }` is the canonical error-extraction shape under deny(expect_used)
+<a href=#572 id=572 data-nosnippet>572</a></span><span class="kw">mod </span>tests {
+<a href=#573 id=573 data-nosnippet>573</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#574 id=574 data-nosnippet>574</a>
+<a href=#575 id=575 data-nosnippet>575</a>    <span class="attr">#[test]
+<a href=#576 id=576 data-nosnippet>576</a>    </span><span class="kw">fn </span>test_pbkdf2_basic_roundtrip() -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#577 id=577 data-nosnippet>577</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
+<a href=#578 id=578 data-nosnippet>578</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>; <span class="comment">// 16 bytes
+<a href=#579 id=579 data-nosnippet>579</a>        </span><span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
+<a href=#580 id=580 data-nosnippet>580</a>
+<a href=#581 id=581 data-nosnippet>581</a>        <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
+<a href=#582 id=582 data-nosnippet>582</a>        <span class="macro">assert_eq!</span>(result.key.len(), <span class="number">32</span>);
+<a href=#583 id=583 data-nosnippet>583</a>
+<a href=#584 id=584 data-nosnippet>584</a>        <span class="comment">// Verify deterministic output
+<a href=#585 id=585 data-nosnippet>585</a>        </span><span class="kw">let </span>result2 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
+<a href=#586 id=586 data-nosnippet>586</a>        <span class="macro">assert_eq!</span>(result.key, result2.key);
+<a href=#587 id=587 data-nosnippet>587</a>
+<a href=#588 id=588 data-nosnippet>588</a>        <span class="prelude-val">Ok</span>(())
+<a href=#589 id=589 data-nosnippet>589</a>    }
+<a href=#590 id=590 data-nosnippet>590</a>
+<a href=#591 id=591 data-nosnippet>591</a>    <span class="attr">#[test]
+<a href=#592 id=592 data-nosnippet>592</a>    </span><span class="kw">fn </span>test_pbkdf2_different_passwords_produce_different_keys_succeeds()
+<a href=#593 id=593 data-nosnippet>593</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#594 id=594 data-nosnippet>594</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
 <a href=#596 id=596 data-nosnippet>596</a>
-<a href=#597 id=597 data-nosnippet>597</a>        <span class="macro">assert_ne!</span>(result1.key, result2.key);
-<a href=#598 id=598 data-nosnippet>598</a>        <span class="prelude-val">Ok</span>(())
-<a href=#599 id=599 data-nosnippet>599</a>    }
-<a href=#600 id=600 data-nosnippet>600</a>
-<a href=#601 id=601 data-nosnippet>601</a>    <span class="doccomment">/// Pattern 8 Rule 4: parameter-influence test —
-<a href=#602 id=602 data-nosnippet>602</a>    /// `Pbkdf2Params.iterations` influences the derived key.
-<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="attr">#[test]
-<a href=#604 id=604 data-nosnippet>604</a>    </span><span class="kw">fn </span>test_iterations_influences_pbkdf2() {
-<a href=#605 id=605 data-nosnippet>605</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
-<a href=#606 id=606 data-nosnippet>606</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#607 id=607 data-nosnippet>607</a>        <span class="kw">let </span>params1 = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
-<a href=#608 id=608 data-nosnippet>608</a>        <span class="kw">let </span>params2 = Pbkdf2Params::with_salt(salt).iterations(<span class="number">2000</span>).key_length(<span class="number">32</span>);
-<a href=#609 id=609 data-nosnippet>609</a>
-<a href=#610 id=610 data-nosnippet>610</a>        <span class="kw">let </span>result1 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params1).unwrap();
-<a href=#611 id=611 data-nosnippet>611</a>        <span class="kw">let </span>result2 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params2).unwrap();
-<a href=#612 id=612 data-nosnippet>612</a>
-<a href=#613 id=613 data-nosnippet>613</a>        <span class="macro">assert_ne!</span>(result1.key, result2.key);
-<a href=#614 id=614 data-nosnippet>614</a>    }
-<a href=#615 id=615 data-nosnippet>615</a>
-<a href=#616 id=616 data-nosnippet>616</a>    <span class="doccomment">/// Pattern 8 Rule 4: parameter-influence test —
-<a href=#617 id=617 data-nosnippet>617</a>    /// `Pbkdf2Params.key_length` influences the derived key length.
-<a href=#618 id=618 data-nosnippet>618</a>    </span><span class="attr">#[test]
-<a href=#619 id=619 data-nosnippet>619</a>    </span><span class="kw">fn </span>test_key_length_influences_pbkdf2() {
-<a href=#620 id=620 data-nosnippet>620</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
-<a href=#621 id=621 data-nosnippet>621</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#622 id=622 data-nosnippet>622</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>len <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="number">16usize</span>, <span class="number">32</span>, <span class="number">48</span>, <span class="number">64</span>] {
-<a href=#623 id=623 data-nosnippet>623</a>            <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(len);
-<a href=#624 id=624 data-nosnippet>624</a>            <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
-<a href=#625 id=625 data-nosnippet>625</a>            <span class="macro">assert_eq!</span>(
-<a href=#626 id=626 data-nosnippet>626</a>                result.expose_secret().len(),
-<a href=#627 id=627 data-nosnippet>627</a>                len,
-<a href=#628 id=628 data-nosnippet>628</a>                <span class="string">"key_length={} did not produce a {}-byte derived key"</span>,
-<a href=#629 id=629 data-nosnippet>629</a>                len,
-<a href=#630 id=630 data-nosnippet>630</a>                len,
-<a href=#631 id=631 data-nosnippet>631</a>            );
-<a href=#632 id=632 data-nosnippet>632</a>        }
-<a href=#633 id=633 data-nosnippet>633</a>    }
-<a href=#634 id=634 data-nosnippet>634</a>
-<a href=#635 id=635 data-nosnippet>635</a>    <span class="attr">#[test]
-<a href=#636 id=636 data-nosnippet>636</a>    </span><span class="kw">fn </span>test_pbkdf2_simple_produces_different_keys_with_different_salts_succeeds() {
-<a href=#637 id=637 data-nosnippet>637</a>        <span class="kw">let </span>password = <span class="string">b"testpassword"</span>;
-<a href=#638 id=638 data-nosnippet>638</a>        <span class="kw">let </span>result1 = pbkdf2_simple(password).unwrap();
-<a href=#639 id=639 data-nosnippet>639</a>        <span class="kw">let </span>result2 = pbkdf2_simple(password).unwrap();
-<a href=#640 id=640 data-nosnippet>640</a>
-<a href=#641 id=641 data-nosnippet>641</a>        <span class="comment">// Different salts should produce different keys
-<a href=#642 id=642 data-nosnippet>642</a>        </span><span class="macro">assert_ne!</span>(result1.key, result2.key);
-<a href=#643 id=643 data-nosnippet>643</a>        <span class="macro">assert_eq!</span>(result1.key.len(), <span class="number">32</span>);
-<a href=#644 id=644 data-nosnippet>644</a>        <span class="macro">assert_eq!</span>(result2.key.len(), <span class="number">32</span>);
-<a href=#645 id=645 data-nosnippet>645</a>    }
-<a href=#646 id=646 data-nosnippet>646</a>
-<a href=#647 id=647 data-nosnippet>647</a>    <span class="attr">#[test]
-<a href=#648 id=648 data-nosnippet>648</a>    </span><span class="kw">fn </span>test_password_verification_is_correct() {
-<a href=#649 id=649 data-nosnippet>649</a>        <span class="kw">let </span>password = <span class="string">b"correctpassword"</span>;
-<a href=#650 id=650 data-nosnippet>650</a>        <span class="kw">let </span>wrong_password = <span class="string">b"wrongpassword"</span>;
+<a href=#597 id=597 data-nosnippet>597</a>        <span class="kw">let </span>result1 = pbkdf2_kat(<span class="string">b"password1"</span>, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
+<a href=#598 id=598 data-nosnippet>598</a>        <span class="kw">let </span>result2 = pbkdf2_kat(<span class="string">b"password2"</span>, <span class="kw-2">&amp;</span>params)<span class="question-mark">?</span>;
+<a href=#599 id=599 data-nosnippet>599</a>
+<a href=#600 id=600 data-nosnippet>600</a>        <span class="macro">assert_ne!</span>(result1.key, result2.key);
+<a href=#601 id=601 data-nosnippet>601</a>        <span class="prelude-val">Ok</span>(())
+<a href=#602 id=602 data-nosnippet>602</a>    }
+<a href=#603 id=603 data-nosnippet>603</a>
+<a href=#604 id=604 data-nosnippet>604</a>    <span class="doccomment">/// Pattern 8 Rule 4: parameter-influence test — `Pbkdf2Params.salt`
+<a href=#605 id=605 data-nosnippet>605</a>    /// influences the derived key.
+<a href=#606 id=606 data-nosnippet>606</a>    </span><span class="attr">#[test]
+<a href=#607 id=607 data-nosnippet>607</a>    </span><span class="kw">fn </span>test_salt_influences_pbkdf2() -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#608 id=608 data-nosnippet>608</a>        <span class="kw">let </span>params1 = Pbkdf2Params::with_salt(<span class="string">b"salt123456789012"</span>).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
+<a href=#609 id=609 data-nosnippet>609</a>        <span class="kw">let </span>params2 = Pbkdf2Params::with_salt(<span class="string">b"salt223456789012"</span>).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
+<a href=#610 id=610 data-nosnippet>610</a>
+<a href=#611 id=611 data-nosnippet>611</a>        <span class="kw">let </span>result1 = pbkdf2_kat(<span class="string">b"password"</span>, <span class="kw-2">&amp;</span>params1)<span class="question-mark">?</span>;
+<a href=#612 id=612 data-nosnippet>612</a>        <span class="kw">let </span>result2 = pbkdf2_kat(<span class="string">b"password"</span>, <span class="kw-2">&amp;</span>params2)<span class="question-mark">?</span>;
+<a href=#613 id=613 data-nosnippet>613</a>
+<a href=#614 id=614 data-nosnippet>614</a>        <span class="macro">assert_ne!</span>(result1.key, result2.key);
+<a href=#615 id=615 data-nosnippet>615</a>        <span class="prelude-val">Ok</span>(())
+<a href=#616 id=616 data-nosnippet>616</a>    }
+<a href=#617 id=617 data-nosnippet>617</a>
+<a href=#618 id=618 data-nosnippet>618</a>    <span class="doccomment">/// Pattern 8 Rule 4: parameter-influence test —
+<a href=#619 id=619 data-nosnippet>619</a>    /// `Pbkdf2Params.iterations` influences the derived key.
+<a href=#620 id=620 data-nosnippet>620</a>    </span><span class="attr">#[test]
+<a href=#621 id=621 data-nosnippet>621</a>    </span><span class="kw">fn </span>test_iterations_influences_pbkdf2() {
+<a href=#622 id=622 data-nosnippet>622</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
+<a href=#623 id=623 data-nosnippet>623</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#624 id=624 data-nosnippet>624</a>        <span class="kw">let </span>params1 = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
+<a href=#625 id=625 data-nosnippet>625</a>        <span class="kw">let </span>params2 = Pbkdf2Params::with_salt(salt).iterations(<span class="number">2000</span>).key_length(<span class="number">32</span>);
+<a href=#626 id=626 data-nosnippet>626</a>
+<a href=#627 id=627 data-nosnippet>627</a>        <span class="kw">let </span>result1 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params1).unwrap();
+<a href=#628 id=628 data-nosnippet>628</a>        <span class="kw">let </span>result2 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params2).unwrap();
+<a href=#629 id=629 data-nosnippet>629</a>
+<a href=#630 id=630 data-nosnippet>630</a>        <span class="macro">assert_ne!</span>(result1.key, result2.key);
+<a href=#631 id=631 data-nosnippet>631</a>    }
+<a href=#632 id=632 data-nosnippet>632</a>
+<a href=#633 id=633 data-nosnippet>633</a>    <span class="doccomment">/// Pattern 8 Rule 4: parameter-influence test —
+<a href=#634 id=634 data-nosnippet>634</a>    /// `Pbkdf2Params.key_length` influences the derived key length.
+<a href=#635 id=635 data-nosnippet>635</a>    </span><span class="attr">#[test]
+<a href=#636 id=636 data-nosnippet>636</a>    </span><span class="kw">fn </span>test_key_length_influences_pbkdf2() {
+<a href=#637 id=637 data-nosnippet>637</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
+<a href=#638 id=638 data-nosnippet>638</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#639 id=639 data-nosnippet>639</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>len <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="number">16usize</span>, <span class="number">32</span>, <span class="number">48</span>, <span class="number">64</span>] {
+<a href=#640 id=640 data-nosnippet>640</a>            <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(len);
+<a href=#641 id=641 data-nosnippet>641</a>            <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
+<a href=#642 id=642 data-nosnippet>642</a>            <span class="macro">assert_eq!</span>(
+<a href=#643 id=643 data-nosnippet>643</a>                result.expose_secret().len(),
+<a href=#644 id=644 data-nosnippet>644</a>                len,
+<a href=#645 id=645 data-nosnippet>645</a>                <span class="string">"key_length={} did not produce a {}-byte derived key"</span>,
+<a href=#646 id=646 data-nosnippet>646</a>                len,
+<a href=#647 id=647 data-nosnippet>647</a>                len,
+<a href=#648 id=648 data-nosnippet>648</a>            );
+<a href=#649 id=649 data-nosnippet>649</a>        }
+<a href=#650 id=650 data-nosnippet>650</a>    }
 <a href=#651 id=651 data-nosnippet>651</a>
-<a href=#652 id=652 data-nosnippet>652</a>        <span class="kw">let </span>result = pbkdf2_simple(password).unwrap();
-<a href=#653 id=653 data-nosnippet>653</a>
-<a href=#654 id=654 data-nosnippet>654</a>        <span class="comment">// Correct password should verify
-<a href=#655 id=655 data-nosnippet>655</a>        </span><span class="macro">assert!</span>(result.verify_password(password).unwrap());
-<a href=#656 id=656 data-nosnippet>656</a>
-<a href=#657 id=657 data-nosnippet>657</a>        <span class="comment">// Wrong password should not verify
-<a href=#658 id=658 data-nosnippet>658</a>        </span><span class="macro">assert!</span>(!result.verify_password(wrong_password).unwrap());
-<a href=#659 id=659 data-nosnippet>659</a>    }
-<a href=#660 id=660 data-nosnippet>660</a>
-<a href=#661 id=661 data-nosnippet>661</a>    <span class="attr">#[test]
-<a href=#662 id=662 data-nosnippet>662</a>    </span><span class="kw">fn </span>test_verify_password_function_rejects_below_owasp_floor() {
-<a href=#663 id=663 data-nosnippet>663</a>        <span class="comment">// `verify_password()` is the public ergonomic helper around
-<a href=#664 id=664 data-nosnippet>664</a>        // `pbkdf2()`. Calls below the per-PRF OWASP floor must propagate
-<a href=#665 id=665 data-nosnippet>665</a>        // the floor error rather than silently derive with weak params.
-<a href=#666 id=666 data-nosnippet>666</a>        </span><span class="kw">let </span>salt = <span class="string">b"1234567890123456"</span>; <span class="comment">// 16 bytes
-<a href=#667 id=667 data-nosnippet>667</a>        </span><span class="kw">let </span>derived_key = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>]; <span class="comment">// shape only — never reached
-<a href=#668 id=668 data-nosnippet>668</a>        </span><span class="kw">for </span>weak <span class="kw">in </span>[<span class="number">1u32</span>, <span class="number">1000</span>, <span class="number">100_000</span>, Pbkdf2Params::MIN_ITERATIONS_SHA256 - <span class="number">1</span>] {
-<a href=#669 id=669 data-nosnippet>669</a>            <span class="kw">let </span>result =
-<a href=#670 id=670 data-nosnippet>670</a>                verify_password(<span class="string">b"testpass"</span>, <span class="kw-2">&amp;</span>derived_key, salt, weak, PrfType::HmacSha256);
-<a href=#671 id=671 data-nosnippet>671</a>            <span class="macro">assert!</span>(
-<a href=#672 id=672 data-nosnippet>672</a>                result.is_err(),
-<a href=#673 id=673 data-nosnippet>673</a>                <span class="string">"verify_password must reject {weak} iterations (below OWASP floor)"
-<a href=#674 id=674 data-nosnippet>674</a>            </span>);
-<a href=#675 id=675 data-nosnippet>675</a>        }
+<a href=#652 id=652 data-nosnippet>652</a>    <span class="attr">#[test]
+<a href=#653 id=653 data-nosnippet>653</a>    </span><span class="kw">fn </span>test_pbkdf2_simple_produces_different_keys_with_different_salts_succeeds() {
+<a href=#654 id=654 data-nosnippet>654</a>        <span class="kw">let </span>password = <span class="string">b"testpassword"</span>;
+<a href=#655 id=655 data-nosnippet>655</a>        <span class="kw">let </span>result1 = pbkdf2_simple(password).unwrap();
+<a href=#656 id=656 data-nosnippet>656</a>        <span class="kw">let </span>result2 = pbkdf2_simple(password).unwrap();
+<a href=#657 id=657 data-nosnippet>657</a>
+<a href=#658 id=658 data-nosnippet>658</a>        <span class="comment">// Different salts should produce different keys
+<a href=#659 id=659 data-nosnippet>659</a>        </span><span class="macro">assert_ne!</span>(result1.key, result2.key);
+<a href=#660 id=660 data-nosnippet>660</a>        <span class="macro">assert_eq!</span>(result1.key.len(), <span class="number">32</span>);
+<a href=#661 id=661 data-nosnippet>661</a>        <span class="macro">assert_eq!</span>(result2.key.len(), <span class="number">32</span>);
+<a href=#662 id=662 data-nosnippet>662</a>    }
+<a href=#663 id=663 data-nosnippet>663</a>
+<a href=#664 id=664 data-nosnippet>664</a>    <span class="attr">#[test]
+<a href=#665 id=665 data-nosnippet>665</a>    </span><span class="kw">fn </span>test_password_verification_is_correct() {
+<a href=#666 id=666 data-nosnippet>666</a>        <span class="kw">let </span>password = <span class="string">b"correctpassword"</span>;
+<a href=#667 id=667 data-nosnippet>667</a>        <span class="kw">let </span>wrong_password = <span class="string">b"wrongpassword"</span>;
+<a href=#668 id=668 data-nosnippet>668</a>
+<a href=#669 id=669 data-nosnippet>669</a>        <span class="kw">let </span>result = pbkdf2_simple(password).unwrap();
+<a href=#670 id=670 data-nosnippet>670</a>
+<a href=#671 id=671 data-nosnippet>671</a>        <span class="comment">// Correct password should verify
+<a href=#672 id=672 data-nosnippet>672</a>        </span><span class="macro">assert!</span>(result.verify_password(password).unwrap());
+<a href=#673 id=673 data-nosnippet>673</a>
+<a href=#674 id=674 data-nosnippet>674</a>        <span class="comment">// Wrong password should not verify
+<a href=#675 id=675 data-nosnippet>675</a>        </span><span class="macro">assert!</span>(!result.verify_password(wrong_password).unwrap());
 <a href=#676 id=676 data-nosnippet>676</a>    }
 <a href=#677 id=677 data-nosnippet>677</a>
 <a href=#678 id=678 data-nosnippet>678</a>    <span class="attr">#[test]
-<a href=#679 id=679 data-nosnippet>679</a>    </span><span class="kw">fn </span>test_pbkdf2_validation_fails_for_invalid_params_fails() {
-<a href=#680 id=680 data-nosnippet>680</a>        <span class="kw">let </span>password = <span class="string">b"pass"</span>;
-<a href=#681 id=681 data-nosnippet>681</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>; <span class="comment">// 16 bytes for cases that need a valid salt
-<a href=#682 id=682 data-nosnippet>682</a>
-<a href=#683 id=683 data-nosnippet>683</a>        // Empty salt fails the SP 800-132 §5.1 length check.
-<a href=#684 id=684 data-nosnippet>684</a>        </span><span class="kw">let </span>params_empty_salt = Pbkdf2Params::with_salt(<span class="string">b""</span>).iterations(<span class="number">600_000</span>).key_length(<span class="number">32</span>);
-<a href=#685 id=685 data-nosnippet>685</a>        <span class="macro">assert!</span>(pbkdf2(password, <span class="kw-2">&amp;</span>params_empty_salt).is_err());
-<a href=#686 id=686 data-nosnippet>686</a>
-<a href=#687 id=687 data-nosnippet>687</a>        <span class="comment">// All-zero salt fails the entropy check.
-<a href=#688 id=688 data-nosnippet>688</a>        </span><span class="kw">let </span>params_zero_salt =
-<a href=#689 id=689 data-nosnippet>689</a>            Pbkdf2Params::with_salt(<span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">16</span>]).iterations(<span class="number">600_000</span>).key_length(<span class="number">32</span>);
-<a href=#690 id=690 data-nosnippet>690</a>        <span class="macro">assert!</span>(pbkdf2(password, <span class="kw-2">&amp;</span>params_zero_salt).is_err());
-<a href=#691 id=691 data-nosnippet>691</a>
-<a href=#692 id=692 data-nosnippet>692</a>        <span class="comment">// Iterations below the per-PRF OWASP floor fail.
-<a href=#693 id=693 data-nosnippet>693</a>        </span><span class="kw">let </span>params_low_iter = Pbkdf2Params::with_salt(salt).iterations(<span class="number">500</span>).key_length(<span class="number">32</span>);
-<a href=#694 id=694 data-nosnippet>694</a>        <span class="macro">assert!</span>(pbkdf2(password, <span class="kw-2">&amp;</span>params_low_iter).is_err());
-<a href=#695 id=695 data-nosnippet>695</a>
-<a href=#696 id=696 data-nosnippet>696</a>        <span class="comment">// Zero key length fails.
-<a href=#697 id=697 data-nosnippet>697</a>        </span><span class="kw">let </span>params_zero_len = Pbkdf2Params::with_salt(salt).iterations(<span class="number">600_000</span>).key_length(<span class="number">0</span>);
-<a href=#698 id=698 data-nosnippet>698</a>        <span class="macro">assert!</span>(pbkdf2(password, <span class="kw-2">&amp;</span>params_zero_len).is_err());
-<a href=#699 id=699 data-nosnippet>699</a>    }
-<a href=#700 id=700 data-nosnippet>700</a>
-<a href=#701 id=701 data-nosnippet>701</a>    <span class="attr">#[test]
-<a href=#702 id=702 data-nosnippet>702</a>    </span><span class="kw">fn </span>test_pbkdf2_iteration_floor_sha256() {
-<a href=#703 id=703 data-nosnippet>703</a>        <span class="comment">// At the floor: accepted. One below: rejected.
-<a href=#704 id=704 data-nosnippet>704</a>        </span><span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#705 id=705 data-nosnippet>705</a>        <span class="kw">let </span>at_floor = Pbkdf2Params::with_salt(salt)
-<a href=#706 id=706 data-nosnippet>706</a>            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA256)
-<a href=#707 id=707 data-nosnippet>707</a>            .key_length(<span class="number">32</span>)
-<a href=#708 id=708 data-nosnippet>708</a>            .prf(PrfType::HmacSha256);
-<a href=#709 id=709 data-nosnippet>709</a>        <span class="comment">// We use pbkdf2_kat for the positive boundary check to keep the
-<a href=#710 id=710 data-nosnippet>710</a>        // test fast; `pbkdf2()` would do the same work but takes ~1s.
-<a href=#711 id=711 data-nosnippet>711</a>        // The boundary itself (the floor constant) is exercised below.
-<a href=#712 id=712 data-nosnippet>712</a>        </span><span class="macro">assert!</span>(pbkdf2_kat(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>at_floor).is_ok());
-<a href=#713 id=713 data-nosnippet>713</a>
-<a href=#714 id=714 data-nosnippet>714</a>        <span class="kw">let </span>below = Pbkdf2Params::with_salt(salt)
-<a href=#715 id=715 data-nosnippet>715</a>            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA256 - <span class="number">1</span>)
-<a href=#716 id=716 data-nosnippet>716</a>            .key_length(<span class="number">32</span>)
-<a href=#717 id=717 data-nosnippet>717</a>            .prf(PrfType::HmacSha256);
-<a href=#718 id=718 data-nosnippet>718</a>        <span class="kw">let </span>result = pbkdf2(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>below);
-<a href=#719 id=719 data-nosnippet>719</a>        <span class="kw">let </span><span class="prelude-val">Err</span>(err) = result <span class="kw">else </span>{
-<a href=#720 id=720 data-nosnippet>720</a>            <span class="macro">panic!</span>(<span class="string">"below floor must error"</span>);
-<a href=#721 id=721 data-nosnippet>721</a>        };
-<a href=#722 id=722 data-nosnippet>722</a>        <span class="kw">let </span>msg = err.to_string();
-<a href=#723 id=723 data-nosnippet>723</a>        <span class="macro">assert!</span>(
-<a href=#724 id=724 data-nosnippet>724</a>            msg.contains(<span class="string">"OWASP"</span>) &amp;&amp; msg.contains(<span class="string">"HmacSha256"</span>),
-<a href=#725 id=725 data-nosnippet>725</a>            <span class="string">"error must name OWASP and the PRF, got: {msg}"
-<a href=#726 id=726 data-nosnippet>726</a>        </span>);
-<a href=#727 id=727 data-nosnippet>727</a>    }
-<a href=#728 id=728 data-nosnippet>728</a>
-<a href=#729 id=729 data-nosnippet>729</a>    <span class="attr">#[test]
-<a href=#730 id=730 data-nosnippet>730</a>    </span><span class="kw">fn </span>test_pbkdf2_iteration_floor_sha512() {
-<a href=#731 id=731 data-nosnippet>731</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#732 id=732 data-nosnippet>732</a>        <span class="kw">let </span>below = Pbkdf2Params::with_salt(salt)
-<a href=#733 id=733 data-nosnippet>733</a>            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA512 - <span class="number">1</span>)
-<a href=#734 id=734 data-nosnippet>734</a>            .key_length(<span class="number">64</span>)
-<a href=#735 id=735 data-nosnippet>735</a>            .prf(PrfType::HmacSha512);
-<a href=#736 id=736 data-nosnippet>736</a>        <span class="kw">let </span>result = pbkdf2(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>below);
-<a href=#737 id=737 data-nosnippet>737</a>        <span class="kw">let </span><span class="prelude-val">Err</span>(err) = result <span class="kw">else </span>{
-<a href=#738 id=738 data-nosnippet>738</a>            <span class="macro">panic!</span>(<span class="string">"below floor must error"</span>);
-<a href=#739 id=739 data-nosnippet>739</a>        };
-<a href=#740 id=740 data-nosnippet>740</a>        <span class="kw">let </span>msg = err.to_string();
-<a href=#741 id=741 data-nosnippet>741</a>        <span class="macro">assert!</span>(
-<a href=#742 id=742 data-nosnippet>742</a>            msg.contains(<span class="string">"OWASP"</span>) &amp;&amp; msg.contains(<span class="string">"HmacSha512"</span>),
-<a href=#743 id=743 data-nosnippet>743</a>            <span class="string">"error must name OWASP and the PRF, got: {msg}"
-<a href=#744 id=744 data-nosnippet>744</a>        </span>);
+<a href=#679 id=679 data-nosnippet>679</a>    </span><span class="kw">fn </span>test_verify_password_function_rejects_below_owasp_floor() {
+<a href=#680 id=680 data-nosnippet>680</a>        <span class="comment">// `verify_password()` is the public ergonomic helper around
+<a href=#681 id=681 data-nosnippet>681</a>        // `pbkdf2()`. Calls below the per-PRF OWASP floor must propagate
+<a href=#682 id=682 data-nosnippet>682</a>        // the floor error rather than silently derive with weak params.
+<a href=#683 id=683 data-nosnippet>683</a>        </span><span class="kw">let </span>salt = <span class="string">b"1234567890123456"</span>; <span class="comment">// 16 bytes
+<a href=#684 id=684 data-nosnippet>684</a>        </span><span class="kw">let </span>derived_key = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>]; <span class="comment">// shape only — never reached
+<a href=#685 id=685 data-nosnippet>685</a>        </span><span class="kw">for </span>weak <span class="kw">in </span>[<span class="number">1u32</span>, <span class="number">1000</span>, <span class="number">100_000</span>, Pbkdf2Params::MIN_ITERATIONS_SHA256 - <span class="number">1</span>] {
+<a href=#686 id=686 data-nosnippet>686</a>            <span class="kw">let </span>result =
+<a href=#687 id=687 data-nosnippet>687</a>                verify_password(<span class="string">b"testpass"</span>, <span class="kw-2">&amp;</span>derived_key, salt, weak, PrfType::HmacSha256);
+<a href=#688 id=688 data-nosnippet>688</a>            <span class="macro">assert!</span>(
+<a href=#689 id=689 data-nosnippet>689</a>                result.is_err(),
+<a href=#690 id=690 data-nosnippet>690</a>                <span class="string">"verify_password must reject {weak} iterations (below OWASP floor)"
+<a href=#691 id=691 data-nosnippet>691</a>            </span>);
+<a href=#692 id=692 data-nosnippet>692</a>        }
+<a href=#693 id=693 data-nosnippet>693</a>    }
+<a href=#694 id=694 data-nosnippet>694</a>
+<a href=#695 id=695 data-nosnippet>695</a>    <span class="attr">#[test]
+<a href=#696 id=696 data-nosnippet>696</a>    </span><span class="kw">fn </span>test_pbkdf2_validation_fails_for_invalid_params_fails() {
+<a href=#697 id=697 data-nosnippet>697</a>        <span class="kw">let </span>password = <span class="string">b"pass"</span>;
+<a href=#698 id=698 data-nosnippet>698</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>; <span class="comment">// 16 bytes for cases that need a valid salt
+<a href=#699 id=699 data-nosnippet>699</a>
+<a href=#700 id=700 data-nosnippet>700</a>        // Empty salt fails the SP 800-132 §5.1 length check.
+<a href=#701 id=701 data-nosnippet>701</a>        </span><span class="kw">let </span>params_empty_salt = Pbkdf2Params::with_salt(<span class="string">b""</span>).iterations(<span class="number">600_000</span>).key_length(<span class="number">32</span>);
+<a href=#702 id=702 data-nosnippet>702</a>        <span class="macro">assert!</span>(pbkdf2(password, <span class="kw-2">&amp;</span>params_empty_salt).is_err());
+<a href=#703 id=703 data-nosnippet>703</a>
+<a href=#704 id=704 data-nosnippet>704</a>        <span class="comment">// All-zero salt fails the entropy check.
+<a href=#705 id=705 data-nosnippet>705</a>        </span><span class="kw">let </span>params_zero_salt =
+<a href=#706 id=706 data-nosnippet>706</a>            Pbkdf2Params::with_salt(<span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">16</span>]).iterations(<span class="number">600_000</span>).key_length(<span class="number">32</span>);
+<a href=#707 id=707 data-nosnippet>707</a>        <span class="macro">assert!</span>(pbkdf2(password, <span class="kw-2">&amp;</span>params_zero_salt).is_err());
+<a href=#708 id=708 data-nosnippet>708</a>
+<a href=#709 id=709 data-nosnippet>709</a>        <span class="comment">// Iterations below the per-PRF OWASP floor fail.
+<a href=#710 id=710 data-nosnippet>710</a>        </span><span class="kw">let </span>params_low_iter = Pbkdf2Params::with_salt(salt).iterations(<span class="number">500</span>).key_length(<span class="number">32</span>);
+<a href=#711 id=711 data-nosnippet>711</a>        <span class="macro">assert!</span>(pbkdf2(password, <span class="kw-2">&amp;</span>params_low_iter).is_err());
+<a href=#712 id=712 data-nosnippet>712</a>
+<a href=#713 id=713 data-nosnippet>713</a>        <span class="comment">// Zero key length fails.
+<a href=#714 id=714 data-nosnippet>714</a>        </span><span class="kw">let </span>params_zero_len = Pbkdf2Params::with_salt(salt).iterations(<span class="number">600_000</span>).key_length(<span class="number">0</span>);
+<a href=#715 id=715 data-nosnippet>715</a>        <span class="macro">assert!</span>(pbkdf2(password, <span class="kw-2">&amp;</span>params_zero_len).is_err());
+<a href=#716 id=716 data-nosnippet>716</a>    }
+<a href=#717 id=717 data-nosnippet>717</a>
+<a href=#718 id=718 data-nosnippet>718</a>    <span class="attr">#[test]
+<a href=#719 id=719 data-nosnippet>719</a>    </span><span class="kw">fn </span>test_pbkdf2_iteration_floor_sha256() {
+<a href=#720 id=720 data-nosnippet>720</a>        <span class="comment">// At the floor: accepted. One below: rejected.
+<a href=#721 id=721 data-nosnippet>721</a>        </span><span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#722 id=722 data-nosnippet>722</a>        <span class="kw">let </span>at_floor = Pbkdf2Params::with_salt(salt)
+<a href=#723 id=723 data-nosnippet>723</a>            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA256)
+<a href=#724 id=724 data-nosnippet>724</a>            .key_length(<span class="number">32</span>)
+<a href=#725 id=725 data-nosnippet>725</a>            .prf(PrfType::HmacSha256);
+<a href=#726 id=726 data-nosnippet>726</a>        <span class="comment">// We use pbkdf2_kat for the positive boundary check to keep the
+<a href=#727 id=727 data-nosnippet>727</a>        // test fast; `pbkdf2()` would do the same work but takes ~1s.
+<a href=#728 id=728 data-nosnippet>728</a>        // The boundary itself (the floor constant) is exercised below.
+<a href=#729 id=729 data-nosnippet>729</a>        </span><span class="macro">assert!</span>(pbkdf2_kat(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>at_floor).is_ok());
+<a href=#730 id=730 data-nosnippet>730</a>
+<a href=#731 id=731 data-nosnippet>731</a>        <span class="kw">let </span>below = Pbkdf2Params::with_salt(salt)
+<a href=#732 id=732 data-nosnippet>732</a>            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA256 - <span class="number">1</span>)
+<a href=#733 id=733 data-nosnippet>733</a>            .key_length(<span class="number">32</span>)
+<a href=#734 id=734 data-nosnippet>734</a>            .prf(PrfType::HmacSha256);
+<a href=#735 id=735 data-nosnippet>735</a>        <span class="kw">let </span>result = pbkdf2(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>below);
+<a href=#736 id=736 data-nosnippet>736</a>        <span class="kw">let </span><span class="prelude-val">Err</span>(err) = result <span class="kw">else </span>{
+<a href=#737 id=737 data-nosnippet>737</a>            <span class="macro">panic!</span>(<span class="string">"below floor must error"</span>);
+<a href=#738 id=738 data-nosnippet>738</a>        };
+<a href=#739 id=739 data-nosnippet>739</a>        <span class="kw">let </span>msg = err.to_string();
+<a href=#740 id=740 data-nosnippet>740</a>        <span class="macro">assert!</span>(
+<a href=#741 id=741 data-nosnippet>741</a>            msg.contains(<span class="string">"OWASP"</span>) &amp;&amp; msg.contains(<span class="string">"HmacSha256"</span>),
+<a href=#742 id=742 data-nosnippet>742</a>            <span class="string">"error must name OWASP and the PRF, got: {msg}"
+<a href=#743 id=743 data-nosnippet>743</a>        </span>);
+<a href=#744 id=744 data-nosnippet>744</a>    }
 <a href=#745 id=745 data-nosnippet>745</a>
-<a href=#746 id=746 data-nosnippet>746</a>        <span class="comment">// Sanity: SHA-512 floor is strictly less than SHA-256 floor.
-<a href=#747 id=747 data-nosnippet>747</a>        </span><span class="kw">const _</span>: () =
-<a href=#748 id=748 data-nosnippet>748</a>            <span class="macro">assert!</span>(Pbkdf2Params::MIN_ITERATIONS_SHA512 &lt; Pbkdf2Params::MIN_ITERATIONS_SHA256);
-<a href=#749 id=749 data-nosnippet>749</a>    }
-<a href=#750 id=750 data-nosnippet>750</a>
-<a href=#751 id=751 data-nosnippet>751</a>    <span class="attr">#[test]
-<a href=#752 id=752 data-nosnippet>752</a>    </span><span class="kw">fn </span>test_pbkdf2_kat_bypasses_owasp_floor() {
-<a href=#753 id=753 data-nosnippet>753</a>        <span class="comment">// KAT entry point must accept counts below the public-API floor —
-<a href=#754 id=754 data-nosnippet>754</a>        // RFC/NIST PBKDF2 test vectors use 1, 2, or 4096 iterations.
-<a href=#755 id=755 data-nosnippet>755</a>        </span><span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#756 id=756 data-nosnippet>756</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1</span>).key_length(<span class="number">32</span>);
-<a href=#757 id=757 data-nosnippet>757</a>        <span class="macro">assert!</span>(pbkdf2_kat(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>params).is_ok());
-<a href=#758 id=758 data-nosnippet>758</a>        <span class="comment">// But the public surface must still reject the same input.
-<a href=#759 id=759 data-nosnippet>759</a>        </span><span class="macro">assert!</span>(pbkdf2(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>params).is_err());
-<a href=#760 id=760 data-nosnippet>760</a>    }
-<a href=#761 id=761 data-nosnippet>761</a>
-<a href=#762 id=762 data-nosnippet>762</a>    <span class="doccomment">/// Pattern 8 Rule 4: parameter-influence test — `Pbkdf2Params.prf`
-<a href=#763 id=763 data-nosnippet>763</a>    /// influences the derived key (different PRF produces different
-<a href=#764 id=764 data-nosnippet>764</a>    /// output for the same password+salt+iterations+length).
-<a href=#765 id=765 data-nosnippet>765</a>    </span><span class="attr">#[test]
-<a href=#766 id=766 data-nosnippet>766</a>    </span><span class="kw">fn </span>test_prf_influences_pbkdf2() {
-<a href=#767 id=767 data-nosnippet>767</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
-<a href=#768 id=768 data-nosnippet>768</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#769 id=769 data-nosnippet>769</a>
-<a href=#770 id=770 data-nosnippet>770</a>        <span class="kw">let </span>params_sha256 =
-<a href=#771 id=771 data-nosnippet>771</a>            Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>).prf(PrfType::HmacSha256);
-<a href=#772 id=772 data-nosnippet>772</a>
-<a href=#773 id=773 data-nosnippet>773</a>        <span class="kw">let </span>params_sha512 = Pbkdf2Params::with_salt(salt)
-<a href=#774 id=774 data-nosnippet>774</a>            .iterations(<span class="number">1000</span>)
-<a href=#775 id=775 data-nosnippet>775</a>            .key_length(<span class="number">64</span>) <span class="comment">// Longer key for SHA512
-<a href=#776 id=776 data-nosnippet>776</a>            </span>.prf(PrfType::HmacSha512);
-<a href=#777 id=777 data-nosnippet>777</a>
-<a href=#778 id=778 data-nosnippet>778</a>        <span class="kw">let </span>result_sha256 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params_sha256).unwrap();
-<a href=#779 id=779 data-nosnippet>779</a>        <span class="kw">let </span>result_sha512 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params_sha512).unwrap();
-<a href=#780 id=780 data-nosnippet>780</a>
-<a href=#781 id=781 data-nosnippet>781</a>        <span class="macro">assert_eq!</span>(result_sha256.key.len(), <span class="number">32</span>);
-<a href=#782 id=782 data-nosnippet>782</a>        <span class="macro">assert_eq!</span>(result_sha512.key.len(), <span class="number">64</span>);
-<a href=#783 id=783 data-nosnippet>783</a>
-<a href=#784 id=784 data-nosnippet>784</a>        <span class="comment">// Different PRFs should produce different outputs
-<a href=#785 id=785 data-nosnippet>785</a>        </span><span class="macro">assert_ne!</span>(result_sha256.expose_secret(), <span class="kw-2">&amp;</span>result_sha512.expose_secret()[..<span class="number">32</span>]);
-<a href=#786 id=786 data-nosnippet>786</a>    }
-<a href=#787 id=787 data-nosnippet>787</a>
-<a href=#788 id=788 data-nosnippet>788</a>    <span class="attr">#[test]
-<a href=#789 id=789 data-nosnippet>789</a>    </span><span class="kw">fn </span>test_zeroize_on_drop_succeeds() {
-<a href=#790 id=790 data-nosnippet>790</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
-<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
-<a href=#793 id=793 data-nosnippet>793</a>
-<a href=#794 id=794 data-nosnippet>794</a>        <span class="comment">// Create result in a block to test drop behavior
-<a href=#795 id=795 data-nosnippet>795</a>        </span><span class="kw">let </span>key_bytes = {
-<a href=#796 id=796 data-nosnippet>796</a>            <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
-<a href=#797 id=797 data-nosnippet>797</a>            <span class="kw">let </span>key_copy = result.key.clone();
-<a href=#798 id=798 data-nosnippet>798</a>            <span class="comment">// Result should be zeroized when dropped
-<a href=#799 id=799 data-nosnippet>799</a>            </span>drop(result);
-<a href=#800 id=800 data-nosnippet>800</a>            key_copy
-<a href=#801 id=801 data-nosnippet>801</a>        };
-<a href=#802 id=802 data-nosnippet>802</a>
-<a href=#803 id=803 data-nosnippet>803</a>        <span class="comment">// The key should still be readable (ZeroizeOnDrop doesn't automatically zeroize
-<a href=#804 id=804 data-nosnippet>804</a>        // until the struct is actually dropped, but the test verifies the trait is implemented)
-<a href=#805 id=805 data-nosnippet>805</a>        </span><span class="macro">assert_eq!</span>(key_bytes.len(), <span class="number">32</span>);
-<a href=#806 id=806 data-nosnippet>806</a>    }
-<a href=#807 id=807 data-nosnippet>807</a>
-<a href=#808 id=808 data-nosnippet>808</a>    <span class="attr">#[test]
-<a href=#809 id=809 data-nosnippet>809</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_zero_salt_length_fails() {
-<a href=#810 id=810 data-nosnippet>810</a>        <span class="kw">let </span>result = Pbkdf2Params::new(<span class="number">0</span>);
-<a href=#811 id=811 data-nosnippet>811</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#812 id=812 data-nosnippet>812</a>    }
-<a href=#813 id=813 data-nosnippet>813</a>
-<a href=#814 id=814 data-nosnippet>814</a>    <span class="attr">#[test]
-<a href=#815 id=815 data-nosnippet>815</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_below_min_salt_len_fails() {
-<a href=#816 id=816 data-nosnippet>816</a>        <span class="comment">// NIST SP 800-132 §5.1 requires ≥ 128 bits (16 bytes). Anything in
-<a href=#817 id=817 data-nosnippet>817</a>        // [1, MIN_SALT_LEN) must be rejected by the size constructor.
-<a href=#818 id=818 data-nosnippet>818</a>        </span><span class="kw">for </span>n <span class="kw">in </span>[<span class="number">1usize</span>, <span class="number">8</span>, <span class="number">15</span>] {
-<a href=#819 id=819 data-nosnippet>819</a>            <span class="kw">let </span>result = Pbkdf2Params::new(n);
-<a href=#820 id=820 data-nosnippet>820</a>            <span class="macro">assert!</span>(
-<a href=#821 id=821 data-nosnippet>821</a>                result.is_err(),
-<a href=#822 id=822 data-nosnippet>822</a>                <span class="string">"salt length {n} below MIN_SALT_LEN={} should fail"</span>,
-<a href=#823 id=823 data-nosnippet>823</a>                Pbkdf2Params::MIN_SALT_LEN
-<a href=#824 id=824 data-nosnippet>824</a>            );
-<a href=#825 id=825 data-nosnippet>825</a>        }
-<a href=#826 id=826 data-nosnippet>826</a>    }
-<a href=#827 id=827 data-nosnippet>827</a>
-<a href=#828 id=828 data-nosnippet>828</a>    <span class="attr">#[test]
-<a href=#829 id=829 data-nosnippet>829</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_at_min_salt_len_succeeds() {
-<a href=#830 id=830 data-nosnippet>830</a>        <span class="comment">// Boundary: exactly MIN_SALT_LEN bytes is the smallest accepted size.
-<a href=#831 id=831 data-nosnippet>831</a>        </span><span class="kw">let </span>params = Pbkdf2Params::new(Pbkdf2Params::MIN_SALT_LEN).unwrap();
-<a href=#832 id=832 data-nosnippet>832</a>        <span class="macro">assert_eq!</span>(params.salt.len(), Pbkdf2Params::MIN_SALT_LEN);
-<a href=#833 id=833 data-nosnippet>833</a>    }
-<a href=#834 id=834 data-nosnippet>834</a>
-<a href=#835 id=835 data-nosnippet>835</a>    <span class="attr">#[test]
-<a href=#836 id=836 data-nosnippet>836</a>    </span><span class="kw">fn </span>test_pbkdf2_short_salt_rejected_at_derivation() {
-<a href=#837 id=837 data-nosnippet>837</a>        <span class="comment">// Pin the documented invariant: `with_salt` is infallible, but
-<a href=#838 id=838 data-nosnippet>838</a>        // a `Pbkdf2Params` carrying a salt below MIN_SALT_LEN cannot
-<a href=#839 id=839 data-nosnippet>839</a>        // reach key derivation — `pbkdf2()` rejects with
-<a href=#840 id=840 data-nosnippet>840</a>        // `InvalidParameter` before any HMAC rounds run. This is the
-<a href=#841 id=841 data-nosnippet>841</a>        // single enforcement point for NIST SP 800-132 §5.1 on the
-<a href=#842 id=842 data-nosnippet>842</a>        // wire-format-parser path.
-<a href=#843 id=843 data-nosnippet>843</a>        </span><span class="kw">let </span>short = <span class="macro">vec!</span>[<span class="number">0xAAu8</span>; Pbkdf2Params::MIN_SALT_LEN.saturating_sub(<span class="number">1</span>)];
-<a href=#844 id=844 data-nosnippet>844</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(<span class="kw-2">&amp;</span>short).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
-<a href=#845 id=845 data-nosnippet>845</a>        <span class="kw">let </span>result = pbkdf2(<span class="string">b"password"</span>, <span class="kw-2">&amp;</span>params);
-<a href=#846 id=846 data-nosnippet>846</a>        <span class="macro">assert!</span>(
-<a href=#847 id=847 data-nosnippet>847</a>            result.is_err(),
-<a href=#848 id=848 data-nosnippet>848</a>            <span class="string">"pbkdf2 must reject {short_len}-byte salt"</span>,
-<a href=#849 id=849 data-nosnippet>849</a>            short_len = short.len()
-<a href=#850 id=850 data-nosnippet>850</a>        );
-<a href=#851 id=851 data-nosnippet>851</a>    }
-<a href=#852 id=852 data-nosnippet>852</a>
-<a href=#853 id=853 data-nosnippet>853</a>    <span class="attr">#[test]
-<a href=#854 id=854 data-nosnippet>854</a>    </span><span class="kw">fn </span>test_pbkdf2_with_salt_at_min_succeeds() {
-<a href=#855 id=855 data-nosnippet>855</a>        <span class="kw">let </span>salt = <span class="macro">vec!</span>[<span class="number">0xAAu8</span>; Pbkdf2Params::MIN_SALT_LEN];
-<a href=#856 id=856 data-nosnippet>856</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(<span class="kw-2">&amp;</span>salt);
-<a href=#857 id=857 data-nosnippet>857</a>        <span class="macro">assert_eq!</span>(params.salt.len(), Pbkdf2Params::MIN_SALT_LEN);
-<a href=#858 id=858 data-nosnippet>858</a>    }
-<a href=#859 id=859 data-nosnippet>859</a>
-<a href=#860 id=860 data-nosnippet>860</a>    <span class="attr">#[test]
-<a href=#861 id=861 data-nosnippet>861</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_valid_has_correct_defaults_succeeds() {
-<a href=#862 id=862 data-nosnippet>862</a>        <span class="kw">let </span>params = Pbkdf2Params::new(<span class="number">16</span>).unwrap();
-<a href=#863 id=863 data-nosnippet>863</a>        <span class="macro">assert_eq!</span>(params.salt.len(), <span class="number">16</span>);
-<a href=#864 id=864 data-nosnippet>864</a>        <span class="macro">assert_eq!</span>(params.iterations, <span class="number">600_000</span>);
-<a href=#865 id=865 data-nosnippet>865</a>        <span class="macro">assert_eq!</span>(params.key_length, <span class="number">32</span>);
-<a href=#866 id=866 data-nosnippet>866</a>        <span class="macro">assert_eq!</span>(params.prf, PrfType::HmacSha256);
-<a href=#867 id=867 data-nosnippet>867</a>    }
-<a href=#868 id=868 data-nosnippet>868</a>
-<a href=#869 id=869 data-nosnippet>869</a>    <span class="attr">#[test]
-<a href=#870 id=870 data-nosnippet>870</a>    </span><span class="kw">fn </span>test_pbkdf2_multi_block_sha256_has_correct_length_has_correct_size() {
-<a href=#871 id=871 data-nosnippet>871</a>        <span class="comment">// key_length &gt; 32 requires multiple blocks for SHA256
-<a href=#872 id=872 data-nosnippet>872</a>        </span><span class="kw">let </span>password = <span class="string">b"password"</span>;
-<a href=#873 id=873 data-nosnippet>873</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#874 id=874 data-nosnippet>874</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">64</span>);
-<a href=#875 id=875 data-nosnippet>875</a>
-<a href=#876 id=876 data-nosnippet>876</a>        <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
-<a href=#877 id=877 data-nosnippet>877</a>        <span class="macro">assert_eq!</span>(result.key.len(), <span class="number">64</span>);
-<a href=#878 id=878 data-nosnippet>878</a>    }
-<a href=#879 id=879 data-nosnippet>879</a>
-<a href=#880 id=880 data-nosnippet>880</a>    <span class="attr">#[test]
-<a href=#881 id=881 data-nosnippet>881</a>    </span><span class="kw">fn </span>test_pbkdf2_multi_block_sha512_has_correct_length_has_correct_size() {
-<a href=#882 id=882 data-nosnippet>882</a>        <span class="comment">// key_length &gt; 64 requires multiple blocks for SHA512
-<a href=#883 id=883 data-nosnippet>883</a>        </span><span class="kw">let </span>password = <span class="string">b"password"</span>;
-<a href=#884 id=884 data-nosnippet>884</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#885 id=885 data-nosnippet>885</a>        <span class="kw">let </span>params =
-<a href=#886 id=886 data-nosnippet>886</a>            Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">128</span>).prf(PrfType::HmacSha512);
-<a href=#887 id=887 data-nosnippet>887</a>
-<a href=#888 id=888 data-nosnippet>888</a>        <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
-<a href=#889 id=889 data-nosnippet>889</a>        <span class="macro">assert_eq!</span>(result.key.len(), <span class="number">128</span>);
-<a href=#890 id=890 data-nosnippet>890</a>    }
-<a href=#891 id=891 data-nosnippet>891</a>
-<a href=#892 id=892 data-nosnippet>892</a>    <span class="attr">#[test]
-<a href=#893 id=893 data-nosnippet>893</a>    </span><span class="kw">fn </span>test_pbkdf2_result_key_accessor_returns_correct_value_succeeds() {
-<a href=#894 id=894 data-nosnippet>894</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
-<a href=#895 id=895 data-nosnippet>895</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
-<a href=#896 id=896 data-nosnippet>896</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
-<a href=#897 id=897 data-nosnippet>897</a>
-<a href=#898 id=898 data-nosnippet>898</a>        <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
-<a href=#899 id=899 data-nosnippet>899</a>        <span class="macro">assert_eq!</span>(result.expose_secret(), <span class="kw-2">&amp;</span>result.key[..]);
-<a href=#900 id=900 data-nosnippet>900</a>        <span class="macro">assert_eq!</span>(result.expose_secret().len(), <span class="number">32</span>);
-<a href=#901 id=901 data-nosnippet>901</a>    }
-<a href=#902 id=902 data-nosnippet>902</a>
-<a href=#903 id=903 data-nosnippet>903</a>    <span class="attr">#[test]
-<a href=#904 id=904 data-nosnippet>904</a>    </span><span class="kw">fn </span>test_pbkdf2_params_builder_chain_is_correct() {
-<a href=#905 id=905 data-nosnippet>905</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(<span class="string">b"saltsaltsaltsalt"</span>)
-<a href=#906 id=906 data-nosnippet>906</a>            .iterations(<span class="number">5000</span>)
-<a href=#907 id=907 data-nosnippet>907</a>            .key_length(<span class="number">48</span>)
-<a href=#908 id=908 data-nosnippet>908</a>            .prf(PrfType::HmacSha512);
-<a href=#909 id=909 data-nosnippet>909</a>
-<a href=#910 id=910 data-nosnippet>910</a>        <span class="macro">assert_eq!</span>(params.iterations, <span class="number">5000</span>);
-<a href=#911 id=911 data-nosnippet>911</a>        <span class="macro">assert_eq!</span>(params.key_length, <span class="number">48</span>);
-<a href=#912 id=912 data-nosnippet>912</a>        <span class="macro">assert_eq!</span>(params.prf, PrfType::HmacSha512);
-<a href=#913 id=913 data-nosnippet>913</a>    }
+<a href=#746 id=746 data-nosnippet>746</a>    <span class="attr">#[test]
+<a href=#747 id=747 data-nosnippet>747</a>    </span><span class="kw">fn </span>test_pbkdf2_iteration_floor_sha512() {
+<a href=#748 id=748 data-nosnippet>748</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#749 id=749 data-nosnippet>749</a>        <span class="kw">let </span>below = Pbkdf2Params::with_salt(salt)
+<a href=#750 id=750 data-nosnippet>750</a>            .iterations(Pbkdf2Params::MIN_ITERATIONS_SHA512 - <span class="number">1</span>)
+<a href=#751 id=751 data-nosnippet>751</a>            .key_length(<span class="number">64</span>)
+<a href=#752 id=752 data-nosnippet>752</a>            .prf(PrfType::HmacSha512);
+<a href=#753 id=753 data-nosnippet>753</a>        <span class="kw">let </span>result = pbkdf2(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>below);
+<a href=#754 id=754 data-nosnippet>754</a>        <span class="kw">let </span><span class="prelude-val">Err</span>(err) = result <span class="kw">else </span>{
+<a href=#755 id=755 data-nosnippet>755</a>            <span class="macro">panic!</span>(<span class="string">"below floor must error"</span>);
+<a href=#756 id=756 data-nosnippet>756</a>        };
+<a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">let </span>msg = err.to_string();
+<a href=#758 id=758 data-nosnippet>758</a>        <span class="macro">assert!</span>(
+<a href=#759 id=759 data-nosnippet>759</a>            msg.contains(<span class="string">"OWASP"</span>) &amp;&amp; msg.contains(<span class="string">"HmacSha512"</span>),
+<a href=#760 id=760 data-nosnippet>760</a>            <span class="string">"error must name OWASP and the PRF, got: {msg}"
+<a href=#761 id=761 data-nosnippet>761</a>        </span>);
+<a href=#762 id=762 data-nosnippet>762</a>
+<a href=#763 id=763 data-nosnippet>763</a>        <span class="comment">// Sanity: SHA-512 floor is strictly less than SHA-256 floor.
+<a href=#764 id=764 data-nosnippet>764</a>        </span><span class="kw">const _</span>: () =
+<a href=#765 id=765 data-nosnippet>765</a>            <span class="macro">assert!</span>(Pbkdf2Params::MIN_ITERATIONS_SHA512 &lt; Pbkdf2Params::MIN_ITERATIONS_SHA256);
+<a href=#766 id=766 data-nosnippet>766</a>    }
+<a href=#767 id=767 data-nosnippet>767</a>
+<a href=#768 id=768 data-nosnippet>768</a>    <span class="attr">#[test]
+<a href=#769 id=769 data-nosnippet>769</a>    </span><span class="kw">fn </span>test_pbkdf2_kat_bypasses_owasp_floor() {
+<a href=#770 id=770 data-nosnippet>770</a>        <span class="comment">// KAT entry point must accept counts below the public-API floor —
+<a href=#771 id=771 data-nosnippet>771</a>        // RFC/NIST PBKDF2 test vectors use 1, 2, or 4096 iterations.
+<a href=#772 id=772 data-nosnippet>772</a>        </span><span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#773 id=773 data-nosnippet>773</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1</span>).key_length(<span class="number">32</span>);
+<a href=#774 id=774 data-nosnippet>774</a>        <span class="macro">assert!</span>(pbkdf2_kat(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>params).is_ok());
+<a href=#775 id=775 data-nosnippet>775</a>        <span class="comment">// But the public surface must still reject the same input.
+<a href=#776 id=776 data-nosnippet>776</a>        </span><span class="macro">assert!</span>(pbkdf2(<span class="string">b"pw"</span>, <span class="kw-2">&amp;</span>params).is_err());
+<a href=#777 id=777 data-nosnippet>777</a>    }
+<a href=#778 id=778 data-nosnippet>778</a>
+<a href=#779 id=779 data-nosnippet>779</a>    <span class="doccomment">/// Pattern 8 Rule 4: parameter-influence test — `Pbkdf2Params.prf`
+<a href=#780 id=780 data-nosnippet>780</a>    /// influences the derived key (different PRF produces different
+<a href=#781 id=781 data-nosnippet>781</a>    /// output for the same password+salt+iterations+length).
+<a href=#782 id=782 data-nosnippet>782</a>    </span><span class="attr">#[test]
+<a href=#783 id=783 data-nosnippet>783</a>    </span><span class="kw">fn </span>test_prf_influences_pbkdf2() {
+<a href=#784 id=784 data-nosnippet>784</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
+<a href=#785 id=785 data-nosnippet>785</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#786 id=786 data-nosnippet>786</a>
+<a href=#787 id=787 data-nosnippet>787</a>        <span class="kw">let </span>params_sha256 =
+<a href=#788 id=788 data-nosnippet>788</a>            Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>).prf(PrfType::HmacSha256);
+<a href=#789 id=789 data-nosnippet>789</a>
+<a href=#790 id=790 data-nosnippet>790</a>        <span class="kw">let </span>params_sha512 = Pbkdf2Params::with_salt(salt)
+<a href=#791 id=791 data-nosnippet>791</a>            .iterations(<span class="number">1000</span>)
+<a href=#792 id=792 data-nosnippet>792</a>            .key_length(<span class="number">64</span>) <span class="comment">// Longer key for SHA512
+<a href=#793 id=793 data-nosnippet>793</a>            </span>.prf(PrfType::HmacSha512);
+<a href=#794 id=794 data-nosnippet>794</a>
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">let </span>result_sha256 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params_sha256).unwrap();
+<a href=#796 id=796 data-nosnippet>796</a>        <span class="kw">let </span>result_sha512 = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params_sha512).unwrap();
+<a href=#797 id=797 data-nosnippet>797</a>
+<a href=#798 id=798 data-nosnippet>798</a>        <span class="macro">assert_eq!</span>(result_sha256.key.len(), <span class="number">32</span>);
+<a href=#799 id=799 data-nosnippet>799</a>        <span class="macro">assert_eq!</span>(result_sha512.key.len(), <span class="number">64</span>);
+<a href=#800 id=800 data-nosnippet>800</a>
+<a href=#801 id=801 data-nosnippet>801</a>        <span class="comment">// Different PRFs should produce different outputs
+<a href=#802 id=802 data-nosnippet>802</a>        </span><span class="macro">assert_ne!</span>(result_sha256.expose_secret(), <span class="kw-2">&amp;</span>result_sha512.expose_secret()[..<span class="number">32</span>]);
+<a href=#803 id=803 data-nosnippet>803</a>    }
+<a href=#804 id=804 data-nosnippet>804</a>
+<a href=#805 id=805 data-nosnippet>805</a>    <span class="attr">#[test]
+<a href=#806 id=806 data-nosnippet>806</a>    </span><span class="kw">fn </span>test_zeroize_on_drop_succeeds() {
+<a href=#807 id=807 data-nosnippet>807</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
+<a href=#808 id=808 data-nosnippet>808</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#809 id=809 data-nosnippet>809</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
+<a href=#810 id=810 data-nosnippet>810</a>
+<a href=#811 id=811 data-nosnippet>811</a>        <span class="comment">// Create result in a block to test drop behavior
+<a href=#812 id=812 data-nosnippet>812</a>        </span><span class="kw">let </span>key_bytes = {
+<a href=#813 id=813 data-nosnippet>813</a>            <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
+<a href=#814 id=814 data-nosnippet>814</a>            <span class="kw">let </span>key_copy = result.key.clone();
+<a href=#815 id=815 data-nosnippet>815</a>            <span class="comment">// Result should be zeroized when dropped
+<a href=#816 id=816 data-nosnippet>816</a>            </span>drop(result);
+<a href=#817 id=817 data-nosnippet>817</a>            key_copy
+<a href=#818 id=818 data-nosnippet>818</a>        };
+<a href=#819 id=819 data-nosnippet>819</a>
+<a href=#820 id=820 data-nosnippet>820</a>        <span class="comment">// The key should still be readable (ZeroizeOnDrop doesn't automatically zeroize
+<a href=#821 id=821 data-nosnippet>821</a>        // until the struct is actually dropped, but the test verifies the trait is implemented)
+<a href=#822 id=822 data-nosnippet>822</a>        </span><span class="macro">assert_eq!</span>(key_bytes.len(), <span class="number">32</span>);
+<a href=#823 id=823 data-nosnippet>823</a>    }
+<a href=#824 id=824 data-nosnippet>824</a>
+<a href=#825 id=825 data-nosnippet>825</a>    <span class="attr">#[test]
+<a href=#826 id=826 data-nosnippet>826</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_zero_salt_length_fails() {
+<a href=#827 id=827 data-nosnippet>827</a>        <span class="kw">let </span>result = Pbkdf2Params::new(<span class="number">0</span>);
+<a href=#828 id=828 data-nosnippet>828</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#829 id=829 data-nosnippet>829</a>    }
+<a href=#830 id=830 data-nosnippet>830</a>
+<a href=#831 id=831 data-nosnippet>831</a>    <span class="attr">#[test]
+<a href=#832 id=832 data-nosnippet>832</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_below_min_salt_len_fails() {
+<a href=#833 id=833 data-nosnippet>833</a>        <span class="comment">// NIST SP 800-132 §5.1 requires ≥ 128 bits (16 bytes). Anything in
+<a href=#834 id=834 data-nosnippet>834</a>        // [1, MIN_SALT_LEN) must be rejected by the size constructor.
+<a href=#835 id=835 data-nosnippet>835</a>        </span><span class="kw">for </span>n <span class="kw">in </span>[<span class="number">1usize</span>, <span class="number">8</span>, <span class="number">15</span>] {
+<a href=#836 id=836 data-nosnippet>836</a>            <span class="kw">let </span>result = Pbkdf2Params::new(n);
+<a href=#837 id=837 data-nosnippet>837</a>            <span class="macro">assert!</span>(
+<a href=#838 id=838 data-nosnippet>838</a>                result.is_err(),
+<a href=#839 id=839 data-nosnippet>839</a>                <span class="string">"salt length {n} below MIN_SALT_LEN={} should fail"</span>,
+<a href=#840 id=840 data-nosnippet>840</a>                Pbkdf2Params::MIN_SALT_LEN
+<a href=#841 id=841 data-nosnippet>841</a>            );
+<a href=#842 id=842 data-nosnippet>842</a>        }
+<a href=#843 id=843 data-nosnippet>843</a>    }
+<a href=#844 id=844 data-nosnippet>844</a>
+<a href=#845 id=845 data-nosnippet>845</a>    <span class="attr">#[test]
+<a href=#846 id=846 data-nosnippet>846</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_at_min_salt_len_succeeds() {
+<a href=#847 id=847 data-nosnippet>847</a>        <span class="comment">// Boundary: exactly MIN_SALT_LEN bytes is the smallest accepted size.
+<a href=#848 id=848 data-nosnippet>848</a>        </span><span class="kw">let </span>params = Pbkdf2Params::new(Pbkdf2Params::MIN_SALT_LEN).unwrap();
+<a href=#849 id=849 data-nosnippet>849</a>        <span class="macro">assert_eq!</span>(params.salt.len(), Pbkdf2Params::MIN_SALT_LEN);
+<a href=#850 id=850 data-nosnippet>850</a>    }
+<a href=#851 id=851 data-nosnippet>851</a>
+<a href=#852 id=852 data-nosnippet>852</a>    <span class="attr">#[test]
+<a href=#853 id=853 data-nosnippet>853</a>    </span><span class="kw">fn </span>test_pbkdf2_short_salt_rejected_at_derivation() {
+<a href=#854 id=854 data-nosnippet>854</a>        <span class="comment">// Pin the documented invariant: `with_salt` is infallible, but
+<a href=#855 id=855 data-nosnippet>855</a>        // a `Pbkdf2Params` carrying a salt below MIN_SALT_LEN cannot
+<a href=#856 id=856 data-nosnippet>856</a>        // reach key derivation — `pbkdf2()` rejects with
+<a href=#857 id=857 data-nosnippet>857</a>        // `InvalidParameter` before any HMAC rounds run. This is the
+<a href=#858 id=858 data-nosnippet>858</a>        // single enforcement point for NIST SP 800-132 §5.1 on the
+<a href=#859 id=859 data-nosnippet>859</a>        // wire-format-parser path.
+<a href=#860 id=860 data-nosnippet>860</a>        </span><span class="kw">let </span>short = <span class="macro">vec!</span>[<span class="number">0xAAu8</span>; Pbkdf2Params::MIN_SALT_LEN.saturating_sub(<span class="number">1</span>)];
+<a href=#861 id=861 data-nosnippet>861</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(<span class="kw-2">&amp;</span>short).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
+<a href=#862 id=862 data-nosnippet>862</a>        <span class="kw">let </span>result = pbkdf2(<span class="string">b"password"</span>, <span class="kw-2">&amp;</span>params);
+<a href=#863 id=863 data-nosnippet>863</a>        <span class="macro">assert!</span>(
+<a href=#864 id=864 data-nosnippet>864</a>            result.is_err(),
+<a href=#865 id=865 data-nosnippet>865</a>            <span class="string">"pbkdf2 must reject {short_len}-byte salt"</span>,
+<a href=#866 id=866 data-nosnippet>866</a>            short_len = short.len()
+<a href=#867 id=867 data-nosnippet>867</a>        );
+<a href=#868 id=868 data-nosnippet>868</a>    }
+<a href=#869 id=869 data-nosnippet>869</a>
+<a href=#870 id=870 data-nosnippet>870</a>    <span class="attr">#[test]
+<a href=#871 id=871 data-nosnippet>871</a>    </span><span class="kw">fn </span>test_pbkdf2_with_salt_at_min_succeeds() {
+<a href=#872 id=872 data-nosnippet>872</a>        <span class="kw">let </span>salt = <span class="macro">vec!</span>[<span class="number">0xAAu8</span>; Pbkdf2Params::MIN_SALT_LEN];
+<a href=#873 id=873 data-nosnippet>873</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(<span class="kw-2">&amp;</span>salt);
+<a href=#874 id=874 data-nosnippet>874</a>        <span class="macro">assert_eq!</span>(params.salt.len(), Pbkdf2Params::MIN_SALT_LEN);
+<a href=#875 id=875 data-nosnippet>875</a>    }
+<a href=#876 id=876 data-nosnippet>876</a>
+<a href=#877 id=877 data-nosnippet>877</a>    <span class="attr">#[test]
+<a href=#878 id=878 data-nosnippet>878</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_valid_has_correct_defaults_succeeds() {
+<a href=#879 id=879 data-nosnippet>879</a>        <span class="kw">let </span>params = Pbkdf2Params::new(<span class="number">16</span>).unwrap();
+<a href=#880 id=880 data-nosnippet>880</a>        <span class="macro">assert_eq!</span>(params.salt.len(), <span class="number">16</span>);
+<a href=#881 id=881 data-nosnippet>881</a>        <span class="macro">assert_eq!</span>(params.iterations, <span class="number">600_000</span>);
+<a href=#882 id=882 data-nosnippet>882</a>        <span class="macro">assert_eq!</span>(params.key_length, <span class="number">32</span>);
+<a href=#883 id=883 data-nosnippet>883</a>        <span class="macro">assert_eq!</span>(params.prf, PrfType::HmacSha256);
+<a href=#884 id=884 data-nosnippet>884</a>    }
+<a href=#885 id=885 data-nosnippet>885</a>
+<a href=#886 id=886 data-nosnippet>886</a>    <span class="attr">#[test]
+<a href=#887 id=887 data-nosnippet>887</a>    </span><span class="kw">fn </span>test_pbkdf2_multi_block_sha256_has_correct_length_has_correct_size() {
+<a href=#888 id=888 data-nosnippet>888</a>        <span class="comment">// key_length &gt; 32 requires multiple blocks for SHA256
+<a href=#889 id=889 data-nosnippet>889</a>        </span><span class="kw">let </span>password = <span class="string">b"password"</span>;
+<a href=#890 id=890 data-nosnippet>890</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#891 id=891 data-nosnippet>891</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">64</span>);
+<a href=#892 id=892 data-nosnippet>892</a>
+<a href=#893 id=893 data-nosnippet>893</a>        <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="macro">assert_eq!</span>(result.key.len(), <span class="number">64</span>);
+<a href=#895 id=895 data-nosnippet>895</a>    }
+<a href=#896 id=896 data-nosnippet>896</a>
+<a href=#897 id=897 data-nosnippet>897</a>    <span class="attr">#[test]
+<a href=#898 id=898 data-nosnippet>898</a>    </span><span class="kw">fn </span>test_pbkdf2_multi_block_sha512_has_correct_length_has_correct_size() {
+<a href=#899 id=899 data-nosnippet>899</a>        <span class="comment">// key_length &gt; 64 requires multiple blocks for SHA512
+<a href=#900 id=900 data-nosnippet>900</a>        </span><span class="kw">let </span>password = <span class="string">b"password"</span>;
+<a href=#901 id=901 data-nosnippet>901</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#902 id=902 data-nosnippet>902</a>        <span class="kw">let </span>params =
+<a href=#903 id=903 data-nosnippet>903</a>            Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">128</span>).prf(PrfType::HmacSha512);
+<a href=#904 id=904 data-nosnippet>904</a>
+<a href=#905 id=905 data-nosnippet>905</a>        <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
+<a href=#906 id=906 data-nosnippet>906</a>        <span class="macro">assert_eq!</span>(result.key.len(), <span class="number">128</span>);
+<a href=#907 id=907 data-nosnippet>907</a>    }
+<a href=#908 id=908 data-nosnippet>908</a>
+<a href=#909 id=909 data-nosnippet>909</a>    <span class="attr">#[test]
+<a href=#910 id=910 data-nosnippet>910</a>    </span><span class="kw">fn </span>test_pbkdf2_result_key_accessor_returns_correct_value_succeeds() {
+<a href=#911 id=911 data-nosnippet>911</a>        <span class="kw">let </span>password = <span class="string">b"password"</span>;
+<a href=#912 id=912 data-nosnippet>912</a>        <span class="kw">let </span>salt = <span class="string">b"salt123456789012"</span>;
+<a href=#913 id=913 data-nosnippet>913</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(salt).iterations(<span class="number">1000</span>).key_length(<span class="number">32</span>);
 <a href=#914 id=914 data-nosnippet>914</a>
-<a href=#915 id=915 data-nosnippet>915</a>    <span class="attr">#[test]
-<a href=#916 id=916 data-nosnippet>916</a>    </span><span class="kw">fn </span>test_prf_type_debug_clone_eq_is_correct() {
-<a href=#917 id=917 data-nosnippet>917</a>        <span class="kw">let </span>prf = PrfType::HmacSha256;
-<a href=#918 id=918 data-nosnippet>918</a>        <span class="kw">let </span>cloned = prf;
-<a href=#919 id=919 data-nosnippet>919</a>        <span class="macro">assert_eq!</span>(prf, cloned);
-<a href=#920 id=920 data-nosnippet>920</a>        <span class="macro">assert_ne!</span>(PrfType::HmacSha256, PrfType::HmacSha512);
-<a href=#921 id=921 data-nosnippet>921</a>
-<a href=#922 id=922 data-nosnippet>922</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, prf);
-<a href=#923 id=923 data-nosnippet>923</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"HmacSha256"</span>));
-<a href=#924 id=924 data-nosnippet>924</a>    }
-<a href=#925 id=925 data-nosnippet>925</a>}
+<a href=#915 id=915 data-nosnippet>915</a>        <span class="kw">let </span>result = pbkdf2_kat(password, <span class="kw-2">&amp;</span>params).unwrap();
+<a href=#916 id=916 data-nosnippet>916</a>        <span class="macro">assert_eq!</span>(result.expose_secret(), <span class="kw-2">&amp;</span>result.key[..]);
+<a href=#917 id=917 data-nosnippet>917</a>        <span class="macro">assert_eq!</span>(result.expose_secret().len(), <span class="number">32</span>);
+<a href=#918 id=918 data-nosnippet>918</a>    }
+<a href=#919 id=919 data-nosnippet>919</a>
+<a href=#920 id=920 data-nosnippet>920</a>    <span class="attr">#[test]
+<a href=#921 id=921 data-nosnippet>921</a>    </span><span class="kw">fn </span>test_pbkdf2_params_builder_chain_is_correct() {
+<a href=#922 id=922 data-nosnippet>922</a>        <span class="kw">let </span>params = Pbkdf2Params::with_salt(<span class="string">b"saltsaltsaltsalt"</span>)
+<a href=#923 id=923 data-nosnippet>923</a>            .iterations(<span class="number">5000</span>)
+<a href=#924 id=924 data-nosnippet>924</a>            .key_length(<span class="number">48</span>)
+<a href=#925 id=925 data-nosnippet>925</a>            .prf(PrfType::HmacSha512);
+<a href=#926 id=926 data-nosnippet>926</a>
+<a href=#927 id=927 data-nosnippet>927</a>        <span class="macro">assert_eq!</span>(params.iterations, <span class="number">5000</span>);
+<a href=#928 id=928 data-nosnippet>928</a>        <span class="macro">assert_eq!</span>(params.key_length, <span class="number">48</span>);
+<a href=#929 id=929 data-nosnippet>929</a>        <span class="macro">assert_eq!</span>(params.prf, PrfType::HmacSha512);
+<a href=#930 id=930 data-nosnippet>930</a>    }
+<a href=#931 id=931 data-nosnippet>931</a>
+<a href=#932 id=932 data-nosnippet>932</a>    <span class="attr">#[test]
+<a href=#933 id=933 data-nosnippet>933</a>    </span><span class="kw">fn </span>test_prf_type_debug_clone_eq_is_correct() {
+<a href=#934 id=934 data-nosnippet>934</a>        <span class="kw">let </span>prf = PrfType::HmacSha256;
+<a href=#935 id=935 data-nosnippet>935</a>        <span class="kw">let </span>cloned = prf;
+<a href=#936 id=936 data-nosnippet>936</a>        <span class="macro">assert_eq!</span>(prf, cloned);
+<a href=#937 id=937 data-nosnippet>937</a>        <span class="macro">assert_ne!</span>(PrfType::HmacSha256, PrfType::HmacSha512);
+<a href=#938 id=938 data-nosnippet>938</a>
+<a href=#939 id=939 data-nosnippet>939</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, prf);
+<a href=#940 id=940 data-nosnippet>940</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"HmacSha256"</span>));
+<a href=#941 id=941 data-nosnippet>941</a>    }
+<a href=#942 id=942 data-nosnippet>942</a>}
 </code></pre></div></section></main></body></html>
