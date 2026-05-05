@@ -387,14 +387,9 @@ impl PedersenCommitment {
 
         let sum = point1 + point2;
 
-        // Round-31 L6: reject the identity (point at infinity). It
-        // serializes to all-zero compressed bytes, which is not a
-        // valid commitment encoding — and operationally indicates a
-        // caller summed `C` with `-C`, almost always a bug. Allowing
-        // it would leak the equality `m1 + m2 ≡ 0 (mod q)` and
-        // `r1 + r2 ≡ 0 (mod q)` to anyone who can recognise the
-        // all-zero ciphertext, breaking the hiding property of the
-        // pair as a whole.
+        // Reject the identity: it serialises to all-zero bytes and
+        // simultaneously leaks `m1 + m2 ≡ 0 (mod q)` and
+        // `r1 + r2 ≡ 0 (mod q)` to any observer, breaking hiding.
         use k256::elliptic_curve::Group;
         if bool::from(sum.is_identity()) {
             return Err(ZkpError::InvalidCommitment(

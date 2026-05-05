@@ -9,6 +9,7 @@
 /// Represents the current level of trust established through
 /// challenge-response verification.
 #[non_exhaustive]
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum TrustLevel {

@@ -37,42 +37,70 @@
 use crate::primitives::hash::sha2::sha256;
 use crate::zkp::error::{Result, ZkpError};
 use k256::{
-    FieldBytes, ProjectivePoint, Scalar, SecretKey, U256,
-    elliptic_curve::{PrimeField, group::GroupEncoding, ops::Reduce},
+    FieldBytes, ProjectivePoint, Scalar, SecretKey,
+    elliptic_curve::{PrimeField, group::GroupEncoding},
 };
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-/// Compute Fiat-Shamir challenge: `H("arc-zkp/schnorr-v1" || "secp256k1" || pk || R || ctx)`
+/// Compute Fiat-Shamir challenge:
+/// `H("arc-zkp/schnorr-v2" || "secp256k1" || pk || R || ctx || counter_be)`
+/// with rejection sampling on `counter` until the SHA-256 output is
+/// `< q` (the secp256k1 scalar field order). Both prover and verifier
+/// run identical loops on identical inputs and converge on the same
+/// scalar.
 ///
 /// # Errors
-/// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
+/// Returns an error if the SHA-256 primitive fails (input exceeds 1
+/// GiB guard) or — astronomically rarely — if the rejection-sampling
+/// counter overflows `u32::MAX` without finding a hash output `< q`.
+///
+/// # Domain bump
+/// Label is `arc-zkp/schnorr-v2` because the hash input now includes a
+/// 4-byte big-endian counter suffix; v1 proofs are not wire-compatible
+/// with v2 verifiers.
 fn fiat_shamir_challenge(
     public_key: &[u8; 33],
     r_bytes: &[u8; 33],
     context: &[u8],
 ) -> Result<Scalar> {
-    // Accumulate into a buffer and route through the primitives wrapper
-    // so hash backends remain swappable in one place.
-    let label = b"arc-zkp/schnorr-v1";
+    // Rejection-sample the challenge for uniform distribution in
+    // [0, q). Plain `Reduce::reduce_bytes` has ~2^-128 modular bias,
+    // and the matching nonce path in `Schnorr::prove` already follows
+    // this discipline. Expected iterations: 1 + ε.
+    let label = b"arc-zkp/schnorr-v2";
     let curve = b"secp256k1";
-    let mut buf = Vec::with_capacity(
-        label
-            .len()
-            .saturating_add(curve.len())
-            .saturating_add(33 * 2)
-            .saturating_add(context.len()),
-    );
-    buf.extend_from_slice(label);
-    buf.extend_from_slice(curve);
-    buf.extend_from_slice(public_key);
-    buf.extend_from_slice(r_bytes);
-    buf.extend_from_slice(context);
+    let mut counter: u32 = 0;
+    loop {
+        let mut buf = Vec::with_capacity(
+            label
+                .len()
+                .saturating_add(curve.len())
+                .saturating_add(33 * 2)
+                .saturating_add(context.len())
+                .saturating_add(4),
+        );
+        buf.extend_from_slice(label);
+        buf.extend_from_slice(curve);
+        buf.extend_from_slice(public_key);
+        buf.extend_from_slice(r_bytes);
+        buf.extend_from_slice(context);
+        buf.extend_from_slice(&counter.to_be_bytes());
 
-    // ~100 bytes — well below the 1 GiB SHA-256 DoS cap.
-    let hash =
-        sha256(&buf).map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
-    Ok(<Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&hash)))
+        // ~104 bytes — well below the 1 GiB SHA-256 DoS cap.
+        let hash = sha256(&buf)
+            .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+        let cand: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
+        if let Some(s) = cand {
+            return Ok(s);
+        }
+        counter = counter.checked_add(1).ok_or_else(|| {
+            ZkpError::SerializationError(
+                "schnorr challenge derivation: counter overflow (statistically impossible)"
+                    .to_string(),
+            )
+        })?;
+    }
 }
 
 /// Schnorr proof structure

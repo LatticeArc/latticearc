@@ -302,6 +302,9 @@ impl From<TypeError> for CoreError {
             TypeError::UnknownScheme(scheme) => {
                 CoreError::ConfigurationError(format!("Unknown encryption scheme: {scheme}"))
             }
+            TypeError::InvalidAuditInput(msg) => {
+                CoreError::ConfigurationError(format!("Audit input invalid: {msg}"))
+            }
         }
     }
 }

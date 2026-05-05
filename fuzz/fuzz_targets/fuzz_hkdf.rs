@@ -128,15 +128,13 @@ fn test_hkdf_full_succeeds(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>)
 }
 
 fn test_hkdf_simple_succeeds(ikm: &[u8]) {
-    // Test simple HKDF (with default output length of 32 bytes)
+    // `hkdf_simple` uses a random salt internally (see its docstring),
+    // so two calls on the same IKM return DIFFERENT outputs by design.
+    // Determinism is therefore not a property to assert here; we only
+    // check that the output length matches the requested length and
+    // that the function does not crash on arbitrary fuzz input.
     let default_length = 32;
     if let Ok(result) = hkdf_simple(ikm, default_length) {
-        // Should produce 32-byte output by default
         assert_eq!(result.expose_secret().len(), default_length);
-
-        // Verify determinism
-        if let Ok(result2) = hkdf_simple(ikm, default_length) {
-            assert_eq!(result.expose_secret(), result2.expose_secret());
-        }
     }
 }

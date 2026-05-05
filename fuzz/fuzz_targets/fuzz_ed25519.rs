@@ -80,11 +80,9 @@ fuzz_target!(|data: &[u8]| {
             let fuzzed_pk = &data[..32.min(data.len())];
             let real_pk = keypair.public_key_bytes();
             if fuzzed_pk.len() == 32 && fuzzed_pk != real_pk.as_slice() {
-                // Round-31 M5: previously this swallowed the result with
-                // `let _ = result`, defeating the test's purpose. A
-                // verification under a *different* public key MUST NOT
-                // silently succeed — otherwise we'd never notice if a
-                // real-world bug let arbitrary keys verify any message.
+                // Verifying a signature under a non-matching public key
+                // must fail — swallowing this with `let _ = result` would
+                // hide a class of real verification bugs.
                 let result = Ed25519Signature::verify(fuzzed_pk, message, &sig);
                 assert!(result.is_err(), "verify under a non-matching public key must fail");
             }

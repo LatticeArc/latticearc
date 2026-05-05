@@ -182,7 +182,11 @@ impl KeyFile {
         unlock_if_encrypted(&mut inner)
             .with_context(|| format!("Failed to unlock {}", path.display()))?;
 
-        let algorithm = format!("{:?}", inner.algorithm()).to_lowercase().replace('_', "-");
+        // Use the enum's pinned canonical name rather than reformatting
+        // the Debug representation: any future variant whose `Debug`
+        // diverges from its `#[serde(rename = "…")]` would otherwise
+        // silently produce a wrong cached algorithm string.
+        let algorithm = inner.algorithm().canonical_name().to_string();
         let key_type = inner.key_type();
 
         Ok(Self { inner, algorithm, key_type })

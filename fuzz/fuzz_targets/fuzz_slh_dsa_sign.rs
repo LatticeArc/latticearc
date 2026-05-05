@@ -92,23 +92,34 @@ fuzz_target!(|data: &[u8]| {
     assert!(result.is_err(), "Context >255 bytes should fail");
 
     // Test 4: Verify with corrupted signature
+    //
+    // XOR-with-fuzz-data alone is NOT a guaranteed corruption: when
+    // the relevant bytes of `data` happen to be all-zeros, the XOR is
+    // a no-op and the "corrupted" signature still verifies (correctly)
+    // — which previously caused a fuzz crash with "Corrupted signature
+    // must fail verification" as the false-positive trigger. Force a
+    // non-no-op flip on byte 0 first, then layer the fuzz XOR on top.
     if let Ok(sig) = sk.sign(message, &[]) {
-        // Make a mutable copy of the signature
         let mut corrupted_sig = sig.clone();
-        // Calculate the length first to avoid borrow issues
         let len = corrupted_sig.len();
-        // Corrupt signature bytes
-        for (i, b) in data.iter().enumerate() {
-            let idx = i % len;
-            corrupted_sig[idx] ^= b;
-        }
-
-        match pk.verify(message, &corrupted_sig, &[]) {
-            Ok(is_valid) => {
-                assert!(!is_valid, "Corrupted signature must fail verification");
+        if len > 0 {
+            corrupted_sig[0] ^= 0xFF;
+            for (i, b) in data.iter().enumerate() {
+                let idx = i % len;
+                corrupted_sig[idx] ^= b;
             }
-            Err(_) => {
-                // Error is acceptable for malformed signature
+            // After the guaranteed flip + fuzz layer, verify the
+            // corrupted bytes actually differ from the original
+            // signature before asserting verification fails.
+            if corrupted_sig != sig {
+                match pk.verify(message, &corrupted_sig, &[]) {
+                    Ok(is_valid) => {
+                        assert!(!is_valid, "Corrupted signature must fail verification");
+                    }
+                    Err(_) => {
+                        // Error is acceptable for malformed signature
+                    }
+                }
             }
         }
     }

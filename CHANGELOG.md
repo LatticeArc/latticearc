@@ -9,6 +9,141 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-32 audit — 7 MED + 7 LOW + 1 DOC + /simplify follow-up + 5 CI repairs (2026-05-05)
+
+External round-32 audit returned 25 findings. Validated 18 (skipped L2 as
+already-fixed in the un-committed /simplify follow-up, L6 and L7 as
+no-longer-applicable post-/simplify, D2 as factually wrong — `remove_var`
+IS unsafe in Rust 2024 edition since 1.85.0).
+
+This round also folds in the /simplify follow-up that was sitting in the
+working tree after round-31 (Histogram → VecDeque, schnorr challenge bias,
+double-lookup flatten, audit-marker strip), plus repairs for five
+pre-existing CI failures uncovered by manual workflow_dispatch runs.
+
+#### MED
+
+- **M1**: `MlDsaSigningKey::sign` SK-length-mismatch arms now log the
+  stage label only; the previous `(expected, actual)` tuple leaked the
+  precise SK byte count to the tracing event, undoing M1 from round-31
+  on the diagnostic side.
+- **M2**: `MlDsaVerifyingKey::verify` `try_into` length checks now
+  collapse to `VerificationError("verification failed")` matching the
+  sign-side Pattern-6 posture; previously they returned
+  `InvalidKeyLength { expected, actual }` while the sign side was
+  opaque. (`MlDsaPublicKey::new` constructor kept as `InvalidKeyLength`
+  — public-API contract for callers parsing user input.)
+- **M3**: `generate_decapsulation_keypair` (the hybrid-keygen path) now
+  runs the same serialized-roundtrip PCT that
+  `generate_keypair_with_config` does (round-31 M4); previously only
+  the in-memory PCT ran, leaving callers who later persist via
+  `to_bytes` / load via `from_bytes` on a never-validated path.
+- **M4**: `Histogram::merge` now honours `MAX_SAMPLES_PER_HISTOGRAM`;
+  combining two cap-saturated histograms previously produced one with
+  up to 2× cap, defeating the L8 DoS bound from round-31. Drop-oldest
+  FIFO matches `record`.
+- **M5**: `SerializableEncryptedOutput::try_from` per-field caps. The
+  10 MiB ciphertext cap previously left `nonce`, `tag`,
+  `ml_kem_ciphertext`, `ecdh_ephemeral_pk` uncapped; a crafted envelope
+  could fully serde-allocate before erroring at base64 decode. Each
+  field now has a tight slack-bounded cap.
+- **M6**: `KeyLifecycleRecord::transition` now validates
+  `custodian_id`, `justification`, and `approval_id` (reject empty,
+  control characters including newlines, > 512 bytes). Previously an
+  attacker-controlled `\n`-laced custodian_id would have broken JSONL
+  audit consumers downstream.
+- **M7**: `KeyLifecycleRecord` now uses `#[serde(try_from =
+  "KeyLifecycleRecordRaw")]` to re-validate state-machine invariants
+  on load. A persisted JSON with `current_state = Destroyed` and empty
+  `state_history`, or `current_state = Active` with no `activated_at`,
+  is now rejected at deserialize time rather than producing a silently-
+  broken record.
+
+#### LOW
+
+- **L1**: `KeyLifecycleRecord::transition` now captures
+  `chrono::Utc::now()` once and reuses it for both `state_history` and
+  the per-state timestamp, eliminating sub-tick skew that auditors
+  comparing the two could detect.
+- **L3**: `DlogEqualityProof::prove` / `verify` now use
+  `Scalar::from_repr` rather than `Reduce<U256>::reduce_bytes` to
+  interpret the rejection-sampled challenge bytes. The rejection loop
+  in `compute_challenge` already guarantees the bytes are < q, so
+  `Reduce` was a redundant residue map; switching makes the invariant
+  explicit at the call site and removes an invitation for future
+  maintainers to drop the rejection-sampling layer.
+- **L4**: `SecretBytes::clone_for_transmission` now documents the
+  asymmetry with `SecretVec`: stack-allocated, no mlock applies; use
+  `SecretVec` if OS-level memory locking is required.
+- **L5**: `TrustLevel` enum now has `#[repr(u8)]`. Discriminants were
+  already explicit; the layout is now a hard contract.
+- **L8**: `SecurityMode::validate` `ZeroTrustVerificationFailed`
+  payload string is now generic (`"zero-trust validation failed"`);
+  the discriminator (`"trust_level downgraded to Untrusted"`) lives in
+  the `tracing::debug!` event only. Pattern-6 posture: the user-facing
+  Err shape no longer distinguishes reject reasons.
+- **L9**: `MlKemPublicKey::new` now performs structural validation via
+  `EncapsulationKey::new(algorithm, &data)` after the length check.
+  The keygen-time second PCT (round-31 M4) catches malformed PKs at
+  generation, but `from_key_bytes` is also called by hybrid load paths
+  and CLI key-load — those now fail fast on an all-zeros (or otherwise
+  malformed) PK at deserialization time, not at first encap.
+
+#### Doc
+
+- **D1**: `latticearc-cli/src/keyfile.rs` now caches the algorithm
+  string via `inner.algorithm().canonical_name()` rather than
+  reformatting the `Debug` representation. The Debug-format approach
+  relied on Rust's `Debug` derived output matching the
+  `#[serde(rename = "…")]` wire string — brittle against any future
+  variant whose `Debug` diverges from its serde rename.
+
+#### /simplify follow-up (round-31)
+
+- **schnorr.rs::fiat_shamir_challenge** now rejection-samples with a
+  counter suffix until SHA-256 output is < q. Same bias issue
+  round-31 L4 fixed in `sigma.rs`; missed at the time because the
+  Pattern-class sweep stopped at sigma. Domain bumped to
+  `arc-zkp/schnorr-v2`; v1 proofs are not wire-compatible with v2
+  verifiers (pre-1.0, intentional).
+- **`Histogram::record`** now stores samples in a `VecDeque`; drop-
+  oldest at cap is `pop_front()` (O(1)) instead of `Vec::remove(0)`
+  (O(n) memmove of ~1 MiB per sample at full cap).
+- **`MetricsCollector::record_operation`** flatten: single `get_mut`
+  lookup on the hot path instead of `contains_key` + `get_mut`.
+- Stripped 13 `// Round-31 X##:` source comments (CLAUDE.md violation:
+  audit-round markers belong in `CHANGELOG.md` and commit messages
+  only). Each rewritten as WHY-only.
+
+#### CI repairs (pre-existing, uncovered by manual workflow_dispatch)
+
+- **`fuzz_hkdf`** (`fuzz/fuzz_targets/fuzz_hkdf.rs:139`): the panic
+  `assertion 'left == right' failed` was a TEST bug. `hkdf_simple`
+  has used a random salt internally since the initial commit
+  (Jan 29), so two calls on the same IKM return different outputs
+  by design. Determinism assertion removed; only length is checked.
+- **`fuzz_slh_dsa_sign`** (`fuzz/fuzz_targets/fuzz_slh_dsa_sign.rs:108`):
+  XOR with all-zero fuzz `data` is a no-op, so the "corrupted"
+  signature was sometimes the original (and correctly verified). Test
+  now forces `corrupted_sig[0] ^= 0xFF` first, layers the fuzz XOR on
+  top, and skips the assertion if `corrupted_sig == sig`.
+- **MemorySanitizer** (`.github/workflows/sanitizers.yml`): added
+  `test_derive_encryption_key_*` (4 tests) to the existing
+  `--skip` list of aws-lc-rs FFI false positives. Same root cause as
+  the 10 hybrid tests already skipped; same upstream tracking.
+- **Valgrind / Memory Safety Checks** (`primitives/self_test.rs:2125`):
+  `test_all_error_codes_block_operations_fails` cleanup called
+  `initialize_and_test()`, which can `process::abort()` on KAT
+  failure. Under Valgrind the slow runtime occasionally tripped a
+  KAT, aborting the test runner with SIGABRT (exit 134). Cleanup is
+  now `clear_error_state()` + `SELF_TEST_PASSED.store(true)`, no
+  abort path.
+- **Fuzzing Coverage** (`.github/workflows/fuzzing.yml`): the run
+  step's `timeout 90s` truncated cold-cache runs at the build phase
+  (cargo-fuzz triggers an incremental rebuild even after the
+  separate Build step). Bumped to `timeout 600s` for both the run
+  and coverage invocations.
+
 ### Round-31 audit — 1 HIGH + 6 MED + 8 LOW + 3 doc-drift + 5 strip-script repairs (2026-05-04)
 
 External audit of the post-round-30 tree returned 25 findings. Validated 22,

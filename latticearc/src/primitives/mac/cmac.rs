@@ -553,11 +553,8 @@ pub fn verify_cmac_192(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
         let tags_match: bool = cmac.tag.ct_eq(tag).into();
         tag_valid & tags_match
     } else {
-        // Round-31 L5: drop the misleading dummy ct_eq calls. Key
-        // length is a public/structural input, so its rejection is
-        // correctly fast — and the dummy work did NOT equalize the
-        // Ok arm's full AES computation anyway. Mirror of the
-        // honesty fix already applied to `verify_cmac_128`.
+        // Key length is structural / public input — fast rejection
+        // is intentional, not a timing leak. Mirrors `verify_cmac_128`.
         false
     }
 }
@@ -610,10 +607,7 @@ pub fn verify_cmac_256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
         let tags_match: bool = cmac.tag.ct_eq(tag).into();
         tag_valid & tags_match
     } else {
-        // Round-31 L5: drop the misleading dummy ct_eq calls (see
-        // matching comment on `verify_cmac_128` / `verify_cmac_192`).
-        // Key length is a public/structural input, not adversary-
-        // controlled secret state, so fast rejection is correct.
+        // See `verify_cmac_128` / `verify_cmac_192` — same rationale.
         false
     }
 }

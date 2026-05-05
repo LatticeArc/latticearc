@@ -17,7 +17,7 @@
 
 use crate::primitives::hash::sha2::sha256;
 use crate::zkp::error::{Result, ZkpError};
-use k256::elliptic_curve::{PrimeField, ops::Reduce};
+use k256::elliptic_curve::PrimeField;
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -517,10 +517,7 @@ impl DlogEqualityProof {
         secret: &[u8; 32],
         context: &[u8],
     ) -> Result<Self> {
-        use k256::{
-            FieldBytes, Scalar, U256,
-            elliptic_curve::{group::GroupEncoding, ops::Reduce},
-        };
+        use k256::{FieldBytes, Scalar, elliptic_curve::group::GroupEncoding};
 
         // enforce that the statement's bases are the
         // canonical (G, NUMS H) pair. A caller supplying arbitrary
@@ -577,9 +574,13 @@ impl DlogEqualityProof {
         let b_bytes: [u8; 33] = <[u8; 33]>::try_from(b_point.to_affine().to_bytes().as_slice())
             .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize B: {}", e)))?;
 
-        // Challenge
+        // Challenge: `compute_challenge` rejection-samples until the
+        // bytes parse via `from_repr`, so `Reduce::reduce_bytes` would
+        // be a redundant residue map here. Using `from_repr` makes the
+        // invariant explicit at the call site.
         let challenge = Self::compute_challenge(statement, &a_bytes, &b_bytes, context)?;
-        let c = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&challenge));
+        let c: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&challenge)).into();
+        let c = c.ok_or(ZkpError::InvalidScalar)?;
 
         // Response
         let s = Zeroizing::new(*k + c * *x);
@@ -597,7 +598,7 @@ impl DlogEqualityProof {
     /// Uses secp256k1 scalar and point operations for verification.
     #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
     pub fn verify(&self, statement: &DlogEqualityStatement, context: &[u8]) -> Result<bool> {
-        use k256::{FieldBytes, Scalar, U256};
+        use k256::{FieldBytes, Scalar};
 
         // enforce canonical bases (mirror of `prove`).
         // Mismatch collapses to `Err(VerificationFailed)` per the
@@ -659,7 +660,14 @@ impl DlogEqualityProof {
             tracing::debug!("DlogEqualityProof::verify rejected: invalid scalar");
             ZkpError::VerificationFailed
         })?;
-        let c = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&self.challenge));
+        // `expected_challenge` (above) was produced by
+        // `compute_challenge`'s rejection-sampling loop and is < q;
+        // we just verified `self.challenge == expected_challenge`,
+        // so `self.challenge` is also < q. `from_repr` is therefore
+        // total — but we keep an explicit fallback because lints
+        // deny `.expect()` in production code.
+        let c: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.challenge)).into();
+        let c = c.ok_or(ZkpError::VerificationFailed)?;
 
         // Verify: s*G == A + c*P and s*H == B + c*Q (constant-time comparison)
         let lhs1 = g * s;
@@ -691,7 +699,7 @@ impl DlogEqualityProof {
     /// # Domain bump
     /// Label is `arc-zkp/dlog-equality-v2` because the hash input now
     /// includes a 4-byte big-endian counter suffix. v1 proofs are not
-    /// wire-compatible with v2 verifiers; pre-1.0, that's intentional.
+    /// wire-compatible with v2 verifiers.
     fn compute_challenge(
         statement: &DlogEqualityStatement,
         a: &[u8; 33],
@@ -700,20 +708,11 @@ impl DlogEqualityProof {
     ) -> Result<[u8; 32]> {
         use k256::{FieldBytes, Scalar, elliptic_curve::PrimeField};
 
-        // Round-31 L4: rejection-sample so the resulting challenge is
-        // *uniformly* distributed in [0, q), matching the round-29 M6
-        // nonce treatment. Without this, `Reduce<U256>::reduce_bytes`
-        // applies a residue map with ~2^-128 modular bias. The bias
-        // is not a known attack vector for Fiat-Shamir on Schnorr-
-        // family protocols, but inconsistency with the nonce path is
-        // an audit liability — both should follow the same discipline.
-        //
-        // Termination: P(SHA-256 output < q) ≈ 1 - 2^-128, so the
-        // expected number of iterations is 1 + ε. The counter loop
-        // matches the standard Fiat-Shamir reject-with-counter idiom
-        // (e.g., RFC 9591 §4.2). Both prover and verifier execute
-        // identical loops on identical inputs and converge to the
-        // same challenge bytes.
+        // Rejection-sample with a counter suffix so the challenge is
+        // uniformly distributed in [0, q). Plain `Reduce::reduce_bytes`
+        // has ~2^-128 modular bias; the nonce path uses the same
+        // discipline. Expected iterations: 1 + ε. Prover and verifier
+        // run identical loops, converging on identical bytes.
         let label = b"arc-zkp/dlog-equality-v2";
         let mut counter: u32 = 0;
         loop {

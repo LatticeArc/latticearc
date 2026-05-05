@@ -38,6 +38,30 @@
 use crate::types::error::{Result, TypeError};
 use serde::{Deserialize, Serialize};
 
+/// Maximum length (in bytes) for a single audit-trail string field.
+/// Keeps state_history bounded and JSONL audit consumers happy.
+const MAX_AUDIT_FIELD_LEN: usize = 512;
+
+/// Validate an audit-trail string. Rejects:
+/// - empty (unless `optional` is true)
+/// - control characters (including newlines, which break JSONL)
+/// - more than `MAX_AUDIT_FIELD_LEN` bytes
+fn validate_audit_field(name: &str, value: &str, optional: bool) -> Result<()> {
+    if value.is_empty() && !optional {
+        return Err(TypeError::InvalidAuditInput(format!("{} must not be empty", name)));
+    }
+    if value.len() > MAX_AUDIT_FIELD_LEN {
+        return Err(TypeError::InvalidAuditInput(format!(
+            "{} exceeds {} bytes",
+            name, MAX_AUDIT_FIELD_LEN
+        )));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(TypeError::InvalidAuditInput(format!("{} contains control characters", name)));
+    }
+    Ok(())
+}
+
 /// SP 800-57 Section 3: Key Lifecycle States
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -148,6 +172,7 @@ pub enum CustodianRole {
 /// `rotation_interval_days`, `overlap_period_days`) stay public — they
 /// are set in [`Self::new`] and never reassigned.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "KeyLifecycleRecordRaw")]
 pub struct KeyLifecycleRecord {
     /// Unique key identifier
     pub key_id: String,
@@ -181,6 +206,104 @@ pub struct KeyLifecycleRecord {
     pub rotation_interval_days: u32,
     /// Overlap period during rotation (days)
     pub overlap_period_days: u32,
+}
+
+/// Wire-shape mirror of `KeyLifecycleRecord` used by the serde
+/// `try_from` hook. Loading a persisted record goes
+/// JSON → `KeyLifecycleRecordRaw` → `validate()` → `KeyLifecycleRecord`,
+/// so a tampered or corrupted file with state-machine inconsistencies
+/// (e.g. `Destroyed` with empty `state_history`, or `Generation` with
+/// a populated `activated_at`) is rejected at deserialize time rather
+/// than producing a silently-broken record.
+#[derive(Debug, Clone, Deserialize)]
+#[doc(hidden)]
+struct KeyLifecycleRecordRaw {
+    key_id: String,
+    key_type: String,
+    security_level: u32,
+    current_state: KeyLifecycleState,
+    state_history: Vec<StateTransition>,
+    generator: Option<String>,
+    approvers: Vec<String>,
+    destroyer: Option<String>,
+    generated_at: chrono::DateTime<chrono::Utc>,
+    activated_at: Option<chrono::DateTime<chrono::Utc>>,
+    rotated_at: Option<chrono::DateTime<chrono::Utc>>,
+    retired_at: Option<chrono::DateTime<chrono::Utc>>,
+    destroyed_at: Option<chrono::DateTime<chrono::Utc>>,
+    rotation_interval_days: u32,
+    overlap_period_days: u32,
+}
+
+impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
+    type Error = TypeError;
+
+    fn try_from(raw: KeyLifecycleRecordRaw) -> Result<Self> {
+        // Re-validate state-machine invariants on load so a corrupted
+        // or tampered persisted record cannot bypass the rules
+        // `transition()` enforces in memory.
+        match (raw.current_state, raw.activated_at, raw.state_history.last()) {
+            (KeyLifecycleState::Generation, Some(_), _) => {
+                return Err(TypeError::InvalidAuditInput(
+                    "current_state=Generation with activated_at set".to_string(),
+                ));
+            }
+            (KeyLifecycleState::Active, None, _) => {
+                return Err(TypeError::InvalidAuditInput(
+                    "current_state=Active without activated_at".to_string(),
+                ));
+            }
+            (KeyLifecycleState::Destroyed, _, None) => {
+                return Err(TypeError::InvalidAuditInput(
+                    "current_state=Destroyed with empty state_history".to_string(),
+                ));
+            }
+            (KeyLifecycleState::Destroyed, _, Some(t))
+                if t.to_state != KeyLifecycleState::Destroyed =>
+            {
+                return Err(TypeError::InvalidAuditInput(
+                    "current_state=Destroyed but last state_history entry disagrees".to_string(),
+                ));
+            }
+            _ => {}
+        }
+        // Per-state timestamp consistency: the timestamp for a state
+        // must be present iff that state has been entered (i.e. appears
+        // in state_history).
+        let entered = |st: KeyLifecycleState| raw.state_history.iter().any(|t| t.to_state == st);
+        if entered(KeyLifecycleState::Rotating) != raw.rotated_at.is_some() {
+            return Err(TypeError::InvalidAuditInput(
+                "rotated_at presence disagrees with state_history".to_string(),
+            ));
+        }
+        if entered(KeyLifecycleState::Retired) != raw.retired_at.is_some() {
+            return Err(TypeError::InvalidAuditInput(
+                "retired_at presence disagrees with state_history".to_string(),
+            ));
+        }
+        if entered(KeyLifecycleState::Destroyed) != raw.destroyed_at.is_some() {
+            return Err(TypeError::InvalidAuditInput(
+                "destroyed_at presence disagrees with state_history".to_string(),
+            ));
+        }
+        Ok(KeyLifecycleRecord {
+            key_id: raw.key_id,
+            key_type: raw.key_type,
+            security_level: raw.security_level,
+            current_state: raw.current_state,
+            state_history: raw.state_history,
+            generator: raw.generator,
+            approvers: raw.approvers,
+            destroyer: raw.destroyer,
+            generated_at: raw.generated_at,
+            activated_at: raw.activated_at,
+            rotated_at: raw.rotated_at,
+            retired_at: raw.retired_at,
+            destroyed_at: raw.destroyed_at,
+            rotation_interval_days: raw.rotation_interval_days,
+            overlap_period_days: raw.overlap_period_days,
+        })
+    }
 }
 
 /// Record of a state transition
@@ -256,16 +379,30 @@ impl KeyLifecycleRecord {
         justification: String,
         approval_id: Option<String>,
     ) -> Result<()> {
+        // Audit-trail input gates: empty / control-chars / oversized
+        // strings break JSONL audit consumers and produce attribution-
+        // free entries. Reject up front rather than persisting them.
+        validate_audit_field("custodian_id", &custodian_id, false)?;
+        validate_audit_field("justification", &justification, false)?;
+        if let Some(ref approval_id) = approval_id {
+            validate_audit_field("approval_id", approval_id, true)?;
+        }
+
         if !KeyStateMachine::is_valid_transition(Some(self.current_state), to_state) {
             return Err(TypeError::InvalidStateTransition {
                 from: self.current_state,
                 to: to_state,
             });
         }
+        // Capture `now` once so the state_history timestamp and the
+        // per-state timestamp below match exactly. An auditor comparing
+        // `state_history[i].timestamp` against `activated_at` (etc.)
+        // would otherwise see sub-tick skew on every transition.
+        let now = chrono::Utc::now();
         let transition = StateTransition {
             from_state: Some(self.current_state),
             to_state,
-            timestamp: chrono::Utc::now(),
+            timestamp: now,
             custodian_id: custodian_id.clone(),
             justification,
             approval_id,
@@ -274,12 +411,12 @@ impl KeyLifecycleRecord {
         self.state_history.push(transition);
         self.current_state = to_state;
 
-        // Update timestamps
+        // Update timestamps (use the captured `now`).
         match to_state {
-            KeyLifecycleState::Active => self.activated_at = Some(chrono::Utc::now()),
-            KeyLifecycleState::Rotating => self.rotated_at = Some(chrono::Utc::now()),
-            KeyLifecycleState::Retired => self.retired_at = Some(chrono::Utc::now()),
-            KeyLifecycleState::Destroyed => self.destroyed_at = Some(chrono::Utc::now()),
+            KeyLifecycleState::Active => self.activated_at = Some(now),
+            KeyLifecycleState::Rotating => self.rotated_at = Some(now),
+            KeyLifecycleState::Retired => self.retired_at = Some(now),
+            KeyLifecycleState::Destroyed => self.destroyed_at = Some(now),
             _ => {}
         }
 
@@ -635,13 +772,10 @@ mod tests {
             7,
         );
 
-        // Round-31 L7: transition through the state machine first so
-        // `current_state == Active`, `state_history` has the
-        // Generation→Active record, and `generator` is populated. The
-        // previous test reached into `activated_at` directly and left
-        // every other field in the inconsistent "fresh record" state,
-        // which means it would have masked any future rotation-policy
-        // change that consults more than just the timestamp.
+        // Drive through the state machine before back-dating, so that
+        // `state_history` and `generator` are populated. A future
+        // rotation policy that consults history (not just the cached
+        // timestamp) cannot then be silently masked by this test.
         record
             .transition(
                 KeyLifecycleState::Active,
@@ -650,11 +784,6 @@ mod tests {
                 None,
             )
             .unwrap();
-        // Back-date the activation timestamp so the rotation policy
-        // (90 days) sees a 100-day-old key. The state-history entry
-        // keeps the real activation timestamp; only the cached
-        // `activated_at` field is shifted, mirroring how a real key
-        // restored from a long-lived backing store would look.
         record.activated_at = Some(chrono::Utc::now() - chrono::Duration::days(100));
 
         assert!(record.requires_rotation());

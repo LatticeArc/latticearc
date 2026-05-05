@@ -153,6 +153,14 @@ impl<const N: usize> SecretBytes<N> {
     /// `Clone` is intentionally not derived. Use this method when duplication is
     /// semantically required — for example, sending a shared secret across a
     /// channel boundary — so every duplication is grep-able.
+    ///
+    /// # Note on memory locking
+    ///
+    /// `SecretBytes<N>` is stack-allocated, so `mlock(2)`-style page
+    /// pinning does not apply: each clone is a fresh stack location
+    /// (no heap pages to lock). If a caller specifically needs OS-level
+    /// memory-lock semantics for a duplicated secret, use
+    /// [`SecretVec`] (heap-backed) instead.
     #[must_use]
     #[inline]
     pub fn clone_for_transmission(&self) -> Self {

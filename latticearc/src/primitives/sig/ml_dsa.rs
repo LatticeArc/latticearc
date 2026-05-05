@@ -259,7 +259,7 @@ impl MlDsaPublicKey {
         let is_valid = match self.parameter_set() {
             MlDsaParameterSet::MlDsa44 => {
                 let pk_bytes: [u8; 1312] = self.as_bytes().try_into().map_err(|_e| {
-                    MlDsaError::InvalidKeyLength { expected: 1312, actual: self.as_bytes().len() }
+                    MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 let pk = ml_dsa_44::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
                     MlDsaError::VerificationError("verification failed".to_string())
@@ -274,7 +274,7 @@ impl MlDsaPublicKey {
             }
             MlDsaParameterSet::MlDsa65 => {
                 let pk_bytes: [u8; 1952] = self.as_bytes().try_into().map_err(|_e| {
-                    MlDsaError::InvalidKeyLength { expected: 1952, actual: self.as_bytes().len() }
+                    MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 let pk = ml_dsa_65::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
                     MlDsaError::VerificationError("verification failed".to_string())
@@ -289,7 +289,7 @@ impl MlDsaPublicKey {
             }
             MlDsaParameterSet::MlDsa87 => {
                 let pk_bytes: [u8; 2592] = self.as_bytes().try_into().map_err(|_e| {
-                    MlDsaError::InvalidKeyLength { expected: 2592, actual: self.as_bytes().len() }
+                    MlDsaError::VerificationError("verification failed".to_string())
                 })?;
                 let pk = ml_dsa_87::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
                     MlDsaError::VerificationError("verification failed".to_string())
@@ -454,7 +454,7 @@ impl MlDsaSecretKey {
                 // Stack-allocated secret key bytes wrapped in Zeroizing for guaranteed wipe.
                 let mut sk_bytes: Zeroizing<[u8; 2560]> = Zeroizing::new([0u8; 2560]);
                 if self.expose_secret().len() != 2560 {
-                    log_reject("SK length mismatch", &(2560usize, self.len()));
+                    log_reject("SK length mismatch", &());
                     return Err(opaque_sign_err());
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());
@@ -471,7 +471,7 @@ impl MlDsaSecretKey {
             MlDsaParameterSet::MlDsa65 => {
                 let mut sk_bytes: Zeroizing<[u8; 4032]> = Zeroizing::new([0u8; 4032]);
                 if self.expose_secret().len() != 4032 {
-                    log_reject("SK length mismatch", &(4032usize, self.len()));
+                    log_reject("SK length mismatch", &());
                     return Err(opaque_sign_err());
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());
@@ -488,7 +488,7 @@ impl MlDsaSecretKey {
             MlDsaParameterSet::MlDsa87 => {
                 let mut sk_bytes: Zeroizing<[u8; 4896]> = Zeroizing::new([0u8; 4896]);
                 if self.expose_secret().len() != 4896 {
-                    log_reject("SK length mismatch", &(4896usize, self.len()));
+                    log_reject("SK length mismatch", &());
                     return Err(opaque_sign_err());
                 }
                 sk_bytes.copy_from_slice(self.expose_secret());

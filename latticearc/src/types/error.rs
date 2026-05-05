@@ -30,6 +30,11 @@ pub enum TypeError {
     /// Unrecognized encryption scheme string in legacy data.
     #[error("Unknown encryption scheme: {0}")]
     UnknownScheme(String),
+
+    /// Audit-trail input failed validation (empty / control-chars /
+    /// oversized custodian_id, justification, or approval_id).
+    #[error("Audit input invalid: {0}")]
+    InvalidAuditInput(String),
 }
 
 /// A specialized Result type for [`types`](crate::types) operations.

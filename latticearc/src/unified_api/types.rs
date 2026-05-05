@@ -444,14 +444,9 @@ fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
     // Helper: split on '-' and check if a token is present.
     let has_token = |needle: &str| s.split('-').any(|t| t == needle);
 
-    // Round-31 D1-D3: only the SLH-DSA `*-shake-*s` (small) variants
-    // exist as `SlhDsaSecurityLevel` enum values today. The previous
-    // arms accepted `*-shake-*f` (fast) and `*-sha2-*` strings that
-    // would never reach this function from a real keygen path —
-    // their presence here was the source of the doc-vs-code drift
-    // flagged in KEY_FORMAT.md, NIST_COMPLIANCE.md, SECURITY_GUIDE.md.
-    // Remove the dead arms so the matrix here is the *single* source
-    // of truth for what string forms are recognised.
+    // Only the SLH-DSA `-shake-*s` (small) variants are exposed by
+    // `SlhDsaSecurityLevel`; `-shake-*f` (fast) and `-sha2-*` are not
+    // wired through and would never reach here from a real keygen path.
 
     // Standard (Category 1 / 128-bit PQ)
     if matches!(

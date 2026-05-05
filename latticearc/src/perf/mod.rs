@@ -31,7 +31,7 @@
 //! println!("P99: {:?}", stats.percentile_99);
 //! ```
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -144,14 +144,17 @@ impl Default for TimingStatistics {
 /// Histogram for collecting and analyzing timing distributions
 #[derive(Debug, Clone)]
 pub struct Histogram {
-    samples: Vec<u128>, // stored as nanoseconds
+    /// Samples in nanoseconds. `VecDeque` (not `Vec`) so the FIFO
+    /// drop-oldest in `record` is O(1) once the buffer reaches
+    /// `MAX_SAMPLES_PER_HISTOGRAM`.
+    samples: VecDeque<u128>,
 }
 
 impl Histogram {
     /// Create a new empty histogram with pre-allocated capacity
     #[must_use]
     pub fn new(capacity: usize) -> Self {
-        Self { samples: Vec::with_capacity(capacity) }
+        Self { samples: VecDeque::with_capacity(capacity) }
     }
 
     /// Create a new empty histogram
@@ -160,28 +163,23 @@ impl Histogram {
         Self::new(100)
     }
 
-    /// Round-31 L8: bound a single histogram's sample buffer so that
-    /// a long-running process recording into the same operation name
-    /// does not grow without limit. 65 536 samples gives generous
-    /// statistical resolution (well past the noise floor for any
-    /// percentile of interest) at fixed memory cost (~1 MiB per
-    /// histogram).
+    /// Cap on a single histogram's sample buffer (~1 MiB per
+    /// histogram). Generous resolution for any percentile of interest;
+    /// FIFO drop-oldest at this cap.
     const MAX_SAMPLES_PER_HISTOGRAM: usize = 65_536;
 
-    /// Record a timing sample. Once the histogram has accumulated
-    /// `MAX_SAMPLES_PER_HISTOGRAM` samples, further `record` calls
-    /// drop oldest-first (FIFO). This preserves a moving window of
-    /// the most recent measurements rather than freezing the
-    /// histogram or panicking on overflow.
+    /// Record a timing sample. At `MAX_SAMPLES_PER_HISTOGRAM` the
+    /// oldest sample is dropped (`VecDeque::pop_front` is O(1)).
     pub fn record(&mut self, duration: Duration) {
         if self.samples.len() >= Self::MAX_SAMPLES_PER_HISTOGRAM {
-            self.samples.remove(0);
+            self.samples.pop_front();
         }
-        self.samples.push(duration.as_nanos());
+        self.samples.push_back(duration.as_nanos());
     }
 
     /// Record multiple timing samples. Same FIFO bound as `record`.
     pub fn record_batch(&mut self, durations: &[Duration]) {
+        self.samples.reserve(durations.len());
         for &duration in durations {
             self.record(duration);
         }
@@ -212,7 +210,7 @@ impl Histogram {
             return TimingStatistics::empty();
         }
 
-        let mut sorted = self.samples.clone();
+        let mut sorted: Vec<u128> = self.samples.iter().copied().collect();
         sorted.sort_unstable();
 
         let count = sorted.len();
@@ -268,11 +266,9 @@ impl Histogram {
         } else {
             0.0
         };
-        // Round-31 H1: previously this used `.to_bits()` which returns
-        // the IEEE-754 bit pattern as u64, not the rounded numeric
-        // value — every `std_dev` was off by ~18 orders of magnitude.
-        // `as u64` (saturating, IEEE-754-conformant) is the correct
-        // cast for non-negative finite f64 → integer ns.
+        // `f64::to_bits()` returns the IEEE-754 bit pattern, not the
+        // numeric value; `as u64` is the correct cast for a non-negative
+        // finite f64 → integer ns.
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let std_dev = Duration::from_nanos(variance.sqrt() as u64);
 
@@ -308,9 +304,15 @@ impl Histogram {
         )
     }
 
-    /// Merge another histogram into this one
+    /// Merge another histogram into this one. Honours the per-histogram
+    /// sample cap: if the combined count exceeds
+    /// `MAX_SAMPLES_PER_HISTOGRAM`, oldest samples are dropped (FIFO),
+    /// preserving the moving-window invariant of `record`.
     pub fn merge(&mut self, other: &Histogram) {
-        self.samples.extend_from_slice(&other.samples);
+        self.samples.extend(other.samples.iter().copied());
+        while self.samples.len() > Self::MAX_SAMPLES_PER_HISTOGRAM {
+            self.samples.pop_front();
+        }
     }
 }
 
@@ -321,13 +323,9 @@ pub struct MetricsCollector {
 }
 
 impl MetricsCollector {
-    /// Round-31 L8: cap the number of distinct operation names so that
-    /// a caller passing arbitrary or attacker-influenced strings (e.g.
-    /// per-request labels) cannot grow the map unboundedly. 1024
-    /// distinct names is well above the expected steady-state of an
-    /// instrumented build (a few dozen operations across the API).
-    /// Once full, new names are silently dropped with a `tracing::warn`
-    /// so operators can detect labels they didn't expect.
+    /// Cap on distinct operation names. Bounds memory against callers
+    /// (or attackers) that pass per-request / arbitrary labels. New
+    /// names beyond this cap are dropped with a `tracing::warn`.
     const MAX_DISTINCT_OPERATIONS: usize = 1024;
 
     /// Create a new metrics collector
@@ -342,21 +340,17 @@ impl MetricsCollector {
     /// Record a single operation timing
     #[allow(clippy::arithmetic_side_effects)] // Histogram bucket indexing on bounded duration values
     pub fn record_operation(&self, name: &str, duration: Duration) {
-        // emit a tracing warning on poisoned
-        // mutex instead of silently dropping the metric. Metrics are
-        // observability, so a silent drop hides the symptom that
-        // caused the panic that poisoned the mutex.
+        // Emit a tracing warning on poisoned mutex rather than silently
+        // dropping the metric — metrics are observability, and a silent
+        // drop hides the panic that poisoned the mutex.
         match self.histograms.lock() {
             Ok(mut histograms) => {
-                if histograms.contains_key(name) {
-                    if let Some(h) = histograms.get_mut(name) {
-                        h.record(duration);
-                    }
+                if let Some(h) = histograms.get_mut(name) {
+                    h.record(duration);
                 } else if histograms.len() < Self::MAX_DISTINCT_OPERATIONS {
-                    histograms
-                        .entry(name.to_string())
-                        .or_insert_with(Histogram::new_default)
-                        .record(duration);
+                    let mut h = Histogram::new_default();
+                    h.record(duration);
+                    histograms.insert(name.to_string(), h);
                 } else {
                     tracing::warn!(
                         operation = name,
@@ -375,16 +369,13 @@ impl MetricsCollector {
 
         match self.operation_counts.lock() {
             Ok(mut counts) => {
-                if counts.contains_key(name) {
-                    if let Some(c) = counts.get_mut(name) {
-                        *c = c.saturating_add(1);
-                    }
+                if let Some(c) = counts.get_mut(name) {
+                    *c = c.saturating_add(1);
                 } else if counts.len() < Self::MAX_DISTINCT_OPERATIONS {
                     counts.insert(name.to_string(), 1);
                 }
-                // Else: drop silently here; the histograms branch
-                // above has already emitted the cap warning for this
-                // operation name on this same call.
+                // The cap warning is already emitted on the histograms
+                // branch for the same call; no need to repeat it here.
             }
             Err(_) => {
                 tracing::warn!(

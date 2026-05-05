@@ -286,6 +286,17 @@ impl MlKemPublicKey {
                 key_type: "public key".to_string(),
             });
         }
+        // Structural validation: ensure aws-lc-rs accepts these bytes
+        // as a parseable encapsulation key. Without this, an all-zeros
+        // (or otherwise malformed) PK loaded from a key file passes
+        // here and only fails at first encap.
+        let algorithm = security_level.as_aws_algorithm();
+        EncapsulationKey::new(algorithm, &data).map_err(|_e| MlKemError::InvalidKeyLength {
+            variant: security_level.name().to_string(),
+            size: expected_size,
+            actual: data.len(),
+            key_type: "public key".to_string(),
+        })?;
         Ok(Self { security_level, data })
     }
 
@@ -1006,15 +1017,34 @@ impl MlKem {
             MlKemError::KeyGenerationError(format!("Failed to serialize public key: {}", e))
         })?;
 
+        let sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
+            MlKemError::KeyGenerationError(format!("Key serialization failed: {}", e))
+        })?;
         let public_key = MlKemPublicKey::new(security_level, pk_bytes.as_ref().to_vec())?;
         let keypair = MlKemDecapsulationKeyPair::new(public_key, decaps_key, security_level);
 
-        // this path (used by hybrid keygen) was missing
-        // the FIPS 140-3 IG 10.3.A PCT that `generate_keypair_with_config`
-        // already ran. PCT must apply to the keypair being introduced.
+        // FIPS 140-3 IG 10.3.A: PCT on the just-generated keypair (the
+        // hybrid-keygen path used by callers of this function).
         crate::primitives::pct::pct_ml_kem(&keypair).map_err(|e| {
             MlKemError::KeyGenerationError(format!(
                 "Post-keygen PCT failed (FIPS 140-3 §9.2): {}",
+                e
+            ))
+        })?;
+
+        // Mirror of `generate_keypair_with_config`: callers that later
+        // round-trip via `decaps_key_bytes` → `from_key_bytes` use a
+        // path the in-memory PCT above does not exercise. Run a second
+        // PCT on a reconstructed keypair so a broken serialization
+        // cannot escape keygen.
+        let roundtrip_keypair = MlKemDecapsulationKeyPair::from_key_bytes(
+            security_level,
+            sk_bytes_obj.as_ref(),
+            pk_bytes.as_ref(),
+        )?;
+        crate::primitives::pct::pct_ml_kem(&roundtrip_keypair).map_err(|e| {
+            MlKemError::KeyGenerationError(format!(
+                "Post-keygen serialized-roundtrip PCT failed: {}",
                 e
             ))
         })?;

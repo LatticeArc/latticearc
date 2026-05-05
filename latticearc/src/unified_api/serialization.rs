@@ -285,15 +285,36 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
     type Error = CoreError;
 
     fn try_from(ser: SerializableEncryptedOutput) -> Result<Self> {
-        // Defense-in-depth: reject excessively large serialized payloads before
-        // base64 decode.
-        const MAX_SERIALIZED_SIZE: usize = 10 * 1024 * 1024; // 10 MiB
-        if ser.ciphertext.len() > MAX_SERIALIZED_SIZE {
-            return Err(CoreError::SerializationError(format!(
-                "Serialized ciphertext size {} exceeds maximum of {} bytes",
-                ser.ciphertext.len(),
-                MAX_SERIALIZED_SIZE
-            )));
+        // Defense-in-depth: reject excessively large serialized
+        // payloads before base64 decode. Caps are per-field, not just
+        // on `ciphertext`: a crafted envelope with a 10 MiB nonce
+        // would otherwise bypass the ciphertext-only check.
+        const MAX_CIPHERTEXT_B64: usize = 10 * 1024 * 1024; // 10 MiB
+        // AEAD nonce is 12 B raw → ~16 B b64; AEAD tag is 16 B → ~24 B
+        // b64. Leave generous slack so future schemes that use longer
+        // nonces (e.g. 24-byte XChaCha20-Poly1305) still fit.
+        const MAX_NONCE_B64: usize = 64;
+        const MAX_TAG_B64: usize = 64;
+        // ML-KEM ciphertext is 768/1088/1568 B raw → up to ~2092 B
+        // b64. ECDH ephemeral PK is 32 B → ~44 B b64.
+        const MAX_KEM_CT_B64: usize = 4096;
+        const MAX_ECDH_PK_B64: usize = 256;
+
+        let check_field_len = |field: &str, len: usize, cap: usize| -> Result<()> {
+            if len > cap {
+                return Err(CoreError::SerializationError(format!(
+                    "Serialized {} size {} exceeds maximum of {} bytes",
+                    field, len, cap
+                )));
+            }
+            Ok(())
+        };
+        check_field_len("ciphertext", ser.ciphertext.len(), MAX_CIPHERTEXT_B64)?;
+        check_field_len("nonce", ser.nonce.len(), MAX_NONCE_B64)?;
+        check_field_len("tag", ser.tag.len(), MAX_TAG_B64)?;
+        if let Some(hd) = ser.hybrid_data.as_ref() {
+            check_field_len("ml_kem_ciphertext", hd.ml_kem_ciphertext.len(), MAX_KEM_CT_B64)?;
+            check_field_len("ecdh_ephemeral_pk", hd.ecdh_ephemeral_pk.len(), MAX_ECDH_PK_B64)?;
         }
 
         let scheme = EncryptionScheme::parse_str(&ser.scheme).ok_or_else(|| {

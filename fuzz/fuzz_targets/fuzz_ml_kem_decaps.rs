@@ -21,11 +21,8 @@ fuzz_target!(|data: &[u8]| {
         _ => (MlKemSecurityLevel::MlKem1024, 1568),
     };
 
-    // Test 1: Generate valid keypair and test with valid ciphertext.
-    // Round-31 M6: a happy-path encapsulate -> decapsulate roundtrip is
-    // an oracle, not a crash check. If decapsulation silently returns
-    // a *different* shared secret, the fuzzer must catch it — not just
-    // a panic. So assert decapsulate succeeds and the SS matches.
+    // Decap is a correctness oracle: a silent SS mismatch must fail,
+    // not just a panic.
     if let Ok((pk, sk)) = MlKem::generate_keypair(level)
         && let Ok((ss1, ct)) = MlKem::encapsulate(&pk)
     {

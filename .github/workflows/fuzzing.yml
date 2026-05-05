@@ -260,9 +260,14 @@ jobs:
         # should fail the job rather than silently producing empty
         # coverage data. Build is in the previous step so the outer
         # `timeout` here only governs the fuzz execution itself.
-        timeout 90s cargo fuzz run encrypt_fuzz -- -max_total_time=60
+        # Outer `timeout 600s` covers the 60s `-max_total_time` plus
+        # libfuzzer cleanup AND any incremental rebuild cargo-fuzz
+        # triggers under `run` — previous 90s budget truncated
+        # cold-cache runs at the build phase (exit 124).
+        timeout 600s cargo fuzz run encrypt_fuzz -- -max_total_time=60
         # Then generate coverage from the corpus (may fail if corpus is empty)
-        cargo fuzz coverage encrypt_fuzz -- -max_total_time=60 || echo "Fuzz coverage skipped (no corpus)"
+        timeout 600s cargo fuzz coverage encrypt_fuzz -- -max_total_time=60 \
+          || echo "Fuzz coverage skipped (no corpus)"
 
     - name: Upload fuzz coverage
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

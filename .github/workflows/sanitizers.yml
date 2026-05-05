@@ -159,8 +159,9 @@ jobs:
           key: ${{ runner.os }}-msan-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests with MemorySanitizer
-        # `--skip hybrid::encrypt_hybrid::tests::` excludes 10 hybrid
-        # decrypt tests known to false-positive under MSan due to an
+        # `--skip hybrid::encrypt_hybrid::tests::` excludes 14 hybrid
+        # encrypt/decrypt/derive tests known to false-positive under
+        # MSan due to an
         # aws-lc-rs 1.16.3 FFI poison-tracking gap (the C side
         # initialises the bytes, but at least one allocation path
         # escapes `-fsanitize=memory` instrumentation). The same tests
@@ -182,7 +183,11 @@ jobs:
             --skip hybrid::encrypt_hybrid::tests::test_encrypt_hybrid_with_none_context_uses_default_succeeds \
             --skip hybrid::encrypt_hybrid::tests::test_decrypt_hybrid_with_none_context_uses_default_succeeds \
             --skip hybrid::encrypt_hybrid::tests::test_encrypt_hybrid_custom_context_succeeds \
-            --skip hybrid::encrypt_hybrid::tests::test_decrypt_hybrid_wrong_context_fails
+            --skip hybrid::encrypt_hybrid::tests::test_decrypt_hybrid_wrong_context_fails \
+            --skip hybrid::encrypt_hybrid::tests::test_derive_encryption_key_different_contexts_produce_different_keys_succeeds \
+            --skip hybrid::encrypt_hybrid::tests::test_derive_encryption_key_with_aad_succeeds \
+            --skip hybrid::encrypt_hybrid::tests::test_derive_encryption_key_with_64_byte_secret_succeeds \
+            --skip hybrid::encrypt_hybrid::tests::test_derive_encryption_key_is_deterministic
         env:
           # Compile aws-lc-rs's C sources with `-fsanitize=memory` so MSan
           # can see into the FFI boundary. Requires aws-lc-rs >= 1.16.3.
