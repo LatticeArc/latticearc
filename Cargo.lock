@@ -1883,7 +1883,6 @@ dependencies = [
  "rpassword",
  "serde",
  "serde_json",
- "subtle",
  "tempfile",
  "tracing",
  "zeroize",

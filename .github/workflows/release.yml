@@ -77,13 +77,17 @@ jobs:
 
       - name: Extract changelog
         id: changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # Extract changelog section for this version
-          VERSION=${{ steps.version.outputs.version }}
-          CHANGELOG=$(sed -n "/^## \[${VERSION}\]/,/^## \[/p" CHANGELOG.md | sed '$d')
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Extract changelog section for this version. Round-35 M9
+          # binds VERSION via env: so the value is shell-expanded at
+          # runtime. Inlining `${{ ... }}` directly into a sed
+          # expression let a malicious tag inject shell metacharacters.
+          CHANGELOG=$(sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | sed '$d')
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v2

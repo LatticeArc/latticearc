@@ -495,49 +495,60 @@ fn test_intermediate_value_cleanup_succeeds() {
 // SECTION 4: API Contract Tests
 // =============================================================================
 
-/// Verify ML-KEM secret key Debug behavior
+/// Verify ML-KEM secret key Debug actually redacts sensitive bytes.
 ///
-/// NOTE: The current implementation uses #[derive(Debug)] which exposes data.
-/// For production use, a custom Debug impl showing [REDACTED] would be preferred.
-/// This test documents the current behavior.
+/// Round-35 D4: the prior version of this test asserted only that
+/// the type name appeared in the Debug output, with a comment
+/// claiming `#[derive(Debug)]` exposed the data. That comment was
+/// stale: the actual implementation has a custom `Debug` impl that
+/// already redacts. Update the test to assert what the impl
+/// actually does, so a future regression to derived Debug fails
+/// CI rather than silently shipping plaintext keys to logs.
 #[test]
-fn test_mlkem_secret_key_debug_format_has_correct_size() {
-    let sk = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0xABu8; 2400])
-        .expect("secret key creation");
+fn test_mlkem_secret_key_debug_redacts_succeeds() {
+    // Use a real generated SK — round-35 L7 made `MlKemSecretKey::new`
+    // structural-validation-strict, so an arbitrary 0xAB-pattern
+    // buffer no longer passes construction.
+    let (_pk, sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("ML-KEM-768 keygen");
 
     let debug_output = format!("{:?}", sk);
 
-    // Verify it produces a valid debug output
     assert!(
         debug_output.contains("MlKemSecretKey"),
         "Debug should contain type name: {}",
         debug_output
     );
-
-    // Document: In production, Debug should redact sensitive data.
-    // Current impl uses derive(Debug). Security recommendation: implement custom Debug.
+    assert!(
+        debug_output.contains("[REDACTED]"),
+        "Debug must redact sensitive bytes (impl was updated; this test was stale): {}",
+        debug_output
+    );
 }
 
-/// Verify ML-KEM shared secret Debug behavior
-///
-/// NOTE: The current implementation uses #[derive(Debug)] which exposes data.
-/// For production use, a custom Debug impl showing [REDACTED] would be preferred.
-/// This test documents the current behavior.
+/// Verify ML-KEM shared secret Debug actually redacts. See the
+/// rationale on the SK test above (round-35 D4).
 #[test]
-fn test_mlkem_shared_secret_debug_format_has_correct_size() {
+fn test_mlkem_shared_secret_debug_redacts_succeeds() {
     let ss = MlKemSharedSecret::new([0xCDu8; 32]);
 
     let debug_output = format!("{:?}", ss);
 
-    // Verify it produces a valid debug output
     assert!(
         debug_output.contains("MlKemSharedSecret"),
         "Debug should contain type name: {}",
         debug_output
     );
-
-    // Document: In production, Debug should redact sensitive data.
-    // Current impl uses derive(Debug). Security recommendation: implement custom Debug.
+    assert!(
+        debug_output.contains("[REDACTED]"),
+        "Debug must redact sensitive bytes (impl was updated; this test was stale): {}",
+        debug_output
+    );
+    assert!(
+        !debug_output.contains("205, 205, 205"),
+        "Debug must not expose the raw byte content: {}",
+        debug_output
+    );
 }
 
 /// Verify X25519 secret key Debug shows [REDACTED]

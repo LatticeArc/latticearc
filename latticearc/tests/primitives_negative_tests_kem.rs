@@ -113,6 +113,13 @@ fn test_ml_kem_1024_public_key_oversized_succeeds() {
 // Secret Key Construction Negative Tests
 // ============================================================================
 
+// Round-35 L7: `MlKemSecretKey::new` collapses both length-mismatch
+// and structural-validation paths to `MlKemError::InvalidKeyFormat`
+// (Pattern-6 sibling — round-34 M7 had introduced two distinct
+// variants). The PK-side keeps `InvalidKeyLength` (constructor for
+// public material; structured errors aid diagnostics). The three
+// SK-side tests below were updated to assert on the new variant.
+
 #[test]
 fn test_ml_kem_512_secret_key_empty_bytes_succeeds() {
     let empty = vec![];
@@ -120,10 +127,10 @@ fn test_ml_kem_512_secret_key_empty_bytes_succeeds() {
     assert!(result.is_err(), "Should fail with empty secret key bytes");
 
     match result {
-        Err(MlKemError::InvalidKeyLength { .. }) => {
+        Err(MlKemError::InvalidKeyFormat(_)) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyFormat error, got {:?}", result),
     }
 }
 
@@ -134,14 +141,11 @@ fn test_ml_kem_768_secret_key_wrong_length_fails() {
     let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, wrong_size);
     assert!(result.is_err(), "Should fail with wrong secret key length");
 
-    match result {
-        Err(MlKemError::InvalidKeyLength { variant, size, actual, .. }) => {
-            assert_eq!(variant, "ML-KEM-768");
-            assert_eq!(size, 2400);
-            assert_eq!(actual, 1632);
-        }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
-    }
+    assert!(
+        matches!(result, Err(MlKemError::InvalidKeyFormat(_))),
+        "Expected InvalidKeyFormat error, got {:?}",
+        result
+    );
 }
 
 #[test]
@@ -151,14 +155,11 @@ fn test_ml_kem_1024_secret_key_truncated_succeeds() {
     let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem1024, truncated);
     assert!(result.is_err(), "Should fail with truncated secret key");
 
-    match result {
-        Err(MlKemError::InvalidKeyLength { variant, size, actual, .. }) => {
-            assert_eq!(variant, "ML-KEM-1024");
-            assert_eq!(size, 3168);
-            assert_eq!(actual, 1000);
-        }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
-    }
+    assert!(
+        matches!(result, Err(MlKemError::InvalidKeyFormat(_))),
+        "Expected InvalidKeyFormat error, got {:?}",
+        result
+    );
 }
 
 // ============================================================================

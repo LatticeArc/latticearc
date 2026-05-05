@@ -808,12 +808,28 @@ impl ProofOfPossession for ZeroTrustAuth {
 
     /// Verifies a proof of possession against the contained public key.
     ///
+    /// # Returns
+    ///
+    /// `Ok(true)` if the proof is fresh AND cryptographically valid.
+    /// `Ok(false)` if the proof is stale (older than the freshness
+    /// window), dated in the future beyond the clock-skew tolerance,
+    /// OR the cryptographic check fails. **All rejection causes
+    /// produce the same `Ok(false)`** so callers cannot distinguish
+    /// "stale, refresh and retry" from "wrong PoP" by branching on
+    /// the Result. (Round-34 L7 changed the stale path from
+    /// `Err(InvalidInput)` to `Ok(false)` to remove a side-channel
+    /// that exposed server clock skew. Stale-vs-cryptographic-reject
+    /// is logged at `tracing::debug!` for operators only — callers
+    /// that need refresh logic should re-issue a fresh PoP and retry
+    /// rather than branching on the error variant.)
+    ///
     /// # Errors
     ///
-    /// Returns `CoreError::InvalidInput` if the signature format is invalid
-    /// (must be at least 64 bytes) or the public key format is invalid.
+    /// Returns `CoreError::InvalidInput` only if the signature
+    /// format is structurally invalid (e.g. wrong length).
     ///
-    /// Returns `CoreError::InvalidKeyLength` if the public key has incorrect length.
+    /// Returns `CoreError::InvalidKeyLength` if the public key has
+    /// incorrect length.
     fn verify_pop(&self, pop: &Self::Pop) -> std::result::Result<bool, Self::Error> {
         // Freshness check: reject proofs older than PROOF_OF_POSSESSION_MAX_AGE.
         // This prevents replay of stale PoPs captured from prior sessions (P5.2 C4).

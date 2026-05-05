@@ -328,8 +328,19 @@ impl CryptoCavpTester {
                 })?;
                 let signature_bytes = Secp256k1Signature::signature_bytes(&signature);
 
-                // Check that signature is not empty and has correct length
-                Ok(!signature_bytes.is_empty() && signature_bytes.len() == 64)
+                // Length is necessary but not sufficient: a sign
+                // implementation that returned 64 bytes of garbage
+                // would pass a length-only check while emitting
+                // unverifiable signatures. Verify the signature
+                // against the matching public key here so the
+                // "sign" CAVP test actually validates correctness.
+                if signature_bytes.is_empty() || signature_bytes.len() != 64 {
+                    return Ok(false);
+                }
+                let pk_bytes = keypair.public_key_bytes();
+                let verify_ok =
+                    Secp256k1Signature::verify(&pk_bytes, &vector.message, &signature).is_ok();
+                Ok(verify_ok)
             }
             "verify" => {
                 // Verify the provided signature
@@ -365,8 +376,16 @@ impl CryptoCavpTester {
                 })?;
                 let signature_bytes = Ed25519Signature::signature_bytes(&signature);
 
-                // Check that signature is not empty and has correct length (64 bytes for Ed25519)
-                Ok(!signature_bytes.is_empty() && signature_bytes.len() == 64)
+                // Length is necessary but not sufficient. Verify the
+                // signature with the matching PK so a length-only
+                // check can't pass garbage signatures.
+                if signature_bytes.is_empty() || signature_bytes.len() != 64 {
+                    return Ok(false);
+                }
+                let pk_bytes = keypair.public_key_bytes();
+                let verify_ok =
+                    Ed25519Signature::verify(&pk_bytes, &vector.message, &signature).is_ok();
+                Ok(verify_ok)
             }
             "verify" => {
                 // Verify the provided signature
@@ -544,8 +563,51 @@ impl UtilityValidator {
     /// Returns an error if utility function validation fails.
     pub fn validate_utilities(&self) -> Result<()> {
         tracing::info!("Validating utility functions");
-        // ... existing code ...
-        tracing::info!("All utility functions validated successfully");
+        // Round-35 M4: replace the stub body with real structural
+        // checks. The full CAVP suite is driven through
+        // `cargo test --package latticearc-tests`; this in-library
+        // validator runs a small subset so a
+        // `validate_utilities() -> Ok(())` no longer means
+        // "literally nothing was checked".
+        use crate::types::domains;
+        let live_domains: &[(&str, &[u8])] = &[
+            ("CASCADE_OUTER", domains::CASCADE_OUTER),
+            ("CASCADE_INNER", domains::CASCADE_INNER),
+            ("HYBRID_KEM_SS_INFO", domains::HYBRID_KEM_SS_INFO),
+        ];
+        for (name, bytes) in live_domains {
+            if bytes.is_empty() {
+                return Err(LatticeArcError::ValidationError {
+                    message: format!("domain constant {name} is empty"),
+                });
+            }
+            if !bytes.windows(11).any(|w| w == b"LatticeArc-") {
+                return Err(LatticeArcError::ValidationError {
+                    message: format!("domain constant {name} missing LatticeArc- prefix"),
+                });
+            }
+        }
+        // Pairwise distinctness
+        for (i, (n1, b1)) in live_domains.iter().enumerate() {
+            for (j, (n2, b2)) in live_domains.iter().enumerate() {
+                if i != j && b1 == b2 {
+                    return Err(LatticeArcError::ValidationError {
+                        message: format!("domain constants {n1} and {n2} collide"),
+                    });
+                }
+            }
+        }
+        // Hex round-trip invariant.
+        let bytes: Vec<u8> = (0u8..=255).collect();
+        let decoded =
+            hex::decode(hex::encode(&bytes)).map_err(|e| LatticeArcError::ValidationError {
+                message: format!("hex round-trip decode failed: {e}"),
+            })?;
+        if decoded != bytes {
+            return Err(LatticeArcError::ValidationError {
+                message: "hex round-trip not equal".to_string(),
+            });
+        }
         tracing::info!("CAVP-style utility testing completed successfully");
         Ok(())
     }

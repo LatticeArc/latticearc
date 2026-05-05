@@ -549,7 +549,12 @@ impl KeyLifecycleRecord {
     /// Add an approver to the key. Silently ignored if the approver
     /// is already in the list, or if the cap (`MAX_APPROVERS`) has
     /// been reached. Returns `false` on cap rejection so callers can
-    /// surface a warning if needed.
+    /// surface a warning if needed — the `#[must_use]` here forces
+    /// every caller to acknowledge the bool, since round-34 M8
+    /// changed the return type from `()` precisely to expose this
+    /// case and a caller that just `.;` it would silently lose the
+    /// signal.
+    #[must_use = "add_approver returns false when the cap is reached; surface that to the caller"]
     pub fn add_approver(&mut self, approver_id: impl Into<String>) -> bool {
         let approver_id = approver_id.into();
         if self.approvers.contains(&approver_id) {
@@ -898,9 +903,11 @@ mod tests {
             30,
         );
 
-        record.add_approver("alice".to_string());
-        record.add_approver("bob".to_string());
-        record.add_approver("alice".to_string()); // Duplicate, should not be added
+        assert!(record.add_approver("alice".to_string()));
+        assert!(record.add_approver("bob".to_string()));
+        // Duplicate: returns true (idempotent acceptance) but
+        // doesn't grow the list.
+        assert!(record.add_approver("alice".to_string()));
 
         assert_eq!(record.approvers.len(), 2);
         assert!(record.approvers.contains(&"alice".to_string()));

@@ -56,16 +56,21 @@ fuzz_target!(|data: &[u8]| {
         }
     }
 
-    // Test 2: Multiple key generations should produce different keys
+    // Test 2: Multiple key generations should produce structurally-
+    // valid keys. The previous assert_ne! on bytes was technically
+    // correct (collision is ~2⁻²⁵⁶) but is the same bug-class as
+    // round-31's `fuzz_hkdf` determinism assertion: a fuzz harness
+    // should encode invariants the implementation can violate, not
+    // probabilistic facts that depend on RNG state. If anything in
+    // the harness ever routes fuzz bytes into the keygen RNG, the
+    // assertion would fire on a real-world non-bug.
     if let (Ok((pk1, _sk1)), Ok((pk2, _sk2))) =
         (MlKem::generate_keypair(level), MlKem::generate_keypair(level))
     {
-        // Keys should be different (with overwhelming probability)
-        assert_ne!(
-            pk1.as_bytes(),
-            pk2.as_bytes(),
-            "Consecutive key generations should produce different keys"
-        );
+        // Both keys must be the expected length for this parameter
+        // set. Length is a deterministic structural invariant.
+        assert_eq!(pk1.as_bytes().len(), level.public_key_size());
+        assert_eq!(pk2.as_bytes().len(), level.public_key_size());
     }
 
     // Test 3: Test all security levels in sequence

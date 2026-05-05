@@ -473,8 +473,22 @@ pub fn generate_keypair_with_parameter_set(
     // into the HybridSigSecretKey so the wrapping Zeroizing is preserved.
     let ed25519_sk_zeroizing = ed25519_kp.secret_key_bytes();
 
-    let pk =
-        HybridSigPublicKey { parameter_set, ml_dsa_pk: ml_dsa_pk.as_bytes().to_vec(), ed25519_pk };
+    // Round-35 H4: route construction through the validating
+    // `HybridSigPublicKey::new` (round-34 L4) instead of building
+    // the struct literal directly. Direct construction here
+    // bypassed the length-check L4 added — the production keygen
+    // was the most-common construction path and the only one that
+    // skipped the validator. The bytes here come from real
+    // generate-keypair output so the validator never rejects in
+    // practice; the `expect` documents the invariant.
+    let pk = HybridSigPublicKey::new(
+        parameter_set,
+        ml_dsa_pk.as_bytes().to_vec(),
+        ed25519_pk,
+    )
+    .map_err(|e| HybridSignatureError::InvalidKeyMaterial(format!(
+        "internal invariant violated: generate produced a PK that failed length validation: {e}"
+    )))?;
 
     let sk = HybridSigSecretKey {
         parameter_set,

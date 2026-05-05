@@ -80,10 +80,13 @@ impl SigmaProof {
     /// Intended for test tampering scenarios only — exposing this
     /// mutator on the production API surface lets a downstream caller
     /// replace the Fiat-Shamir challenge in a constructed proof without
-    /// re-deriving the response, defeating soundness. Round-10 audit fix
-    /// #11 gates it behind `#[cfg(any(test, feature = "test-utils"))]`.
+    /// re-deriving the response, defeating soundness. Gated behind
+    /// `cfg(test)` (lib unit tests only) — narrower than `test-utils`
+    /// because no integration test currently needs it, and a
+    /// downstream that flips `test-utils` for unrelated reasons
+    /// shouldn't acquire a soundness bypass on `SigmaProof`.
     #[must_use]
-    #[cfg(any(test, feature = "test-utils"))]
+    #[cfg(test)]
     pub fn challenge_mut(&mut self) -> &mut [u8; 32] {
         &mut self.challenge
     }
@@ -273,7 +276,13 @@ impl<P: SigmaProtocol> FiatShamir<P> {
             ZkpError::VerificationFailed
         })?;
 
-        self.protocol.verify(statement, &commitment, proof.challenge(), &response)
+        // Pass the verifier-recomputed challenge, NOT the
+        // proof-supplied bytes, even though `ct_eq` above confirmed
+        // they're byte-equal. A future protocol that re-parses the
+        // challenge with non-canonical encoding tolerance (the
+        // Frozen-Heart shape) would otherwise accept forgeries.
+        // Always use the canonical bytes the verifier produced.
+        self.protocol.verify(statement, &commitment, &expected_challenge, &response)
     }
 
     /// Compute Fiat-Shamir challenge
@@ -301,6 +310,9 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         // own 1 GiB DoS cap below) but a silent failure mode is worse
         // than an explicit error. Map to a Fiat-Shamir-specific Err
         // so reviewers can see the bound is enforced.
+        let domain_separator_len = u32::try_from(self.domain_separator.len()).map_err(|_| {
+            ZkpError::InvalidInput("Fiat-Shamir: domain_separator exceeds 2^32 bytes".into())
+        })?;
         let statement_len = u32::try_from(statement_bytes.len()).map_err(|_| {
             ZkpError::InvalidInput("Fiat-Shamir: statement exceeds 2^32 bytes".into())
         })?;
@@ -312,8 +324,8 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         })?;
 
         let mut buf = Vec::with_capacity(
-            self.domain_separator
-                .len()
+            4_usize
+                .saturating_add(self.domain_separator.len())
                 .saturating_add(4)
                 .saturating_add(statement_bytes.len())
                 .saturating_add(4)
@@ -321,12 +333,17 @@ impl<P: SigmaProtocol> FiatShamir<P> {
                 .saturating_add(4)
                 .saturating_add(context.len()),
         );
-        // Length prefixes are big-endian to match the hybrid-layer
-        // transcript constructors (`hybrid::kem_hybrid`,
-        // `hybrid::encrypt_hybrid`). Note that `zkp::commitment` uses
-        // its own domain-separated transcripts that retain a different
-        // byte order for historical compatibility — they don't intermix
-        // with the Fiat-Shamir transcript here.
+        // Round-35 L3: length-prefix the domain separator alongside
+        // the other transcript components. Without a length prefix
+        // on `domain_separator`, two distinct (DS, statement) pairs
+        // can collide (e.g. DS="A" + stmt="\0\0\0\1B…" vs
+        // DS="AB" + stmt="…"). The DS is constrained to non-empty
+        // by `FiatShamir::new`, but length-prefixing it removes the
+        // entire prefix-extension shape. This is a transcript-format
+        // bump; v1 proofs are not wire-compatible with v2 verifiers.
+        // Length prefixes are big-endian throughout to match the
+        // hybrid-layer transcript constructors.
+        buf.extend_from_slice(&domain_separator_len.to_be_bytes());
         buf.extend_from_slice(&self.domain_separator);
         buf.extend_from_slice(&statement_len.to_be_bytes());
         buf.extend_from_slice(&statement_bytes);
@@ -557,10 +574,13 @@ impl DlogEqualityProof {
             let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
             let candidate: Option<Scalar> =
                 Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
-            if let Some(s) = candidate {
-                if s != Scalar::ZERO {
-                    break s;
-                }
+            // Round-35 L1: use ct_eq instead of `!=`. `Scalar::PartialEq`
+            // is not documented constant-time, and the challenge-side
+            // (round-33 L1) already uses ct_eq — this restores symmetry.
+            if let Some(s) = candidate
+                && !bool::from(s.ct_eq(&Scalar::ZERO))
+            {
+                break s;
             }
         };
         let k = Zeroizing::new(k_scalar);
@@ -582,9 +602,14 @@ impl DlogEqualityProof {
         let c: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&challenge)).into();
         let c = c.ok_or(ZkpError::InvalidScalar)?;
 
-        // Response
+        // Response. Wrap the serialised bytes in `Zeroizing` so
+        // stack-residue recovery on `response` cannot back out the
+        // witness via `x = (s − k) / c`. Schnorr's analogous
+        // `prove` already does this; round-34's sigma-side commit
+        // missed the parallel.
         let s = Zeroizing::new(*k + c * *x);
-        let response: [u8; 32] = s.to_bytes().into();
+        let response_bytes = Zeroizing::new(<[u8; 32]>::from(s.to_bytes()));
+        let response: [u8; 32] = *response_bytes;
 
         Ok(Self { a: a_bytes, b: b_bytes, challenge, response })
     }
@@ -682,13 +707,21 @@ impl DlogEqualityProof {
 
     fn parse_point(bytes: &[u8; 33]) -> Result<k256::ProjectivePoint> {
         use k256::EncodedPoint;
+        use k256::elliptic_curve::Group;
         use k256::elliptic_curve::sec1::FromEncodedPoint;
 
         let encoded = EncodedPoint::from_bytes(bytes)
             .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {}", e)))?;
         let point: Option<k256::ProjectivePoint> =
             k256::ProjectivePoint::from_encoded_point(&encoded).into();
-        point.ok_or(ZkpError::InvalidPublicKey)
+        let p = point.ok_or(ZkpError::InvalidPublicKey)?;
+        // Round-35 L2: reject identity. With `P = identity`,
+        // `s·G == A + c·P` reduces to `s·G == A` for all `c`,
+        // collapsing soundness on the dlog-equality verifier.
+        if bool::from(p.is_identity()) {
+            return Err(ZkpError::InvalidPublicKey);
+        }
+        Ok(p)
     }
 
     /// # Errors

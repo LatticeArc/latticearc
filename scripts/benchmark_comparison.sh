@@ -8,7 +8,13 @@
 #
 # Usage: ./scripts/benchmark_comparison.sh
 
-set -e
+# Round-35 L8: stricter shell hygiene. `-u` rejects unset variables
+# (catches typos that previously expanded to empty strings), `-o
+# pipefail` propagates failures through pipelines, and `LIBOQS_DIR`
+# is now an `mktemp` directory instead of a hardcoded `/tmp/liboqs`
+# path that a symlink-race could divert before the `rm -rf`. The
+# trap line cleans it up on exit.
+set -euo pipefail
 
 echo "=============================================="
 echo "LatticeArc vs liboqs Benchmark Comparison"
@@ -25,27 +31,25 @@ if [ -f /proc/cpuinfo ]; then
 fi
 echo ""
 
-# Check if liboqs is available
-LIBOQS_DIR="/tmp/liboqs"
+# Build liboqs in a per-run mktemp directory. The previous
+# `/tmp/liboqs` hardcoded path let a pre-existing symlink at that
+# name divert the `rm -rf` to an arbitrary target.
+LIBOQS_DIR="$(mktemp -d -t liboqs.XXXXXXXX)"
+trap 'rm -rf "$LIBOQS_DIR"' EXIT
 RESULTS_DIR="./benchmark_results"
 mkdir -p "$RESULTS_DIR"
 
-echo "=== Building liboqs (if needed) ==="
-if [ ! -f "$LIBOQS_DIR/build/tests/speed_kem" ]; then
-    echo "Installing liboqs..."
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq cmake ninja-build libssl-dev
+echo "=== Building liboqs (mktemp dir: $LIBOQS_DIR) ==="
+echo "Installing liboqs build dependencies..."
+sudo apt-get update -qq
+sudo apt-get install -y -qq cmake ninja-build libssl-dev
 
-    rm -rf "$LIBOQS_DIR"
-    git clone --depth 1 https://github.com/open-quantum-safe/liboqs "$LIBOQS_DIR"
-    cd "$LIBOQS_DIR"
-    mkdir -p build && cd build
-    cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
-    ninja
-    cd -
-else
-    echo "liboqs already built"
-fi
+git clone --depth 1 https://github.com/open-quantum-safe/liboqs "$LIBOQS_DIR"
+cd "$LIBOQS_DIR"
+mkdir -p build && cd build
+cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
+ninja
+cd -
 echo ""
 
 echo "=== Running liboqs Benchmarks ==="

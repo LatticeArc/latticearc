@@ -19,13 +19,19 @@ use latticearc::{
 fn main() {
     println!("=== LatticeArc: Unified API — Comprehensive Happy-Path Tests ===\n");
 
-    let key = [0x42u8; 32]; // 256-bit symmetric key
+    // EXAMPLE-ONLY KEY: do not copy into production. A real
+    // application MUST source the symmetric key from a CSPRNG
+    // (`rand::random::<[u8; 32]>()`), a KDF over a high-entropy
+    // input, or a key-management system — never a fixed pattern
+    // like `[0x42; 32]`. The fixed value is used here only so the
+    // example is reproducible without RNG state.
+    let key = [0x42u8; 32];
     let plaintext = b"Confidential: quarterly earnings exceed projections.";
 
     // ====================================================================
-    // Section 1: All 24 UseCases — encrypt/decrypt roundtrip
+    // Section 1: All UseCases — encrypt/decrypt roundtrip
     // ====================================================================
-    println!("--- All 24 UseCases: encrypt/decrypt roundtrip ---\n");
+    println!("--- All UseCases: encrypt/decrypt roundtrip ---\n");
 
     let use_cases: &[(&str, UseCase)] = &[
         // Communication (4)

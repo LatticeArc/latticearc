@@ -469,22 +469,33 @@ impl MlKemSecretKey {
         // path too.
         let data = Zeroizing::new(data);
         let expected_size = security_level.secret_key_size();
+        // Round-35 L7: collapse the length-mismatch and structural-
+        // validation paths to the SAME error variant
+        // (`InvalidKeyFormat`). Round-34 M7 introduced a two-variant
+        // distinguisher (`InvalidKeyLength` vs `InvalidKeyFormat`)
+        // — Pattern-6 shape on the construction path of a
+        // *secret-bearing* type. Secret keys are not adversary-
+        // probed in the same way public keys are (the caller already
+        // has the bytes), but we don't gain diagnostic value from
+        // distinguishing here either; one variant keeps the surface
+        // tighter without losing useful operator info (the
+        // tracing::debug! captures the actual cause).
         if data.len() != expected_size {
-            return Err(MlKemError::InvalidKeyLength {
-                variant: security_level.name().to_string(),
-                size: expected_size,
-                actual: data.len(),
-                key_type: "secret key".to_string(),
-            });
+            tracing::debug!(
+                expected = expected_size,
+                actual = data.len(),
+                "MlKemSecretKey::new rejected: SK length mismatch"
+            );
+            return Err(MlKemError::InvalidKeyFormat(format!(
+                "ML-KEM-{} secret key bytes failed validation",
+                security_level.name()
+            )));
         }
-        // Structural validation: ensure aws-lc-rs accepts these bytes
-        // as a parseable decapsulation key. Without this, an
-        // all-zeros (or otherwise malformed) SK passes the length
-        // check here and only fails at first decap.
         let algorithm = security_level.as_aws_algorithm();
         DecapsulationKey::new(algorithm, &data).map_err(|_e| {
+            tracing::debug!("MlKemSecretKey::new rejected: aws-lc-rs SK parse failed");
             MlKemError::InvalidKeyFormat(format!(
-                "ML-KEM-{} secret key bytes failed structural validation",
+                "ML-KEM-{} secret key bytes failed validation",
                 security_level.name()
             ))
         })?;
@@ -1795,17 +1806,16 @@ mod tests {
 
     #[test]
     fn test_secret_key_new_wrong_length_fails() {
+        // Round-35 L7: SK::new now returns the SAME variant
+        // (`InvalidKeyFormat`) for both length-mismatch and
+        // structural-validation paths, removing the Pattern-6
+        // distinguisher round-34 M7 introduced.
         let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0u8; 100]);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            MlKemError::InvalidKeyLength { variant, size, actual, key_type } => {
-                assert!(variant.contains("768"));
-                assert_eq!(size, 2400);
-                assert_eq!(actual, 100);
-                assert_eq!(key_type, "secret key");
-            }
-            other => panic!("Expected InvalidKeyLength, got: {:?}", other),
-        }
+        assert!(
+            matches!(result.unwrap_err(), MlKemError::InvalidKeyFormat(_)),
+            "wrong-length SK must return InvalidKeyFormat (Pattern-6 collapse)"
+        );
     }
 
     #[test]

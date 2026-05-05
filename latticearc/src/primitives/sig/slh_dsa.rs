@@ -237,7 +237,19 @@ impl VerifyingKey {
     /// Creates a new verifying key from bytes
     ///
     /// # Errors
-    /// Returns an error if the key length is incorrect or the key is malformed.
+    /// Returns `SlhDsaError::InvalidPublicKey` if the key length is
+    /// incorrect or the key is malformed.
+    ///
+    /// # Why not collapsed to `VerificationFailed`?
+    /// Round-34 M6 collapsed the verify-side error variants for
+    /// Pattern-6 opacity, but kept this constructor returning
+    /// `InvalidPublicKey`. Constructors run synchronously on caller-
+    /// supplied bytes (key load, deserialize, CLI parse) — the
+    /// adversary in the verify-side threat model can't reach
+    /// `VerifyingKey::new`. Returning a structured error here helps
+    /// CLI error messages and KAT-replay scripts distinguish "wrong
+    /// length" from "valid key, bad signature." Symmetric with
+    /// `MlDsaPublicKey::new` (round-32 M2 reasoning).
     pub fn new(security_level: SlhDsaSecurityLevel, bytes: &[u8]) -> Result<Self, SlhDsaError> {
         let expected_len = security_level.public_key_size();
         if bytes.len() != expected_len {

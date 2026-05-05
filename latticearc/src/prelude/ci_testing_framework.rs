@@ -74,11 +74,43 @@ impl PreludeCiTestSuite {
         Ok(report)
     }
 
-    /// Run property-based tests.
+    /// Run property-style invariant smoke checks.
+    ///
+    /// The full proptest suite runs through `cargo test` (it can't be
+    /// invoked from inside library code without re-implementing
+    /// proptest's runner). The smoke checks here verify a few of the
+    /// invariants those proptests cover, and return `true` only if
+    /// they all pass — so a `passed = true` field actually reflects
+    /// some verified work, not just framework availability.
     fn run_property_tests() -> bool {
-        // For CI, we consider property tests passed if the framework is available
-        // In a real CI environment, proptest would run the property tests
-        tracing::info!("Property tests framework available");
+        use crate::types::domains;
+
+        // Invariant: domain constants must be pairwise distinct (a
+        // collision would cause cross-protocol key reuse).
+        let live_domains: &[&[u8]] =
+            &[domains::CASCADE_OUTER, domains::CASCADE_INNER, domains::HYBRID_KEM_SS_INFO];
+        for (i, a) in live_domains.iter().enumerate() {
+            for (j, b) in live_domains.iter().enumerate() {
+                if i != j && a == b {
+                    tracing::error!("property smoke: domain constants collided");
+                    return false;
+                }
+            }
+        }
+
+        // Invariant: hex round-trip is exact for all-bytes inputs.
+        let bytes: Vec<u8> = (0u8..=255).collect();
+        let hex_str = hex::encode(&bytes);
+        let Ok(decoded) = hex::decode(&hex_str) else {
+            tracing::error!("property smoke: hex round-trip decode failed");
+            return false;
+        };
+        if decoded != bytes {
+            tracing::error!("property smoke: hex round-trip not equal");
+            return false;
+        }
+
+        tracing::info!("Property smoke checks passed");
         true
     }
 
@@ -375,19 +407,22 @@ impl PreludeCiReport {
 
     /// Check if all critical tests passed.
     ///
-    /// Returns true if unit tests, property tests, and memory safety tests
-    /// all passed, and there are no critical side-channel vulnerabilities.
+    /// Returns true if unit tests, property tests, and memory safety
+    /// tests all passed, and there are no Critical OR High severity
+    /// side-channel vulnerabilities. (The function name says
+    /// "critical" but the policy is "block release on Critical OR
+    /// High" — a CI gate that ignored High would let real findings
+    /// through.)
     #[must_use]
     pub fn all_critical_tests_passed(&self) -> bool {
+        use crate::prelude::side_channel_analysis::Severity;
         self.unit_tests_passed
             && self.property_tests_passed
             && self.memory_safety_passed
             && self
                 .side_channel_assessments
                 .iter()
-                .filter(|a| {
-                    matches!(a.severity, crate::prelude::side_channel_analysis::Severity::Critical)
-                })
+                .filter(|a| matches!(a.severity, Severity::Critical | Severity::High))
                 .count()
                 == 0
     }
@@ -407,7 +442,13 @@ pub mod ci_integration {
     /// Returns an error if CI tests fail in the automated environment.
     pub fn run_ci_tests() -> Result<(), LatticeArcError> {
         tracing::info!("Running Prelude CI Tests");
-        // ... existing code ...
+        let mut suite = PreludeCiTestSuite::new();
+        let report = suite.run_ci_tests()?;
+        if !report.all_critical_tests_passed() {
+            return Err(LatticeArcError::ValidationError {
+                message: "Prelude CI suite reported failures (see report for details)".to_string(),
+            });
+        }
         tracing::info!("Prelude CI tests completed successfully");
         Ok(())
     }
@@ -494,7 +535,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_critical_tests_passed_with_high_severity_succeeds() {
+    fn test_all_critical_tests_passed_blocks_high_severity() {
         use crate::prelude::side_channel_analysis::{
             Severity, SideChannelAssessment, SideChannelType,
         };
@@ -515,8 +556,11 @@ mod tests {
             performance_results: PerformanceResults::default(),
         };
 
-        // High severity (not Critical) should still pass all_critical_tests_passed
-        assert!(report.all_critical_tests_passed());
+        // High severity must block the gate (round-35 M6 — the
+        // function name says "critical" but the policy is
+        // "Critical OR High"; a CI gate that lets High through
+        // would be silently broken).
+        assert!(!report.all_critical_tests_passed());
     }
 
     #[test]

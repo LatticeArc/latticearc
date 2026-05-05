@@ -55,10 +55,35 @@ fn main() {
     }
     let _roundtrip_keygen = start.elapsed() / roundtrip_iterations;
 
-    // Estimate decapsulation time (typical decaps ≈ encaps for ML-KEM)
-    let decaps_time = encaps_time; // Approximation based on algorithm symmetry
-    println!("Decapsulate:  ~{:?} (estimated, similar to encaps)", decaps_time);
-    println!("(Note: aws-lc-rs doesn't expose SK bytes for security)\n");
+    // Measure ML-KEM decapsulate via the typed-API decapsulation
+    // keypair (round-32 M3 wired up the production decap path
+    // through `MlKem::generate_decapsulation_keypair`). Round-35 D1
+    // replaces the previous `decaps_time = encaps_time` fabrication,
+    // which was wrong: ML-KEM decaps includes implicit-rejection
+    // hashing on top of the basic decode and is NOT symmetric with
+    // encaps.
+    let decaps_time = match MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768) {
+        Ok(decap_keypair) => match MlKem::encapsulate(decap_keypair.public_key()) {
+            Ok((_ss_for_setup, ct)) => {
+                let start = Instant::now();
+                for _ in 0..roundtrip_iterations {
+                    let _ = decap_keypair.decapsulate(&ct);
+                }
+                let measured = start.elapsed() / roundtrip_iterations;
+                println!("Decapsulate:  {:?} (measured)", measured);
+                measured
+            }
+            Err(e) => {
+                println!("Decapsulate:  <skipped: encaps for setup failed: {e}>");
+                std::time::Duration::from_secs(0)
+            }
+        },
+        Err(e) => {
+            println!("Decapsulate:  <skipped: decap keypair generation failed: {e}>");
+            std::time::Duration::from_secs(0)
+        }
+    };
+    println!();
 
     // ML-DSA-65 Benchmarks
     println!("--- ML-DSA-65 (fips204 crate) ---");
@@ -99,32 +124,46 @@ fn main() {
     println!("(Verified: signature valid)\n");
 
     // AES-256-GCM Benchmarks
-    println!("--- AES-256-GCM (1KB payload) ---");
-    let key = [0x42u8; 32];
+    //
+    // SECURITY: AES-GCM **must not** reuse `(key, nonce)` pairs.
+    // Reusing a nonce under the same key with two different
+    // plaintexts allows XOR-of-plaintexts recovery and universal
+    // forgery. This example draws a fresh nonce on every encrypt,
+    // even though that adds nonce-generation overhead to the
+    // measurement, because copy-paste from a benchmarking example
+    // into production code is a real risk. Do NOT replicate the
+    // pattern of "generate a nonce once, encrypt N times" here or
+    // anywhere else.
+    println!("--- AES-256-GCM (1KB payload, fresh nonce per encrypt) ---");
+    let key = [0x42u8; 32]; // SECURITY: example-only fixed key; never use in production.
     let cipher = AesGcm256::new(&key).unwrap();
-    let nonce = AesGcm256::generate_nonce();
     let plaintext = vec![0u8; 1024];
     let aead_iterations = 10000;
 
-    // Encrypt
+    // Encrypt — fresh nonce on every iteration.
     let start = Instant::now();
     for _ in 0..aead_iterations {
+        let nonce = AesGcm256::generate_nonce();
         let _ = cipher.encrypt(&nonce, &plaintext, None);
     }
     let encrypt_time = start.elapsed() / aead_iterations;
-    println!("Encrypt:      {:?}", encrypt_time);
+    println!("Encrypt:      {:?} (includes fresh-nonce generation)", encrypt_time);
 
-    // Decrypt
-    let (ciphertext_aead, tag) = cipher.encrypt(&nonce, &plaintext, None).unwrap();
+    // Decrypt — same nonce as the matching encrypt. We benchmark
+    // decrypt by encrypting once outside the loop (with a fresh
+    // nonce), then decrypting that one ciphertext repeatedly.
+    let nonce_for_decrypt_bench = AesGcm256::generate_nonce();
+    let (ciphertext_aead, tag) =
+        cipher.encrypt(&nonce_for_decrypt_bench, &plaintext, None).unwrap();
     let start = Instant::now();
     for _ in 0..aead_iterations {
-        let _ = cipher.decrypt(&nonce, &ciphertext_aead, &tag, None);
+        let _ = cipher.decrypt(&nonce_for_decrypt_bench, &ciphertext_aead, &tag, None);
     }
     let decrypt_time = start.elapsed() / aead_iterations;
     println!("Decrypt:      {:?}", decrypt_time);
 
     // Verify correctness
-    let decrypted = cipher.decrypt(&nonce, &ciphertext_aead, &tag, None).unwrap();
+    let decrypted = cipher.decrypt(&nonce_for_decrypt_bench, &ciphertext_aead, &tag, None).unwrap();
     assert_eq!(plaintext.as_slice(), decrypted.as_slice());
     println!("(Verified: decryption matches)\n");
 

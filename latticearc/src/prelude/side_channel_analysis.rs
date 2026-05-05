@@ -254,7 +254,15 @@ fn calculate_std_dev(durations: &[Duration]) -> Duration {
         .sum::<f64>()
         / durations.len() as f64;
 
-    Duration::from_nanos((variance.sqrt() * 1_000_000_000.0) as u64)
+    // `variance` is already in ns² (line above squares ns diffs),
+    // so `sqrt()` is in ns. The previous `× 1_000_000_000.0` was a
+    // leftover from a seconds→ns conversion that doesn't apply here
+    // — it inflated every std_dev by 10⁹×, blew CV past every
+    // threshold, and made every side-channel report spurious noise.
+    // Same class as round-31 H1 (`f64::to_bits` vs `as u64` for
+    // perf-mod std_dev); the symbol-class sweep at the time should
+    // have caught this site too.
+    Duration::from_nanos(variance.sqrt() as u64)
 }
 
 /// Comprehensive utility side-channel analysis.

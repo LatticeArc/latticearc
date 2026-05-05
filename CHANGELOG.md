@@ -9,6 +9,238 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-35 audit — 1 CRIT + 5 HIGH + 13 MED + 8 LOW + 5 DOC (2026-05-05)
+
+External round-35 audit returned 32 findings. Validated 31 (M8 was
+partially confirmed — `pull_request_target` migration applied
+defensively even though the workflow doesn't execute PR-controlled
+content). Skipped one — N/A in this round; all confirmed findings
+were applied.
+
+**Five of these are bugs in round-34's own work** (M10, M11, L4, L5,
+L6, L7), confirming the meta-loop: reactive fixes generate new
+findings. The audit is finding fewer NEW classes per round and more
+"sweep miss" / "API contract change without grep" / "cargo-cult
+primitive use" — bugs that systematic enforcement would catch.
+
+#### Honest analysis: why round-34 fixes generated round-35 findings
+
+- **Cargo-cult primitive use (M11)**: round-34 L11 wrapped the
+  `verify` data comparison in `subtle::ConstantTimeEq` but kept a
+  length-equality `if` branch above it that defeated the CT
+  guarantee. The CT primitive was decoration, not protection.
+  Round-35 drops the wrapping entirely; the input is public, the
+  responsibility for CT is on caller paths that deal with secret
+  bytes.
+- **API contract change without grep (L6)**: round-34 L7 changed
+  `verify_pop` from `Err(InvalidInput("...stale..."))` to
+  `Ok(false)`. Callers using `?` to distinguish infrastructure error
+  from cryptographic reject silently lump stale into reject.
+  Round-35 documents the contract change in the docstring.
+- **Sweep miss (M12)**: round-34 M6 collapsed SLH-DSA `sign/verify`
+  error variants but left `VerifyingKey::new` returning
+  `InvalidPublicKey`. The constructor surface is reasonable to keep
+  structured (synchronous on caller bytes; constructor errors aid
+  CLI diagnostics), so round-35 documents that asymmetry rather
+  than "fixing" it — but the audit's claim about the sweep miss is
+  fair.
+- **TOCTOU in audit fix (M10)**: round-34 L1 added a symlink
+  rejection via `symlink_metadata` followed by `File::open`. Round-35
+  replaces with `O_NOFOLLOW` so the check is atomic with the open.
+- **Pattern-6 violation in MY OWN fix (L7)**: round-34 M7 introduced
+  `MlKemError::InvalidKeyLength` vs `InvalidKeyFormat` distinguisher
+  on `MlKemSecretKey::new` — the *exact* Pattern-6 shape I've been
+  collapsing for 6 rounds. Round-35 collapses both to
+  `InvalidKeyFormat`.
+
+The structural exit from this loop is enforcement (already promised
+in round-34's commit message): a Pattern-6 sweep test, an algorithm-
+name `Display`-vs-`Debug` lint, a TOCTOU/durability checklist, a
+validation parity matrix. After round-35 lands, the next ship is the
+enforcement layer.
+
+#### CRIT
+
+- **C1**: `examples/crypto_timing.rs` AEAD nonce reuse. The single
+  nonce was reused across 10 001 encrypt calls — catastrophic for
+  AES-GCM (XOR-of-plaintexts recovery + universal forgery). Users
+  copy-pasting the example into production would inherit the bug.
+  Fixed: fresh nonce per encrypt, with explicit "do NOT replicate"
+  warning in the comment. Decrypt benchmark still uses a single
+  ciphertext (decryption with the same nonce is correct; the issue
+  is encrypting twice with the same nonce).
+
+#### HIGH
+
+- **H1**: `PreludeCiTestSuite::run_property_tests()` returned `true`
+  unconditionally. The CI gate's `property_tests_passed` was a
+  fiction. Replaced with real invariant smoke checks (domain
+  constants pairwise-distinct; hex round-trip exact for all-bytes
+  input). Returns `false` if any check fails.
+- **H2**: `calculate_std_dev` in `side_channel_analysis.rs` was
+  inflated by 10⁹×. `variance` is in ns² (the function squares ns
+  diffs); `sqrt()` is already in ns. The leftover `× 1_000_000_000`
+  was a stale seconds→ns conversion. Same class as round-31 H1
+  (`f64::to_bits` vs `as u64`); my round-31 sweep should have
+  caught this site too.
+- **H3**: CAVP "sign" test for both ECDSA and Ed25519 only checked
+  `signature.len() == 64`. A sign implementation returning 64 bytes
+  of garbage would pass. Now verifies the signature against the
+  matching PK after the length check.
+- **H4**: `generate_keypair_with_parameter_set` in `sig_hybrid.rs`
+  built `HybridSigPublicKey { ... }` directly, bypassing the
+  validating `::new` constructor round-34 L4 added. The most-common
+  construction path was the one path that skipped validation. Now
+  routes through `::new` with an `expect`-equivalent on the
+  generate-output invariant.
+- **H5**: `examples/unified_api.rs` had `let key = [0x42u8; 32]`
+  with no "TEST KEY ONLY" annotation, plus a comment claiming "All
+  24 UseCases" while the array contained 22 (and `assert_eq!`
+  asserted 22). Updated to "All UseCases" (drop the count
+  contradiction) and added an explicit example-only warning to the
+  hardcoded key.
+
+#### MED
+
+- **M1**: `DlogEqualityProof::prove` response bytes now wrapped in
+  `Zeroizing` so stack residue can't be back-walked to recover the
+  witness via `x = (s − k) / c`. Schnorr's analogous `prove`
+  already does this; round-34's sigma-side commit missed the
+  parallel.
+- **M2**: `FiatShamir::verify` passes the verifier-recomputed
+  `&expected_challenge` to `protocol.verify`, not the proof-supplied
+  bytes. After `ct_eq` confirms byte equality the values are
+  semantically identical, but a future protocol that re-parses with
+  non-canonical encoding tolerance (Frozen-Heart shape) would
+  otherwise accept forgeries.
+- **M3**: `SigmaProof::challenge_mut` narrowed from
+  `cfg(any(test, feature = "test-utils"))` to `cfg(test)` only.
+  The function had a single in-lib test caller; no integration test
+  uses it. The `test-utils` feature is opt-in but a downstream that
+  flipped it for unrelated reasons would acquire a soundness bypass.
+- **M4**: `UtilityValidator::validate_utilities()` was a stub
+  (`tracing::info!` and `Ok(())`). Replaced with real structural
+  checks (domain-constant non-empty + LatticeArc-prefix + pairwise-
+  distinct + hex round-trip). The full CAVP suite still runs through
+  `cargo test --package latticearc-tests`; this is the in-library
+  smoke variant.
+- **M5**: `ci_integration::run_ci_tests()` was a stub. Replaced
+  with a real invocation of `PreludeCiTestSuite::run_ci_tests()`,
+  surfacing failures via `Err`.
+- **M6**: `all_critical_tests_passed()` only blocked
+  `Severity::Critical`. The function name says "critical" but the
+  policy is "Critical OR High" — a CI gate that ignored High would
+  let real findings through. Now blocks both.
+- **M7** (proposed, then reverted in same round): the audit
+  recommended `[profile.release].debug-assertions = false` so
+  `cargo install` consumers don't carry debug-assertion overhead.
+  Implementation broke the FIPS power-up integrity test, which uses
+  `cfg(debug_assertions)` to gate development-vs-production
+  behaviour: with the flag off, every release build without a
+  configured `PRODUCTION_HMAC.txt` would abort on first
+  cryptographic operation. M7 is now documented as deferred —
+  decoupling the integrity-test gate from `cfg(debug_assertions)`
+  (e.g. via a `fips-strict-integrity` feature) is the prerequisite,
+  and that's a follow-on change. The release profile reverts to
+  `debug-assertions = true` with the rationale captured in the
+  `Cargo.toml` comment. **This is a clear example of an audit fix
+  applied without grep'ing for the actual usage of the symbol I was
+  changing — the same class of mistake the round-35 commit message
+  catalogues.**
+- **M8**: `dependabot-automerge.yml` switched from `pull_request`
+  (PR HEAD context with elevated tokens for same-repo PRs) to
+  `pull_request_target` (BASE branch context). The workflow only
+  calls `gh pr merge` / `gh pr review` so PR-controlled scripts
+  could never run, but the event change removes the structural
+  pwn-request concern.
+- **M9**: `release.yml` `VERSION` now bound via `env:` instead of
+  inlined directly into a sed expression. A pushed tag containing
+  shell metacharacters (e.g. `1.0.0/$(...)`) could otherwise inject
+  into the workflow render. Env-binding shell-expands at runtime.
+- **M10**: `read_file_with_cap` symlink rejection now uses
+  `O_NOFOLLOW` (atomic with `open`) on Unix targets. Round-34 L1
+  used `symlink_metadata` followed by a separate `File::open` —
+  TOCTOU race window in /tmp. Hardcoded constants per `target_os`
+  (libc and nix are workspace-banned; rustix would be a heavyweight
+  dep for one constant).
+- **M11**: `verify.rs` `signed.data` comparison reverted from the
+  cargo-cult ct_eq wrapping (round-34 L11) to plain `!=`. The
+  length-branch made the ct_eq dead; the input is public material;
+  the CT primitive was decoration. Documented why.
+- **M12**: SLH-DSA `VerifyingKey::new` keeps `InvalidPublicKey` on
+  wrong length (constructor surface; aids CLI diagnostics). Round-34
+  M6 collapsed the verify-side error variants for Pattern-6 opacity;
+  the constructor reasonably stays structured. Asymmetry now
+  documented in the docstring.
+- **M13**: `fuzz_ml_kem_keygen.rs` dropped `assert_ne!(pk1, pk2)` —
+  same bug-class as round-31 fuzz_hkdf determinism assertion.
+  Replaced with structural-validity checks (length matches the
+  parameter-set PK size).
+
+#### LOW
+
+- **L1**: schnorr.rs / sigma.rs nonce-rejection sites switched from
+  `!= Scalar::ZERO` (variable-time PartialEq) to `ct_eq` for
+  symmetry with the challenge-side guards from round-33 L1.
+- **L2**: `parse_point` (both schnorr.rs and sigma.rs) now rejects
+  the identity. With `P = identity`, `R + c·P = R` for every `c`
+  collapses soundness on the verifier.
+- **L3**: `FiatShamir::compute_challenge` now length-prefixes the
+  domain separator alongside statement / commitment / context.
+  Without a length prefix on DS, two distinct (DS, statement) pairs
+  could collide via prefix-extension. Wire-format bump (v1 proofs
+  not compatible with v2).
+- **L4**: `--input-stdin` doc updated to reflect the round-34 M3
+  semantics change (was `read_line`; now `read_to_end` capped at
+  1 MiB). Multi-line piped input is now consumed verbatim with the
+  trailing newline stripped.
+- **L5**: `add_approver` gained `#[must_use]`. Round-34 M8 changed
+  the return type from `()` to `bool` precisely to surface the cap
+  rejection; without `must_use`, callers silently lose the signal.
+  Updated the existing test to use the bool.
+- **L6**: `verify_pop` docstring documents the round-34 L7 contract
+  change: stale PoP now returns `Ok(false)` (used to return
+  `Err(InvalidInput)`). Callers branching on `Result` to distinguish
+  infra error from crypto reject must update — recommended
+  approach: re-issue a fresh PoP and retry.
+- **L7**: `MlKemSecretKey::new` collapses both length-mismatch and
+  structural-validation paths to `MlKemError::InvalidKeyFormat`.
+  Round-34 M7 introduced two distinct variants — Pattern-6
+  distinguisher in MY OWN fix. The two-variant shape continues on
+  `MlKemPublicKey::new` (PK is public material; structured errors
+  there are fine for caller diagnostics) — flagged for round-36
+  if wanted.
+- **L8**: `scripts/benchmark_comparison.sh` now uses `set -euo
+  pipefail`, builds liboqs in an `mktemp` directory (no hardcoded
+  `/tmp/liboqs`), and traps cleanup on EXIT.
+
+#### DOC
+
+- **D1**: `examples/crypto_timing.rs` measures actual ML-KEM
+  decapsulate time via `MlKem::generate_decapsulation_keypair`
+  (round-32 M3 wired this up). The previous `decaps_time =
+  encaps_time` fabrication was wrong: ML-KEM decaps includes
+  implicit-rejection hashing on top of encode/decode and is NOT
+  symmetric with encaps.
+- **D2**: `examples/unified_api.rs` "All 24 UseCases" → "All
+  UseCases" (paired with H5).
+- **D3**: schnorr.rs spec doc updated to match the actual hash
+  input (`label || curve || pk || R || ctx || counter_be`); the
+  previous form (`H(G || P || R || ctx)`) was idealised and never
+  matched the impl.
+- **D4**: `primitives_constant_time_verification.rs` Debug-redaction
+  tests for `MlKemSecretKey` and `MlKemSharedSecret` now actually
+  assert `[REDACTED]` appears in the output. Previous tests were
+  stale: the impl was updated to redact, but the tests still
+  asserted only the type name and the docstrings claimed
+  `#[derive(Debug)]` exposed the data (false; custom impls
+  redact). Now a future regression to derived Debug fails CI.
+- **D5**: workspace description qualified — "zero unsafe" replaced
+  with "library source forbids unsafe; cryptographic primitives
+  routed through audited dependencies (aws-lc-rs / RustCrypto)
+  which carry their own unsafe FFI." crates.io listing no longer
+  reads as a transitive claim.
+
 ### Round-34 audit — 7 MED + 11 LOW + 7 DOC + 1 NIT (2026-05-05)
 
 External round-34 audit returned 27 findings. Validated 26, applied 26

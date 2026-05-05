@@ -182,18 +182,105 @@ pub(crate) fn read_file_with_cap(
     let allow_symlinks = std::env::var("LATTICEARC_ALLOW_SYMLINK_INPUT")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
-    let symlink_meta = std::fs::symlink_metadata(path)
-        .with_context(|| format!("Failed to stat {}", path.display()))?;
-    if symlink_meta.file_type().is_symlink() && !allow_symlinks {
-        anyhow::bail!(
-            "Refusing to read input file {} because it is a symlink. \
-             Set LATTICEARC_ALLOW_SYMLINK_INPUT=1 to opt in (rare; only \
-             needed when the input path is intentionally indirected).",
-            path.display()
-        );
-    }
-    let file =
-        std::fs::File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
+    // Round-35 M10: open with `O_NOFOLLOW` (when symlinks are
+    // disallowed) so the symlink check happens atomically at open
+    // time. The previous round-34 L1 form did `symlink_metadata`
+    // followed by a separate `File::open` — a swap on /tmp between
+    // the two syscalls would defeat the guard. On Windows, the
+    // `O_NOFOLLOW`-equivalent isn't standard; fall back to the stat
+    // form (Windows /tmp races are less of a concern in practice
+    // and the unix gate is the primary deployment target).
+    // Hardcoded `O_NOFOLLOW` per target_os — the workspace deny.toml
+    // bans `libc` and `nix` as direct deps, and pulling in `rustix`
+    // for one constant is heavyweight. The values below are the
+    // ABI-stable constants documented in each kernel's `fcntl.h`.
+    #[cfg(target_os = "linux")]
+    const O_NOFOLLOW: i32 = 0o400000;
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+        target_os = "dragonfly"
+    ))]
+    const O_NOFOLLOW: i32 = 0x100;
+    // ELOOP raw OS error code (40 on Linux/glibc, 62 on
+    // macOS/BSD). `std::io::Error::raw_os_error()` exposes this
+    // directly; we just need to know it.
+    #[cfg(target_os = "linux")]
+    const ELOOP: i32 = 40;
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+        target_os = "dragonfly"
+    ))]
+    const ELOOP: i32 = 62;
+
+    let file = {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+            target_os = "dragonfly"
+        ))]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut opts = std::fs::OpenOptions::new();
+            opts.read(true);
+            if !allow_symlinks {
+                // O_NOFOLLOW: open() returns ELOOP if the final path
+                // component is a symlink. Atomic with the open;
+                // closes the round-34 L1 stat-then-open TOCTOU.
+                opts.custom_flags(O_NOFOLLOW);
+            }
+            opts.open(path).map_err(|e| {
+                if e.raw_os_error() == Some(ELOOP) && !allow_symlinks {
+                    anyhow::anyhow!(
+                        "Refusing to read input file {} because it is a symlink. \
+                         Set LATTICEARC_ALLOW_SYMLINK_INPUT=1 to opt in (rare; only \
+                         needed when the input path is intentionally indirected).",
+                        path.display()
+                    )
+                } else {
+                    anyhow::anyhow!("Failed to open {}: {e}", path.display())
+                }
+            })?
+        }
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+            target_os = "dragonfly"
+        )))]
+        {
+            // Windows / unknown-unix fallback: stat-then-open with a
+            // documented TOCTOU window. Primary deployment targets
+            // are the Unix variants above where the atomic
+            // `O_NOFOLLOW` path closes it.
+            let symlink_meta = std::fs::symlink_metadata(path)
+                .with_context(|| format!("Failed to stat {}", path.display()))?;
+            if symlink_meta.file_type().is_symlink() && !allow_symlinks {
+                anyhow::bail!(
+                    "Refusing to read input file {} because it is a symlink. \
+                     Set LATTICEARC_ALLOW_SYMLINK_INPUT=1 to opt in (rare; only \
+                     needed when the input path is intentionally indirected).",
+                    path.display()
+                );
+            }
+            std::fs::File::open(path)
+                .with_context(|| format!("Failed to open {}", path.display()))?
+        }
+    };
     let mut buf = Vec::new();
     let mut limited = file.take(limit_bytes.saturating_add(1));
     limited.read_to_end(&mut buf).with_context(|| format!("Failed to read {}", path.display()))?;

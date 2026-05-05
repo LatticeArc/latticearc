@@ -14,7 +14,7 @@ edition = "2024"
 rust-version = "1.93"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
 license = "Apache-2.0"
-description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), and FIPS 140-3 backend — one crate, zero unsafe."
+description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), and FIPS 140-3 backend — one crate. The latticearc library source forbids `unsafe`; cryptographic primitives are routed through audited dependencies (aws-lc-rs / RustCrypto) which carry their own unsafe FFI."
 readme = "README.md"
 homepage = "https://latticearc.com"
 documentation = "https://docs.rs/latticearc/latest/latticearc/"
@@ -227,8 +227,25 @@ opt-level = 3
 debug = false
 strip = true
 overflow-checks = true  # Enable for crypto safety
-debug-assertions = true  # Keep for crypto validation
+debug-assertions = true  # See note below — coupled to the FIPS integrity test.
 incremental = false     # Reproducible builds
+
+# Round-35 M7 originally proposed turning `debug-assertions` off in
+# `release` and moving it to a separate `release-validation` profile,
+# on the (audit-flagged) reasoning that downstream `cargo install`
+# consumers shouldn't carry debug-assertion overhead. That was
+# reverted in the same round because the FIPS power-up integrity
+# test (`primitives/self_test.rs::integrity_test`) uses
+# `cfg(debug_assertions)` to gate development-vs-production
+# behaviour: with `debug-assertions = false`, every release build
+# without a configured `PRODUCTION_HMAC.txt` aborts via
+# `process::abort` on first cryptographic operation.
+#
+# The structural fix is to decouple the integrity-test gate from the
+# `cfg(debug_assertions)` predicate (e.g., a feature flag like
+# `fips-strict-integrity`) and only THEN flip `debug-assertions` off
+# in release. Until that decoupling lands, this profile keeps both
+# values aligned with what the integrity test expects.
 
 [profile.valgrind]
 inherits = "release"

@@ -99,20 +99,16 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
     // Try SignedData format first (produced by sign --public-key)
     if let Ok(signed) = latticearc::unified_api::serialization::deserialize_signed_data(&sig_json) {
         // Verify the signed data matches the input file. `signed.data`
-        // currently carries public message material, so a non-CT
-        // comparison is not a live leak — but use `ct_eq` anyway so
-        // the byte-comparison primitive matches the codebase's
-        // contract for "comparing two equal-length buffers" and so a
-        // future caller that routes secret-bearing data through this
-        // path inherits CT discipline by default.
-        use subtle::ConstantTimeEq;
-        let length_eq: bool = signed.data.len().ct_eq(&input_data.len()).into();
-        let content_eq: bool = if signed.data.len() == input_data.len() {
-            signed.data.ct_eq(&input_data).into()
-        } else {
-            false
-        };
-        if !(length_eq && content_eq) {
+        // currently carries public message material, so the comparison
+        // doesn't need to be CT in the threat-model sense — but the
+        // round-34 L11 attempt to use `ct_eq` was self-defeating
+        // (the outer `if signed.data.len() == input_data.len()`
+        // length-branch made the ct_eq dead). Drop the cargo-cult CT
+        // wrapper and use straightforward `==`. If a future caller
+        // routes secret bytes through this path, the responsibility
+        // is to handle CT at THAT site, not to pretend this site is
+        // CT when it can't be.
+        if signed.data != input_data {
             bail!(
                 "Signature was created over different data than the input.\n\
                  The SignedData envelope contains the original data — it does not match \

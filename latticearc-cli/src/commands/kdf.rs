@@ -78,9 +78,19 @@ pub(crate) struct KdfArgs {
     /// scripts.
     #[arg(short, long, conflicts_with = "input_stdin")]
     pub input: Option<String>,
-    /// Read the input from stdin (one line, no trailing newline). Use
-    /// instead of `--input` when the input is a secret (PBKDF2
-    /// password) and you don't want it in `ps` / shell history.
+    /// Read the input from stdin. The whole stream is consumed (up
+    /// to a 1 MiB cap), and a single trailing `\n` or `\r\n` is
+    /// stripped — so `echo -n password` and `printf '%s' password`
+    /// both work, and a multi-line piped input is taken verbatim
+    /// (with the trailing newline removed). Use instead of `--input`
+    /// when the input is a secret (PBKDF2 password) and you don't
+    /// want it in `ps` / shell history.
+    ///
+    /// **Behaviour change in 0.8.x**: prior to round-34 M3 this
+    /// flag read only the first line via `read_line`; it now reads
+    /// the whole stream up to 1 MiB. Multi-line piped input that
+    /// silently produced a different KDF output before now produces
+    /// the same output if the trailing-newline pattern matches.
     #[arg(long, conflicts_with = "input")]
     pub input_stdin: bool,
     /// Salt (hex-encoded).

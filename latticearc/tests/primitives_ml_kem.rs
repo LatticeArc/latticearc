@@ -953,17 +953,20 @@ fn test_empty_public_key_construction_succeeds() {
     }
 }
 
-/// Test empty secret key construction fails
+/// Test empty secret key construction fails. Round-35 L7: SK::new
+/// collapses both length-mismatch and structural-validation paths
+/// to `InvalidKeyFormat` (Pattern-6 sibling — round-34 M7 had
+/// introduced two distinct variants).
 #[test]
 fn test_empty_secret_key_construction_succeeds() {
     let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem512, vec![]);
     assert!(result.is_err(), "Empty secret key should be rejected");
 
     match result {
-        Err(MlKemError::InvalidKeyLength { .. }) => {
+        Err(MlKemError::InvalidKeyFormat(_)) => {
             // Expected
         }
-        _ => panic!("Expected InvalidKeyLength error"),
+        _ => panic!("Expected InvalidKeyFormat error"),
     }
 }
 
