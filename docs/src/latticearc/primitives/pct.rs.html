@@ -427,10 +427,10 @@
 <a href=#427 id=427 data-nosnippet>427</a>    // pattern — explicit Ok(false) handling and pct_finalize so a
 <a href=#428 id=428 data-nosnippet>428</a>    // genuine Ed25519 pairwise inconsistency enters the FIPS 140-3 IG
 <a href=#429 id=429 data-nosnippet>429</a>    // 10.3.A error state instead of returning an ad-hoc error code.
-<a href=#430 id=430 data-nosnippet>430</a>    // :sign` fallible
-<a href=#431 id=431 data-nosnippet>431</a>    // (validate_signature_size); the 24-byte PCT message is well under
-<a href=#432 id=432 data-nosnippet>432</a>    // the cap, so this path never trips the new gate, but using `?`
-<a href=#433 id=433 data-nosnippet>433</a>    // keeps the surface honest if the cap is ever lowered.
+<a href=#430 id=430 data-nosnippet>430</a>    // `Ed25519KeyPair::sign` is fallible (validate_signature_size); the
+<a href=#431 id=431 data-nosnippet>431</a>    // 24-byte PCT message is well under the cap, so this path never
+<a href=#432 id=432 data-nosnippet>432</a>    // trips the gate, but using `?` keeps the surface honest if the cap
+<a href=#433 id=433 data-nosnippet>433</a>    // is ever lowered.
 <a href=#434 id=434 data-nosnippet>434</a>    </span><span class="kw">let </span>signature =
 <a href=#435 id=435 data-nosnippet>435</a>        keypair.sign(PCT_TEST_MESSAGE).map_err(|e| PctError::SigningFailed(e.to_string()))<span class="question-mark">?</span>;
 <a href=#436 id=436 data-nosnippet>436</a>

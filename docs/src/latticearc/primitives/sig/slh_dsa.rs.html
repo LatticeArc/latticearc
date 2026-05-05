@@ -1102,18 +1102,17 @@
 <a href=#1102 id=1102 data-nosnippet>1102</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>)));
 <a href=#1103 id=1103 data-nosnippet>1103</a>    }
 <a href=#1104 id=1104 data-nosnippet>1104</a>
-<a href=#1105 id=1105 data-nosnippet>1105</a>    <span class="doccomment">/// the
-<a href=#1106 id=1106 data-nosnippet>1106</a>    /// resource-cap gate at the top of `sign()` rejects oversized
-<a href=#1107 id=1107 data-nosnippet>1107</a>    /// messages before reaching the upstream slh-dsa crate. Round-28
-<a href=#1108 id=1108 data-nosnippet>1108</a>    /// collapsed the variant to the opaque `SigningFailed` (was
-<a href=#1109 id=1109 data-nosnippet>1109</a>    /// distinguishable `MessageTooLong`).
-<a href=#1110 id=1110 data-nosnippet>1110</a>    </span><span class="attr">#[test]
-<a href=#1111 id=1111 data-nosnippet>1111</a>    </span><span class="kw">fn </span>test_slh_dsa_sign_oversized_message_rejects_opaquely() {
-<a href=#1112 id=1112 data-nosnippet>1112</a>        <span class="kw">let </span>(sk, _pk) =
-<a href=#1113 id=1113 data-nosnippet>1113</a>            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect(<span class="string">"Key generation failed"</span>);
-<a href=#1114 id=1114 data-nosnippet>1114</a>        <span class="kw">let </span>oversize: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0u8</span>; (<span class="number">64 </span>* <span class="number">1024</span>) + <span class="number">1</span>];
-<a href=#1115 id=1115 data-nosnippet>1115</a>        <span class="kw">let </span>err = sk.sign(<span class="kw-2">&amp;</span>oversize, <span class="kw-2">&amp;</span>[]).expect_err(<span class="string">"oversized message must be rejected"</span>);
-<a href=#1116 id=1116 data-nosnippet>1116</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, SlhDsaError::SigningFailed), <span class="string">"expected SigningFailed, got {err:?}"</span>);
-<a href=#1117 id=1117 data-nosnippet>1117</a>    }
-<a href=#1118 id=1118 data-nosnippet>1118</a>}
+<a href=#1105 id=1105 data-nosnippet>1105</a>    <span class="doccomment">/// The resource-cap gate at the top of `sign()` rejects oversized
+<a href=#1106 id=1106 data-nosnippet>1106</a>    /// messages before reaching the upstream slh-dsa crate. Round-28
+<a href=#1107 id=1107 data-nosnippet>1107</a>    /// collapsed the variant to the opaque `SigningFailed` (was
+<a href=#1108 id=1108 data-nosnippet>1108</a>    /// distinguishable `MessageTooLong`).
+<a href=#1109 id=1109 data-nosnippet>1109</a>    </span><span class="attr">#[test]
+<a href=#1110 id=1110 data-nosnippet>1110</a>    </span><span class="kw">fn </span>test_slh_dsa_sign_oversized_message_rejects_opaquely() {
+<a href=#1111 id=1111 data-nosnippet>1111</a>        <span class="kw">let </span>(sk, _pk) =
+<a href=#1112 id=1112 data-nosnippet>1112</a>            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect(<span class="string">"Key generation failed"</span>);
+<a href=#1113 id=1113 data-nosnippet>1113</a>        <span class="kw">let </span>oversize: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0u8</span>; (<span class="number">64 </span>* <span class="number">1024</span>) + <span class="number">1</span>];
+<a href=#1114 id=1114 data-nosnippet>1114</a>        <span class="kw">let </span>err = sk.sign(<span class="kw-2">&amp;</span>oversize, <span class="kw-2">&amp;</span>[]).expect_err(<span class="string">"oversized message must be rejected"</span>);
+<a href=#1115 id=1115 data-nosnippet>1115</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, SlhDsaError::SigningFailed), <span class="string">"expected SigningFailed, got {err:?}"</span>);
+<a href=#1116 id=1116 data-nosnippet>1116</a>    }
+<a href=#1117 id=1117 data-nosnippet>1117</a>}
 </code></pre></div></section></main></body></html>
