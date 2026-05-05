@@ -241,7 +241,7 @@ jobs:
       # arbitrary commits (including malicious code) by the action's
       # owner — every other action in this file uses a 40-char SHA
       # with the tag in a trailing comment.
-      uses: obi1kenobi/cargo-semver-checks-action@5b298c9520f7096a4683c0bd981a7ac5a7e249ae # v2.8
+      uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
 
   # === Multi-Platform Builds ===
   build:
@@ -465,7 +465,7 @@ jobs:
 
     - name: Install cargo-llvm-cov
       if: matrix.features.coverage
-      uses: taiki-e/install-action@1329c298aa20c3257846c9b2e0e55967df3e3c37 # main
+      uses: taiki-e/install-action@7ea35f098a7369cd23488403f58be9c491a6c55f # main
       with:
         tool: cargo-llvm-cov
 
@@ -1167,7 +1167,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@1329c298aa20c3257846c9b2e0e55967df3e3c37 # main
+      uses: taiki-e/install-action@7ea35f098a7369cd23488403f58be9c491a6c55f # main
       with:
         tool: cargo-hack
 
