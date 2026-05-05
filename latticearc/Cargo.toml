@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), post-quantum TLS, and FIPS 140-3 backend — one crate, zero unsafe."
+description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), and FIPS 140-3 backend — one crate, zero unsafe."
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
@@ -227,6 +227,30 @@ name = "comprehensive_benchmark"
 
 [[example]]
 name = "test_ml_kem"
+
+# =============================================================================
+# Integration tests
+# =============================================================================
+
+# Round-34 N1: `MlDsaSignature::from_bytes_unchecked` is gated behind
+# `test-utils`. The three integration tests below construct
+# truncated / zero / ones signatures via that helper to exercise
+# verify-side rejection. Mark them as requiring `test-utils` so a
+# default `cargo test -p latticearc` skips them rather than failing
+# to compile; CI's `--all-features` enables the feature and runs
+# them. For local development:
+#   cargo test -p latticearc --features test-utils
+[[test]]
+name = "primitives_ml_dsa"
+required-features = ["test-utils"]
+
+[[test]]
+name = "primitives_regression"
+required-features = ["test-utils"]
+
+[[test]]
+name = "primitives_side_channel"
+required-features = ["test-utils"]
 
 # =============================================================================
 # Benchmarks

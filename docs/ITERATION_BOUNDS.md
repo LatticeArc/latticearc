@@ -9,17 +9,24 @@ preventing CPU-DoS of the OpenSSL `CVE-2024-4603` / `CVE-2023-5678` / `CVE-2023-
 
 | Primitive | Loop driver | Bound source | Cap enforced? |
 |---|---|---|---|
-| PBKDF2 (`kdf/pbkdf2.rs`) | `iterations` param | caller-supplied | **Yes** — `1000 ≤ iter ≤ 10_000_000` (`pbkdf2.rs:207,214`) |
-| HKDF-Expand (`kdf/hkdf.rs`) | output `length` | caller-supplied | **Yes** — `length ≤ 255 × HashLen` per RFC 5869 (`hkdf.rs:195`) |
-| SP 800-108 Counter-KDF (`kdf/sp800_108_counter_kdf.rs`) | `key_length` | caller-supplied | **Yes** — `key_length ≤ max_len = 2^35` bytes per SP 800-108 (`sp800_108_counter_kdf.rs:178–184`) |
-| ML-KEM keygen/encaps/decaps (`kem/ml_kem.rs`) | polynomial coefficient loops | algorithm parameter set | **Yes** — fixed at 256 coefficients per polynomial by FIPS 203; not input-driven |
-| ML-DSA sign/verify (via `fips204` crate) | rejection sampling loop | internal, rejection-sampled | Delegated to `fips204`; upstream bounds enforced |
-| SLH-DSA sign/verify (via `fips205` crate) | Merkle tree traversal | fixed by parameter set | Delegated to `fips205`; depth is constant per level |
-| FN-DSA sign/verify (via `fn-dsa` crate) | rejection sampling | internal | Delegated to `fn-dsa` |
-| AES-GCM encrypt/decrypt (`aead/aes_gcm.rs`) | plaintext/ciphertext length | caller-supplied | **Yes** — `validate_encryption_size` / `validate_decryption_size` cap at 100 MiB (`aes_gcm.rs:72,123`) |
-| ChaCha20-Poly1305 (`aead/chacha20poly1305.rs`) | same as AES-GCM | caller-supplied | **Yes** — same 100 MiB cap (`chacha20poly1305.rs:71,116`) |
+| PBKDF2 (`kdf/pbkdf2.rs`) | `iterations` param | caller-supplied | **Yes** — `MIN_ITERATIONS_SHA256 = 600_000` / `MIN_ITERATIONS_SHA512 = 210_000` ≤ `iter ≤ 10_000_000` (see `Pbkdf2Params::MIN_ITERATIONS_SHA256` and the upper-bound check in `pbkdf2()`). |
+| PBKDF2 (`kdf/pbkdf2.rs`) | `key_length` param | caller-supplied | **Yes** — `key_length ≤ 1 MiB` (round-34 L10; see `PBKDF2_MAX_KEY_LEN` in `pbkdf2()`). |
+| HKDF-Expand (`kdf/hkdf.rs`) | output `length` | caller-supplied | **Yes** — `length ≤ 255 × HashLen = 8160 bytes` per RFC 5869 (see `MAX_LEN` check in `hkdf_expand()`). |
+| SP 800-108 Counter-KDF (`kdf/sp800_108_counter_kdf.rs`) | `key_length` | caller-supplied | **Yes** — `key_length ≤ max_len = (2^32) × HASH_LEN = 2^37 bytes` for the 32-bit counter and 256-bit hash (see `max_len` in `sp800_108_counter_kdf()`). |
+| ML-KEM keygen/encaps/decaps (`kem/ml_kem.rs`) | polynomial coefficient loops | algorithm parameter set | **Yes** — fixed at 256 coefficients per polynomial by FIPS 203; not input-driven. |
+| ML-DSA sign/verify (via `fips204` crate) | rejection sampling loop | internal, rejection-sampled | Delegated to `fips204`; upstream bounds enforced. |
+| SLH-DSA sign/verify (via `fips205` crate) | Merkle tree traversal | fixed by parameter set | Delegated to `fips205`; depth is constant per level. |
+| FN-DSA sign/verify (via `fn-dsa` crate) | rejection sampling | internal | Delegated to `fn-dsa`. |
+| AES-GCM encrypt/decrypt (`aead/aes_gcm.rs`) | plaintext/ciphertext length | caller-supplied | **Yes** — `validate_encryption_size` / `validate_decryption_size` cap at 100 MiB (see calls inside `AesGcm::encrypt` / `AesGcm::decrypt`). |
+| ChaCha20-Poly1305 (`aead/chacha20poly1305.rs`) | same as AES-GCM | caller-supplied | **Yes** — same 100 MiB cap (see calls inside `ChaCha20Poly1305::encrypt` / `decrypt`). |
 | HMAC-SHA256/512 (`mac/hmac.rs`) | message length | caller-supplied | **No (known gap)** — no size cap on MAC input. HMAC is O(n); 100 MiB input ≈ few hundred ms. Not a practical amplification vector but worth aligning with AEAD for consistency. Listed in `RESOURCE_LIMITS_COVERAGE.md`. |
 | CMAC (`mac/cmac.rs`) | message length | caller-supplied | **No (known gap)** — same as HMAC. |
+
+> **Line references intentionally omitted.** Earlier revisions of this
+> table cited specific `*.rs:LINE` anchors; those went stale across
+> rounds 26–34. Cross-reference by symbol (`MIN_ITERATIONS_SHA256`,
+> `MAX_LEN`, `validate_encryption_size`, etc.) instead — symbol grep
+> survives line-number drift.
 
 ## Rationale for each cap
 
@@ -28,8 +35,9 @@ preventing CPU-DoS of the OpenSSL `CVE-2024-4603` / `CVE-2023-5678` / `CVE-2023-
 The iteration count for `pbkdf2` is deliberately attacker-controllable in one
 scenario: when parameters are deserialized from an untrusted source (e.g., a
 key-export format that carries the KDF parameter block). OWASP 2023 recommends
-600,000 iterations minimum for HMAC-SHA256; we enforce that floor and a ceiling
-at **10,000,000** iterations.
+600,000 iterations minimum for PBKDF2-HMAC-SHA256 and 210,000 for
+PBKDF2-HMAC-SHA512; we enforce both floors (per-PRF) and a single ceiling at
+**10,000,000** iterations across both PRFs.
 
 Why 10M: at ~2 µs per HMAC-SHA256 iteration (modern desktop CPU), 10M iterations
 costs about 20 seconds of CPU time — high enough to discourage abuse, low
@@ -44,13 +52,15 @@ This is the RFC 5869 algorithmic maximum (HKDF cannot produce more than
 outputs at the API boundary prevents both the DoS case and the cryptographic
 misuse case. For HMAC-SHA256, the cap is 8160 bytes.
 
-### SP 800-108 Counter-KDF — `max_len = 2^35` bytes
+### SP 800-108 Counter-KDF — `max_len = 2^37` bytes
 
-NIST SP 800-108 bounds the output of the counter-based PRF at `2^(H)·r` bits
-where `r` is the counter size in bits. For a 32-bit counter and 256-bit hash,
-the ceiling is astronomical (~1 PiB); the cap is included for specification
-conformance rather than DoS defense. The practical defense is that `key_length`
-is a `usize` and realistic callers pass values ≤ 1 KiB.
+NIST SP 800-108 bounds the output of the counter-based PRF at `2^r · hLen`
+bytes where `r` is the counter size in bits and `hLen` is the hash output
+length. For our 32-bit counter and 32-byte SHA-256 hash, that's
+`2^32 × 32 = 2^37 ≈ 137 GiB` — astronomical for any realistic caller.
+The cap is included for specification conformance rather than DoS defense.
+The practical defense is that `key_length` is a `usize` and realistic
+callers pass values ≤ 1 KiB.
 
 ### ML-KEM / ML-DSA / SLH-DSA / FN-DSA — fixed by parameter set
 
@@ -71,7 +81,7 @@ at their boundary, which enforces the `ResourceLimits.max_encryption_size_bytes`
 - **HMAC / CMAC** — no explicit size cap. These operations are linear in input
   length, so the DoS surface is bounded by the caller's ability to hand a
   large slice, but we should add a cap at the same 100 MiB as AEAD for API
-  uniformity. Scheduled for v0.7.1.
+  uniformity. Tracked for a future round; not yet shipped.
 
 ## How this document is kept honest
 

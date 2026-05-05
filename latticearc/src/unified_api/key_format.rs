@@ -1368,11 +1368,8 @@ impl PortableKey {
 
         let (pq_bytes, classical_bytes) = self.key_data.decode_composite()?;
 
-        Ok(crate::hybrid::sig_hybrid::HybridSigPublicKey::new(
-            parameter_set,
-            pq_bytes,
-            classical_bytes,
-        ))
+        crate::hybrid::sig_hybrid::HybridSigPublicKey::new(parameter_set, pq_bytes, classical_bytes)
+            .map_err(|e| CoreError::InvalidKey(format!("hybrid sig public key: {e}")))
     }
 
     /// Extract a hybrid signature `HybridSecretKey` from a portable key.

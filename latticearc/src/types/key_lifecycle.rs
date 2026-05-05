@@ -42,6 +42,21 @@ use serde::{Deserialize, Serialize};
 /// Keeps state_history bounded and JSONL audit consumers happy.
 const MAX_AUDIT_FIELD_LEN: usize = 512;
 
+/// Cap on the number of `StateTransition` entries in
+/// `KeyLifecycleRecord::state_history`. The state machine has 5
+/// terminal states; legitimate records have under a dozen entries.
+/// 1024 is generous slack for Active⇄Rotating cycling, while
+/// preventing a tampered or pathologically-cycled record from driving
+/// unbounded growth (and making the linear scans in
+/// `KeyLifecycleRecordRaw::try_from` O(n²) — see L8).
+const MAX_STATE_HISTORY: usize = 1024;
+
+/// Cap on the number of approver IDs in
+/// `KeyLifecycleRecord::approvers`. Real-world quorum schemes top out
+/// at a few dozen approvers; 256 is generous slack with the same
+/// motivation as `MAX_STATE_HISTORY`.
+const MAX_APPROVERS: usize = 256;
+
 /// Validate an audit-trail string. Rejects:
 /// - empty
 /// - control characters (including newlines, which break JSONL)
@@ -246,6 +261,27 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
         // or tampered persisted record cannot bypass the rules
         // `transition()` enforces in memory.
 
+        // (0) Vector caps: same bounds the in-memory mutators
+        //     enforce. Without these, the linear scans below
+        //     (`entered`, last-history check) become O(n²) on a
+        //     pathologically-large persisted record, and the
+        //     in-memory record can grow past `transition()`'s cap
+        //     after a roundtrip.
+        if raw.state_history.len() > MAX_STATE_HISTORY {
+            return Err(TypeError::InvalidAuditInput(format!(
+                "state_history length {} exceeds cap of {}",
+                raw.state_history.len(),
+                MAX_STATE_HISTORY
+            )));
+        }
+        if raw.approvers.len() > MAX_APPROVERS {
+            return Err(TypeError::InvalidAuditInput(format!(
+                "approvers length {} exceeds cap of {}",
+                raw.approvers.len(),
+                MAX_APPROVERS
+            )));
+        }
+
         // (1) `current_state` must be reachable from the persisted
         //     `activated_at` value. Rotating and Retired both require
         //     having passed through Active, so `activated_at` MUST be
@@ -435,6 +471,12 @@ impl KeyLifecycleRecord {
             approval_id,
         };
 
+        if self.state_history.len() >= MAX_STATE_HISTORY {
+            return Err(TypeError::InvalidAuditInput(format!(
+                "state_history at cap of {} entries; cannot record further transitions",
+                MAX_STATE_HISTORY
+            )));
+        }
         self.state_history.push(transition);
         self.current_state = to_state;
 
@@ -504,12 +546,20 @@ impl KeyLifecycleRecord {
         matches!(self.current_state, KeyLifecycleState::Active | KeyLifecycleState::Rotating)
     }
 
-    /// Add an approver to the key
-    pub fn add_approver(&mut self, approver_id: impl Into<String>) {
+    /// Add an approver to the key. Silently ignored if the approver
+    /// is already in the list, or if the cap (`MAX_APPROVERS`) has
+    /// been reached. Returns `false` on cap rejection so callers can
+    /// surface a warning if needed.
+    pub fn add_approver(&mut self, approver_id: impl Into<String>) -> bool {
         let approver_id = approver_id.into();
-        if !self.approvers.contains(&approver_id) {
-            self.approvers.push(approver_id);
+        if self.approvers.contains(&approver_id) {
+            return true;
         }
+        if self.approvers.len() >= MAX_APPROVERS {
+            return false;
+        }
+        self.approvers.push(approver_id);
+        true
     }
 
     // ----------------------------------------------------------------

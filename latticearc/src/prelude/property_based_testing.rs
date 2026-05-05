@@ -122,32 +122,28 @@ fn test_domain_constants_valid_succeeds() {
     use crate::types::domains;
 
     // All domain constants should be non-empty
-    assert!(!domains::HYBRID_KEM.is_empty());
     assert!(!domains::CASCADE_OUTER.is_empty());
     assert!(!domains::CASCADE_INNER.is_empty());
-    assert!(!domains::SIGNATURE_BIND.is_empty());
+    assert!(!domains::HYBRID_KEM_SS_INFO.is_empty());
 
     // Domain constants should be unique
-    let domains = vec![
-        domains::HYBRID_KEM,
-        domains::CASCADE_OUTER,
-        domains::CASCADE_INNER,
-        domains::SIGNATURE_BIND,
-    ];
+    let live_domains: Vec<&[u8]> =
+        vec![domains::CASCADE_OUTER, domains::CASCADE_INNER, domains::HYBRID_KEM_SS_INFO];
 
-    for (i, &domain1) in domains.iter().enumerate() {
-        for (j, &domain2) in domains.iter().enumerate() {
+    for (i, &domain1) in live_domains.iter().enumerate() {
+        for (j, &domain2) in live_domains.iter().enumerate() {
             if i != j {
                 assert_ne!(domain1, domain2, "Domain constants should be unique");
             }
         }
     }
 
-    // All should contain version identifier
-    for &domain in &domains {
+    // All should contain a `LatticeArc-` prefix (version identifier
+    // form may vary: `LatticeArc-v1-…` vs `LatticeArc-Hybrid-…`).
+    for &domain in &live_domains {
         assert!(
-            domain.windows(12).any(|w| w == b"LatticeArc-v"),
-            "Domain should contain version identifier"
+            domain.windows(11).any(|w| w == b"LatticeArc-"),
+            "Domain should contain LatticeArc- prefix"
         );
     }
 }
@@ -246,10 +242,9 @@ mod tests {
     fn test_domain_constants_succeeds() {
         use crate::types::domains;
 
-        assert!(!domains::HYBRID_KEM.is_empty());
         assert!(!domains::CASCADE_OUTER.is_empty());
         assert!(!domains::CASCADE_INNER.is_empty());
-        assert!(!domains::SIGNATURE_BIND.is_empty());
+        assert!(!domains::HYBRID_KEM_SS_INFO.is_empty());
     }
 
     #[test]

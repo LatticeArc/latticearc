@@ -456,7 +456,13 @@ impl MlKemSecretKey {
     /// * `data` - Raw secret key bytes
     ///
     /// # Errors
-    /// Returns error if the key length doesn't match the security level
+    /// Returns `MlKemError::InvalidKeyLength` if `data.len()` does not
+    /// match `security_level.secret_key_size()`.
+    ///
+    /// Returns `MlKemError::InvalidKeyFormat` if the length is correct
+    /// but aws-lc-rs `DecapsulationKey::new` rejects the bytes
+    /// structurally. Symmetric with `MlKemPublicKey::new` (round-32 L9
+    /// + round-33 M2).
     pub fn new(security_level: MlKemSecurityLevel, data: Vec<u8>) -> Result<Self, MlKemError> {
         // wrap on entry so the
         // moved-in `Vec` is zeroized on the length-validation error
@@ -471,6 +477,17 @@ impl MlKemSecretKey {
                 key_type: "secret key".to_string(),
             });
         }
+        // Structural validation: ensure aws-lc-rs accepts these bytes
+        // as a parseable decapsulation key. Without this, an
+        // all-zeros (or otherwise malformed) SK passes the length
+        // check here and only fails at first decap.
+        let algorithm = security_level.as_aws_algorithm();
+        DecapsulationKey::new(algorithm, &data).map_err(|_e| {
+            MlKemError::InvalidKeyFormat(format!(
+                "ML-KEM-{} secret key bytes failed structural validation",
+                security_level.name()
+            ))
+        })?;
         Ok(Self { security_level, data })
     }
 
@@ -1127,9 +1144,15 @@ impl MlKem {
 
         let algorithm = public_key.security_level().as_aws_algorithm();
 
-        // Create encapsulation key from public key bytes
+        // Create encapsulation key from public key bytes. Pattern-6:
+        // collapse to the same opaque "encapsulation failed" message
+        // siblings emit (lines above and below) so an attacker can't
+        // string-match to distinguish "PK structurally invalid" from
+        // "size cap exceeded" or "aws-lc-rs encapsulate failed". The
+        // detail is logged via tracing::debug! for operators.
         let encaps_key = EncapsulationKey::new(algorithm, public_key.as_bytes()).map_err(|_e| {
-            MlKemError::EncapsulationError("Invalid public key format".to_string())
+            tracing::debug!("ML-KEM encap rejected: aws-lc-rs PK parse failed");
+            MlKemError::EncapsulationError("encapsulation failed".to_string())
         })?;
 
         // Encapsulate to get ciphertext and shared secret. Encrypt-side

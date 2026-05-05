@@ -310,10 +310,9 @@ impl UtilitySideChannelTester {
 
         // Test access to domain constants (should be constant time)
         let analysis = self.timing_analyzer.analyze_utility_timing(|| {
-            let _domain = crate::types::domains::HYBRID_KEM;
             let _domain = crate::types::domains::CASCADE_OUTER;
             let _domain = crate::types::domains::CASCADE_INNER;
-            let _domain = crate::types::domains::SIGNATURE_BIND;
+            let _domain = crate::types::domains::HYBRID_KEM_SS_INFO;
             Ok(())
         })?;
 

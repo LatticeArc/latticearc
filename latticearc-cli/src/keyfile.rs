@@ -199,9 +199,12 @@ impl KeyFile {
             bail!("Unrecognized algorithm name: '{expected}'");
         };
         if self.inner.algorithm() != expected_alg {
+            // Use the pinned canonical name rather than the Debug
+            // representation; round-32 D1 fixed the same drift on
+            // line 189.
             bail!(
-                "Key algorithm mismatch: key file is '{:?}', expected '{expected}'",
-                self.inner.algorithm()
+                "Key algorithm mismatch: key file is '{}', expected '{expected}'",
+                self.inner.algorithm().canonical_name()
             );
         }
         Ok(())
@@ -411,28 +414,38 @@ pub(crate) fn read_passphrase(prompt: &str) -> Result<zeroize::Zeroizing<String>
     Ok(zeroize::Zeroizing::new(pp))
 }
 
+/// Minimum passphrase length (chars) for any *new* passphrase used to
+/// protect a key file, regardless of the source (TTY prompt, env var,
+/// future paths). Aligns with OWASP 2023 user-chosen-password
+/// guidance when paired with a high-iteration KDF (PBKDF2 600k floor).
+pub(crate) const MIN_NEW_PASSPHRASE_LEN: usize = 12;
+
+/// Reject empty, too-short, or otherwise unsuitable *new* passphrases.
+///
+/// Single source of truth for the passphrase-quality gate. Every
+/// caller that produces a *new* passphrase must route through this
+/// function — TTY prompt, env-var read, and any future source
+/// (clipboard, vault, etc.) — so the rule lives in exactly one place.
+pub(crate) fn validate_new_passphrase(pp: &str) -> Result<()> {
+    if pp.is_empty() {
+        bail!("Passphrase must not be empty");
+    }
+    if pp.chars().count() < MIN_NEW_PASSPHRASE_LEN {
+        bail!(
+            "Passphrase must be at least {MIN_NEW_PASSPHRASE_LEN} characters \
+             (got {}). For high-entropy automation use a randomly-generated \
+             string; for user-chosen secrets prefer a multi-word passphrase.",
+            pp.chars().count()
+        );
+    }
+    Ok(())
+}
+
 /// Read a *new* passphrase from the terminal, prompting twice and rejecting
 /// mismatches or empty values. Used at keygen time.
 pub(crate) fn read_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
-    // minimum length matches the codebase's broader OWASP
-    // hygiene posture (PBKDF2 600k floor, AEAD weak-key rejection).
-    // 12 chars is the OWASP 2023 minimum for "user-chosen passwords"
-    // when paired with a high-iteration KDF; below that we recommend
-    // passphrases (multi-word). Empty alone is too lax.
-    const MIN_PASSPHRASE_LEN: usize = 12;
-
     let pp1 = read_passphrase("Enter passphrase to protect secret key: ")?;
-    if pp1.is_empty() {
-        bail!("Passphrase must not be empty");
-    }
-    if pp1.chars().count() < MIN_PASSPHRASE_LEN {
-        bail!(
-            "Passphrase must be at least {MIN_PASSPHRASE_LEN} characters \
-             (got {}). For high-entropy automation use a randomly-generated \
-             string; for user-chosen secrets prefer a multi-word passphrase.",
-            pp1.chars().count()
-        );
-    }
+    validate_new_passphrase(&pp1)?;
     let pp2 = read_passphrase("Confirm passphrase: ")?;
     if pp1.as_bytes() != pp2.as_bytes() {
         bail!("Passphrases did not match");
@@ -461,11 +474,18 @@ pub(crate) fn read_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
 /// would be visible in `ps`, shell history, and crash dumps.
 fn resolve_passphrase(
     tty_fallback: impl FnOnce() -> Result<zeroize::Zeroizing<String>>,
+    validate_env: impl Fn(&str) -> Result<()>,
 ) -> Result<zeroize::Zeroizing<String>> {
     if let Ok(pp) = std::env::var("LATTICEARC_PASSPHRASE") {
         if pp.is_empty() {
             bail!("LATTICEARC_PASSPHRASE is set but empty");
         }
+        // Apply the per-call validator. For new-passphrase callers
+        // this enforces the 12-char minimum that the TTY path
+        // applies; for existing-passphrase callers (unlock) it is a
+        // no-op so a key wrapped with a short passphrase before the
+        // gate landed can still be unlocked.
+        validate_env(&pp).map_err(|e| anyhow::anyhow!("LATTICEARC_PASSPHRASE rejected: {e}"))?;
         // SECURITY: env-var passphrases have two known leak vectors and
         // we cannot mitigate either fully without `unsafe` code (which
         // the workspace `unsafe_code = "forbid"` policy bans).
@@ -523,14 +543,17 @@ fn resolve_passphrase(
 
 /// Resolve a *new* passphrase for protecting a key being written to disk:
 /// reads `LATTICEARC_PASSPHRASE` or falls back to a double-confirm tty prompt.
+/// Both paths run `validate_new_passphrase`.
 pub(crate) fn resolve_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
-    resolve_passphrase(read_new_passphrase)
+    resolve_passphrase(read_new_passphrase, validate_new_passphrase)
 }
 
 /// Resolve an *existing* passphrase for unwrapping a key loaded from disk:
 /// reads `LATTICEARC_PASSPHRASE` or falls back to a single-line tty prompt.
+/// No quality gate — keys wrapped with short passphrases under prior
+/// versions must remain unlockable.
 pub(crate) fn resolve_existing_passphrase() -> Result<zeroize::Zeroizing<String>> {
-    resolve_passphrase(|| read_passphrase("Enter passphrase to unlock secret key: "))
+    resolve_passphrase(|| read_passphrase("Enter passphrase to unlock secret key: "), |_| Ok(()))
 }
 
 /// Decrypt a `PortableKey` in place if it is passphrase-protected, prompting
@@ -575,11 +598,12 @@ pub(crate) fn parse_hybrid_sign_pk_from_bytes(
             MlDsaParameterSet::MlDsa87.public_key_size(),
         ),
     };
-    Ok(latticearc::hybrid::sig_hybrid::HybridSigPublicKey::new(
+    latticearc::hybrid::sig_hybrid::HybridSigPublicKey::new(
         parameter_set,
         bytes.get(..split).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
         bytes.get(split..).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
-    ))
+    )
+    .map_err(|e| anyhow::anyhow!("hybrid sig public key: {e}"))
 }
 
 /// Parse a hybrid KEM PK from concatenated raw bytes (pq ++ classical).

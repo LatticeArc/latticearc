@@ -332,35 +332,43 @@ impl VerifyingKey {
 
         let ctx = context;
 
-        // Validate context length
+        // Validate context length. Pattern-6 (matches ML-DSA verify
+        // collapse from round-33 H1): the FIPS 205 / 204 cap is
+        // structural, but a distinct `ContextTooLong` variant lets a
+        // probing attacker fingerprint the cap. Fold into the
+        // generic `VerificationFailed`.
         if ctx.len() > 255 {
-            return Err(SlhDsaError::ContextTooLong);
+            tracing::debug!(
+                ctx_len = ctx.len(),
+                "SLH-DSA verify rejected: context > 255 bytes (FIPS 205 §3.3)"
+            );
+            return Err(SlhDsaError::VerificationFailed);
         }
 
         let is_valid = match self.security_level {
             SlhDsaSecurityLevel::Shake128s => {
                 let pk_bytes: [u8; shake_128s::PK_LEN] =
-                    self.as_bytes().try_into().map_err(|_e| SlhDsaError::InvalidPublicKey)?;
+                    self.as_bytes().try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let pk = shake_128s::PublicKey::try_from_bytes(&pk_bytes)
-                    .map_err(|_e| SlhDsaError::InvalidPublicKey)?;
+                    .map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let sig_bytes: [u8; shake_128s::SIG_LEN] =
                     signature.try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 pk.verify(message, &sig_bytes, ctx)
             }
             SlhDsaSecurityLevel::Shake192s => {
                 let pk_bytes: [u8; shake_192s::PK_LEN] =
-                    self.as_bytes().try_into().map_err(|_e| SlhDsaError::InvalidPublicKey)?;
+                    self.as_bytes().try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let pk = shake_192s::PublicKey::try_from_bytes(&pk_bytes)
-                    .map_err(|_e| SlhDsaError::InvalidPublicKey)?;
+                    .map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let sig_bytes: [u8; shake_192s::SIG_LEN] =
                     signature.try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 pk.verify(message, &sig_bytes, ctx)
             }
             SlhDsaSecurityLevel::Shake256s => {
                 let pk_bytes: [u8; shake_256s::PK_LEN] =
-                    self.as_bytes().try_into().map_err(|_e| SlhDsaError::InvalidPublicKey)?;
+                    self.as_bytes().try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let pk = shake_256s::PublicKey::try_from_bytes(&pk_bytes)
-                    .map_err(|_e| SlhDsaError::InvalidPublicKey)?;
+                    .map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let sig_bytes: [u8; shake_256s::SIG_LEN] =
                     signature.try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 pk.verify(message, &sig_bytes, ctx)
@@ -685,12 +693,13 @@ impl SigningKey {
     ///
     /// # Errors
     ///
-    /// Returns `SlhDsaError::RngError` if random number generation fails, or
-    /// `SlhDsaError::ContextTooLong` if `context` exceeds 255 bytes, or
-    /// `SlhDsaError::SigningFailed` if the message exceeds the resource
-    /// limit (round-28 H7 collapsed the previous `MessageTooLong` variant
-    /// for Pattern 6 sign-side opacity; the `MessageTooLong` variant is
-    /// now `#[deprecated]`).
+    /// Returns `SlhDsaError::RngError` if random number generation fails.
+    ///
+    /// Returns `SlhDsaError::SigningFailed` (Pattern-6 opaque) if:
+    /// - the message exceeds the configured resource limit,
+    /// - `context.len() > 255` bytes (FIPS 205 §3.3 cap; collapsed
+    ///   from the previous `ContextTooLong` variant),
+    /// - signing fails at the upstream `fips205` crate.
     #[instrument(level = "debug", skip(self, message, context), fields(security_level = ?self.security_level, message_len = message.len(), context_len = context.len()))]
     pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<Vec<u8>, SlhDsaError> {
         // DoS bound: SLH-DSA signing cost scales with message length.
@@ -708,9 +717,16 @@ impl SigningKey {
 
         let ctx = context;
 
-        // Validate context length
+        // Validate context length. Pattern-6: collapse to
+        // `SigningFailed` rather than the distinguishable
+        // `ContextTooLong` so the FIPS 205 cap can't be probed via
+        // error variant. The cause is in the tracing event.
         if ctx.len() > 255 {
-            return Err(SlhDsaError::ContextTooLong);
+            tracing::debug!(
+                ctx_len = ctx.len(),
+                "SLH-DSA sign rejected: context > 255 bytes (FIPS 205 §3.3)"
+            );
+            return Err(SlhDsaError::SigningFailed);
         }
 
         match self.security_level {
@@ -947,7 +963,9 @@ mod tests {
         assert!(!is_valid, "Verification should fail with wrong context");
     }
 
-    // Test 8: Context string too long
+    // Test 8: Context string too long. Round-34 M6: collapsed to the
+    // generic Pattern-6 sign-side error so the FIPS 205 cap can't be
+    // probed via the variant.
     #[test]
     fn test_context_too_long_returns_error() {
         let (sk, _) =
@@ -956,7 +974,7 @@ mod tests {
         let long_context = vec![0u8; 256]; // 256 bytes, max is 255
 
         let result = sk.sign(message, &long_context);
-        assert!(matches!(result, Err(SlhDsaError::ContextTooLong)));
+        assert!(matches!(result, Err(SlhDsaError::SigningFailed)));
     }
 
     // Test 9: Empty message signing

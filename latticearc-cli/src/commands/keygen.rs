@@ -699,7 +699,8 @@ fn build_hybrid_sig_portable_keys(
     let (pq_pk, ed_pk) = pk_bytes.split_at(pq_pk_len);
     let (pq_sk, ed_sk) = sk_bytes.split_at(pq_sk_len);
 
-    let hybrid_pk = HybridSigPublicKey::new(params, pq_pk.to_vec(), ed_pk.to_vec());
+    let hybrid_pk = HybridSigPublicKey::new(params, pq_pk.to_vec(), ed_pk.to_vec())
+        .map_err(|e| anyhow::anyhow!("Hybrid public key construction failed: {e}"))?;
     let hybrid_sk = HybridSigSecretKey::new(
         params,
         zeroize::Zeroizing::new(pq_sk.to_vec()),

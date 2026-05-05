@@ -34,6 +34,11 @@ anyhow = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
 rpassword = { workspace = true }
+# Constant-time byte comparison for `verify` (round-34 L11). The
+# specific input is currently public, but the comparison primitive
+# should be CT so a future change that routes secret material through
+# the same path inherits the discipline by default.
+subtle = { workspace = true }
 # Round-21 audit fix #14/#20: CLI commands route diagnostic info
 # (paths, algorithm names) through `tracing::debug!` instead of
 # `eprintln!` to avoid leaking onto stderr by default.

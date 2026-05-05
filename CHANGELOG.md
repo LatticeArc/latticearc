@@ -9,6 +9,175 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-34 audit — 7 MED + 11 LOW + 7 DOC + 1 NIT (2026-05-05)
+
+External round-34 audit returned 27 findings. Validated 26, applied 26
+(skipped N2 — the audit miscounted: 3 levels × 2 directions × 100
+ITERATIONS = 600 round-trips, README claim is correct). L4 from
+round-33 also remained skipped as audit-mistaken.
+
+#### Why this round was substantial
+
+Round-34's findings fall into the same Pattern-classes as 28-33:
+sign/verify error asymmetry (H1/M5/M6), PK-vs-SK validation asymmetry
+(M7), input-cap gaps on caller-supplied lengths (M3/L5/L10), unbounded
+collections (M8), warning-gate asymmetry (L2/L3), durability misses
+(L6), error-string distinguishers (L7), and doc/code drift (D1-D7).
+After this round we'll add static enforcement for these classes —
+see "Round-35 prep" below.
+
+#### MED
+
+- **M1**: Passphrase quality gate (12-char min) extracted into
+  `validate_new_passphrase` and applied symmetrically to both the
+  TTY and `LATTICEARC_PASSPHRASE` env-var paths. Previously a
+  wrapping CI script could pass a 1-char passphrase and bypass the
+  TTY-only check. Existing-key-unlock paths intentionally skip the
+  check (no-op validator) so keys wrapped before this round remain
+  unlockable.
+- **M2**: `KeyFile::validate_algorithm` mismatch error now uses
+  `inner.algorithm().canonical_name()` instead of `{:?}`. Round-32 D1
+  fixed the same drift at line 189; this site missed.
+- **M3**: `kdf --input-stdin` now reads with a 1 MiB cap via
+  `Read::take` instead of `BufRead::read_line`. Previously
+  unbounded; piping `/dev/urandom` would OOM the process.
+- **M5**: `MlKem::encapsulate` collapses the
+  `EncapsulationKey::new` rejection from
+  `"Invalid public key format"` to `"encapsulation failed"` (the
+  same string siblings emit). String-distinguisher fingerprinting
+  surface closed; cause logged via tracing::debug!.
+- **M6**: `SLH-DSA sign/verify` no longer emit the distinguishable
+  `ContextTooLong` and `InvalidPublicKey` variants — both collapse
+  into `SigningFailed` / `VerificationFailed` matching ML-DSA
+  (round-33 H1). The `ContextTooLong` and `InvalidPublicKey` enum
+  variants remain (no API removal pre-1.0) but are no longer
+  reachable from the sign/verify paths.
+- **M7**: `MlKemSecretKey::new` now performs structural validation
+  via `DecapsulationKey::new`, symmetric with the PK-side fix from
+  round-32 L9 / round-33 M2. Returns
+  `MlKemError::InvalidKeyFormat` on parse failure.
+- **M8**: `KeyLifecycleRecord` capped:
+  `MAX_STATE_HISTORY = 1024` and `MAX_APPROVERS = 256`. Caps are
+  enforced by `transition()`, `add_approver()`, AND
+  `KeyLifecycleRecordRaw::try_from` (the deserialize hook).
+  `add_approver` return type changed from `()` to `bool` so callers
+  can detect cap rejection.
+
+#### LOW
+
+- **L1**: `read_file_with_cap` rejects symlinks unless
+  `LATTICEARC_ALLOW_SYMLINK_INPUT=1` is set, mirroring the existing
+  `LATTICEARC_ALLOW_SYMLINK_KEYS` gate on key files. Predictable-
+  path symlinks in shared tmp can no longer exfiltrate arbitrary
+  files via the AEAD/sign output.
+- **L2**: `kdf::resolve_input` now `tracing::warn!`s on every
+  `LATTICEARC_KDF_INPUT` read (TTY and non-TTY), matching
+  `keyfile.rs::resolve_passphrase`. Audit pipelines that scrape
+  `warn` events now see every env-var KDF input use, not just
+  interactive ones.
+- **L3**: `verify_hybrid` Ed25519 equalizer now also runs against
+  dummy material when the supplied PK is the wrong length.
+  Previously the parse-fail branch did this; the in-band "32-byte
+  but verify short-circuits" branch did not, so wall-clock could
+  distinguish a 32-byte-with-bad-sig from a wrong-length PK.
+- **L4**: `HybridSigPublicKey::new` now validates lengths at
+  construction (returns `Result`); previously it took `Vec<u8>`
+  with no checks and punted to verify-time. Construction with
+  `parameter_set = MlDsa87` and a 1952-byte PK is rejected up-front.
+- **L5**: `AuditEventBuilder::with_actor` and `with_resource` now
+  truncate to per-field caps (`MAX_ACTOR_LEN = 256`,
+  `MAX_RESOURCE_LEN = 1024`) and strip control characters. Sibling
+  metadata had both; these fields had neither. Empty-after-strip
+  inputs collapse to `None` so audit emission never fail-opens.
+- **L6**: Audit genesis file write now `f.sync_all()`s before
+  declaring the genesis committed. Previously a crash mid-flush
+  could leave a 0-byte genesis on disk; the `create_new` flag
+  would then refuse every subsequent startup until manual `rm`.
+- **L7**: `verify_pop` stale-rejection path now returns `Ok(false)`
+  with the elapsed seconds in `tracing::debug!` only, instead of
+  `Err(InvalidInput("...is stale: {}s > {}s"))`. Removed the
+  side-channel that let an adversary with a PoP-generation oracle
+  narrow server clock skew.
+- **L8**: Closed by M8 cap on `state_history`. The four `entered()`
+  linear scans in `KeyLifecycleRecordRaw::try_from` are now bounded
+  by `MAX_STATE_HISTORY = 1024`, eliminating O(n²) growth on a
+  pathologically-large persisted record.
+- **L9**: Deleted dead `HYBRID_KEM` and `SIGNATURE_BIND` constants
+  from `types/domains.rs` plus all their references in
+  `cavp_compliance.rs`, `ci_testing_framework.rs`,
+  `property_based_testing.rs`, and `side_channel_analysis.rs`.
+  Both constants named the wrong algorithm (X25519-MLKEM**1024**
+  while the live combiner uses 768; Ed25519-MlDsa**87** while the
+  hybrid sig uses 65) and weren't consumed by any cryptographic
+  path.
+- **L10**: `pbkdf2` enforces `key_length ≤ 1 MiB` BEFORE the
+  `vec![0u8; params.key_length]` allocation. Previously
+  `usize::MAX` would attempt an 18 EiB allocation before the
+  per-block `u32::try_from` check fired.
+- **L11** (downgraded MED → LOW): `verify.rs` `signed.data ==
+  input_data` comparison now uses `subtle::ConstantTimeEq`. The
+  current input is public material so this is not a live leak; the
+  CT primitive matches the codebase's contract for byte-array
+  equality and inherits CT discipline if a future caller routes
+  secret material through this path.
+
+#### DOC
+
+- **D1**: Inner `latticearc/Cargo.toml` description no longer
+  claims "post-quantum TLS" — `lib.rs:10` already states the crate
+  does not wrap rustls.
+- **D2**: README `fips-self-test` description no longer lists
+  SHA-2 in the FIPS-boundary algorithm list; SHA-2 is on
+  RustCrypto's `sha2` crate, intentionally outside the boundary
+  (the algorithms table already says so).
+- **D3**: `ITERATION_BOUNDS.md` PBKDF2 row now states the actual
+  per-PRF floors (`MIN_ITERATIONS_SHA256 = 600_000`,
+  `MIN_ITERATIONS_SHA512 = 210_000`) instead of the nominal `1000`.
+- **D4**: `ITERATION_BOUNDS.md` SP 800-108 cap fixed from `2^35`
+  to the actual `2^37` (= `2^32 × 32`-byte-hash).
+- **D5**: All `*.rs:LINE` references in `ITERATION_BOUNDS.md`
+  replaced with symbol references (`MIN_ITERATIONS_SHA256`,
+  `MAX_LEN`, `validate_encryption_size`, etc.). Symbol grep
+  survives line drift; line numbers don't.
+- **D6**: "Scheduled for v0.7.1" updated to "Tracked for a future
+  round; not yet shipped" — the workspace is at 0.8.0 and the
+  HMAC/CMAC cap was never delivered as a v0.7.1 feature.
+- **D7**: `info.rs` algorithm listing now includes the
+  `PBKDF2-HMAC-SHA512` row (round-26 H14 made it CLI-reachable but
+  the listing wasn't updated).
+
+#### NIT
+
+- **N1**: `MlDsaSignature::from_bytes_unchecked` is now gated
+  behind `cfg(any(test, feature = "test-utils"))`. Three
+  integration tests that use it (`primitives_ml_dsa`,
+  `primitives_regression`, `primitives_side_channel`) gained
+  `required-features = ["test-utils"]` in `latticearc/Cargo.toml`,
+  so a default `cargo test -p latticearc` skips them rather than
+  failing to compile. CI's `--all-features` runs them as before.
+
+#### Round-35 prep (announced for the next round)
+
+The Pattern-class findings recurring across rounds 28-34 will be
+converted to static enforcement, not more reactive patches:
+- **Pattern-6 sweep test**: enumerate every `Err(...)` in crypto
+  modules; assert each maps to the small Pattern-6 allowlist.
+- **Algorithm-name lint**: a clippy-like check that fails CI on
+  `format!("{:?}", _.algorithm())` anywhere outside test code.
+- **Doc anchor verifier**: a CI step that validates `*.rs:LINE`
+  references in `docs/` resolve to the named symbol.
+- **Validation parity matrix**: a test asserting that paired
+  constructors (`MlKemPublicKey::new` ↔ `MlKemSecretKey::new`,
+  PK ↔ SK on every algorithm) accept/reject inputs of the same
+  shape.
+- **Durability checklist**: every file-write site in `audit.rs`,
+  `keyfile.rs`, etc. enumerated with `sync_all` + parent-dir
+  fsync requirements.
+
+After round-35 ships these checks, the next find/fix cycle is
+expected to drop substantially because most Pattern-class
+regressions will fail CI rather than reach an audit round.
+
 ### Round-33 audit — 1 HIGH + 2 MED + 3 LOW + 4 DOC (2026-05-05)
 
 External round-33 audit returned 11 findings. Validated 10, applied 10

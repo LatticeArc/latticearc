@@ -178,11 +178,6 @@ impl PreludeCiTestSuite {
     /// Test domain constants.
     fn test_domain_constants_succeeds() -> Result<(), LatticeArcError> {
         // Test all domain constants are non-empty
-        if domains::HYBRID_KEM.is_empty() {
-            return Err(LatticeArcError::ValidationError {
-                message: "HYBRID_KEM should not be empty".to_string(),
-            });
-        }
         if domains::CASCADE_OUTER.is_empty() {
             return Err(LatticeArcError::ValidationError {
                 message: "CASCADE_OUTER should not be empty".to_string(),
@@ -193,23 +188,24 @@ impl PreludeCiTestSuite {
                 message: "CASCADE_INNER should not be empty".to_string(),
             });
         }
-        if domains::SIGNATURE_BIND.is_empty() {
+        if domains::HYBRID_KEM_SS_INFO.is_empty() {
             return Err(LatticeArcError::ValidationError {
-                message: "SIGNATURE_BIND should not be empty".to_string(),
+                message: "HYBRID_KEM_SS_INFO should not be empty".to_string(),
             });
         }
 
-        // Test they all contain version identifier
-        let domain_list = [
-            domains::HYBRID_KEM,
-            domains::CASCADE_OUTER,
-            domains::CASCADE_INNER,
-            domains::SIGNATURE_BIND,
-        ];
+        // Test they all contain the LatticeArc namespace prefix.
+        // (Round-34 L9: deleted `HYBRID_KEM` / `SIGNATURE_BIND` had
+        // `LatticeArc-v1-…`; live `HYBRID_KEM_SS_INFO` is
+        // `LatticeArc-Hybrid-KEM-SS-v1` so `LatticeArc-v` is no
+        // longer a contiguous substring across all live domains.
+        // Check for the namespace prefix instead.)
+        let domain_list =
+            [domains::CASCADE_OUTER, domains::CASCADE_INNER, domains::HYBRID_KEM_SS_INFO];
         for domain in &domain_list {
-            if !(*domain).windows(12).any(|w| w == b"LatticeArc-v") {
+            if !(*domain).windows(11).any(|w| w == b"LatticeArc-") {
                 return Err(LatticeArcError::ValidationError {
-                    message: "Domain constant should contain version identifier".to_string(),
+                    message: "Domain constant should contain LatticeArc- prefix".to_string(),
                 });
             }
         }

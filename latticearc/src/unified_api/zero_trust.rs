@@ -822,17 +822,25 @@ impl ProofOfPossession for ZeroTrustAuth {
         const PROOF_OF_POSSESSION_MAX_AGE_SECS: i64 = 5 * 60; // 5 minutes
         let elapsed = Utc::now().signed_duration_since(pop.timestamp());
         if elapsed.num_seconds() > PROOF_OF_POSSESSION_MAX_AGE_SECS {
-            return Err(CoreError::InvalidInput(format!(
-                "Proof-of-possession is stale: {}s > {}s",
-                elapsed.num_seconds(),
-                PROOF_OF_POSSESSION_MAX_AGE_SECS
-            )));
+            // Pattern-6: do not leak elapsed seconds or the configured
+            // max age via the error string. An adversary with a PoP-
+            // generation oracle could otherwise narrow server clock
+            // skew to seconds. Cause logged at tracing::debug! for
+            // operators.
+            tracing::debug!(
+                elapsed_secs = elapsed.num_seconds(),
+                max_age_secs = PROOF_OF_POSSESSION_MAX_AGE_SECS,
+                "verify_pop rejected: proof-of-possession too old"
+            );
+            return Ok(false);
         }
         // Also reject proofs dated more than 30 seconds in the future (clock skew tolerance).
         if elapsed.num_seconds() < -30 {
-            return Err(CoreError::InvalidInput(
-                "Proof-of-possession timestamp is in the future".to_string(),
-            ));
+            tracing::debug!(
+                elapsed_secs = elapsed.num_seconds(),
+                "verify_pop rejected: proof-of-possession timestamp is in the future"
+            );
+            return Ok(false);
         }
 
         // mirror generate_pop's use

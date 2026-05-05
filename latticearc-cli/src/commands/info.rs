@@ -74,5 +74,6 @@ pub(crate) fn run(_args: InfoArgs) -> Result<()> {
     println!("  Key Derivation:");
     println!("    HKDF-SHA256             (SP 800-56C)");
     println!("    PBKDF2-HMAC-SHA256      (SP 800-132)");
+    println!("    PBKDF2-HMAC-SHA512      (SP 800-132)");
     Ok(())
 }

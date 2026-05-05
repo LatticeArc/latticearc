@@ -668,6 +668,7 @@ impl MlDsaSignature {
     /// fixture downstream" rather than a soundness bypass.
     #[doc(hidden)]
     #[must_use]
+    #[cfg(any(test, feature = "test-utils"))]
     pub fn from_bytes_unchecked(parameter_set: MlDsaParameterSet, data: Vec<u8>) -> Self {
         Self { parameter_set, data }
     }
