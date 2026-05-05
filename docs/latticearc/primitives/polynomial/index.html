@@ -16,7 +16,7 @@ NEON/AVX2/AVX-512 paths run automatically when available. This
 pure-Rust polynomial crate exists for non-AWS-LC paths and for
 independent verification, where SIMD acceleration would require
 nightly Rust (<code>portable_simd</code>) and is not currently in scope.</p>
-<p>Round-21 audit #23: a <code>simd/</code> subtree (avx2.rs, neon.rs, ntt.rs, …)
+<p>a <code>simd/</code> subtree (avx2.rs, neon.rs, ntt.rs, …)
 was previously present but never declared via <code>pub mod simd;</code>. It
 compiled only as standalone test scaffolding and contained latent
 bugs — deleted to remove the maintenance trap.</p>

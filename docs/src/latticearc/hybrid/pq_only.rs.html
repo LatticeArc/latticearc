@@ -202,7 +202,7 @@
 <a href=#202 id=202 data-nosnippet>202</a>                level.name()
 <a href=#203 id=203 data-nosnippet>203</a>            )));
 <a href=#204 id=204 data-nosnippet>204</a>        }
-<a href=#205 id=205 data-nosnippet>205</a>        <span class="comment">// Round-29 M2: cross-check the supplied PK against the PK
+<a href=#205 id=205 data-nosnippet>205</a>        <span class="comment">// cross-check the supplied PK against the PK
 <a href=#206 id=206 data-nosnippet>206</a>        // embedded in the ML-KEM SK (FIPS 203 §6.1 layout). The PK is
 <a href=#207 id=207 data-nosnippet>207</a>        // passed in for backwards-compat with callers that already
 <a href=#208 id=208 data-nosnippet>208</a>        // had it on hand, but the authoritative source is the SK
@@ -224,7 +224,7 @@
 <a href=#224 id=224 data-nosnippet>224</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ ml_kem_sk, ml_kem_pk_bytes: pk_bytes.to_vec(), security_level: level })
 <a href=#225 id=225 data-nosnippet>225</a>    }
 <a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="doccomment">/// Round-29 M2: construct from SK bytes only — derive the PK from
+<a href=#227 id=227 data-nosnippet>227</a>    <span class="doccomment">/// construct from SK bytes only — derive the PK from
 <a href=#228 id=228 data-nosnippet>228</a>    /// the SK's embedded layout (FIPS 203 §6.1). Eliminates the
 <a href=#229 id=229 data-nosnippet>229</a>    /// metadata-trust attack from earlier rounds: a file-write
 <a href=#230 id=230 data-nosnippet>230</a>    /// attacker that swaps the `ml_kem_pk` field of an unencrypted

@@ -81,7 +81,7 @@
 <a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">let </span>public_bytes = keypair.public_key_bytes();
 <a href=#82 id=82 data-nosnippet>82</a>
 <a href=#83 id=83 data-nosnippet>83</a>    <span class="comment">// Validate that public key is not the identity element (all zeros).
-<a href=#84 id=84 data-nosnippet>84</a>    // Round-26 audit fix (M21): the previous `iter().all(|&amp;b| b == 0)`
+<a href=#84 id=84 data-nosnippet>84</a>    // the previous `iter().all(|&amp;b| b == 0)`
 <a href=#85 id=85 data-nosnippet>85</a>    // short-circuits on the first non-zero byte, leaking the position
 <a href=#86 id=86 data-nosnippet>86</a>    // of the first non-zero byte to a timing observer. PK bytes are
 <a href=#87 id=87 data-nosnippet>87</a>    // public input — leakage is harmless here — but the same check is
@@ -98,7 +98,7 @@
 <a href=#98 id=98 data-nosnippet>98</a>    <span class="comment">// Validate private key format (32 bytes guaranteed by Ed25519KeyPair type)
 <a href=#99 id=99 data-nosnippet>99</a>    </span><span class="kw">let </span>private_bytes = keypair.secret_key_bytes();
 <a href=#100 id=100 data-nosnippet>100</a>
-<a href=#101 id=101 data-nosnippet>101</a>    <span class="comment">// Round-26 audit fix (M21): non-short-circuit fold — leak of the
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="comment">// non-short-circuit fold — leak of the
 <a href=#102 id=102 data-nosnippet>102</a>    // first-non-zero-byte position would be a side-channel into the
 <a href=#103 id=103 data-nosnippet>103</a>    // structure of the secret key. The fold loops over all 32 bytes
 <a href=#104 id=104 data-nosnippet>104</a>    // unconditionally, so the operation is data-independent.
@@ -113,7 +113,7 @@
 <a href=#113 id=113 data-nosnippet>113</a>    <span class="comment">// Perform a test signature to ensure keypair consistency. Both sign and
 <a href=#114 id=114 data-nosnippet>114</a>    // verify go through the primitives API. Ed25519 signing is infallible.
 <a href=#115 id=115 data-nosnippet>115</a>    </span><span class="kw">let </span>test_message = <span class="string">b"key_validation_test"</span>;
-<a href=#116 id=116 data-nosnippet>116</a>    <span class="comment">// Round-26 audit fix (H4): `Ed25519KeyPair::sign` is now fallible
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="comment">// `Ed25519KeyPair::sign` is now fallible
 <a href=#117 id=117 data-nosnippet>117</a>    // (validate_signature_size); the test message is well under the
 <a href=#118 id=118 data-nosnippet>118</a>    // cap, so the gate never trips here, but the `?` keeps the surface
 <a href=#119 id=119 data-nosnippet>119</a>    // honest if the cap is ever lowered.
@@ -459,7 +459,7 @@
 <a href=#459 id=459 data-nosnippet>459</a>
 <a href=#460 id=460 data-nosnippet>460</a>    <span class="attr">#[test]
 <a href=#461 id=461 data-nosnippet>461</a>    </span><span class="kw">fn </span>test_ed25519_cross_keypair_verification_returns_false() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#462 id=462 data-nosnippet>462</a>        <span class="comment">// Round-26 audit fix (H10): cross-keypair verification is the
+<a href=#462 id=462 data-nosnippet>462</a>        <span class="comment">// cross-keypair verification is the
 <a href=#463 id=463 data-nosnippet>463</a>        // canonical "wrong PK" adversary-reachable path. Verify collapses
 <a href=#464 id=464 data-nosnippet>464</a>        // it to `Ok(false)` rather than `Err`.
 <a href=#465 id=465 data-nosnippet>465</a>        </span><span class="kw">let </span>(_pk1, sk1) = generate_keypair()<span class="question-mark">?</span>;
@@ -643,7 +643,7 @@
 <a href=#643 id=643 data-nosnippet>643</a>            pk2.as_slice(),
 <a href=#644 id=644 data-nosnippet>644</a>            MlDsaParameterSet::MlDsa65,
 <a href=#645 id=645 data-nosnippet>645</a>        );
-<a href=#646 id=646 data-nosnippet>646</a>        <span class="comment">// Round-28 H6: verify collapses Err to Ok(false) (Pattern 6).
+<a href=#646 id=646 data-nosnippet>646</a>        <span class="comment">// verify collapses Err to Ok(false) (Pattern 6).
 <a href=#647 id=647 data-nosnippet>647</a>        </span><span class="macro">assert_eq!</span>(
 <a href=#648 id=648 data-nosnippet>648</a>            result.ok(),
 <a href=#649 id=649 data-nosnippet>649</a>            <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),

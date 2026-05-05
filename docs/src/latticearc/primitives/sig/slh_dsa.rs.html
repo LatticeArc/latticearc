@@ -79,7 +79,7 @@
 <a href=#79 id=79 data-nosnippet>79</a>    </span><span class="attr">#[error(<span class="string">"Signature verification failed"</span>)]
 <a href=#80 id=80 data-nosnippet>80</a>    </span>VerificationFailed,
 <a href=#81 id=81 data-nosnippet>81</a>
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="comment">// Round-27 M4: `DeserializationError` removed — declared but never
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="comment">// `DeserializationError` removed — declared but never
 <a href=#83 id=83 data-nosnippet>83</a>    // returned by any production path. SLH-DSA byte-shape errors surface
 <a href=#84 id=84 data-nosnippet>84</a>    // as `InvalidPublicKey` / `InvalidSecretKey` / `VerificationFailed`.
 <a href=#85 id=85 data-nosnippet>85</a>    // Safe under `#[non_exhaustive]`: external matches must already have
@@ -94,7 +94,7 @@
 <a href=#94 id=94 data-nosnippet>94</a>    /// unbounded-message DoS when callers bypass the unified-api resource
 <a href=#95 id=95 data-nosnippet>95</a>    /// checks.
 <a href=#96 id=96 data-nosnippet>96</a>    ///
-<a href=#97 id=97 data-nosnippet>97</a>    /// Round-28 H7: kept for ABI compatibility but no longer returned from
+<a href=#97 id=97 data-nosnippet>97</a>    /// kept for ABI compatibility but no longer returned from
 <a href=#98 id=98 data-nosnippet>98</a>    /// `sign()` — the cap-rejection now collapses to `SigningFailed` so
 <a href=#99 id=99 data-nosnippet>99</a>    /// the sign path matches Pattern 6 opacity (round-26 M1 closed the
 <a href=#100 id=100 data-nosnippet>100</a>    /// verify-side; this completes the sign-side symmetry). Will be
@@ -247,7 +247,7 @@
 <a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span><span class="kw-2">mut </span>key_bytes = [<span class="number">0u8</span>; shake_256s::PK_LEN];
 <a href=#248 id=248 data-nosnippet>248</a>        key_bytes[..expected_len].copy_from_slice(bytes);
 <a href=#249 id=249 data-nosnippet>249</a>
-<a href=#250 id=250 data-nosnippet>250</a>        <span class="comment">// Round-26 audit fix (M9): the previous implementation called
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="comment">// the previous implementation called
 <a href=#251 id=251 data-nosnippet>251</a>        // `try_from_bytes` here as eager validation, then `verify()`
 <a href=#252 id=252 data-nosnippet>252</a>        // called it again on every signature check — two parses per
 <a href=#253 id=253 data-nosnippet>253</a>        // PK, with the constructor's parsed result immediately
@@ -322,7 +322,7 @@
 <a href=#322 id=322 data-nosnippet>322</a>        // hyper-tree; an attacker who can submit arbitrary bytes through
 <a href=#323 id=323 data-nosnippet>323</a>        // any verify entry point can force unbounded hashing work. The
 <a href=#324 id=324 data-nosnippet>324</a>        // bound here mirrors the one in `sign()`.
-<a href=#325 id=325 data-nosnippet>325</a>        // Round-26 audit fix (M1): collapse into the generic
+<a href=#325 id=325 data-nosnippet>325</a>        // collapse into the generic
 <a href=#326 id=326 data-nosnippet>326</a>        // verification-failure variant. `MessageTooLong` on verify
 <a href=#327 id=327 data-nosnippet>327</a>        // leaked the configured cap to a probing attacker.
 <a href=#328 id=328 data-nosnippet>328</a>        </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="kw">crate</span>::primitives::resource_limits::validate_signature_size(message.len()) {
@@ -520,7 +520,7 @@
 <a href=#520 id=520 data-nosnippet>520</a>
 <a href=#521 id=521 data-nosnippet>521</a>        <span class="comment">// FIPS 140-3 Pairwise Consistency Test (PCT)
 <a href=#522 id=522 data-nosnippet>522</a>        // Sign and verify a test message to ensure the keypair is consistent.
-<a href=#523 id=523 data-nosnippet>523</a>        // Round-20 audit fix #12: PCT failure now maps to the dedicated
+<a href=#523 id=523 data-nosnippet>523</a>        // PCT failure now maps to the dedicated
 <a href=#524 id=524 data-nosnippet>524</a>        // `PctFailed` variant. The previous `RngError` mapping let a
 <a href=#525 id=525 data-nosnippet>525</a>        // FIPS error-state monitor mis-categorize a corrupted-keypair
 <a href=#526 id=526 data-nosnippet>526</a>        // event as transient entropy failure and likely retry — wrong
@@ -694,7 +694,7 @@
 <a href=#694 id=694 data-nosnippet>694</a>    </span><span class="attr">#[instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, message, context), fields(security_level = <span class="question-mark">?</span><span class="self">self</span>.security_level, message_len = message.len(), context_len = context.len()))]
 <a href=#695 id=695 data-nosnippet>695</a>    </span><span class="kw">pub fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, message: <span class="kw-2">&amp;</span>[u8], context: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, SlhDsaError&gt; {
 <a href=#696 id=696 data-nosnippet>696</a>        <span class="comment">// DoS bound: SLH-DSA signing cost scales with message length.
-<a href=#697 id=697 data-nosnippet>697</a>        // Round-28 H7 (Pattern 6): collapse the resource-cap rejection
+<a href=#697 id=697 data-nosnippet>697</a>        // collapse the resource-cap rejection
 <a href=#698 id=698 data-nosnippet>698</a>        // to the new `SigningFailed` variant. Cap probing was the same
 <a href=#699 id=699 data-nosnippet>699</a>        // leak round-26 M1 closed on the verify-side; this completes
 <a href=#700 id=700 data-nosnippet>700</a>        // the sign-side symmetry. Trace captures the actual cause for
@@ -1102,7 +1102,7 @@
 <a href=#1102 id=1102 data-nosnippet>1102</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>)));
 <a href=#1103 id=1103 data-nosnippet>1103</a>    }
 <a href=#1104 id=1104 data-nosnippet>1104</a>
-<a href=#1105 id=1105 data-nosnippet>1105</a>    <span class="doccomment">/// Round-27 H5 + Round-28 H7 (Pattern 14 + Pattern 6): the
+<a href=#1105 id=1105 data-nosnippet>1105</a>    <span class="doccomment">/// the
 <a href=#1106 id=1106 data-nosnippet>1106</a>    /// resource-cap gate at the top of `sign()` rejects oversized
 <a href=#1107 id=1107 data-nosnippet>1107</a>    /// messages before reaching the upstream slh-dsa crate. Round-28
 <a href=#1108 id=1108 data-nosnippet>1108</a>    /// collapsed the variant to the opaque `SigningFailed` (was

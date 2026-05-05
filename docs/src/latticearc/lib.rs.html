@@ -537,11 +537,11 @@
 <a href=#537 id=537 data-nosnippet>537</a>// Serialization Utilities
 <a href=#538 id=538 data-nosnippet>538</a>// ============================================================================
 <a href=#539 id=539 data-nosnippet>539</a>//
-<a href=#540 id=540 data-nosnippet>540</a>// Round-13 audit fix (L-D): the `#[doc(hidden)]` on these six fns was
-<a href=#541 id=541 data-nosnippet>541</a>// internally inconsistent — `docs/API_DOCUMENTATION.md` directs users
-<a href=#542 id=542 data-nosnippet>542</a>// at them as part of the public surface. Removed the hidden marker;
-<a href=#543 id=543 data-nosnippet>543</a>// these are now first-class public API. If we ever need to walk this
-<a href=#544 id=544 data-nosnippet>544</a>// back, drop the public reference in the docs first.
+<a href=#540 id=540 data-nosnippet>540</a>// `#[doc(hidden)]` on these six fns was internally inconsistent —
+<a href=#541 id=541 data-nosnippet>541</a>// `docs/API_DOCUMENTATION.md` directs users at them as part of the
+<a href=#542 id=542 data-nosnippet>542</a>// public surface. Hidden marker removed; these are now first-class
+<a href=#543 id=543 data-nosnippet>543</a>// public API. If we ever need to walk this back, drop the public
+<a href=#544 id=544 data-nosnippet>544</a>// reference in the docs first.
 <a href=#545 id=545 data-nosnippet>545</a></span><span class="kw">pub use </span>unified_api::serialization::{
 <a href=#546 id=546 data-nosnippet>546</a>    deserialize_encrypted_output, deserialize_keypair, deserialize_signed_data,
 <a href=#547 id=547 data-nosnippet>547</a>    serialize_encrypted_output, serialize_keypair, serialize_signed_data,

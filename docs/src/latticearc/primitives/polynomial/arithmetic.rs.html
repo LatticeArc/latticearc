@@ -10,7 +10,7 @@
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a></span><span class="doccomment">/// Modular exponentiation.
 <a href=#12 id=12 data-nosnippet>12</a>///
-<a href=#13 id=13 data-nosnippet>13</a>/// Round-26 audit fix (L22): added a debug-assert precondition that
+<a href=#13 id=13 data-nosnippet>13</a>/// added a debug-assert precondition that
 <a href=#14 id=14 data-nosnippet>14</a>/// `modulus &gt; 0`. The `i64` parameter type lets callers pass a
 <a href=#15 id=15 data-nosnippet>15</a>/// negative or zero modulus, which (a) panics on `base %= modulus`
 <a href=#16 id=16 data-nosnippet>16</a>/// when `modulus == 0`, and (b) produces undefined-by-convention
@@ -70,7 +70,7 @@
 <a href=#70 id=70 data-nosnippet>70</a>        x += m;
 <a href=#71 id=71 data-nosnippet>71</a>    }
 <a href=#72 id=72 data-nosnippet>72</a>
-<a href=#73 id=73 data-nosnippet>73</a>    <span class="comment">// Round-26 audit fix (L21): tighten post-check to `a != 1`.
+<a href=#73 id=73 data-nosnippet>73</a>    <span class="comment">// tighten post-check to `a != 1`.
 <a href=#74 id=74 data-nosnippet>74</a>    // The previous `a &gt; 1` check let `a == 0` (i.e. `gcd(input, m) == m`,
 <a href=#75 id=75 data-nosnippet>75</a>    // which means the inverse doesn't exist) slip through with `Ok(x)`,
 <a href=#76 id=76 data-nosnippet>76</a>    // returning garbage. `a == 1` is the unique correct termination

@@ -483,7 +483,7 @@
 <a href=#483 id=483 data-nosnippet>483</a>    <span class="comment">// Compute CMAC regardless of tag length validation (timing-safe)
 <a href=#484 id=484 data-nosnippet>484</a>    </span><span class="kw">let </span>expected_tag_result = cmac_128(key, data);
 <a href=#485 id=485 data-nosnippet>485</a>
-<a href=#486 id=486 data-nosnippet>486</a>    <span class="comment">// Round-20 audit fix #23: maintain constant-time-comparison work
+<a href=#486 id=486 data-nosnippet>486</a>    <span class="comment">// maintain constant-time-comparison work
 <a href=#487 id=487 data-nosnippet>487</a>    // even on the Err path so the function signature is uniform across
 <a href=#488 id=488 data-nosnippet>488</a>    // all inputs. The discriminator (key length) is public/structural,
 <a href=#489 id=489 data-nosnippet>489</a>    // so this is hardening rather than a confidentiality fix — but it
@@ -492,7 +492,7 @@
 <a href=#492 id=492 data-nosnippet>492</a>        <span class="kw">let </span>tags_match: bool = cmac.tag.ct_eq(tag).into();
 <a href=#493 id=493 data-nosnippet>493</a>        tag_valid &amp; tags_match
 <a href=#494 id=494 data-nosnippet>494</a>    } <span class="kw">else </span>{
-<a href=#495 id=495 data-nosnippet>495</a>        <span class="comment">// Round-26 audit fix (M7): the previous "dummy CT work" two
+<a href=#495 id=495 data-nosnippet>495</a>        <span class="comment">// the previous "dummy CT work" two
 <a href=#496 id=496 data-nosnippet>496</a>        // ct_eq calls did NOT equalize timing — the Ok arm runs a full
 <a href=#497 id=497 data-nosnippet>497</a>        // CMAC computation (subkey derivation + AES rounds across the
 <a href=#498 id=498 data-nosnippet>498</a>        // entire data buffer) plus one ct_eq, while the Err arm
@@ -1078,7 +1078,7 @@
 <a href=#1078 id=1078 data-nosnippet>1078</a>        }
 <a href=#1079 id=1079 data-nosnippet>1079</a>    }
 <a href=#1080 id=1080 data-nosnippet>1080</a>
-<a href=#1081 id=1081 data-nosnippet>1081</a>    <span class="doccomment">/// Round-27 L2 (Pattern 14): `CmacError::ComputationError` is a
+<a href=#1081 id=1081 data-nosnippet>1081</a>    <span class="doccomment">/// `CmacError::ComputationError` is a
 <a href=#1082 id=1082 data-nosnippet>1082</a>    /// fail-closed defence-in-depth variant. Both production paths that
 <a href=#1083 id=1083 data-nosnippet>1083</a>    /// emit it (`AES key init failed` and `Block N out of bounds`) are
 <a href=#1084 id=1084 data-nosnippet>1084</a>    /// structurally unreachable — key length is validated to 16/24/32 at

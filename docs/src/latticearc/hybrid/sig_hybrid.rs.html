@@ -494,7 +494,7 @@
 <a href=#494 id=494 data-nosnippet>494</a>    // state; failures here indicate a programmer / storage bug, but keep the
 <a href=#495 id=495 data-nosnippet>495</a>    // public error uniform to avoid exposing upstream detail.
 <a href=#496 id=496 data-nosnippet>496</a>    //
-<a href=#497 id=497 data-nosnippet>497</a>    // Round-13 audit fix (M-4-followup): the round-12 attempt at this
+<a href=#497 id=497 data-nosnippet>497</a>    // the round-12 attempt at this
 <a href=#498 id=498 data-nosnippet>498</a>    // wrapped the clone in `Zeroizing&lt;Vec&lt;u8&gt;&gt;` but then immediately
 <a href=#499 id=499 data-nosnippet>499</a>    // re-cloned to pass into `MlDsaSecretKey::new(... Vec&lt;u8&gt;)`,
 <a href=#500 id=500 data-nosnippet>500</a>    // creating a second bare copy that would leak on the `new()` error
@@ -523,7 +523,7 @@
 <a href=#523 id=523 data-nosnippet>523</a>            <span class="macro">log_crypto_operation_error!</span>(op::HYBRID_SIGN, <span class="string">"Ed25519 SK init failed"</span>);
 <a href=#524 id=524 data-nosnippet>524</a>            HybridSignatureError::Ed25519Error(<span class="string">"signing failed"</span>.to_string())
 <a href=#525 id=525 data-nosnippet>525</a>        })<span class="question-mark">?</span>;
-<a href=#526 id=526 data-nosnippet>526</a>    <span class="comment">// Round-26 audit fix (H4): `Ed25519KeyPair::sign` is now fallible
+<a href=#526 id=526 data-nosnippet>526</a>    <span class="comment">// `Ed25519KeyPair::sign` is now fallible
 <a href=#527 id=527 data-nosnippet>527</a>    // (validate_signature_size). Message length is already gated by
 <a href=#528 id=528 data-nosnippet>528</a>    // the hybrid sig API above; this `?` is the boundary safety net.
 <a href=#529 id=529 data-nosnippet>529</a>    </span><span class="kw">let </span>ed25519_signature = ed25519_keypair.sign(message).map_err(|_e| {
@@ -620,7 +620,7 @@
 <a href=#620 id=620 data-nosnippet>620</a>            MlDsaSignature::from_bytes(pq_sig_bytes, pk.parameter_set)
 <a href=#621 id=621 data-nosnippet>621</a>                .map(|parsed_sig| (parsed_pk, parsed_sig))
 <a href=#622 id=622 data-nosnippet>622</a>        });
-<a href=#623 id=623 data-nosnippet>623</a>    <span class="comment">// Round-26 audit fix (H3): the previous shape was
+<a href=#623 id=623 data-nosnippet>623</a>    <span class="comment">// the previous shape was
 <a href=#624 id=624 data-nosnippet>624</a>    //   `Ok(parsed) =&gt; parsed.verify(...)`,
 <a href=#625 id=625 data-nosnippet>625</a>    //   `Err(_) =&gt; dummy.verify(...)`.
 <a href=#626 id=626 data-nosnippet>626</a>    // But `MlDsaPublicKey::verify` internally calls
@@ -633,7 +633,7 @@
 <a href=#633 id=633 data-nosnippet>633</a>    // Now: ANY path that doesn't reach a successful real verify falls
 <a href=#634 id=634 data-nosnippet>634</a>    // through to the dummy verify so the wall-clock cost is equal
 <a href=#635 id=635 data-nosnippet>635</a>    // across all reject reasons.
-<a href=#636 id=636 data-nosnippet>636</a>    // Round-29 L6: pre-parsed material now goes through `parsed_or_init()`
+<a href=#636 id=636 data-nosnippet>636</a>    // pre-parsed material now goes through `parsed_or_init()`
 <a href=#637 id=637 data-nosnippet>637</a>    // which retries init when prior attempts produced None. The result is
 <a href=#638 id=638 data-nosnippet>638</a>    // a clone (cheap — public bytes only); we own it locally.
 <a href=#639 id=639 data-nosnippet>639</a>    </span><span class="kw">let </span>dummy_parsed = dummy.parsed_or_init();
@@ -684,7 +684,7 @@
 <a href=#684 id=684 data-nosnippet>684</a>            <span class="number">0u8
 <a href=#685 id=685 data-nosnippet>685</a>        </span>};
 <a href=#686 id=686 data-nosnippet>686</a>
-<a href=#687 id=687 data-nosnippet>687</a>    <span class="comment">// Round-29 M1: the Ed25519 leg now has a real verify-time
+<a href=#687 id=687 data-nosnippet>687</a>    <span class="comment">// the Ed25519 leg now has a real verify-time
 <a href=#688 id=688 data-nosnippet>688</a>    // equalizer. The previous shape claimed parse cost was "in the
 <a href=#689 id=689 data-nosnippet>689</a>    // same order of magnitude as verify" — empirically wrong (parse
 <a href=#690 id=690 data-nosnippet>690</a>    // is a 64-byte length check, verify is one EC scalar mul; ~3

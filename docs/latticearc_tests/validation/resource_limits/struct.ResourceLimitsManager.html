@@ -23,7 +23,7 @@
 <h5 id="errors-5"><a class="doc-anchor" href="#errors-5">§</a>Errors</h5>
 <p>Returns an error if the size exceeds the maximum allowed decryption size in bytes.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.validate_aad_size" class="method"><a class="src rightside" href="../../../src/latticearc/primitives/resource_limits.rs.html#214">Source</a><h4 class="code-header">pub fn <a href="#method.validate_aad_size" class="fn">validate_aad_size</a>(&amp;self, size: <a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.usize.html">usize</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.93.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.unit.html">()</a>, <a class="enum" href="enum.ResourceError.html" title="enum latticearc_tests::validation::resource_limits::ResourceError">ResourceError</a>&gt;</h4></section></summary><div class="docblock"><p>Validates that the AEAD AAD size does not exceed the configured limit.</p>
-<p>Round-26 audit fix (H8): AEAD MACs run linear time over the AAD,
+<p>AEAD MACs run linear time over the AAD,
 so an attacker-controlled AAD bypasses the plaintext/ciphertext
 caps and turns into a CPU-amplification DoS. Every AEAD encrypt
 and decrypt entrypoint must call this before passing AAD to the

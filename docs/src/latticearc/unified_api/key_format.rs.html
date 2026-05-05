@@ -69,7 +69,7 @@
 <a href=#69 id=69 data-nosnippet>69</a>
 <a href=#70 id=70 data-nosnippet>70</a></span><span class="doccomment">/// Current version of the encrypted-key envelope schema.
 <a href=#71 id=71 data-nosnippet>71</a>///
-<a href=#72 id=72 data-nosnippet>72</a>/// Round-26 audit fix (M8): bumped from `1` to `2` to mark the AAD
+<a href=#72 id=72 data-nosnippet>72</a>/// bumped from `1` to `2` to mark the AAD
 <a href=#73 id=73 data-nosnippet>73</a>/// label change introduced by round-24's metadata-binding fix
 <a href=#74 id=74 data-nosnippet>74</a>/// (`lpk-v1-enc` → `lpk-v2-enc`). Pre-fix v1 envelopes have the same
 <a href=#75 id=75 data-nosnippet>75</a>/// `enc: 1` field but a different AEAD AAD; decrypting them with v2
@@ -88,7 +88,7 @@
 <a href=#88 id=88 data-nosnippet>88</a></span><span class="kw">const </span>PBKDF2_MIN_ITERATIONS: u32 = <span class="number">100_000</span>;
 <a href=#89 id=89 data-nosnippet>89</a><span class="doccomment">/// PBKDF2 maximum iteration count accepted when loading an encrypted key.
 <a href=#90 id=90 data-nosnippet>90</a>///
-<a href=#91 id=91 data-nosnippet>91</a>/// Round-11 audit fix: an attacker-supplied envelope with `kdf_iterations =
+<a href=#91 id=91 data-nosnippet>91</a>/// an attacker-supplied envelope with `kdf_iterations =
 <a href=#92 id=92 data-nosnippet>92</a>/// u32::MAX` (4.3 billion) would force tens of minutes of HMAC-SHA256 work
 <a href=#93 id=93 data-nosnippet>93</a>/// per decrypt attempt, denying service to the legitimate keyholder. This
 <a href=#94 id=94 data-nosnippet>94</a>/// upper bound is two orders of magnitude above the OWASP-2023
@@ -1254,7 +1254,7 @@
 <a href=#1254 id=1254 data-nosnippet>1254</a>        // ends, regardless of which downstream branch we take.
 <a href=#1255 id=1255 data-nosnippet>1255</a>        </span><span class="kw">let </span>(ml_kem_sk, ecdh_seed_vec) = <span class="self">self</span>.key_data.decode_composite_zeroized()<span class="question-mark">?</span>;
 <a href=#1256 id=1256 data-nosnippet>1256</a>
-<a href=#1257 id=1257 data-nosnippet>1257</a>        <span class="comment">// Round-29 M2: derive the ML-KEM public key from the SK
+<a href=#1257 id=1257 data-nosnippet>1257</a>        <span class="comment">// derive the ML-KEM public key from the SK
 <a href=#1258 id=1258 data-nosnippet>1258</a>        // bytes' embedded layout (FIPS 203 §6.1) rather than trusting
 <a href=#1259 id=1259 data-nosnippet>1259</a>        // the unauthenticated `ml_kem_pk` metadata field. The PK
 <a href=#1260 id=1260 data-nosnippet>1260</a>        // metadata, when present, was used as load-time input to
@@ -1671,7 +1671,7 @@
 <a href=#1671 id=1671 data-nosnippet>1671</a>
 <a href=#1672 id=1672 data-nosnippet>1672</a>    </span><span class="doccomment">/// Create a `PortableKey` from raw symmetric key bytes.
 <a href=#1673 id=1673 data-nosnippet>1673</a>    ///
-<a href=#1674 id=1674 data-nosnippet>1674</a>    /// Round-29 H4: now requires `security_level: SecurityLevel`. The
+<a href=#1674 id=1674 data-nosnippet>1674</a>    /// now requires `security_level: SecurityLevel`. The
 <a href=#1675 id=1675 data-nosnippet>1675</a>    /// previous signature produced a `PortableKey` with both
 <a href=#1676 id=1676 data-nosnippet>1676</a>    /// `use_case = None` AND `security_level = None`, which the
 <a href=#1677 id=1677 data-nosnippet>1677</a>    /// invariant check at deserialization (`from_json` / `from_cbor`)
@@ -1774,7 +1774,7 @@
 <a href=#1774 id=1774 data-nosnippet>1774</a>                <span class="kw">let </span>classical_bytes = BASE64_ENGINE.decode(classical).map_err(|e| {
 <a href=#1775 id=1775 data-nosnippet>1775</a>                    CoreError::SerializationError(<span class="macro">format!</span>(<span class="string">"Invalid classical base64: {e}"</span>))
 <a href=#1776 id=1776 data-nosnippet>1776</a>                })<span class="question-mark">?</span>;
-<a href=#1777 id=1777 data-nosnippet>1777</a>                <span class="comment">// Round-29 N3: validate component sizes for hybrid keys.
+<a href=#1777 id=1777 data-nosnippet>1777</a>                <span class="comment">// validate component sizes for hybrid keys.
 <a href=#1778 id=1778 data-nosnippet>1778</a>                // The composite arm previously only verified that
 <a href=#1779 id=1779 data-nosnippet>1779</a>                // base64 decoded — a truncated PQ component or a
 <a href=#1780 id=1780 data-nosnippet>1780</a>                // wrong-level keyfile slipped past `validate()` and
@@ -1821,7 +1821,7 @@
 <a href=#1821 id=1821 data-nosnippet>1821</a>        nonce: <span class="kw-2">&amp;</span>str,
 <a href=#1822 id=1822 data-nosnippet>1822</a>        ciphertext: <span class="kw-2">&amp;</span>str,
 <a href=#1823 id=1823 data-nosnippet>1823</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#1824 id=1824 data-nosnippet>1824</a>        <span class="comment">// Round-26 audit fix (M8): emit a distinct error for the v1
+<a href=#1824 id=1824 data-nosnippet>1824</a>        <span class="comment">// emit a distinct error for the v1
 <a href=#1825 id=1825 data-nosnippet>1825</a>        // → v2 transition so users know to re-encrypt rather than
 <a href=#1826 id=1826 data-nosnippet>1826</a>        // chase a passphrase that was already correct (the v1 AAD
 <a href=#1827 id=1827 data-nosnippet>1827</a>        // doesn't match the v2 verifier; AEAD authentication fails
@@ -1855,7 +1855,7 @@
 <a href=#1855 id=1855 data-nosnippet>1855</a>            )));
 <a href=#1856 id=1856 data-nosnippet>1856</a>        }
 <a href=#1857 id=1857 data-nosnippet>1857</a>        <span class="kw">if </span>kdf_iterations &gt; PBKDF2_MAX_ITERATIONS {
-<a href=#1858 id=1858 data-nosnippet>1858</a>            <span class="comment">// Round-11 audit fix: reject adversary-supplied envelopes with
+<a href=#1858 id=1858 data-nosnippet>1858</a>            <span class="comment">// reject adversary-supplied envelopes with
 <a href=#1859 id=1859 data-nosnippet>1859</a>            // pathological `kdf_iterations` before any HMAC-SHA256 rounds run.
 <a href=#1860 id=1860 data-nosnippet>1860</a>            </span><span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::InvalidKey(<span class="macro">format!</span>(
 <a href=#1861 id=1861 data-nosnippet>1861</a>                <span class="string">"PBKDF2 iteration count {kdf_iterations} exceeds maximum {PBKDF2_MAX_ITERATIONS}"</span>,
@@ -2271,7 +2271,7 @@
 <a href=#2271 id=2271 data-nosnippet>2271</a>                .saturating_add(<span class="number">4</span>) <span class="comment">// metadata len
 <a href=#2272 id=2272 data-nosnippet>2272</a>                </span>.saturating_add(metadata_bytes.len()),
 <a href=#2273 id=2273 data-nosnippet>2273</a>        );
-<a href=#2274 id=2274 data-nosnippet>2274</a>        <span class="comment">// Round-29 H3: bumped to v3 to mark the AAD canonicalization
+<a href=#2274 id=2274 data-nosnippet>2274</a>        <span class="comment">// bumped to v3 to mark the AAD canonicalization
 <a href=#2275 id=2275 data-nosnippet>2275</a>        // fix. The previous v2 layout omitted the null terminator after
 <a href=#2276 id=2276 data-nosnippet>2276</a>        // the `aead` string field while every other string field
 <a href=#2277 id=2277 data-nosnippet>2277</a>        // (label, algorithm_name, key_type_name, kdf) had one — the
@@ -2293,7 +2293,7 @@
 <a href=#2293 id=2293 data-nosnippet>2293</a>        aad.extend_from_slice(kdf.as_bytes());
 <a href=#2294 id=2294 data-nosnippet>2294</a>        aad.push(<span class="number">0</span>);
 <a href=#2295 id=2295 data-nosnippet>2295</a>        aad.extend_from_slice(<span class="kw-2">&amp;</span>kdf_iterations.to_be_bytes());
-<a href=#2296 id=2296 data-nosnippet>2296</a>        <span class="comment">// Round-28 H5: round-26 L1/L2 collapsed `unwrap_or(u32::MAX)`
+<a href=#2296 id=2296 data-nosnippet>2296</a>        <span class="comment">// round-26 L1/L2 collapsed `unwrap_or(u32::MAX)`
 <a href=#2297 id=2297 data-nosnippet>2297</a>        // saturation at four other length-prefix sites; this one was
 <a href=#2298 id=2298 data-nosnippet>2298</a>        // missed. Saturation collapses every `&gt;4 GiB` salt onto the same
 <a href=#2299 id=2299 data-nosnippet>2299</a>        // length prefix, leading to an AAD canonicalization collision.
@@ -2307,7 +2307,7 @@
 <a href=#2307 id=2307 data-nosnippet>2307</a>        aad.extend_from_slice(<span class="kw-2">&amp;</span>salt_len_u32.to_be_bytes());
 <a href=#2308 id=2308 data-nosnippet>2308</a>        aad.extend_from_slice(kdf_salt);
 <a href=#2309 id=2309 data-nosnippet>2309</a>        aad.extend_from_slice(aead.as_bytes());
-<a href=#2310 id=2310 data-nosnippet>2310</a>        <span class="comment">// Round-29 H3: null terminator after `aead` to match every
+<a href=#2310 id=2310 data-nosnippet>2310</a>        <span class="comment">// null terminator after `aead` to match every
 <a href=#2311 id=2311 data-nosnippet>2311</a>        // other string field. Without it, a hypothetical
 <a href=#2312 id=2312 data-nosnippet>2312</a>        // (aead="ChaCha20Poly1305", metadata_len=N) pair could
 <a href=#2313 id=2313 data-nosnippet>2313</a>        // canonicalize identically to (aead="ChaCha20", metadata_len=
@@ -2423,7 +2423,7 @@
 <a href=#2423 id=2423 data-nosnippet>2423</a>        <span class="prelude-val">Ok</span>(())
 <a href=#2424 id=2424 data-nosnippet>2424</a>    }
 <a href=#2425 id=2425 data-nosnippet>2425</a>
-<a href=#2426 id=2426 data-nosnippet>2426</a>    <span class="doccomment">/// Round-29 N3: bound the composite key component lengths against
+<a href=#2426 id=2426 data-nosnippet>2426</a>    <span class="doccomment">/// bound the composite key component lengths against
 <a href=#2427 id=2427 data-nosnippet>2427</a>    /// the expected sizes for the (algorithm, key_type) pair. The
 <a href=#2428 id=2428 data-nosnippet>2428</a>    /// classical leg is always 32 bytes (X25519 / Ed25519); the PQ leg
 <a href=#2429 id=2429 data-nosnippet>2429</a>    /// has algorithm- and key-type-dependent sizes.
@@ -2506,7 +2506,7 @@
 <a href=#2506 id=2506 data-nosnippet>2506</a>    ///                        the creator and break key-distribution
 <a href=#2507 id=2507 data-nosnippet>2507</a>    ///                        flows.
 <a href=#2508 id=2508 data-nosnippet>2508</a>    ///
-<a href=#2509 id=2509 data-nosnippet>2509</a>    /// Round-9 audit fix #4: lifted out of `write_to_file_with_overwrite`
+<a href=#2509 id=2509 data-nosnippet>2509</a>    /// lifted out of `write_to_file_with_overwrite`
 <a href=#2510 id=2510 data-nosnippet>2510</a>    /// so the JSON and CBOR write paths share one source of truth for
 <a href=#2511 id=2511 data-nosnippet>2511</a>    /// mode selection. Drift between the two would silently regress the
 <a href=#2512 id=2512 data-nosnippet>2512</a>    /// secret-key threat model.
@@ -2589,7 +2589,7 @@
 <a href=#2589 id=2589 data-nosnippet>2589</a>    /// # Errors
 <a href=#2590 id=2590 data-nosnippet>2590</a>    /// Returns an error if the JSON is invalid or the algorithm is unrecognized.
 <a href=#2591 id=2591 data-nosnippet>2591</a>    </span><span class="kw">pub fn </span>from_legacy_json(json: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-<a href=#2592 id=2592 data-nosnippet>2592</a>        <span class="comment">// Round-11 audit fix: parallel `from_json` enforces a 1 MiB size
+<a href=#2592 id=2592 data-nosnippet>2592</a>        <span class="comment">// parallel `from_json` enforces a 1 MiB size
 <a href=#2593 id=2593 data-nosnippet>2593</a>        // guard before parsing to prevent memory exhaustion from
 <a href=#2594 id=2594 data-nosnippet>2594</a>        // maliciously crafted payloads. The legacy path was missing this
 <a href=#2595 id=2595 data-nosnippet>2595</a>        // check, leaving a DoS vector when migrating older keyfiles.
@@ -2998,7 +2998,7 @@
 <a href=#2998 id=2998 data-nosnippet>2998</a>        </span><span class="kw">let </span>metadata_json = serde_json::to_vec(<span class="kw-2">&amp;</span>metadata).unwrap();
 <a href=#2999 id=2999 data-nosnippet>2999</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>metadata_json, <span class="string">b"{}"</span>);
 <a href=#3000 id=3000 data-nosnippet>3000</a>
-<a href=#3001 id=3001 data-nosnippet>3001</a>        <span class="comment">// Round-29 H3: label bumped v2 → v3 and `aead` field gains a
+<a href=#3001 id=3001 data-nosnippet>3001</a>        <span class="comment">// label bumped v2 → v3 and `aead` field gains a
 <a href=#3002 id=3002 data-nosnippet>3002</a>        // null terminator (matching every other string field). Any
 <a href=#3003 id=3003 data-nosnippet>3003</a>        // future drift will fail this pin; deliberate format changes
 <a href=#3004 id=3004 data-nosnippet>3004</a>        // require updating the expected bytes here AND bumping the

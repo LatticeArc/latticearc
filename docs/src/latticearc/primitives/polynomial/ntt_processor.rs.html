@@ -57,7 +57,7 @@
 <a href=#57 id=57 data-nosnippet>57</a>    </span><span class="kw">fn </span>find_primitive_root(n: usize, modulus: i64) -&gt; <span class="prelude-ty">Result</span>&lt;i32&gt; {
 <a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">match </span>(n, modulus) {
 <a href=#59 id=59 data-nosnippet>59</a>            (<span class="number">256</span>, <span class="number">3329</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="number">17</span>), <span class="comment">// ML-KEM (Kyber) — q = 3329
-<a href=#60 id=60 data-nosnippet>60</a>            // Round-26 audit fix (M3) + Round-28 M4 comment cleanup: the
+<a href=#60 id=60 data-nosnippet>60</a>            // the
 <a href=#61 id=61 data-nosnippet>61</a>            // table previously listed 49 for BOTH (512, 12289) and
 <a href=#62 id=62 data-nosnippet>62</a>            // (1024, 12289), which is wrong for the n=512 entry. The
 <a href=#63 id=63 data-nosnippet>63</a>            // arithmetic that explains why:
@@ -89,7 +89,7 @@
 <a href=#89 id=89 data-nosnippet>89</a>    ///   - `root^N ≡ 1 (mod modulus)`
 <a href=#90 id=90 data-nosnippet>90</a>    ///   - `root^(N/2) ≡ -1 (mod modulus)` (i.e. `modulus - 1`)
 <a href=#91 id=91 data-nosnippet>91</a>    ///
-<a href=#92 id=92 data-nosnippet>92</a>    /// Round-26 audit fix (M3): catches table copy-paste errors that
+<a href=#92 id=92 data-nosnippet>92</a>    /// catches table copy-paste errors that
 <a href=#93 id=93 data-nosnippet>93</a>    /// would silently produce wrong NTT outputs. Called from
 <a href=#94 id=94 data-nosnippet>94</a>    /// `NttProcessor::new` immediately after `find_primitive_root`.
 <a href=#95 id=95 data-nosnippet>95</a>    </span><span class="kw">fn </span>validate_primitive_root(n: usize, modulus: i64, root: i32) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
@@ -155,7 +155,7 @@
 <a href=#155 id=155 data-nosnippet>155</a>            ));
 <a href=#156 id=156 data-nosnippet>156</a>        }
 <a href=#157 id=157 data-nosnippet>157</a>
-<a href=#158 id=158 data-nosnippet>158</a>        <span class="comment">// Round-29 L2: `mod_mul` casts the i64 product through `as i32`
+<a href=#158 id=158 data-nosnippet>158</a>        <span class="comment">// `mod_mul` casts the i64 product through `as i32`
 <a href=#159 id=159 data-nosnippet>159</a>        // (line 254). For the supported lattice parameter sets (3329 and
 <a href=#160 id=160 data-nosnippet>160</a>        // 12289) this is safe — both fit comfortably in i32 — but a
 <a href=#161 id=161 data-nosnippet>161</a>        // future caller passing a modulus above i32::MAX would silently
@@ -172,7 +172,7 @@
 <a href=#172 id=172 data-nosnippet>172</a>        <span class="comment">// Find primitive NTT root of unity
 <a href=#173 id=173 data-nosnippet>173</a>        </span><span class="kw">let </span>primitive_root = <span class="self">Self</span>::find_primitive_root(n, modulus)<span class="question-mark">?</span>;
 <a href=#174 id=174 data-nosnippet>174</a>
-<a href=#175 id=175 data-nosnippet>175</a>        <span class="comment">// Round-26 audit fix (M3): self-check the chosen root before
+<a href=#175 id=175 data-nosnippet>175</a>        <span class="comment">// self-check the chosen root before
 <a href=#176 id=176 data-nosnippet>176</a>        // burning O(N) work into precomputed twiddles based on a
 <a href=#177 id=177 data-nosnippet>177</a>        // possibly-corrupted table entry.
 <a href=#178 id=178 data-nosnippet>178</a>        </span><span class="self">Self</span>::validate_primitive_root(n, modulus, primitive_root)<span class="question-mark">?</span>;

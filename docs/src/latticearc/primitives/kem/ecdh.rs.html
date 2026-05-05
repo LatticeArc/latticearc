@@ -429,7 +429,7 @@
 <a href=#429 id=429 data-nosnippet>429</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Zeroizing&lt;[u8; X25519_KEY_SIZE]&gt;, EcdhError&gt; {
 <a href=#430 id=430 data-nosnippet>430</a>        <span class="comment">// Reject low-order peer keys before reaching aws-lc-rs.
 <a href=#431 id=431 data-nosnippet>431</a>        // `from_bytes` enforces the 7-point blacklist (RFC 7748 §6.1).
-<a href=#432 id=432 data-nosnippet>432</a>        // Round-26 audit fix (L17): the validated bytes are explicitly
+<a href=#432 id=432 data-nosnippet>432</a>        // the validated bytes are explicitly
 <a href=#433 id=433 data-nosnippet>433</a>        // documented as the source the aws-lc-rs primitive consumes —
 <a href=#434 id=434 data-nosnippet>434</a>        // `from_bytes` does not transform the bytes (X25519 PKs are
 <a href=#435 id=435 data-nosnippet>435</a>        // their own canonical form modulo the low-order check) so
@@ -793,7 +793,7 @@
 <a href=#793 id=793 data-nosnippet>793</a>    /// # Errors
 <a href=#794 id=794 data-nosnippet>794</a>    /// Returns an error if key agreement fails (e.g., invalid peer public key).
 <a href=#795 id=795 data-nosnippet>795</a>    </span><span class="kw">pub fn </span>agree(<span class="self">self</span>, peer_public_bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Zeroizing&lt;Vec&lt;u8&gt;&gt;, EcdhError&gt; {
-<a href=#796 id=796 data-nosnippet>796</a>        <span class="comment">// Round-28 H2: route the peer key through the LatticeArc-side
+<a href=#796 id=796 data-nosnippet>796</a>        <span class="comment">// route the peer key through the LatticeArc-side
 <a href=#797 id=797 data-nosnippet>797</a>        // validator before delegating to aws-lc-rs `agree_ephemeral`.
 <a href=#798 id=798 data-nosnippet>798</a>        // aws-lc-rs already performs curve-point validation, but its
 <a href=#799 id=799 data-nosnippet>799</a>        // error wording is version-volatile and the all-zero-coordinate
@@ -874,7 +874,7 @@
 <a href=#874 id=874 data-nosnippet>874</a>    /// # Errors
 <a href=#875 id=875 data-nosnippet>875</a>    /// Returns an error if point validation fails.
 <a href=#876 id=876 data-nosnippet>876</a>    </span><span class="kw">pub fn </span>validate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), EcdhError&gt; {
-<a href=#877 id=877 data-nosnippet>877</a>        <span class="comment">// Round-26 L18: defense-in-depth all-zero check mirrors P-256.
+<a href=#877 id=877 data-nosnippet>877</a>        <span class="comment">// defense-in-depth all-zero check mirrors P-256.
 <a href=#878 id=878 data-nosnippet>878</a>        // Length and `0x04` prefix are guaranteed by `Self::from_bytes`
 <a href=#879 id=879 data-nosnippet>879</a>        // (the only public constructor); see the matching comment on
 <a href=#880 id=880 data-nosnippet>880</a>        // `EcdhP256PublicKey::validate`.
@@ -947,7 +947,7 @@
 <a href=#947 id=947 data-nosnippet>947</a>    /// # Errors
 <a href=#948 id=948 data-nosnippet>948</a>    /// Returns an error if key agreement fails (e.g., invalid peer public key).
 <a href=#949 id=949 data-nosnippet>949</a>    </span><span class="kw">pub fn </span>agree(<span class="self">self</span>, peer_public_bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Zeroizing&lt;Vec&lt;u8&gt;&gt;, EcdhError&gt; {
-<a href=#950 id=950 data-nosnippet>950</a>        <span class="comment">// Round-28 H2: validate before delegating — see EcdhP256KeyPair::agree.
+<a href=#950 id=950 data-nosnippet>950</a>        <span class="comment">// validate before delegating — see EcdhP256KeyPair::agree.
 <a href=#951 id=951 data-nosnippet>951</a>        </span>EcdhP384PublicKey::from_bytes(peer_public_bytes)<span class="question-mark">?</span>.validate()<span class="question-mark">?</span>;
 <a href=#952 id=952 data-nosnippet>952</a>        <span class="kw">let </span>peer_public = UnparsedPublicKey::new(<span class="kw-2">&amp;</span>ECDH_P384, peer_public_bytes);
 <a href=#953 id=953 data-nosnippet>953</a>
@@ -1022,7 +1022,7 @@
 <a href=#1022 id=1022 data-nosnippet>1022</a>    /// # Errors
 <a href=#1023 id=1023 data-nosnippet>1023</a>    /// Returns an error if point validation fails.
 <a href=#1024 id=1024 data-nosnippet>1024</a>    </span><span class="kw">pub fn </span>validate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), EcdhError&gt; {
-<a href=#1025 id=1025 data-nosnippet>1025</a>        <span class="comment">// Round-26 L18: defense-in-depth all-zero check mirrors P-256
+<a href=#1025 id=1025 data-nosnippet>1025</a>        <span class="comment">// defense-in-depth all-zero check mirrors P-256
 <a href=#1026 id=1026 data-nosnippet>1026</a>        // / P-384. Length and `0x04` prefix are guaranteed by
 <a href=#1027 id=1027 data-nosnippet>1027</a>        // `Self::from_bytes` (the only public constructor); see the
 <a href=#1028 id=1028 data-nosnippet>1028</a>        // matching comment on `EcdhP256PublicKey::validate`.
@@ -1095,7 +1095,7 @@
 <a href=#1095 id=1095 data-nosnippet>1095</a>    /// # Errors
 <a href=#1096 id=1096 data-nosnippet>1096</a>    /// Returns an error if key agreement fails (e.g., invalid peer public key).
 <a href=#1097 id=1097 data-nosnippet>1097</a>    </span><span class="kw">pub fn </span>agree(<span class="self">self</span>, peer_public_bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Zeroizing&lt;Vec&lt;u8&gt;&gt;, EcdhError&gt; {
-<a href=#1098 id=1098 data-nosnippet>1098</a>        <span class="comment">// Round-28 H2: validate before delegating — see EcdhP256KeyPair::agree.
+<a href=#1098 id=1098 data-nosnippet>1098</a>        <span class="comment">// validate before delegating — see EcdhP256KeyPair::agree.
 <a href=#1099 id=1099 data-nosnippet>1099</a>        </span>EcdhP521PublicKey::from_bytes(peer_public_bytes)<span class="question-mark">?</span>.validate()<span class="question-mark">?</span>;
 <a href=#1100 id=1100 data-nosnippet>1100</a>        <span class="kw">let </span>peer_public = UnparsedPublicKey::new(<span class="kw-2">&amp;</span>ECDH_P521, peer_public_bytes);
 <a href=#1101 id=1101 data-nosnippet>1101</a>

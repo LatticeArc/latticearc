@@ -377,7 +377,7 @@
 <a href=#377 id=377 data-nosnippet>377</a>/// allows 10 MiB + base64 expansion + envelope overhead) and well below
 <a href=#378 id=378 data-nosnippet>378</a>/// the bands that would let a single inbound JSON payload exhaust a
 <a href=#379 id=379 data-nosnippet>379</a>/// process's working set on a typical 8 GiB server.
-<a href=#380 id=380 data-nosnippet>380</a></span><span class="comment">// Round-29 L5: 16 MiB was too generous — it sat above the per-field
+<a href=#380 id=380 data-nosnippet>380</a></span><span class="comment">// 16 MiB was too generous — it sat above the per-field
 <a href=#381 id=381 data-nosnippet>381</a>// 10 MiB cap (line 290) plus base64 expansion (~13.4 MiB worst case)
 <a href=#382 id=382 data-nosnippet>382</a>// plus envelope overhead, so the per-field rejection always fired
 <a href=#383 id=383 data-nosnippet>383</a>// AFTER `serde_json::from_str` already materialized the full

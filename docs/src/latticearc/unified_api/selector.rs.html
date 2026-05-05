@@ -76,7 +76,7 @@
 <a href=#76 id=76 data-nosnippet>76</a>    <span class="doccomment">/// Recommends a cryptographic scheme based on use case.
 <a href=#77 id=77 data-nosnippet>77</a>    /// All encryption use cases default to hybrid for quantum safety.
 <a href=#78 id=78 data-nosnippet>78</a>    ///
-<a href=#79 id=79 data-nosnippet>79</a>    /// Round-29 follow-up: each use case is pre-mapped to a security
+<a href=#79 id=79 data-nosnippet>79</a>    /// each use case is pre-mapped to a security
 <a href=#80 id=80 data-nosnippet>80</a>    /// level (e.g. `IoTDevice` → ML-KEM-512, `EmailEncryption` →
 <a href=#81 id=81 data-nosnippet>81</a>    /// ML-KEM-1024). The `config.security_level` is **not** used to
 <a href=#82 id=82 data-nosnippet>82</a>    /// override the use-case mapping — that's a deliberate design
@@ -95,7 +95,7 @@
 <a href=#95 id=95 data-nosnippet>95</a>    /// for future compatibility with validation logic.
 <a href=#96 id=96 data-nosnippet>96</a>    </span><span class="attr">#[must_use = <span class="string">"scheme recommendation should be used for algorithm selection"</span>]
 <a href=#97 id=97 data-nosnippet>97</a>    </span><span class="kw">pub fn </span>recommend_scheme(use_case: <span class="kw-2">&amp;</span>UseCase, config: <span class="kw-2">&amp;</span>CoreConfig) -&gt; <span class="prelude-ty">Result</span>&lt;String&gt; {
-<a href=#98 id=98 data-nosnippet>98</a>        <span class="comment">// Round-29 follow-up: surface the no-op so it's not silent.
+<a href=#98 id=98 data-nosnippet>98</a>        <span class="comment">// surface the no-op so it's not silent.
 <a href=#99 id=99 data-nosnippet>99</a>        // Default `SecurityLevel` is `High`; anything else means the
 <a href=#100 id=100 data-nosnippet>100</a>        // caller passed it explicitly and would reasonably expect it
 <a href=#101 id=101 data-nosnippet>101</a>        // to influence selection. It does not — log so the divergence

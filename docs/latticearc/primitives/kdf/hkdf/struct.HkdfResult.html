@@ -5,7 +5,7 @@ Debug output is redacted to prevent accidental key leakage in logs.</p>
 <p>Named <code>expose_secret()</code> to align with Secret Type Invariant I-6
 (universal accessor; see <code>docs/SECRET_TYPE_INVARIANTS.md</code>).</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.into_zeroizing" class="method"><a class="src rightside" href="../../../../src/latticearc/primitives/kdf/hkdf.rs.html#63-65">Source</a><h4 class="code-header">pub fn <a href="#method.into_zeroizing" class="fn">into_zeroizing</a>(self) -&gt; <a class="struct" href="../../../struct.Zeroizing.html" title="struct latticearc::Zeroizing">Zeroizing</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.93.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Consume <code>self</code> and return the inner <code>Zeroizing&lt;Vec&lt;u8&gt;&gt;</code>.</p>
-<p>Round-26 audit fix (M22): convenience callers used to do
+<p>convenience callers used to do
 <code>Zeroizing::new(result.expose_secret().to_vec())</code>, which
 allocated an un-zeroed transient <code>Vec&lt;u8&gt;</code> between the borrow
 and the wrap. This consuming accessor avoids the transient.</p>

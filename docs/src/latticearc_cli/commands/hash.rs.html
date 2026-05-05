@@ -107,7 +107,7 @@
 <a href=#107 id=107 data-nosnippet>107</a>}
 <a href=#108 id=108 data-nosnippet>108</a>
 <a href=#109 id=109 data-nosnippet>109</a><span class="kw">fn </span>read_input(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
-<a href=#110 id=110 data-nosnippet>110</a>    <span class="comment">// Round-9 audit fix #3: route through the shared helper.
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="comment">// route through the shared helper.
 <a href=#111 id=111 data-nosnippet>111</a>    </span><span class="kw">super</span>::common::read_file_or_stdin(
 <a href=#112 id=112 data-nosnippet>112</a>        path.as_deref(),
 <a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">super</span>::common::CLI_MAX_HASH_INPUT_BYTES,

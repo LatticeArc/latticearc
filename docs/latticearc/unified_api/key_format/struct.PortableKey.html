@@ -225,7 +225,7 @@ or key type is not Secret.</p>
     security_level: <a class="enum" href="../../types/types/enum.SecurityLevel.html" title="enum latticearc::types::types::SecurityLevel">SecurityLevel</a>,
     key: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>],
 ) -&gt; <a class="type" href="../error/type.Result.html" title="type latticearc::unified_api::error::Result">Result</a>&lt;Self&gt;</h4></section></summary><div class="docblock"><p>Create a <code>PortableKey</code> from raw symmetric key bytes.</p>
-<p>Round-29 H4: now requires <code>security_level: SecurityLevel</code>. The
+<p>now requires <code>security_level: SecurityLevel</code>. The
 previous signature produced a <code>PortableKey</code> with both
 <code>use_case = None</code> AND <code>security_level = None</code>, which the
 invariant check at deserialization (<code>from_json</code> / <code>from_cbor</code>)

@@ -90,7 +90,7 @@
 <a href=#90 id=90 data-nosnippet>90</a>    </span><span class="kw">pub </span>ed_pk: Vec&lt;u8&gt;,
 <a href=#91 id=91 data-nosnippet>91</a>    <span class="doccomment">/// Raw zero-byte Ed25519 signature (64 bytes).
 <a href=#92 id=92 data-nosnippet>92</a>    </span><span class="kw">pub </span>ed_sig: Vec&lt;u8&gt;,
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// Round-29 L6: pre-parsed material is now wrapped in a `Mutex&lt;Option&lt;&gt;&gt;`
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// pre-parsed material is now wrapped in a `Mutex&lt;Option&lt;&gt;&gt;`
 <a href=#94 id=94 data-nosnippet>94</a>    /// so a transient init failure (RNG hiccup, FIPS PCT) doesn't
 <a href=#95 id=95 data-nosnippet>95</a>    /// permanently degrade the equalizer for the entire process
 <a href=#96 id=96 data-nosnippet>96</a>    /// lifetime. The previous `OnceLock&lt;HybridVerifyDummy&gt;` cached
@@ -106,7 +106,7 @@
 <a href=#106 id=106 data-nosnippet>106</a>}
 <a href=#107 id=107 data-nosnippet>107</a>
 <a href=#108 id=108 data-nosnippet>108</a><span class="kw">impl </span>HybridVerifyDummy {
-<a href=#109 id=109 data-nosnippet>109</a>    <span class="doccomment">/// Round-29 L6: get the pre-parsed equalizer material, retrying
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="doccomment">/// get the pre-parsed equalizer material, retrying
 <a href=#110 id=110 data-nosnippet>110</a>    /// the keygen+sign init when previous attempts produced `None`.
 <a href=#111 id=111 data-nosnippet>111</a>    /// Returns a clone of the parsed material (the parsed struct is
 <a href=#112 id=112 data-nosnippet>112</a>    /// cheap to clone — it holds public-key bytes and a signature, no
@@ -198,7 +198,7 @@
 <a href=#198 id=198 data-nosnippet>198</a>    <span class="prelude-val">Some</span>(HybridVerifyDummyParsed { pq_pk, pq_sig, pq_test_message })
 <a href=#199 id=199 data-nosnippet>199</a>}
 <a href=#200 id=200 data-nosnippet>200</a>
-<a href=#201 id=201 data-nosnippet>201</a><span class="doccomment">/// Round-29 M1: Ed25519 timing equalizer. Pre-generated keypair +
+<a href=#201 id=201 data-nosnippet>201</a><span class="doccomment">/// Ed25519 timing equalizer. Pre-generated keypair +
 <a href=#202 id=202 data-nosnippet>202</a>/// signature whose verify cost (one EC scalar multiplication ≈ tens
 <a href=#203 id=203 data-nosnippet>203</a>/// of microseconds) matches a real Ed25519 verify. Used by
 <a href=#204 id=204 data-nosnippet>204</a>/// `sig_hybrid::verify` when the caller's Ed25519 signature bytes
@@ -296,7 +296,7 @@
 <a href=#296 id=296 data-nosnippet>296</a>            </span>[MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
 <a href=#297 id=297 data-nosnippet>297</a>        {
 <a href=#298 id=298 data-nosnippet>298</a>            <span class="kw">let </span>dummy = hybrid_verify_dummy_material(param_set);
-<a href=#299 id=299 data-nosnippet>299</a>            <span class="comment">// Round-29 L6: retrieve via the retry-on-None getter.
+<a href=#299 id=299 data-nosnippet>299</a>            <span class="comment">// retrieve via the retry-on-None getter.
 <a href=#300 id=300 data-nosnippet>300</a>            </span><span class="kw">let </span><span class="prelude-val">Some</span>(parsed) = dummy.parsed_or_init() <span class="kw">else </span>{
 <a href=#301 id=301 data-nosnippet>301</a>                <span class="macro">panic!</span>(<span class="string">"init keygen + sign must succeed under test conditions for {param_set:?}"</span>);
 <a href=#302 id=302 data-nosnippet>302</a>            };

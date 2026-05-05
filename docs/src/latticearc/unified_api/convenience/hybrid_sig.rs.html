@@ -70,7 +70,7 @@
 <a href=#70 id=70 data-nosnippet>70</a>) -&gt; <span class="prelude-ty">Result</span>&lt;HybridSignature&gt; {
 <a href=#71 id=71 data-nosnippet>71</a>    mode.validate()<span class="question-mark">?</span>;
 <a href=#72 id=72 data-nosnippet>72</a>
-<a href=#73 id=73 data-nosnippet>73</a>    <span class="comment">// Round-26 audit fix (H7): opaque ResourceExceeded — sign-side
+<a href=#73 id=73 data-nosnippet>73</a>    <span class="comment">// opaque ResourceExceeded — sign-side
 <a href=#74 id=74 data-nosnippet>74</a>    // resource-limit errors stay loud; caller controls input.
 <a href=#75 id=75 data-nosnippet>75</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(message.len()) {
 <a href=#76 id=76 data-nosnippet>76</a>        <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"hybrid sig rejected: message exceeds resource limit"</span>);
@@ -99,7 +99,7 @@
 <a href=#99 id=99 data-nosnippet>99</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
 <a href=#100 id=100 data-nosnippet>100</a>    mode.validate()<span class="question-mark">?</span>;
 <a href=#101 id=101 data-nosnippet>101</a>
-<a href=#102 id=102 data-nosnippet>102</a>    <span class="comment">// Round-26 code-review follow-up: collapse to `Ok(false)` on the
+<a href=#102 id=102 data-nosnippet>102</a>    <span class="comment">// collapse to `Ok(false)` on the
 <a href=#103 id=103 data-nosnippet>103</a>    // verify path so an adversary cannot binary-search the configured
 <a href=#104 id=104 data-nosnippet>104</a>    // cap from the Result variant.
 <a href=#105 id=105 data-nosnippet>105</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(message.len()) {
@@ -107,7 +107,7 @@
 <a href=#107 id=107 data-nosnippet>107</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
 <a href=#108 id=108 data-nosnippet>108</a>    }
 <a href=#109 id=109 data-nosnippet>109</a>
-<a href=#110 id=110 data-nosnippet>110</a>    <span class="comment">// Round-28 M1 (Pattern 6): every adversary-reachable verify failure
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="comment">// every adversary-reachable verify failure
 <a href=#111 id=111 data-nosnippet>111</a>    // collapses to `Ok(false)` here. The previous mapping went through
 <a href=#112 id=112 data-nosnippet>112</a>    // `hybrid_sig_error_to_core`, which kept distinguishable
 <a href=#113 id=113 data-nosnippet>113</a>    // `Hybrid ML-DSA error: ...` vs `Hybrid Ed25519 error: ...`
@@ -314,7 +314,7 @@
 <a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">let </span>signature = sign_hybrid_unverified(<span class="string">b"correct message"</span>, <span class="kw-2">&amp;</span>sk)<span class="question-mark">?</span>;
 <a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">let </span>result = verify_hybrid_signature_unverified(<span class="string">b"wrong message"</span>, <span class="kw-2">&amp;</span>signature, <span class="kw-2">&amp;</span>pk);
 <a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a>        <span class="comment">// Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+<a href=#317 id=317 data-nosnippet>317</a>        <span class="comment">// verify path collapses Err to Ok(false) (Pattern 6).
 <a href=#318 id=318 data-nosnippet>318</a>        </span><span class="macro">assert_eq!</span>(result.ok(), <span class="prelude-val">Some</span>(<span class="bool-val">false</span>), <span class="string">"Wrong message must yield Ok(false), not Err"</span>);
 <a href=#319 id=319 data-nosnippet>319</a>        <span class="prelude-val">Ok</span>(())
 <a href=#320 id=320 data-nosnippet>320</a>    }
@@ -328,7 +328,7 @@
 <a href=#328 id=328 data-nosnippet>328</a>        <span class="kw">let </span>signature = sign_hybrid_unverified(message, <span class="kw-2">&amp;</span>sk1)<span class="question-mark">?</span>;
 <a href=#329 id=329 data-nosnippet>329</a>        <span class="kw">let </span>result = verify_hybrid_signature_unverified(message, <span class="kw-2">&amp;</span>signature, <span class="kw-2">&amp;</span>pk2);
 <a href=#330 id=330 data-nosnippet>330</a>
-<a href=#331 id=331 data-nosnippet>331</a>        <span class="comment">// Round-28 M1: verify path collapses Err to Ok(false) (Pattern 6).
+<a href=#331 id=331 data-nosnippet>331</a>        <span class="comment">// verify path collapses Err to Ok(false) (Pattern 6).
 <a href=#332 id=332 data-nosnippet>332</a>        </span><span class="macro">assert_eq!</span>(result.ok(), <span class="prelude-val">Some</span>(<span class="bool-val">false</span>), <span class="string">"Wrong key must yield Ok(false), not Err"</span>);
 <a href=#333 id=333 data-nosnippet>333</a>        <span class="prelude-val">Ok</span>(())
 <a href=#334 id=334 data-nosnippet>334</a>    }

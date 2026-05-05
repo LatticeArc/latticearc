@@ -172,7 +172,7 @@
 <a href=#172 id=172 data-nosnippet>172</a>
 <a href=#173 id=173 data-nosnippet>173</a>    <span class="comment">// 6-9. PQ algorithm self-consistency tests.
 <a href=#174 id=174 data-nosnippet>174</a>    //
-<a href=#175 id=175 data-nosnippet>175</a>    // Round-21 audit fix #1: these were previously named `kat_*` but
+<a href=#175 id=175 data-nosnippet>175</a>    // these were previously named `kat_*` but
 <a href=#176 id=176 data-nosnippet>176</a>    // are NOT Known Answer Tests in the FIPS 140-3 §10.3.1 / CAVP
 <a href=#177 id=177 data-nosnippet>177</a>    // sense — they generate a fresh keypair (random seed) and verify
 <a href=#178 id=178 data-nosnippet>178</a>    // a roundtrip rather than comparing against precomputed test
@@ -1069,7 +1069,7 @@
 <a href=#1069 id=1069 data-nosnippet>1069</a>        <span class="kw">return </span><span class="bool-val">false</span>;
 <a href=#1070 id=1070 data-nosnippet>1070</a>    };
 <a href=#1071 id=1071 data-nosnippet>1071</a>    <span class="kw">let </span>lower = file_name.to_ascii_lowercase();
-<a href=#1072 id=1072 data-nosnippet>1072</a>    <span class="comment">// Round-26 audit fix (M12): tightened from a permissive
+<a href=#1072 id=1072 data-nosnippet>1072</a>    <span class="comment">// tightened from a permissive
 <a href=#1073 id=1073 data-nosnippet>1073</a>    // `starts_with("latticearc")` plus a blanket `target/deps/` accept
 <a href=#1074 id=1074 data-nosnippet>1074</a>    // to (a) an exact list of names produced by this build, plus
 <a href=#1075 id=1075 data-nosnippet>1075</a>    // (b) cargo-test binary recognition via the `&lt;crate-name&gt;-&lt;16-hex&gt;`
@@ -1480,7 +1480,7 @@
 <a href=#1480 id=1480 data-nosnippet>1480</a>/// is intended solely for test isolation in negative-path tests that
 <a href=#1481 id=1481 data-nosnippet>1481</a>/// deliberately trip `set_module_error`.
 <a href=#1482 id=1482 data-nosnippet>1482</a>///
-<a href=#1483 id=1483 data-nosnippet>1483</a>/// Round-11 audit fix (HIGH #3): the previous `pub` + `#[doc(hidden)]`
+<a href=#1483 id=1483 data-nosnippet>1483</a>/// the previous `pub` + `#[doc(hidden)]`
 <a href=#1484 id=1484 data-nosnippet>1484</a>/// shape was reachable from any downstream crate and let an external
 <a href=#1485 id=1485 data-nosnippet>1485</a>/// caller silently restore "operational" without re-validating. Now
 <a href=#1486 id=1486 data-nosnippet>1486</a>/// gated behind `#[cfg(any(test, feature = "test-utils"))]` so:
@@ -1503,7 +1503,7 @@
 <a href=#1503 id=1503 data-nosnippet>1503</a>/// tests running in the same process. Unlike `clear_error_state`, this restores
 <a href=#1504 id=1504 data-nosnippet>1504</a>/// `SELF_TEST_PASSED` to `true` so the module remains operational.
 <a href=#1505 id=1505 data-nosnippet>1505</a>///
-<a href=#1506 id=1506 data-nosnippet>1506</a>/// Round-11 audit fix (HIGH #3): same gating as `clear_error_state` above —
+<a href=#1506 id=1506 data-nosnippet>1506</a>/// same gating as `clear_error_state` above —
 <a href=#1507 id=1507 data-nosnippet>1507</a>/// FIPS 140-3 §9.6 forbids external recovery from error state without re-
 <a href=#1508 id=1508 data-nosnippet>1508</a>/// running POST.
 <a href=#1509 id=1509 data-nosnippet>1509</a></span><span class="attr">#[cfg(any(test, feature = <span class="string">"test-utils"</span>))]

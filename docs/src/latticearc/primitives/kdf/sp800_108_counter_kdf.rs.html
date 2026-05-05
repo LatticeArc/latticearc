@@ -86,7 +86,7 @@
 <a href=#86 id=86 data-nosnippet>86</a>    }
 <a href=#87 id=87 data-nosnippet>87</a>}
 <a href=#88 id=88 data-nosnippet>88</a>
-<a href=#89 id=89 data-nosnippet>89</a><span class="comment">// Round-26 audit fix (L12): the previous `Default` impl baked the
+<a href=#89 id=89 data-nosnippet>89</a><span class="comment">// the previous `Default` impl baked the
 <a href=#90 id=90 data-nosnippet>90</a>// generic label `"Default KDF Label"` into the struct. Two callers
 <a href=#91 id=91 data-nosnippet>91</a>// using `CounterKdfParams::default()` with the same KI would silently
 <a href=#92 id=92 data-nosnippet>92</a>// derive identical keys (cross-protocol collision) — labels are the
@@ -185,7 +185,7 @@
 <a href=#185 id=185 data-nosnippet>185</a>    </span><span class="attr">#[allow(clippy::arithmetic_side_effects)]
 <a href=#186 id=186 data-nosnippet>186</a>    </span><span class="kw">let </span>max_len = (<span class="number">1u64 </span>&lt;&lt; <span class="number">32</span>) * HASH_LEN <span class="kw">as </span>u64;
 <a href=#187 id=187 data-nosnippet>187</a>
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="comment">// Round-20 audit fix #16: compare in u64 instead of routing through
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="comment">// compare in u64 instead of routing through
 <a href=#189 id=189 data-nosnippet>189</a>    // `usize::try_from(max_len).unwrap_or(usize::MAX)`. On a 32-bit
 <a href=#190 id=190 data-nosnippet>190</a>    // target, max_len = 2^37 saturates to usize::MAX = 2^32-1, so the
 <a href=#191 id=191 data-nosnippet>191</a>    // guard becomes `key_length &gt; usize::MAX` which is never true and
@@ -605,7 +605,7 @@
 <a href=#605 id=605 data-nosnippet>605</a>
 <a href=#606 id=606 data-nosnippet>606</a>    <span class="attr">#[test]
 <a href=#607 id=607 data-nosnippet>607</a>    </span><span class="kw">fn </span>test_explicit_label_succeeds() {
-<a href=#608 id=608 data-nosnippet>608</a>        <span class="comment">// Round-26 audit fix (L12): the previous test exercised
+<a href=#608 id=608 data-nosnippet>608</a>        <span class="comment">// the previous test exercised
 <a href=#609 id=609 data-nosnippet>609</a>        // `CounterKdfParams::default()` which baked the generic
 <a href=#610 id=610 data-nosnippet>610</a>        // "Default KDF Label" into the params. The Default impl was
 <a href=#611 id=611 data-nosnippet>611</a>        // removed (callers must now supply a domain-specific label

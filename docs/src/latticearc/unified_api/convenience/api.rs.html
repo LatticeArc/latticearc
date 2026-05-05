@@ -434,7 +434,7 @@
 <a href=#434 id=434 data-nosnippet>434</a>    </span>CryptoPolicyEngine::validate_key_matches_scheme(<span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>scheme)
 <a href=#435 id=435 data-nosnippet>435</a>        .map_err(|e| CoreError::ConfigurationError(e.to_string()))<span class="question-mark">?</span>;
 <a href=#436 id=436 data-nosnippet>436</a>
-<a href=#437 id=437 data-nosnippet>437</a>    <span class="comment">// Round-26 audit fix (H7): opaque error string. Discarding the
+<a href=#437 id=437 data-nosnippet>437</a>    <span class="comment">// opaque error string. Discarding the
 <a href=#438 id=438 data-nosnippet>438</a>    // upstream `ResourceError` on the adversary-reachable path is a
 <a href=#439 id=439 data-nosnippet>439</a>    // Pattern-6 defense — `ResourceError::Display` interpolates
 <a href=#440 id=440 data-nosnippet>440</a>    // `requested=N, limit=M`, leaking the configured cap.
@@ -722,7 +722,7 @@
 <a href=#722 id=722 data-nosnippet>722</a>
 <a href=#723 id=723 data-nosnippet>723</a>    <span class="kw">match </span>result {
 <a href=#724 id=724 data-nosnippet>724</a>        <span class="prelude-val">Ok</span>(plaintext) =&gt; {
-<a href=#725 id=725 data-nosnippet>725</a>            <span class="comment">// Round-21 audit fix #3: do NOT log `plaintext.len()` on
+<a href=#725 id=725 data-nosnippet>725</a>            <span class="comment">// do NOT log `plaintext.len()` on
 <a href=#726 id=726 data-nosnippet>726</a>            // successful decrypt. Per-call plaintext length is a
 <a href=#727 id=727 data-nosnippet>727</a>            // partial-size oracle for variable-length content (e.g. a
 <a href=#728 id=728 data-nosnippet>728</a>            // request handler that decrypts a per-user blob then
@@ -780,7 +780,7 @@
 <a href=#780 id=780 data-nosnippet>780</a>    }
 <a href=#781 id=781 data-nosnippet>781</a>}
 <a href=#782 id=782 data-nosnippet>782</a>
-<a href=#783 id=783 data-nosnippet>783</a><span class="comment">// Round-28 M2 (Pattern 5 follow-up): the struct's manual `Debug` impl
+<a href=#783 id=783 data-nosnippet>783</a><span class="comment">// the struct's manual `Debug` impl
 <a href=#784 id=784 data-nosnippet>784</a>// redacts `secret_key`, but this `From&lt;SigningKeypair&gt;` for a tuple
 <a href=#785 id=785 data-nosnippet>785</a>// re-exposes raw `Zeroizing&lt;Vec&lt;u8&gt;&gt;` whose `Debug` forwards to the
 <a href=#786 id=786 data-nosnippet>786</a>// inner `Vec&lt;u8&gt;` — `dbg!(&amp;tuple)` then prints the secret bytes.
@@ -880,7 +880,7 @@
 <a href=#880 id=880 data-nosnippet>880</a>        <span class="string">"hybrid-ml-dsa-87-ed25519" </span>| <span class="string">"ml-dsa-87-hybrid-ed25519" </span>=&gt; {
 <a href=#881 id=881 data-nosnippet>881</a>            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa87)<span class="question-mark">?
 <a href=#882 id=882 data-nosnippet>882</a>        </span>}
-<a href=#883 id=883 data-nosnippet>883</a>        <span class="comment">// Round-11 audit fix (MEDIUM #9 / prior list): the dispatch
+<a href=#883 id=883 data-nosnippet>883</a>        <span class="comment">// the dispatch
 <a href=#884 id=884 data-nosnippet>884</a>        // tables for sign_with_key and verify both have an `"ed25519"`
 <a href=#885 id=885 data-nosnippet>885</a>        // arm (sign cfg-gated to non-FIPS, verify ungated), but
 <a href=#886 id=886 data-nosnippet>886</a>        // `generate_signing_keypair` had none. A caller that resolves
@@ -931,7 +931,7 @@
 <a href=#931 id=931 data-nosnippet>931</a>    <span class="kw">let </span>scheme = select_signature_scheme(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
 <a href=#932 id=932 data-nosnippet>932</a>    config.validate_scheme_compliance(<span class="kw-2">&amp;</span>scheme)<span class="question-mark">?</span>;
 <a href=#933 id=933 data-nosnippet>933</a>
-<a href=#934 id=934 data-nosnippet>934</a>    <span class="comment">// Round-26 audit fix (H7): opaque ResourceExceeded error.
+<a href=#934 id=934 data-nosnippet>934</a>    <span class="comment">// opaque ResourceExceeded error.
 <a href=#935 id=935 data-nosnippet>935</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(message.len()) {
 <a href=#936 id=936 data-nosnippet>936</a>        <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"sign rejected: message exceeds resource limit"</span>);
 <a href=#937 id=937 data-nosnippet>937</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::ResourceExceeded(<span class="string">"message exceeds resource limit"</span>.to_string()));
@@ -1063,7 +1063,7 @@
 <a href=#1063 id=1063 data-nosnippet>1063</a>
 <a href=#1064 id=1064 data-nosnippet>1064</a>    <span class="macro">log_crypto_operation_start!</span>(op::VERIFY, scheme = <span class="question-mark">?</span>signed.scheme, message_size = signed.data.len());
 <a href=#1065 id=1065 data-nosnippet>1065</a>
-<a href=#1066 id=1066 data-nosnippet>1066</a>    <span class="comment">// Round-26 code-review follow-up: collapse to `Ok(false)` on the
+<a href=#1066 id=1066 data-nosnippet>1066</a>    <span class="comment">// collapse to `Ok(false)` on the
 <a href=#1067 id=1067 data-nosnippet>1067</a>    // verify path so an adversary cannot binary-search the configured
 <a href=#1068 id=1068 data-nosnippet>1068</a>    // cap from the Result variant.
 <a href=#1069 id=1069 data-nosnippet>1069</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(signed.data.len()) {
@@ -1120,7 +1120,7 @@
 <a href=#1120 id=1120 data-nosnippet>1120</a>            <span class="kw-2">&amp;</span>signed.metadata.public_key,
 <a href=#1121 id=1121 data-nosnippet>1121</a>            FnDsaSecurityLevel::Level1024,
 <a href=#1122 id=1122 data-nosnippet>1122</a>        ),
-<a href=#1123 id=1123 data-nosnippet>1123</a>        <span class="comment">// Round-11 audit fix (HIGH #8 prior): replace magic literals
+<a href=#1123 id=1123 data-nosnippet>1123</a>        <span class="comment">// replace magic literals
 <a href=#1124 id=1124 data-nosnippet>1124</a>        // with `MlDsaParameterSet::public_key_size()` / `signature_size()`
 <a href=#1125 id=1125 data-nosnippet>1125</a>        // so a future drift in the FIPS 204 parameter table propagates
 <a href=#1126 id=1126 data-nosnippet>1126</a>        // automatically. The sister `sign_*` path at line ~1118 already
@@ -1149,7 +1149,7 @@
 <a href=#1149 id=1149 data-nosnippet>1149</a>            MlDsaParameterSet::MlDsa87.signature_size(),
 <a href=#1150 id=1150 data-nosnippet>1150</a>            MlDsaParameterSet::MlDsa87,
 <a href=#1151 id=1151 data-nosnippet>1151</a>        ),
-<a href=#1152 id=1152 data-nosnippet>1152</a>        <span class="comment">// Round-11 audit fix (MEDIUM #9 / prior list): cfg-gate the
+<a href=#1152 id=1152 data-nosnippet>1152</a>        <span class="comment">// cfg-gate the
 <a href=#1153 id=1153 data-nosnippet>1153</a>        // `"ed25519"` arm under `not(feature = "fips")` for symmetry
 <a href=#1154 id=1154 data-nosnippet>1154</a>        // with the sign_with_key dispatch and the keygen arm. FIPS
 <a href=#1155 id=1155 data-nosnippet>1155</a>        // builds now reject Ed25519 verification at the dispatch
@@ -1301,7 +1301,7 @@
 <a href=#1301 id=1301 data-nosnippet>1301</a>    <span class="kw">use crate</span>::{CryptoConfig, CryptoMode, SecurityLevel, UseCase};
 <a href=#1302 id=1302 data-nosnippet>1302</a>    <span class="kw">use </span>static_assertions::assert_not_impl_any;
 <a href=#1303 id=1303 data-nosnippet>1303</a>
-<a href=#1304 id=1304 data-nosnippet>1304</a>    <span class="comment">// Round-28 M3 (Pattern 5 follow-up): SigningKeypair holds
+<a href=#1304 id=1304 data-nosnippet>1304</a>    <span class="comment">// SigningKeypair holds
 <a href=#1305 id=1305 data-nosnippet>1305</a>    // `Zeroizing&lt;Vec&lt;u8&gt;&gt;` for the secret key. A future contributor
 <a href=#1306 id=1306 data-nosnippet>1306</a>    // deriving `PartialEq`/`Eq` would route equality through Vec's
 <a href=#1307 id=1307 data-nosnippet>1307</a>    // short-circuiting `==`, leaking secret-prefix-agreement timing.

@@ -60,7 +60,7 @@
 <a href=#60 id=60 data-nosnippet>60</a></span><span class="attr">#[derive(Parser)]
 <a href=#61 id=61 data-nosnippet>61</a>#[command(name = <span class="string">"latticearc-cli"</span>, version, about, long_about = <span class="prelude-val">None</span>)]
 <a href=#62 id=62 data-nosnippet>62</a>#[command(propagate_version = <span class="bool-val">true</span>)]
-<a href=#63 id=63 data-nosnippet>63</a></span><span class="comment">// Round-7 audit fix #15: showing the full help when invoked with no args
+<a href=#63 id=63 data-nosnippet>63</a></span><span class="comment">// showing the full help when invoked with no args
 <a href=#64 id=64 data-nosnippet>64</a>// is more discoverable than the default 2-line "USAGE:" stub for
 <a href=#65 id=65 data-nosnippet>65</a>// first-time users. Costs nothing for scripted callers (they always
 <a href=#66 id=66 data-nosnippet>66</a>// supply a subcommand) and pays back the discoverability for
@@ -121,7 +121,7 @@
 <a href=#121 id=121 data-nosnippet>121</a>        Commands::Encrypt(args) =&gt; commands::encrypt::run(args),
 <a href=#122 id=122 data-nosnippet>122</a>        Commands::Decrypt(args) =&gt; commands::decrypt::run(args),
 <a href=#123 id=123 data-nosnippet>123</a>        Commands::Sign(args) =&gt; commands::sign::run(args),
-<a href=#124 id=124 data-nosnippet>124</a>        <span class="comment">// Round-8 audit fix #5: verify returns Ok(true)=VALID,
+<a href=#124 id=124 data-nosnippet>124</a>        <span class="comment">// verify returns Ok(true)=VALID,
 <a href=#125 id=125 data-nosnippet>125</a>        // Ok(false)=INVALID. Translate INVALID into exit 1 here so
 <a href=#126 id=126 data-nosnippet>126</a>        // destructors on the per-command state inside `verify::run`
 <a href=#127 id=127 data-nosnippet>127</a>        // (KeyFile, Vec&lt;u8&gt;, etc.) all get to run before the process

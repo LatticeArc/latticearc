@@ -313,7 +313,7 @@
 <a href=#313 id=313 data-nosnippet>313</a>    <span class="doccomment">/// Record a single operation timing
 <a href=#314 id=314 data-nosnippet>314</a>    </span><span class="attr">#[allow(clippy::arithmetic_side_effects)] </span><span class="comment">// Histogram bucket indexing on bounded duration values
 <a href=#315 id=315 data-nosnippet>315</a>    </span><span class="kw">pub fn </span>record_operation(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str, duration: Duration) {
-<a href=#316 id=316 data-nosnippet>316</a>        <span class="comment">// Round-26 audit fix (L31): emit a tracing warning on poisoned
+<a href=#316 id=316 data-nosnippet>316</a>        <span class="comment">// emit a tracing warning on poisoned
 <a href=#317 id=317 data-nosnippet>317</a>        // mutex instead of silently dropping the metric. Metrics are
 <a href=#318 id=318 data-nosnippet>318</a>        // observability, so a silent drop hides the symptom that
 <a href=#319 id=319 data-nosnippet>319</a>        // caused the panic that poisoned the mutex.
