@@ -179,7 +179,12 @@ impl Histogram {
 
     /// Record multiple timing samples. Same FIFO bound as `record`.
     pub fn record_batch(&mut self, durations: &[Duration]) {
-        self.samples.reserve(durations.len());
+        // Reserve only the headroom up to the cap. An unconditional
+        // `reserve(durations.len())` would transiently allocate
+        // capacity for samples that the per-element FIFO will
+        // immediately drop — defeating the L8 DoS bound.
+        let headroom = Self::MAX_SAMPLES_PER_HISTOGRAM.saturating_sub(self.samples.len());
+        self.samples.reserve(durations.len().min(headroom));
         for &duration in durations {
             self.record(duration);
         }

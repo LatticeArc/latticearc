@@ -42,12 +42,30 @@ use serde::{Deserialize, Serialize};
 /// Keeps state_history bounded and JSONL audit consumers happy.
 const MAX_AUDIT_FIELD_LEN: usize = 512;
 
+/// Cap on the number of `StateTransition` entries in
+/// `KeyLifecycleRecord::state_history`. The state machine has 5
+/// terminal states; legitimate records have under a dozen entries.
+/// 1024 is generous slack for Active⇄Rotating cycling, while
+/// preventing a tampered or pathologically-cycled record from driving
+/// unbounded growth (and making the linear scans in
+/// `KeyLifecycleRecordRaw::try_from` O(n²) — see L8).
+const MAX_STATE_HISTORY: usize = 1024;
+
+/// Cap on the number of approver IDs in
+/// `KeyLifecycleRecord::approvers`. Real-world quorum schemes top out
+/// at a few dozen approvers; 256 is generous slack with the same
+/// motivation as `MAX_STATE_HISTORY`.
+const MAX_APPROVERS: usize = 256;
+
 /// Validate an audit-trail string. Rejects:
-/// - empty (unless `optional` is true)
+/// - empty
 /// - control characters (including newlines, which break JSONL)
 /// - more than `MAX_AUDIT_FIELD_LEN` bytes
-fn validate_audit_field(name: &str, value: &str, optional: bool) -> Result<()> {
-    if value.is_empty() && !optional {
+///
+/// `Option<String>` callers should validate inside the `Some(_)` arm:
+/// presence is decided at the caller; content is validated here.
+fn validate_audit_field(name: &str, value: &str) -> Result<()> {
+    if value.is_empty() {
         return Err(TypeError::InvalidAuditInput(format!("{} must not be empty", name)));
     }
     if value.len() > MAX_AUDIT_FIELD_LEN {
@@ -242,34 +260,76 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
         // Re-validate state-machine invariants on load so a corrupted
         // or tampered persisted record cannot bypass the rules
         // `transition()` enforces in memory.
-        match (raw.current_state, raw.activated_at, raw.state_history.last()) {
-            (KeyLifecycleState::Generation, Some(_), _) => {
+
+        // (0) Vector caps: same bounds the in-memory mutators
+        //     enforce. Without these, the linear scans below
+        //     (`entered`, last-history check) become O(n²) on a
+        //     pathologically-large persisted record, and the
+        //     in-memory record can grow past `transition()`'s cap
+        //     after a roundtrip.
+        if raw.state_history.len() > MAX_STATE_HISTORY {
+            return Err(TypeError::InvalidAuditInput(format!(
+                "state_history length {} exceeds cap of {}",
+                raw.state_history.len(),
+                MAX_STATE_HISTORY
+            )));
+        }
+        if raw.approvers.len() > MAX_APPROVERS {
+            return Err(TypeError::InvalidAuditInput(format!(
+                "approvers length {} exceeds cap of {}",
+                raw.approvers.len(),
+                MAX_APPROVERS
+            )));
+        }
+
+        // (1) `current_state` must be reachable from the persisted
+        //     `activated_at` value. Rotating and Retired both require
+        //     having passed through Active, so `activated_at` MUST be
+        //     `Some` for those — and Generation MUST NOT have one.
+        match (raw.current_state, raw.activated_at) {
+            (KeyLifecycleState::Generation, Some(_)) => {
                 return Err(TypeError::InvalidAuditInput(
                     "current_state=Generation with activated_at set".to_string(),
                 ));
             }
-            (KeyLifecycleState::Active, None, _) => {
-                return Err(TypeError::InvalidAuditInput(
-                    "current_state=Active without activated_at".to_string(),
-                ));
-            }
-            (KeyLifecycleState::Destroyed, _, None) => {
-                return Err(TypeError::InvalidAuditInput(
-                    "current_state=Destroyed with empty state_history".to_string(),
-                ));
-            }
-            (KeyLifecycleState::Destroyed, _, Some(t))
-                if t.to_state != KeyLifecycleState::Destroyed =>
-            {
-                return Err(TypeError::InvalidAuditInput(
-                    "current_state=Destroyed but last state_history entry disagrees".to_string(),
-                ));
+            (
+                KeyLifecycleState::Active
+                | KeyLifecycleState::Rotating
+                | KeyLifecycleState::Retired,
+                None,
+            ) => {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "current_state={:?} requires activated_at",
+                    raw.current_state
+                )));
             }
             _ => {}
         }
-        // Per-state timestamp consistency: the timestamp for a state
-        // must be present iff that state has been entered (i.e. appears
-        // in state_history).
+
+        // (2) For non-Generation states, the last state_history entry
+        //     must agree with `current_state`. Otherwise a tampered
+        //     file with `current_state = Active` and a `state_history`
+        //     ending in `Rotating` (or empty) would deserialize cleanly.
+        match (raw.current_state, raw.state_history.last()) {
+            (KeyLifecycleState::Generation, _) => {}
+            (_, None) => {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "current_state={:?} with empty state_history",
+                    raw.current_state
+                )));
+            }
+            (current, Some(t)) if t.to_state != current => {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "current_state={:?} but last state_history entry is {:?}",
+                    current, t.to_state
+                )));
+            }
+            _ => {}
+        }
+
+        // (3) Per-state timestamp consistency: the timestamp for a
+        //     state must be present iff that state has been entered
+        //     (i.e. appears in state_history).
         let entered = |st: KeyLifecycleState| raw.state_history.iter().any(|t| t.to_state == st);
         if entered(KeyLifecycleState::Rotating) != raw.rotated_at.is_some() {
             return Err(TypeError::InvalidAuditInput(
@@ -382,10 +442,13 @@ impl KeyLifecycleRecord {
         // Audit-trail input gates: empty / control-chars / oversized
         // strings break JSONL audit consumers and produce attribution-
         // free entries. Reject up front rather than persisting them.
-        validate_audit_field("custodian_id", &custodian_id, false)?;
-        validate_audit_field("justification", &justification, false)?;
+        validate_audit_field("custodian_id", &custodian_id)?;
+        validate_audit_field("justification", &justification)?;
+        // Inside `Some(_)` the caller has explicitly chosen to send a
+        // value; empty-string is a sentinel that confuses
+        // presence-vs-content matching downstream. Reject it here.
         if let Some(ref approval_id) = approval_id {
-            validate_audit_field("approval_id", approval_id, true)?;
+            validate_audit_field("approval_id", approval_id)?;
         }
 
         if !KeyStateMachine::is_valid_transition(Some(self.current_state), to_state) {
@@ -408,6 +471,12 @@ impl KeyLifecycleRecord {
             approval_id,
         };
 
+        if self.state_history.len() >= MAX_STATE_HISTORY {
+            return Err(TypeError::InvalidAuditInput(format!(
+                "state_history at cap of {} entries; cannot record further transitions",
+                MAX_STATE_HISTORY
+            )));
+        }
         self.state_history.push(transition);
         self.current_state = to_state;
 
@@ -477,12 +546,20 @@ impl KeyLifecycleRecord {
         matches!(self.current_state, KeyLifecycleState::Active | KeyLifecycleState::Rotating)
     }
 
-    /// Add an approver to the key
-    pub fn add_approver(&mut self, approver_id: impl Into<String>) {
+    /// Add an approver to the key. Silently ignored if the approver
+    /// is already in the list, or if the cap (`MAX_APPROVERS`) has
+    /// been reached. Returns `false` on cap rejection so callers can
+    /// surface a warning if needed.
+    pub fn add_approver(&mut self, approver_id: impl Into<String>) -> bool {
         let approver_id = approver_id.into();
-        if !self.approvers.contains(&approver_id) {
-            self.approvers.push(approver_id);
+        if self.approvers.contains(&approver_id) {
+            return true;
         }
+        if self.approvers.len() >= MAX_APPROVERS {
+            return false;
+        }
+        self.approvers.push(approver_id);
+        true
     }
 
     // ----------------------------------------------------------------

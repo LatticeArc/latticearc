@@ -400,6 +400,23 @@ pub(crate) fn pbkdf2_with_floor(
             "Key length must be greater than 0".to_string(),
         ));
     }
+    // Bound the requested key length BEFORE the allocation.
+    // `params.key_length` is `usize`; without this gate, a caller (or
+    // a deserialised KDF parameter block from an untrusted source)
+    // could request `usize::MAX` and trigger an 18 EiB allocation
+    // attempt before the per-block `u32::try_from` check below
+    // would have fired. RFC 2898 caps PBKDF2 output at
+    // `(2^32 - 1) * hLen`; in practice no legitimate caller asks
+    // for more than a few KiB. Cap at 1 MiB — generous slack for
+    // anyone composing several large keys, well under the
+    // `Vec::with_capacity` failure threshold.
+    const PBKDF2_MAX_KEY_LEN: usize = 1024 * 1024;
+    if params.key_length > PBKDF2_MAX_KEY_LEN {
+        return Err(LatticeArcError::InvalidParameter(format!(
+            "Key length {} exceeds maximum of {} bytes",
+            params.key_length, PBKDF2_MAX_KEY_LEN
+        )));
+    }
 
     // Calculate number of blocks needed
     let prf_output_len = match params.prf {

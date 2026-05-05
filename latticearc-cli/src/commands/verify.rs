@@ -98,8 +98,21 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
 
     // Try SignedData format first (produced by sign --public-key)
     if let Ok(signed) = latticearc::unified_api::serialization::deserialize_signed_data(&sig_json) {
-        // Verify the signed data matches the input file
-        if signed.data != input_data {
+        // Verify the signed data matches the input file. `signed.data`
+        // currently carries public message material, so a non-CT
+        // comparison is not a live leak — but use `ct_eq` anyway so
+        // the byte-comparison primitive matches the codebase's
+        // contract for "comparing two equal-length buffers" and so a
+        // future caller that routes secret-bearing data through this
+        // path inherits CT discipline by default.
+        use subtle::ConstantTimeEq;
+        let length_eq: bool = signed.data.len().ct_eq(&input_data.len()).into();
+        let content_eq: bool = if signed.data.len() == input_data.len() {
+            signed.data.ct_eq(&input_data).into()
+        } else {
+            false
+        };
+        if !(length_eq && content_eq) {
             bail!(
                 "Signature was created over different data than the input.\n\
                  The SignedData envelope contains the original data — it does not match \

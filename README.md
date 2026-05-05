@@ -314,7 +314,7 @@ cargo build --features fips
 | Feature | Default | What it enables |
 |---|:---:|---|
 | `fips` | off | Routes AES-GCM, ML-KEM, X25519, and HKDF through the CMVP-validated `aws-lc-rs` build. Required for `ComplianceMode::Fips140_3` and `Cnsa2_0`. **SHA-2 stays on the RustCrypto `sha2` crate even with this feature on** (see the SHA-2 row in the Algorithms table). **Transitively enables `fips-self-test`** so power-on KATs run as required by FIPS 140-3 §10.3.1. If you specifically want the validated backend without the self-test wiring, set `default-features = false` and enable `aws-lc-rs/fips` directly. |
-| `fips-self-test` | off | Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). Pulled in transitively by `fips`; can be enabled standalone for non-FIPS builds that still want the self-test KAT coverage. |
+| `fips-self-test` | off | Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, ML-DSA, SLH-DSA). SHA-2 is on the RustCrypto `sha2` crate and is intentionally outside the FIPS boundary (see the SHA-2 row in the Algorithms table) — its self-test KAT is run by the RustCrypto crate's own test suite, not here. Pulled in transitively by `fips`; can be enabled standalone for non-FIPS builds that still want the self-test KAT coverage. |
 | `tracing-init` | off | Exposes `init_tracing` / `init_tracing_with_file` helpers and the `tracing-subscriber` + `tracing-appender` deps that back them. **Library code should NOT enable this** — subscriber wiring is the binary's responsibility, and a transitive library that calls `init_tracing` will `panic!` the first downstream consumer that calls their own subscriber init. `latticearc-cli` enables this. |
 | `secret-mlock` | off | Locks heap-backed `SecretVec` buffers into RAM via `mlock(2)` / `VirtualLock`, preventing them from appearing in swap or core dumps. |
 | `kat-test-vectors` | off | Exposes `AeadCipher::new_allow_weak_key`, an opt-in constructor that bypasses the `AeadError::WeakKey` rejection of all-zero keys. **Test-only** — needed to reproduce NIST AES-GCM Test Cases 1 and 2 (McGrew & Viega) which use the all-zero key. Production builds must leave this off so an uninitialised-memory key fails closed. |
@@ -325,6 +325,27 @@ cargo build --features fips
 | `Go not found` | Install Go 1.18+ (FIPS only) |
 | `cc not found` (Linux) | `sudo apt install build-essential` |
 | Long initial build | First build compiles AWS-LC from source (~2-3 min) |
+
+## Migration
+
+LatticeArc is **pre-1.0**: each audit round may ship breaking changes
+without a major-version bump. The authoritative record of breaking
+items lives in [CHANGELOG.md](CHANGELOG.md). The headline post-0.7.1
+breaking changes downstream consumers should know about:
+
+| Round | Item | Reference |
+|-------|------|-----------|
+| 31 | `pct_ml_kem` now takes the keypair (not a fresh sibling) | CHANGELOG round-30 H1 |
+| 31 | `SecurityMode::validate` rejects `TrustLevel::Untrusted` | CHANGELOG round-31 M2 |
+| 31 | `VerifiedSession::is_valid` consults a monotonic clock | CHANGELOG round-29 M3 |
+| 31 | `arc-zkp/dlog-equality-v2`: v1 dlog-equality proofs do not verify under v2 | CHANGELOG round-31 L4 |
+| 32 | `KeyLifecycleRecord` re-validates state-machine invariants on `Deserialize` | CHANGELOG round-32 M7 |
+| 32 | `arc-zkp/schnorr-v2`: v1 Schnorr proofs do not verify under v2 | CHANGELOG round-32 (/simplify follow-up) |
+| 32 | `MlKemPublicKey::new` now performs structural validation; new `MlKemError::InvalidKeyFormat` variant | CHANGELOG round-32 L9 + round-33 M2 |
+| 32 | ML-DSA 255-byte context cap rejects on both sign and verify | CHANGELOG round-26 M1 |
+
+For full per-round details (HIGH/MED/LOW + reasoning), read
+`CHANGELOG.md` from the top.
 
 ## Documentation
 

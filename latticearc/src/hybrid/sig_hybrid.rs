@@ -179,14 +179,34 @@ pub struct HybridSigPublicKey {
 }
 
 impl HybridSigPublicKey {
-    /// Construct a `HybridSigPublicKey` from its components.
+    /// Construct a `HybridSigPublicKey` from its components, validating
+    /// that each PK matches its parameter set's expected length.
     ///
-    /// No validation is performed here; callers are expected to provide
-    /// correctly-sized key material for `parameter_set`. The [`verify`]
-    /// function validates sizes before use.
-    #[must_use]
-    pub fn new(parameter_set: MlDsaParameterSet, ml_dsa_pk: Vec<u8>, ed25519_pk: Vec<u8>) -> Self {
-        Self { parameter_set, ml_dsa_pk, ed25519_pk }
+    /// # Errors
+    /// Returns `LatticeArcError::InvalidParameter` if `ml_dsa_pk.len()`
+    /// does not match `parameter_set.public_key_size()`, or if
+    /// `ed25519_pk.len() != 32`.
+    pub fn new(
+        parameter_set: MlDsaParameterSet,
+        ml_dsa_pk: Vec<u8>,
+        ed25519_pk: Vec<u8>,
+    ) -> Result<Self, crate::prelude::LatticeArcError> {
+        let expected_ml_dsa = parameter_set.public_key_size();
+        if ml_dsa_pk.len() != expected_ml_dsa {
+            return Err(crate::prelude::LatticeArcError::InvalidParameter(format!(
+                "ML-DSA public key for {:?}: expected {} bytes, got {}",
+                parameter_set,
+                expected_ml_dsa,
+                ml_dsa_pk.len()
+            )));
+        }
+        if ed25519_pk.len() != 32 {
+            return Err(crate::prelude::LatticeArcError::InvalidParameter(format!(
+                "Ed25519 public key: expected 32 bytes, got {}",
+                ed25519_pk.len()
+            )));
+        }
+        Ok(Self { parameter_set, ml_dsa_pk, ed25519_pk })
     }
 
     /// Returns the ML-DSA parameter set this public key was generated at.
@@ -696,7 +716,27 @@ pub fn verify(
     let ed25519_valid: u8 = if let Ok(ed25519_signature) =
         Ed25519SignatureOps::signature_from_bytes(sig.ed25519_sig.as_slice())
     {
-        match Ed25519SignatureOps::verify(pk.ed25519_pk.as_slice(), message, &ed25519_signature) {
+        // Wrong-length PK short-circuits inside
+        // `Ed25519SignatureOps::verify` before any scalar mul runs,
+        // distinguishing "32-byte PK, bad sig" from "wrong-length PK"
+        // by wall-clock. Run the dummy verify against parsed dummy
+        // material on that path so the wall-clock matches the
+        // valid-PK code path.
+        let pk_bytes = pk.ed25519_pk.as_slice();
+        let result = Ed25519SignatureOps::verify(pk_bytes, message, &ed25519_signature);
+        if pk_bytes.len() != 32
+            && let Some(parsed) = &ed_dummy_parsed
+            && let Ok(parsed_sig) =
+                Ed25519SignatureOps::signature_from_bytes(parsed.ed_sig.as_slice())
+        {
+            // Discarded; runs the EC scalar mul.
+            let _ = Ed25519SignatureOps::verify(
+                parsed.ed_pk.as_slice(),
+                parsed.ed_test_message.as_slice(),
+                &parsed_sig,
+            );
+        }
+        match result {
             Ok(()) => 1u8,
             _ => 0u8,
         }

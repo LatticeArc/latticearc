@@ -227,10 +227,23 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
         return Ok(zeroize::Zeroizing::new(s.to_string()));
     }
     if args.input_stdin {
-        use std::io::BufRead;
-        let stdin = std::io::stdin();
-        let mut buf = String::new();
-        stdin.lock().read_line(&mut buf).context("Failed to read --input-stdin")?;
+        use std::io::Read;
+        // Cap the read at 1 MiB. `read_line` is unbounded by default —
+        // piping `/dev/urandom` would OOM the process. Other CLI input
+        // paths route through `read_file_with_cap` /
+        // `read_stdin_with_limit`; mirror that discipline here.
+        const KDF_INPUT_MAX: u64 = 1024 * 1024;
+        let mut buf_bytes = Vec::new();
+        let mut limited = std::io::stdin().take(KDF_INPUT_MAX.saturating_add(1));
+        limited.read_to_end(&mut buf_bytes).context("Failed to read --input-stdin")?;
+        if buf_bytes.len() as u64 > KDF_INPUT_MAX {
+            bail!(
+                "--input-stdin exceeded {} bytes; refusing to derive a KDF input from an unbounded stream",
+                KDF_INPUT_MAX
+            );
+        }
+        let mut buf =
+            String::from_utf8(buf_bytes).context("--input-stdin contains invalid UTF-8")?;
         // Strip a single trailing newline (LF or CRLF) — common when
         // the user does `echo password | latticearc-cli kdf …`.
         if buf.ends_with('\n') {
@@ -254,17 +267,32 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
         // `keyfile.rs::resolve_passphrase` already warns for the
         // analogous LATTICEARC_PASSPHRASE; the kdf path was missing
         // the parallel warning.
-        // gate on `IsTerminal::is_terminal`
-        // so CI/Docker pipelines (where the env var is intentional)
-        // don't get spammed. Mirrors `keyfile.rs::resolve_passphrase`.
+        // Mirrors `keyfile.rs::resolve_passphrase`: emit a tracing
+        // warning on EVERY env-var read (so audit pipelines that
+        // scrape `warn` events see every use), and additionally
+        // print to stderr on a TTY so an interactive operator gets
+        // immediate visible feedback even with no tracing
+        // subscriber wired up.
         use std::io::IsTerminal;
-        if std::io::stdin().is_terminal() {
+        let is_tty = std::io::stdin().is_terminal();
+        if is_tty {
             eprintln!(
                 "warning: reading KDF input from LATTICEARC_KDF_INPUT. \
                  Env vars are readable via /proc/<pid>/environ by processes \
                  owned by the same user. Prefer --input-stdin for genuinely \
                  secret input, and `unset LATTICEARC_KDF_INPUT` immediately \
                  after this invocation."
+            );
+            tracing::warn!(
+                tty = true,
+                "LATTICEARC_KDF_INPUT used on interactive TTY (likely accidental)"
+            );
+        } else {
+            tracing::warn!(
+                tty = false,
+                "LATTICEARC_KDF_INPUT used non-interactively; ensure the \
+                 wrapping script unsets it immediately after the command \
+                 exits"
             );
         }
         return Ok(zeroize::Zeroizing::new(env_val));

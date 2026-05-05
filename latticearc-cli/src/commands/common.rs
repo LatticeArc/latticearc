@@ -174,6 +174,24 @@ pub(crate) fn read_file_with_cap(
 ) -> anyhow::Result<Vec<u8>> {
     use anyhow::Context;
     use std::io::Read;
+    // Symlink rejection mirrors `keyfile.rs::read_from`. A
+    // predictable-path symlink in /tmp could otherwise exfiltrate an
+    // arbitrary file via the AEAD/sign output. `LATTICEARC_ALLOW_SYMLINK_INPUT=1`
+    // opts in (e.g., for callers who legitimately route through
+    // `~/symlinks/foo`).
+    let allow_symlinks = std::env::var("LATTICEARC_ALLOW_SYMLINK_INPUT")
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    let symlink_meta = std::fs::symlink_metadata(path)
+        .with_context(|| format!("Failed to stat {}", path.display()))?;
+    if symlink_meta.file_type().is_symlink() && !allow_symlinks {
+        anyhow::bail!(
+            "Refusing to read input file {} because it is a symlink. \
+             Set LATTICEARC_ALLOW_SYMLINK_INPUT=1 to opt in (rare; only \
+             needed when the input path is intentionally indirected).",
+            path.display()
+        );
+    }
     let file =
         std::fs::File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
     let mut buf = Vec::new();

@@ -112,17 +112,30 @@ impl AuditEvent {
         AuditEventBuilder::new(event_type, action, outcome)
     }
 
-    /// Set the actor for this event.
+    /// Maximum byte length for `actor` and `resource` strings. Mirrors
+    /// `MAX_METADATA_VALUE_LEN` so the same cap applies to all
+    /// caller-supplied free-form fields. Empty / over-cap / control-
+    /// char inputs are sanitized rather than rejected — audit must
+    /// never fail-open by aborting the operation that produced the
+    /// event.
+    pub const MAX_ACTOR_LEN: usize = 256;
+    /// Maximum byte length for `resource` string.
+    pub const MAX_RESOURCE_LEN: usize = 1024;
+
+    /// Set the actor for this event. Empty / oversized / control-char
+    /// inputs are dropped silently (the field stays `None`); audit
+    /// emission must not abort the operation.
     #[must_use]
     pub fn with_actor(mut self, actor: impl Into<String>) -> Self {
-        self.actor = Some(actor.into());
+        self.actor = sanitize_audit_field(actor.into(), Self::MAX_ACTOR_LEN);
         self
     }
 
-    /// Set the resource for this event.
+    /// Set the resource for this event. Same sanitization as
+    /// `with_actor` with a wider cap (paths can be long).
     #[must_use]
     pub fn with_resource(mut self, resource: impl Into<String>) -> Self {
-        self.resource = Some(resource.into());
+        self.resource = sanitize_audit_field(resource.into(), Self::MAX_RESOURCE_LEN);
         self
     }
 
@@ -234,6 +247,19 @@ fn truncate_utf8_safe(s: &mut String, max_bytes: usize) {
         cut = cut.saturating_sub(1);
     }
     s.truncate(cut);
+}
+
+/// Sanitize a free-form audit field: returns `None` if the input is
+/// empty after stripping control characters; truncates to `max_bytes`
+/// otherwise. Control-char strip prevents `\n`-laced inputs from
+/// breaking JSONL audit consumers; size cap bounds memory + hash cost.
+fn sanitize_audit_field(input: String, max_bytes: usize) -> Option<String> {
+    let mut s: String = input.chars().filter(|c| !c.is_control()).collect();
+    if s.is_empty() {
+        return None;
+    }
+    truncate_utf8_safe(&mut s, max_bytes);
+    Some(s)
 }
 
 /// Builder for constructing audit events with a fluent API.
@@ -668,6 +694,18 @@ impl FileAuditStorage {
                     f.write_all(hex.as_bytes()).map_err(|err| {
                         CoreError::AuditError(format!(
                             "Failed to write audit genesis file '{}': {}",
+                            genesis_path.display(),
+                            err
+                        ))
+                    })?;
+                    // fsync the file before declaring the genesis
+                    // committed. A crash mid-flush would otherwise
+                    // leave a zero-byte genesis on disk; the
+                    // `create_new` flag would then refuse every
+                    // subsequent startup until manual `rm`.
+                    f.sync_all().map_err(|err| {
+                        CoreError::AuditError(format!(
+                            "Failed to fsync audit genesis file '{}': {}",
                             genesis_path.display(),
                             err
                         ))

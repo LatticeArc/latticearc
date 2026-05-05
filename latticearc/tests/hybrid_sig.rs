@@ -51,24 +51,23 @@ fn test_sign_rejects_empty_ed25519_sk_fails() {
 // ============================================================================
 
 #[test]
-fn test_verify_rejects_wrong_ed25519_pk_length_fails() {
-    let pk = HybridSigPublicKey::new(
+fn test_new_rejects_wrong_ed25519_pk_length_fails() {
+    // Round-34 L4: HybridSigPublicKey::new now validates lengths at
+    // construction. The previous "verify rejects" test is no longer
+    // reachable through the public API; this asserts the
+    // construction-time gate.
+    let result = HybridSigPublicKey::new(
         MlDsaParameterSet::MlDsa65,
         vec![0u8; 1952],
         vec![0u8; 16], // Should be 32
     );
-    let sig = HybridSignature::new(vec![0u8; 3309], vec![0u8; 64]);
-    let result = verify(&pk, b"test", &sig);
-    // Pattern 6 (#52): verify collapses length mismatches into the
-    // bit=0 verify path, so the surviving error is VerificationFailed
-    // (no distinguishable InvalidKeyMaterial variant).
-    assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), HybridSignatureError::VerificationFailed(_)));
+    assert!(result.is_err(), "wrong-length Ed25519 PK must be rejected at construction");
 }
 
 #[test]
 fn test_verify_rejects_wrong_ed25519_sig_length_fails() {
-    let pk = HybridSigPublicKey::new(MlDsaParameterSet::MlDsa65, vec![0u8; 1952], vec![0u8; 32]);
+    let pk = HybridSigPublicKey::new(MlDsaParameterSet::MlDsa65, vec![0u8; 1952], vec![0u8; 32])
+        .expect("valid lengths");
     // Build with wrong ed25519 length (32 bytes instead of 64) to exercise validation.
     let sig = HybridSignature::new(vec![0u8; 3309], vec![0u8; 32]);
     let result = verify(&pk, b"test", &sig);
@@ -178,7 +177,8 @@ fn test_error_debug_fails() {
 
 #[test]
 fn test_public_key_clone_and_debug_succeeds() {
-    let pk = HybridSigPublicKey::new(MlDsaParameterSet::MlDsa65, vec![1u8; 1952], vec![2u8; 32]);
+    let pk = HybridSigPublicKey::new(MlDsaParameterSet::MlDsa65, vec![1u8; 1952], vec![2u8; 32])
+        .expect("valid lengths");
     let cloned = pk.clone();
     assert_eq!(cloned.ml_dsa_pk(), pk.ml_dsa_pk());
     assert_eq!(cloned.ed25519_pk(), pk.ed25519_pk());

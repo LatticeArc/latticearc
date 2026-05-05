@@ -214,10 +214,9 @@ impl UtilityCavpTester {
             .map_err(|e| LatticeArcError::InvalidData(format!("Invalid domain name: {}", e)))?;
 
         let domain_constant = match domain_name {
-            "HYBRID_KEM" => crate::types::domains::HYBRID_KEM,
             "CASCADE_OUTER" => crate::types::domains::CASCADE_OUTER,
             "CASCADE_INNER" => crate::types::domains::CASCADE_INNER,
-            "SIGNATURE_BIND" => crate::types::domains::SIGNATURE_BIND,
+            "HYBRID_KEM_SS_INFO" => crate::types::domains::HYBRID_KEM_SS_INFO,
             _ => return Ok(false),
         };
 
@@ -432,8 +431,8 @@ pub fn load_sample_utility_vectors() -> Vec<UtilityTestVector> {
         UtilityTestVector {
             test_case_id: "DOMAIN-CONSTANT-001".to_string(),
             function: "domain_constant".to_string(),
-            input_data: b"HYBRID_KEM".to_vec(),
-            expected_output: crate::types::domains::HYBRID_KEM.to_vec(),
+            input_data: b"HYBRID_KEM_SS_INFO".to_vec(),
+            expected_output: crate::types::domains::HYBRID_KEM_SS_INFO.to_vec(),
             parameters: HashMap::new(),
         },
     ]
@@ -597,16 +596,16 @@ mod tests {
     fn test_domain_constants_have_correct_values_succeeds() {
         use crate::types::domains;
 
-        assert!(!domains::HYBRID_KEM.is_empty());
         assert!(!domains::CASCADE_OUTER.is_empty());
         assert!(!domains::CASCADE_INNER.is_empty());
-        assert!(!domains::SIGNATURE_BIND.is_empty());
+        assert!(!domains::HYBRID_KEM_SS_INFO.is_empty());
 
         // Check that all contain version identifier
-        assert!(domains::HYBRID_KEM.windows(12).any(|w| w == b"LatticeArc-v"));
         assert!(domains::CASCADE_OUTER.windows(12).any(|w| w == b"LatticeArc-v"));
         assert!(domains::CASCADE_INNER.windows(12).any(|w| w == b"LatticeArc-v"));
-        assert!(domains::SIGNATURE_BIND.windows(12).any(|w| w == b"LatticeArc-v"));
+        // `HYBRID_KEM_SS_INFO` uses the shorter `LatticeArc-Hybrid-`
+        // prefix; check for that instead.
+        assert!(domains::HYBRID_KEM_SS_INFO.windows(11).any(|w| w == b"LatticeArc-"));
     }
 
     #[test]
@@ -717,10 +716,9 @@ mod tests {
     fn test_utility_cavp_domain_constant_vectors_succeeds() {
         use crate::types::domains;
         for (name, expected) in [
-            ("HYBRID_KEM", domains::HYBRID_KEM.to_vec()),
             ("CASCADE_OUTER", domains::CASCADE_OUTER.to_vec()),
             ("CASCADE_INNER", domains::CASCADE_INNER.to_vec()),
-            ("SIGNATURE_BIND", domains::SIGNATURE_BIND.to_vec()),
+            ("HYBRID_KEM_SS_INFO", domains::HYBRID_KEM_SS_INFO.to_vec()),
         ] {
             let mut tester = UtilityCavpTester::new();
             tester.load_test_vectors(vec![UtilityTestVector {
