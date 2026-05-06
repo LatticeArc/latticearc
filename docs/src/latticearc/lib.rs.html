@@ -323,251 +323,255 @@
 <a href=#323 id=323 data-nosnippet>323</a>
 <a href=#324 id=324 data-nosnippet>324</a></span><span class="doccomment">/// Backward-compatible alias for [`unified_api`].
 <a href=#325 id=325 data-nosnippet>325</a>///
-<a href=#326 id=326 data-nosnippet>326</a>/// **Deprecation note (round-36 H8):** new code should reach types
-<a href=#327 id=327 data-nosnippet>327</a>/// through the canonical paths (`latticearc::Foo` flat re-exports
-<a href=#328 id=328 data-nosnippet>328</a>/// below, or `latticearc::unified_api::Foo`). The `latticearc::core`
-<a href=#329 id=329 data-nosnippet>329</a>/// alias dates from a pre-0.7 module rename and is retained only so
+<a href=#326 id=326 data-nosnippet>326</a>/// New code should reach types through the canonical paths
+<a href=#327 id=327 data-nosnippet>327</a>/// (`latticearc::Foo` flat re-exports below, or
+<a href=#328 id=328 data-nosnippet>328</a>/// `latticearc::unified_api::Foo`). The `latticearc::core` alias
+<a href=#329 id=329 data-nosnippet>329</a>/// dates from a pre-0.7 module rename and is retained only so
 <a href=#330 id=330 data-nosnippet>330</a>/// integrations carrying `use latticearc::core::*;` keep compiling.
-<a href=#331 id=331 data-nosnippet>331</a>/// Pre-1.0 the alias may be removed in a future round; the canonical
-<a href=#332 id=332 data-nosnippet>332</a>/// path is `latticearc::unified_api`.
-<a href=#333 id=333 data-nosnippet>333</a></span><span class="attr">#[doc(hidden)]
-<a href=#334 id=334 data-nosnippet>334</a></span><span class="kw">pub use </span>unified_api <span class="kw">as </span>core;
-<a href=#335 id=335 data-nosnippet>335</a>
-<a href=#336 id=336 data-nosnippet>336</a><span class="comment">// Explicit re-export of LatticeArcError for error compatibility.
-<a href=#337 id=337 data-nosnippet>337</a>// All other prelude types are accessible via `latticearc::prelude::*`.
-<a href=#338 id=338 data-nosnippet>338</a></span><span class="kw">pub use </span>prelude::LatticeArcError;
+<a href=#331 id=331 data-nosnippet>331</a>/// The alias is scheduled for removal pre-1.0.
+<a href=#332 id=332 data-nosnippet>332</a></span><span class="attr">#[doc(hidden)]
+<a href=#333 id=333 data-nosnippet>333</a>#[deprecated(
+<a href=#334 id=334 data-nosnippet>334</a>    since = <span class="string">"0.8.0"</span>,
+<a href=#335 id=335 data-nosnippet>335</a>    note = <span class="string">"use `latticearc::unified_api` (or the flat `latticearc::*` re-exports) instead; \
+<a href=#336 id=336 data-nosnippet>336</a>            the `core` alias is scheduled for removal pre-1.0"
+<a href=#337 id=337 data-nosnippet>337</a></span>)]
+<a href=#338 id=338 data-nosnippet>338</a></span><span class="kw">pub use </span>unified_api <span class="kw">as </span>core;
 <a href=#339 id=339 data-nosnippet>339</a>
-<a href=#340 id=340 data-nosnippet>340</a><span class="comment">// ============================================================================
-<a href=#341 id=341 data-nosnippet>341</a>// Core Types
-<a href=#342 id=342 data-nosnippet>342</a>// ============================================================================
+<a href=#340 id=340 data-nosnippet>340</a><span class="comment">// Explicit re-export of LatticeArcError for error compatibility.
+<a href=#341 id=341 data-nosnippet>341</a>// All other prelude types are accessible via `latticearc::prelude::*`.
+<a href=#342 id=342 data-nosnippet>342</a></span><span class="kw">pub use </span>prelude::LatticeArcError;
 <a href=#343 id=343 data-nosnippet>343</a>
-<a href=#344 id=344 data-nosnippet>344</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#345 id=345 data-nosnippet>345</a>    <span class="comment">// Algorithm selection types
-<a href=#346 id=346 data-nosnippet>346</a>    </span>AlgorithmSelection,
-<a href=#347 id=347 data-nosnippet>347</a>    Challenge,
-<a href=#348 id=348 data-nosnippet>348</a>    <span class="comment">// Compliance
-<a href=#349 id=349 data-nosnippet>349</a>    </span>ComplianceMode,
-<a href=#350 id=350 data-nosnippet>350</a>    ContinuousSession,
-<a href=#351 id=351 data-nosnippet>351</a>    <span class="comment">// Traits
-<a href=#352 id=352 data-nosnippet>352</a>    </span>ContinuousVerifiable,
-<a href=#353 id=353 data-nosnippet>353</a>    <span class="comment">// Types
-<a href=#354 id=354 data-nosnippet>354</a>    </span>CoreError,
-<a href=#355 id=355 data-nosnippet>355</a>    <span class="comment">// Unified configuration for cryptographic operations
-<a href=#356 id=356 data-nosnippet>356</a>    </span>CryptoConfig,
-<a href=#357 id=357 data-nosnippet>357</a>    CryptoContext,
-<a href=#358 id=358 data-nosnippet>358</a>    <span class="comment">// Cryptographic mode (hybrid vs PQ-only)
-<a href=#359 id=359 data-nosnippet>359</a>    </span>CryptoMode,
-<a href=#360 id=360 data-nosnippet>360</a>    CryptoPayload,
-<a href=#361 id=361 data-nosnippet>361</a>    CryptoScheme,
-<a href=#362 id=362 data-nosnippet>362</a>    DataCharacteristics,
-<a href=#363 id=363 data-nosnippet>363</a>    <span class="comment">// Type-safe encryption key types (no silent degradation)
-<a href=#364 id=364 data-nosnippet>364</a>    </span>DecryptKey,
-<a href=#365 id=365 data-nosnippet>365</a>    EncryptKey,
-<a href=#366 id=366 data-nosnippet>366</a>    EncryptedData,
-<a href=#367 id=367 data-nosnippet>367</a>    EncryptedMetadata,
-<a href=#368 id=368 data-nosnippet>368</a>    <span class="comment">// Type-safe encrypted output (replaces string-based scheme dispatch)
-<a href=#369 id=369 data-nosnippet>369</a>    </span>EncryptedOutput,
-<a href=#370 id=370 data-nosnippet>370</a>    EncryptionScheme,
-<a href=#371 id=371 data-nosnippet>371</a>    HashOutput,
-<a href=#372 id=372 data-nosnippet>372</a>    <span class="comment">// Hybrid encryption components (ML-KEM ciphertext + ECDH ephemeral key)
-<a href=#373 id=373 data-nosnippet>373</a>    </span>HybridComponents,
-<a href=#374 id=374 data-nosnippet>374</a>    KeyPair,
-<a href=#375 id=375 data-nosnippet>375</a>    PatternType,
-<a href=#376 id=376 data-nosnippet>376</a>    PerformancePreference,
-<a href=#377 id=377 data-nosnippet>377</a>    PrivateKey,
-<a href=#378 id=378 data-nosnippet>378</a>    ProofOfPossession,
-<a href=#379 id=379 data-nosnippet>379</a>    ProofOfPossessionData,
-<a href=#380 id=380 data-nosnippet>380</a>    PublicKey,
-<a href=#381 id=381 data-nosnippet>381</a>    <span class="comment">// ⚠ NOTE: this `Result&lt;T&gt;` is the project alias `Result&lt;T, CoreError&gt;`,
-<a href=#382 id=382 data-nosnippet>382</a>    // NOT `std::result::Result&lt;T, E&gt;`. A `use latticearc::*;` glob will
-<a href=#383 id=383 data-nosnippet>383</a>    // SHADOW the std type alias in the importing module. If you need both,
-<a href=#384 id=384 data-nosnippet>384</a>    // either (a) avoid the glob: `use latticearc::{encrypt, decrypt, ...};`,
-<a href=#385 id=385 data-nosnippet>385</a>    // or (b) re-import std after: `use std::result::Result as StdResult;`.
-<a href=#386 id=386 data-nosnippet>386</a>    </span><span class="prelude-ty">Result</span>,
-<a href=#387 id=387 data-nosnippet>387</a>    SchemeSelector,
-<a href=#388 id=388 data-nosnippet>388</a>    SecretBytes,
-<a href=#389 id=389 data-nosnippet>389</a>    SecretVec,
-<a href=#390 id=390 data-nosnippet>390</a>    SecurityLevel,
-<a href=#391 id=391 data-nosnippet>391</a>    <span class="comment">// Zero Trust types
-<a href=#392 id=392 data-nosnippet>392</a>    </span>SecurityMode,
-<a href=#393 id=393 data-nosnippet>393</a>    SignedData,
-<a href=#394 id=394 data-nosnippet>394</a>    SignedMetadata,
-<a href=#395 id=395 data-nosnippet>395</a>    SymmetricKey,
-<a href=#396 id=396 data-nosnippet>396</a>    TrustLevel,
-<a href=#397 id=397 data-nosnippet>397</a>    UseCase,
-<a href=#398 id=398 data-nosnippet>398</a>    <span class="comment">// Constants
-<a href=#399 id=399 data-nosnippet>399</a>    </span>VERSION,
-<a href=#400 id=400 data-nosnippet>400</a>    VerificationStatus,
-<a href=#401 id=401 data-nosnippet>401</a>    VerifiedSession,
-<a href=#402 id=402 data-nosnippet>402</a>    ZeroKnowledgeProof,
-<a href=#403 id=403 data-nosnippet>403</a>    ZeroTrustAuth,
-<a href=#404 id=404 data-nosnippet>404</a>    ZeroTrustAuthenticable,
-<a href=#405 id=405 data-nosnippet>405</a>    ZeroTrustSession,
-<a href=#406 id=406 data-nosnippet>406</a>    <span class="comment">// Compile-time feature detection
-<a href=#407 id=407 data-nosnippet>407</a>    </span>fips_available,
-<a href=#408 id=408 data-nosnippet>408</a>    <span class="comment">// Initialization
-<a href=#409 id=409 data-nosnippet>409</a>    </span>init,
-<a href=#410 id=410 data-nosnippet>410</a>    init_with_config,
-<a href=#411 id=411 data-nosnippet>411</a>};
-<a href=#412 id=412 data-nosnippet>412</a>
-<a href=#413 id=413 data-nosnippet>413</a><span class="comment">// PQ-only key types and key generation
-<a href=#414 id=414 data-nosnippet>414</a></span><span class="kw">pub use </span>hybrid::pq_only::{
-<a href=#415 id=415 data-nosnippet>415</a>    PqOnlyPublicKey, PqOnlySecretKey, generate_pq_keypair, generate_pq_keypair_with_level,
-<a href=#416 id=416 data-nosnippet>416</a>};
-<a href=#417 id=417 data-nosnippet>417</a>
-<a href=#418 id=418 data-nosnippet>418</a><span class="comment">// Hybrid types — re-exported from `hybrid::{kem_hybrid, sig_hybrid, encrypt_hybrid}`
-<a href=#419 id=419 data-nosnippet>419</a>// so consumers can name them via the public crate path
-<a href=#420 id=420 data-nosnippet>420</a>// (`latticearc::HybridKemPublicKey`) instead of the internal module path
-<a href=#421 id=421 data-nosnippet>421</a>// (`latticearc::hybrid::kem_hybrid::HybridKemPublicKey`). The `generate_*`
-<a href=#422 id=422 data-nosnippet>422</a>// constructors are already re-exported below; without these type re-exports
-<a href=#423 id=423 data-nosnippet>423</a>// callers can't write function signatures or struct fields that hold the
-<a href=#424 id=424 data-nosnippet>424</a>// returned values without referencing the internal path.
-<a href=#425 id=425 data-nosnippet>425</a></span><span class="kw">pub use </span>hybrid::encrypt_hybrid::{DerivationBinding, HybridCiphertext, HybridEncryptionError};
-<a href=#426 id=426 data-nosnippet>426</a><span class="kw">pub use </span>hybrid::kem_hybrid::{
-<a href=#427 id=427 data-nosnippet>427</a>    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
-<a href=#428 id=428 data-nosnippet>428</a>};
-<a href=#429 id=429 data-nosnippet>429</a><span class="kw">pub use </span>hybrid::sig_hybrid::{
-<a href=#430 id=430 data-nosnippet>430</a>    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
-<a href=#431 id=431 data-nosnippet>431</a>};
-<a href=#432 id=432 data-nosnippet>432</a>
-<a href=#433 id=433 data-nosnippet>433</a><span class="comment">// ============================================================================
-<a href=#434 id=434 data-nosnippet>434</a>// Unified API (Recommended)
-<a href=#435 id=435 data-nosnippet>435</a>// ============================================================================
+<a href=#344 id=344 data-nosnippet>344</a><span class="comment">// ============================================================================
+<a href=#345 id=345 data-nosnippet>345</a>// Core Types
+<a href=#346 id=346 data-nosnippet>346</a>// ============================================================================
+<a href=#347 id=347 data-nosnippet>347</a>
+<a href=#348 id=348 data-nosnippet>348</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#349 id=349 data-nosnippet>349</a>    <span class="comment">// Algorithm selection types
+<a href=#350 id=350 data-nosnippet>350</a>    </span>AlgorithmSelection,
+<a href=#351 id=351 data-nosnippet>351</a>    Challenge,
+<a href=#352 id=352 data-nosnippet>352</a>    <span class="comment">// Compliance
+<a href=#353 id=353 data-nosnippet>353</a>    </span>ComplianceMode,
+<a href=#354 id=354 data-nosnippet>354</a>    ContinuousSession,
+<a href=#355 id=355 data-nosnippet>355</a>    <span class="comment">// Traits
+<a href=#356 id=356 data-nosnippet>356</a>    </span>ContinuousVerifiable,
+<a href=#357 id=357 data-nosnippet>357</a>    <span class="comment">// Types
+<a href=#358 id=358 data-nosnippet>358</a>    </span>CoreError,
+<a href=#359 id=359 data-nosnippet>359</a>    <span class="comment">// Unified configuration for cryptographic operations
+<a href=#360 id=360 data-nosnippet>360</a>    </span>CryptoConfig,
+<a href=#361 id=361 data-nosnippet>361</a>    CryptoContext,
+<a href=#362 id=362 data-nosnippet>362</a>    <span class="comment">// Cryptographic mode (hybrid vs PQ-only)
+<a href=#363 id=363 data-nosnippet>363</a>    </span>CryptoMode,
+<a href=#364 id=364 data-nosnippet>364</a>    CryptoPayload,
+<a href=#365 id=365 data-nosnippet>365</a>    CryptoScheme,
+<a href=#366 id=366 data-nosnippet>366</a>    DataCharacteristics,
+<a href=#367 id=367 data-nosnippet>367</a>    <span class="comment">// Type-safe encryption key types (no silent degradation)
+<a href=#368 id=368 data-nosnippet>368</a>    </span>DecryptKey,
+<a href=#369 id=369 data-nosnippet>369</a>    EncryptKey,
+<a href=#370 id=370 data-nosnippet>370</a>    EncryptedData,
+<a href=#371 id=371 data-nosnippet>371</a>    EncryptedMetadata,
+<a href=#372 id=372 data-nosnippet>372</a>    <span class="comment">// Type-safe encrypted output (replaces string-based scheme dispatch)
+<a href=#373 id=373 data-nosnippet>373</a>    </span>EncryptedOutput,
+<a href=#374 id=374 data-nosnippet>374</a>    EncryptionScheme,
+<a href=#375 id=375 data-nosnippet>375</a>    HashOutput,
+<a href=#376 id=376 data-nosnippet>376</a>    <span class="comment">// Hybrid encryption components (ML-KEM ciphertext + ECDH ephemeral key)
+<a href=#377 id=377 data-nosnippet>377</a>    </span>HybridComponents,
+<a href=#378 id=378 data-nosnippet>378</a>    KeyPair,
+<a href=#379 id=379 data-nosnippet>379</a>    PatternType,
+<a href=#380 id=380 data-nosnippet>380</a>    PerformancePreference,
+<a href=#381 id=381 data-nosnippet>381</a>    PrivateKey,
+<a href=#382 id=382 data-nosnippet>382</a>    ProofOfPossession,
+<a href=#383 id=383 data-nosnippet>383</a>    ProofOfPossessionData,
+<a href=#384 id=384 data-nosnippet>384</a>    PublicKey,
+<a href=#385 id=385 data-nosnippet>385</a>    <span class="comment">// ⚠ NOTE: this `Result&lt;T&gt;` is the project alias `Result&lt;T, CoreError&gt;`,
+<a href=#386 id=386 data-nosnippet>386</a>    // NOT `std::result::Result&lt;T, E&gt;`. A `use latticearc::*;` glob will
+<a href=#387 id=387 data-nosnippet>387</a>    // SHADOW the std type alias in the importing module. If you need both,
+<a href=#388 id=388 data-nosnippet>388</a>    // either (a) avoid the glob: `use latticearc::{encrypt, decrypt, ...};`,
+<a href=#389 id=389 data-nosnippet>389</a>    // or (b) re-import std after: `use std::result::Result as StdResult;`.
+<a href=#390 id=390 data-nosnippet>390</a>    </span><span class="prelude-ty">Result</span>,
+<a href=#391 id=391 data-nosnippet>391</a>    SchemeSelector,
+<a href=#392 id=392 data-nosnippet>392</a>    SecretBytes,
+<a href=#393 id=393 data-nosnippet>393</a>    SecretVec,
+<a href=#394 id=394 data-nosnippet>394</a>    SecurityLevel,
+<a href=#395 id=395 data-nosnippet>395</a>    <span class="comment">// Zero Trust types
+<a href=#396 id=396 data-nosnippet>396</a>    </span>SecurityMode,
+<a href=#397 id=397 data-nosnippet>397</a>    SignedData,
+<a href=#398 id=398 data-nosnippet>398</a>    SignedMetadata,
+<a href=#399 id=399 data-nosnippet>399</a>    SymmetricKey,
+<a href=#400 id=400 data-nosnippet>400</a>    TrustLevel,
+<a href=#401 id=401 data-nosnippet>401</a>    UseCase,
+<a href=#402 id=402 data-nosnippet>402</a>    <span class="comment">// Constants
+<a href=#403 id=403 data-nosnippet>403</a>    </span>VERSION,
+<a href=#404 id=404 data-nosnippet>404</a>    VerificationStatus,
+<a href=#405 id=405 data-nosnippet>405</a>    VerifiedSession,
+<a href=#406 id=406 data-nosnippet>406</a>    ZeroKnowledgeProof,
+<a href=#407 id=407 data-nosnippet>407</a>    ZeroTrustAuth,
+<a href=#408 id=408 data-nosnippet>408</a>    ZeroTrustAuthenticable,
+<a href=#409 id=409 data-nosnippet>409</a>    ZeroTrustSession,
+<a href=#410 id=410 data-nosnippet>410</a>    <span class="comment">// Compile-time feature detection
+<a href=#411 id=411 data-nosnippet>411</a>    </span>fips_available,
+<a href=#412 id=412 data-nosnippet>412</a>    <span class="comment">// Initialization
+<a href=#413 id=413 data-nosnippet>413</a>    </span>init,
+<a href=#414 id=414 data-nosnippet>414</a>    init_with_config,
+<a href=#415 id=415 data-nosnippet>415</a>};
+<a href=#416 id=416 data-nosnippet>416</a>
+<a href=#417 id=417 data-nosnippet>417</a><span class="comment">// PQ-only key types and key generation
+<a href=#418 id=418 data-nosnippet>418</a></span><span class="kw">pub use </span>hybrid::pq_only::{
+<a href=#419 id=419 data-nosnippet>419</a>    PqOnlyPublicKey, PqOnlySecretKey, generate_pq_keypair, generate_pq_keypair_with_level,
+<a href=#420 id=420 data-nosnippet>420</a>};
+<a href=#421 id=421 data-nosnippet>421</a>
+<a href=#422 id=422 data-nosnippet>422</a><span class="comment">// Hybrid types — re-exported from `hybrid::{kem_hybrid, sig_hybrid, encrypt_hybrid}`
+<a href=#423 id=423 data-nosnippet>423</a>// so consumers can name them via the public crate path
+<a href=#424 id=424 data-nosnippet>424</a>// (`latticearc::HybridKemPublicKey`) instead of the internal module path
+<a href=#425 id=425 data-nosnippet>425</a>// (`latticearc::hybrid::kem_hybrid::HybridKemPublicKey`). The `generate_*`
+<a href=#426 id=426 data-nosnippet>426</a>// constructors are already re-exported below; without these type re-exports
+<a href=#427 id=427 data-nosnippet>427</a>// callers can't write function signatures or struct fields that hold the
+<a href=#428 id=428 data-nosnippet>428</a>// returned values without referencing the internal path.
+<a href=#429 id=429 data-nosnippet>429</a></span><span class="kw">pub use </span>hybrid::encrypt_hybrid::{DerivationBinding, HybridCiphertext, HybridEncryptionError};
+<a href=#430 id=430 data-nosnippet>430</a><span class="kw">pub use </span>hybrid::kem_hybrid::{
+<a href=#431 id=431 data-nosnippet>431</a>    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
+<a href=#432 id=432 data-nosnippet>432</a>};
+<a href=#433 id=433 data-nosnippet>433</a><span class="kw">pub use </span>hybrid::sig_hybrid::{
+<a href=#434 id=434 data-nosnippet>434</a>    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
+<a href=#435 id=435 data-nosnippet>435</a>};
 <a href=#436 id=436 data-nosnippet>436</a>
-<a href=#437 id=437 data-nosnippet>437</a>// Single entry points for all cryptographic operations
-<a href=#438 id=438 data-nosnippet>438</a></span><span class="kw">pub use </span>unified_api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
-<a href=#439 id=439 data-nosnippet>439</a>
-<a href=#440 id=440 data-nosnippet>440</a><span class="comment">// Hybrid key generation (ML-KEM + X25519)
-<a href=#441 id=441 data-nosnippet>441</a></span><span class="kw">pub use </span>unified_api::{generate_hybrid_keypair, generate_hybrid_keypair_with_level};
-<a href=#442 id=442 data-nosnippet>442</a>
-<a href=#443 id=443 data-nosnippet>443</a><span class="comment">// Hybrid signatures (ML-DSA-65 + Ed25519)
-<a href=#444 id=444 data-nosnippet>444</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#445 id=445 data-nosnippet>445</a>    generate_hybrid_signing_keypair, generate_hybrid_signing_keypair_with_config, sign_hybrid,
-<a href=#446 id=446 data-nosnippet>446</a>    sign_hybrid_with_config, verify_hybrid_signature, verify_hybrid_signature_with_config,
-<a href=#447 id=447 data-nosnippet>447</a>};
-<a href=#448 id=448 data-nosnippet>448</a>
-<a href=#449 id=449 data-nosnippet>449</a><span class="comment">// Key generation (no SecurityMode needed - creates credentials)
-<a href=#450 id=450 data-nosnippet>450</a></span><span class="attr">#[doc(hidden)]
-<a href=#451 id=451 data-nosnippet>451</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#452 id=452 data-nosnippet>452</a>    generate_fn_dsa_keypair, generate_fn_dsa_keypair_with_config,
-<a href=#453 id=453 data-nosnippet>453</a>    generate_fn_dsa_keypair_with_level, generate_keypair, generate_keypair_with_config,
-<a href=#454 id=454 data-nosnippet>454</a>    generate_ml_dsa_keypair, generate_ml_dsa_keypair_with_config, generate_ml_kem_keypair,
-<a href=#455 id=455 data-nosnippet>455</a>    generate_ml_kem_keypair_with_config, generate_slh_dsa_keypair,
-<a href=#456 id=456 data-nosnippet>456</a>    generate_slh_dsa_keypair_with_config,
-<a href=#457 id=457 data-nosnippet>457</a>};
-<a href=#458 id=458 data-nosnippet>458</a>
-<a href=#459 id=459 data-nosnippet>459</a><span class="comment">// Hashing (hash_data is stateless, others use SecurityMode)
-<a href=#460 id=460 data-nosnippet>460</a></span><span class="attr">#[doc(hidden)]
-<a href=#461 id=461 data-nosnippet>461</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#462 id=462 data-nosnippet>462</a>    derive_key, derive_key_with_config, derive_key_with_info, hash_data, hmac, hmac_check,
-<a href=#463 id=463 data-nosnippet>463</a>    hmac_check_with_config, hmac_with_config,
-<a href=#464 id=464 data-nosnippet>464</a>};
-<a href=#465 id=465 data-nosnippet>465</a>
-<a href=#466 id=466 data-nosnippet>466</a><span class="comment">// AES-GCM
-<a href=#467 id=467 data-nosnippet>467</a></span><span class="attr">#[doc(hidden)]
-<a href=#468 id=468 data-nosnippet>468</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#469 id=469 data-nosnippet>469</a>    decrypt_aes_gcm, decrypt_aes_gcm_with_aad, decrypt_aes_gcm_with_config, encrypt_aes_gcm,
-<a href=#470 id=470 data-nosnippet>470</a>    encrypt_aes_gcm_with_aad, encrypt_aes_gcm_with_config,
-<a href=#471 id=471 data-nosnippet>471</a>};
-<a href=#472 id=472 data-nosnippet>472</a>
-<a href=#473 id=473 data-nosnippet>473</a><span class="comment">// Ed25519
-<a href=#474 id=474 data-nosnippet>474</a></span><span class="attr">#[doc(hidden)]
-<a href=#475 id=475 data-nosnippet>475</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#476 id=476 data-nosnippet>476</a>    sign_ed25519, sign_ed25519_with_config, verify_ed25519, verify_ed25519_with_config,
-<a href=#477 id=477 data-nosnippet>477</a>};
-<a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a><span class="comment">// Post-Quantum KEM (ML-KEM)
-<a href=#480 id=480 data-nosnippet>480</a></span><span class="attr">#[doc(hidden)]
-<a href=#481 id=481 data-nosnippet>481</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#482 id=482 data-nosnippet>482</a>    decrypt_pq_ml_kem, decrypt_pq_ml_kem_with_config, encrypt_pq_ml_kem,
-<a href=#483 id=483 data-nosnippet>483</a>    encrypt_pq_ml_kem_with_config,
-<a href=#484 id=484 data-nosnippet>484</a>};
-<a href=#485 id=485 data-nosnippet>485</a>
-<a href=#486 id=486 data-nosnippet>486</a><span class="comment">// Post-Quantum Signatures (ML-DSA, SLH-DSA, FN-DSA)
-<a href=#487 id=487 data-nosnippet>487</a></span><span class="attr">#[doc(hidden)]
-<a href=#488 id=488 data-nosnippet>488</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#489 id=489 data-nosnippet>489</a>    sign_pq_fn_dsa, sign_pq_fn_dsa_with_config, sign_pq_ml_dsa, sign_pq_ml_dsa_with_config,
-<a href=#490 id=490 data-nosnippet>490</a>    sign_pq_slh_dsa, sign_pq_slh_dsa_with_config, verify_pq_fn_dsa, verify_pq_fn_dsa_with_config,
-<a href=#491 id=491 data-nosnippet>491</a>    verify_pq_ml_dsa, verify_pq_ml_dsa_with_config, verify_pq_slh_dsa,
-<a href=#492 id=492 data-nosnippet>492</a>    verify_pq_slh_dsa_with_config,
-<a href=#493 id=493 data-nosnippet>493</a>};
-<a href=#494 id=494 data-nosnippet>494</a>
-<a href=#495 id=495 data-nosnippet>495</a><span class="comment">// ============================================================================
-<a href=#496 id=496 data-nosnippet>496</a>// Low-Level Unverified Variants (for primitives)
-<a href=#497 id=497 data-nosnippet>497</a>// ============================================================================
+<a href=#437 id=437 data-nosnippet>437</a><span class="comment">// ============================================================================
+<a href=#438 id=438 data-nosnippet>438</a>// Unified API (Recommended)
+<a href=#439 id=439 data-nosnippet>439</a>// ============================================================================
+<a href=#440 id=440 data-nosnippet>440</a>
+<a href=#441 id=441 data-nosnippet>441</a>// Single entry points for all cryptographic operations
+<a href=#442 id=442 data-nosnippet>442</a></span><span class="kw">pub use </span>unified_api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
+<a href=#443 id=443 data-nosnippet>443</a>
+<a href=#444 id=444 data-nosnippet>444</a><span class="comment">// Hybrid key generation (ML-KEM + X25519)
+<a href=#445 id=445 data-nosnippet>445</a></span><span class="kw">pub use </span>unified_api::{generate_hybrid_keypair, generate_hybrid_keypair_with_level};
+<a href=#446 id=446 data-nosnippet>446</a>
+<a href=#447 id=447 data-nosnippet>447</a><span class="comment">// Hybrid signatures (ML-DSA-65 + Ed25519)
+<a href=#448 id=448 data-nosnippet>448</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#449 id=449 data-nosnippet>449</a>    generate_hybrid_signing_keypair, generate_hybrid_signing_keypair_with_config, sign_hybrid,
+<a href=#450 id=450 data-nosnippet>450</a>    sign_hybrid_with_config, verify_hybrid_signature, verify_hybrid_signature_with_config,
+<a href=#451 id=451 data-nosnippet>451</a>};
+<a href=#452 id=452 data-nosnippet>452</a>
+<a href=#453 id=453 data-nosnippet>453</a><span class="comment">// Key generation (no SecurityMode needed - creates credentials)
+<a href=#454 id=454 data-nosnippet>454</a></span><span class="attr">#[doc(hidden)]
+<a href=#455 id=455 data-nosnippet>455</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#456 id=456 data-nosnippet>456</a>    generate_fn_dsa_keypair, generate_fn_dsa_keypair_with_config,
+<a href=#457 id=457 data-nosnippet>457</a>    generate_fn_dsa_keypair_with_level, generate_keypair, generate_keypair_with_config,
+<a href=#458 id=458 data-nosnippet>458</a>    generate_ml_dsa_keypair, generate_ml_dsa_keypair_with_config, generate_ml_kem_keypair,
+<a href=#459 id=459 data-nosnippet>459</a>    generate_ml_kem_keypair_with_config, generate_slh_dsa_keypair,
+<a href=#460 id=460 data-nosnippet>460</a>    generate_slh_dsa_keypair_with_config,
+<a href=#461 id=461 data-nosnippet>461</a>};
+<a href=#462 id=462 data-nosnippet>462</a>
+<a href=#463 id=463 data-nosnippet>463</a><span class="comment">// Hashing (hash_data is stateless, others use SecurityMode)
+<a href=#464 id=464 data-nosnippet>464</a></span><span class="attr">#[doc(hidden)]
+<a href=#465 id=465 data-nosnippet>465</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#466 id=466 data-nosnippet>466</a>    derive_key, derive_key_with_config, derive_key_with_info, hash_data, hmac, hmac_check,
+<a href=#467 id=467 data-nosnippet>467</a>    hmac_check_with_config, hmac_with_config,
+<a href=#468 id=468 data-nosnippet>468</a>};
+<a href=#469 id=469 data-nosnippet>469</a>
+<a href=#470 id=470 data-nosnippet>470</a><span class="comment">// AES-GCM
+<a href=#471 id=471 data-nosnippet>471</a></span><span class="attr">#[doc(hidden)]
+<a href=#472 id=472 data-nosnippet>472</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#473 id=473 data-nosnippet>473</a>    decrypt_aes_gcm, decrypt_aes_gcm_with_aad, decrypt_aes_gcm_with_config, encrypt_aes_gcm,
+<a href=#474 id=474 data-nosnippet>474</a>    encrypt_aes_gcm_with_aad, encrypt_aes_gcm_with_config,
+<a href=#475 id=475 data-nosnippet>475</a>};
+<a href=#476 id=476 data-nosnippet>476</a>
+<a href=#477 id=477 data-nosnippet>477</a><span class="comment">// Ed25519
+<a href=#478 id=478 data-nosnippet>478</a></span><span class="attr">#[doc(hidden)]
+<a href=#479 id=479 data-nosnippet>479</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#480 id=480 data-nosnippet>480</a>    sign_ed25519, sign_ed25519_with_config, verify_ed25519, verify_ed25519_with_config,
+<a href=#481 id=481 data-nosnippet>481</a>};
+<a href=#482 id=482 data-nosnippet>482</a>
+<a href=#483 id=483 data-nosnippet>483</a><span class="comment">// Post-Quantum KEM (ML-KEM)
+<a href=#484 id=484 data-nosnippet>484</a></span><span class="attr">#[doc(hidden)]
+<a href=#485 id=485 data-nosnippet>485</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#486 id=486 data-nosnippet>486</a>    decrypt_pq_ml_kem, decrypt_pq_ml_kem_with_config, encrypt_pq_ml_kem,
+<a href=#487 id=487 data-nosnippet>487</a>    encrypt_pq_ml_kem_with_config,
+<a href=#488 id=488 data-nosnippet>488</a>};
+<a href=#489 id=489 data-nosnippet>489</a>
+<a href=#490 id=490 data-nosnippet>490</a><span class="comment">// Post-Quantum Signatures (ML-DSA, SLH-DSA, FN-DSA)
+<a href=#491 id=491 data-nosnippet>491</a></span><span class="attr">#[doc(hidden)]
+<a href=#492 id=492 data-nosnippet>492</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#493 id=493 data-nosnippet>493</a>    sign_pq_fn_dsa, sign_pq_fn_dsa_with_config, sign_pq_ml_dsa, sign_pq_ml_dsa_with_config,
+<a href=#494 id=494 data-nosnippet>494</a>    sign_pq_slh_dsa, sign_pq_slh_dsa_with_config, verify_pq_fn_dsa, verify_pq_fn_dsa_with_config,
+<a href=#495 id=495 data-nosnippet>495</a>    verify_pq_ml_dsa, verify_pq_ml_dsa_with_config, verify_pq_slh_dsa,
+<a href=#496 id=496 data-nosnippet>496</a>    verify_pq_slh_dsa_with_config,
+<a href=#497 id=497 data-nosnippet>497</a>};
 <a href=#498 id=498 data-nosnippet>498</a>
-<a href=#499 id=499 data-nosnippet>499</a></span><span class="attr">#[doc(hidden)]
-<a href=#500 id=500 data-nosnippet>500</a></span><span class="kw">pub use </span>unified_api::{
-<a href=#501 id=501 data-nosnippet>501</a>    <span class="comment">// AES-GCM
-<a href=#502 id=502 data-nosnippet>502</a>    </span>decrypt_aes_gcm_unverified,
-<a href=#503 id=503 data-nosnippet>503</a>    decrypt_aes_gcm_with_aad_unverified,
-<a href=#504 id=504 data-nosnippet>504</a>    decrypt_aes_gcm_with_config_unverified,
-<a href=#505 id=505 data-nosnippet>505</a>    <span class="comment">// PQ KEM
-<a href=#506 id=506 data-nosnippet>506</a>    </span>decrypt_pq_ml_kem_unverified,
-<a href=#507 id=507 data-nosnippet>507</a>    decrypt_pq_ml_kem_with_config_unverified,
-<a href=#508 id=508 data-nosnippet>508</a>    <span class="comment">// Hashing
-<a href=#509 id=509 data-nosnippet>509</a>    </span>derive_key_unverified,
-<a href=#510 id=510 data-nosnippet>510</a>    derive_key_with_config_unverified,
-<a href=#511 id=511 data-nosnippet>511</a>    derive_key_with_info_unverified,
-<a href=#512 id=512 data-nosnippet>512</a>    encrypt_aes_gcm_unverified,
-<a href=#513 id=513 data-nosnippet>513</a>    encrypt_aes_gcm_with_aad_unverified,
-<a href=#514 id=514 data-nosnippet>514</a>    encrypt_aes_gcm_with_config_unverified,
-<a href=#515 id=515 data-nosnippet>515</a>    encrypt_pq_ml_kem_unverified,
-<a href=#516 id=516 data-nosnippet>516</a>    encrypt_pq_ml_kem_with_config_unverified,
-<a href=#517 id=517 data-nosnippet>517</a>    <span class="comment">// Hybrid Signatures (ML-DSA-65 + Ed25519)
-<a href=#518 id=518 data-nosnippet>518</a>    </span>generate_hybrid_signing_keypair_unverified,
-<a href=#519 id=519 data-nosnippet>519</a>    hmac_check_unverified,
-<a href=#520 id=520 data-nosnippet>520</a>    hmac_check_with_config_unverified,
-<a href=#521 id=521 data-nosnippet>521</a>    hmac_unverified,
-<a href=#522 id=522 data-nosnippet>522</a>    hmac_with_config_unverified,
-<a href=#523 id=523 data-nosnippet>523</a>    <span class="comment">// Ed25519
-<a href=#524 id=524 data-nosnippet>524</a>    </span>sign_ed25519_unverified,
-<a href=#525 id=525 data-nosnippet>525</a>    sign_ed25519_with_config_unverified,
-<a href=#526 id=526 data-nosnippet>526</a>    sign_hybrid_unverified,
-<a href=#527 id=527 data-nosnippet>527</a>    <span class="comment">// PQ Signatures
-<a href=#528 id=528 data-nosnippet>528</a>    </span>sign_pq_fn_dsa_unverified,
-<a href=#529 id=529 data-nosnippet>529</a>    sign_pq_fn_dsa_with_config_unverified,
-<a href=#530 id=530 data-nosnippet>530</a>    sign_pq_ml_dsa_unverified,
-<a href=#531 id=531 data-nosnippet>531</a>    sign_pq_ml_dsa_with_config_unverified,
-<a href=#532 id=532 data-nosnippet>532</a>    sign_pq_slh_dsa_unverified,
-<a href=#533 id=533 data-nosnippet>533</a>    sign_pq_slh_dsa_with_config_unverified,
-<a href=#534 id=534 data-nosnippet>534</a>    verify_ed25519_unverified,
-<a href=#535 id=535 data-nosnippet>535</a>    verify_ed25519_with_config_unverified,
-<a href=#536 id=536 data-nosnippet>536</a>    verify_hybrid_signature_unverified,
-<a href=#537 id=537 data-nosnippet>537</a>    verify_pq_fn_dsa_unverified,
-<a href=#538 id=538 data-nosnippet>538</a>    verify_pq_fn_dsa_with_config_unverified,
-<a href=#539 id=539 data-nosnippet>539</a>    verify_pq_ml_dsa_unverified,
-<a href=#540 id=540 data-nosnippet>540</a>    verify_pq_ml_dsa_with_config_unverified,
-<a href=#541 id=541 data-nosnippet>541</a>    verify_pq_slh_dsa_unverified,
-<a href=#542 id=542 data-nosnippet>542</a>    verify_pq_slh_dsa_with_config_unverified,
-<a href=#543 id=543 data-nosnippet>543</a>};
-<a href=#544 id=544 data-nosnippet>544</a>
-<a href=#545 id=545 data-nosnippet>545</a><span class="comment">// ============================================================================
-<a href=#546 id=546 data-nosnippet>546</a>// Serialization Utilities
-<a href=#547 id=547 data-nosnippet>547</a>// ============================================================================
-<a href=#548 id=548 data-nosnippet>548</a>//
-<a href=#549 id=549 data-nosnippet>549</a>// `#[doc(hidden)]` on these six fns was internally inconsistent —
-<a href=#550 id=550 data-nosnippet>550</a>// `docs/API_DOCUMENTATION.md` directs users at them as part of the
-<a href=#551 id=551 data-nosnippet>551</a>// public surface. Hidden marker removed; these are now first-class
-<a href=#552 id=552 data-nosnippet>552</a>// public API. If we ever need to walk this back, drop the public
-<a href=#553 id=553 data-nosnippet>553</a>// reference in the docs first.
-<a href=#554 id=554 data-nosnippet>554</a></span><span class="kw">pub use </span>unified_api::serialization::{
-<a href=#555 id=555 data-nosnippet>555</a>    deserialize_encrypted_output, deserialize_keypair, deserialize_signed_data,
-<a href=#556 id=556 data-nosnippet>556</a>    serialize_encrypted_output, serialize_keypair, serialize_signed_data,
-<a href=#557 id=557 data-nosnippet>557</a>};
-<a href=#558 id=558 data-nosnippet>558</a>
-<a href=#559 id=559 data-nosnippet>559</a><span class="comment">// ============================================================================
-<a href=#560 id=560 data-nosnippet>560</a>// Portable Key Format
-<a href=#561 id=561 data-nosnippet>561</a>// ============================================================================
+<a href=#499 id=499 data-nosnippet>499</a><span class="comment">// ============================================================================
+<a href=#500 id=500 data-nosnippet>500</a>// Low-Level Unverified Variants (for primitives)
+<a href=#501 id=501 data-nosnippet>501</a>// ============================================================================
+<a href=#502 id=502 data-nosnippet>502</a>
+<a href=#503 id=503 data-nosnippet>503</a></span><span class="attr">#[doc(hidden)]
+<a href=#504 id=504 data-nosnippet>504</a></span><span class="kw">pub use </span>unified_api::{
+<a href=#505 id=505 data-nosnippet>505</a>    <span class="comment">// AES-GCM
+<a href=#506 id=506 data-nosnippet>506</a>    </span>decrypt_aes_gcm_unverified,
+<a href=#507 id=507 data-nosnippet>507</a>    decrypt_aes_gcm_with_aad_unverified,
+<a href=#508 id=508 data-nosnippet>508</a>    decrypt_aes_gcm_with_config_unverified,
+<a href=#509 id=509 data-nosnippet>509</a>    <span class="comment">// PQ KEM
+<a href=#510 id=510 data-nosnippet>510</a>    </span>decrypt_pq_ml_kem_unverified,
+<a href=#511 id=511 data-nosnippet>511</a>    decrypt_pq_ml_kem_with_config_unverified,
+<a href=#512 id=512 data-nosnippet>512</a>    <span class="comment">// Hashing
+<a href=#513 id=513 data-nosnippet>513</a>    </span>derive_key_unverified,
+<a href=#514 id=514 data-nosnippet>514</a>    derive_key_with_config_unverified,
+<a href=#515 id=515 data-nosnippet>515</a>    derive_key_with_info_unverified,
+<a href=#516 id=516 data-nosnippet>516</a>    encrypt_aes_gcm_unverified,
+<a href=#517 id=517 data-nosnippet>517</a>    encrypt_aes_gcm_with_aad_unverified,
+<a href=#518 id=518 data-nosnippet>518</a>    encrypt_aes_gcm_with_config_unverified,
+<a href=#519 id=519 data-nosnippet>519</a>    encrypt_pq_ml_kem_unverified,
+<a href=#520 id=520 data-nosnippet>520</a>    encrypt_pq_ml_kem_with_config_unverified,
+<a href=#521 id=521 data-nosnippet>521</a>    <span class="comment">// Hybrid Signatures (ML-DSA-65 + Ed25519)
+<a href=#522 id=522 data-nosnippet>522</a>    </span>generate_hybrid_signing_keypair_unverified,
+<a href=#523 id=523 data-nosnippet>523</a>    hmac_check_unverified,
+<a href=#524 id=524 data-nosnippet>524</a>    hmac_check_with_config_unverified,
+<a href=#525 id=525 data-nosnippet>525</a>    hmac_unverified,
+<a href=#526 id=526 data-nosnippet>526</a>    hmac_with_config_unverified,
+<a href=#527 id=527 data-nosnippet>527</a>    <span class="comment">// Ed25519
+<a href=#528 id=528 data-nosnippet>528</a>    </span>sign_ed25519_unverified,
+<a href=#529 id=529 data-nosnippet>529</a>    sign_ed25519_with_config_unverified,
+<a href=#530 id=530 data-nosnippet>530</a>    sign_hybrid_unverified,
+<a href=#531 id=531 data-nosnippet>531</a>    <span class="comment">// PQ Signatures
+<a href=#532 id=532 data-nosnippet>532</a>    </span>sign_pq_fn_dsa_unverified,
+<a href=#533 id=533 data-nosnippet>533</a>    sign_pq_fn_dsa_with_config_unverified,
+<a href=#534 id=534 data-nosnippet>534</a>    sign_pq_ml_dsa_unverified,
+<a href=#535 id=535 data-nosnippet>535</a>    sign_pq_ml_dsa_with_config_unverified,
+<a href=#536 id=536 data-nosnippet>536</a>    sign_pq_slh_dsa_unverified,
+<a href=#537 id=537 data-nosnippet>537</a>    sign_pq_slh_dsa_with_config_unverified,
+<a href=#538 id=538 data-nosnippet>538</a>    verify_ed25519_unverified,
+<a href=#539 id=539 data-nosnippet>539</a>    verify_ed25519_with_config_unverified,
+<a href=#540 id=540 data-nosnippet>540</a>    verify_hybrid_signature_unverified,
+<a href=#541 id=541 data-nosnippet>541</a>    verify_pq_fn_dsa_unverified,
+<a href=#542 id=542 data-nosnippet>542</a>    verify_pq_fn_dsa_with_config_unverified,
+<a href=#543 id=543 data-nosnippet>543</a>    verify_pq_ml_dsa_unverified,
+<a href=#544 id=544 data-nosnippet>544</a>    verify_pq_ml_dsa_with_config_unverified,
+<a href=#545 id=545 data-nosnippet>545</a>    verify_pq_slh_dsa_unverified,
+<a href=#546 id=546 data-nosnippet>546</a>    verify_pq_slh_dsa_with_config_unverified,
+<a href=#547 id=547 data-nosnippet>547</a>};
+<a href=#548 id=548 data-nosnippet>548</a>
+<a href=#549 id=549 data-nosnippet>549</a><span class="comment">// ============================================================================
+<a href=#550 id=550 data-nosnippet>550</a>// Serialization Utilities
+<a href=#551 id=551 data-nosnippet>551</a>// ============================================================================
+<a href=#552 id=552 data-nosnippet>552</a>//
+<a href=#553 id=553 data-nosnippet>553</a>// `#[doc(hidden)]` on these six fns was internally inconsistent —
+<a href=#554 id=554 data-nosnippet>554</a>// `docs/API_DOCUMENTATION.md` directs users at them as part of the
+<a href=#555 id=555 data-nosnippet>555</a>// public surface. Hidden marker removed; these are now first-class
+<a href=#556 id=556 data-nosnippet>556</a>// public API. If we ever need to walk this back, drop the public
+<a href=#557 id=557 data-nosnippet>557</a>// reference in the docs first.
+<a href=#558 id=558 data-nosnippet>558</a></span><span class="kw">pub use </span>unified_api::serialization::{
+<a href=#559 id=559 data-nosnippet>559</a>    deserialize_encrypted_output, deserialize_keypair, deserialize_signed_data,
+<a href=#560 id=560 data-nosnippet>560</a>    serialize_encrypted_output, serialize_keypair, serialize_signed_data,
+<a href=#561 id=561 data-nosnippet>561</a>};
 <a href=#562 id=562 data-nosnippet>562</a>
-<a href=#563 id=563 data-nosnippet>563</a></span><span class="kw">pub use </span>unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
-<a href=#564 id=564 data-nosnippet>564</a>
-<a href=#565 id=565 data-nosnippet>565</a><span class="comment">// ============================================================================
-<a href=#566 id=566 data-nosnippet>566</a>// Zeroize re-export
-<a href=#567 id=567 data-nosnippet>567</a>// ============================================================================
-<a href=#568 id=568 data-nosnippet>568</a>//
-<a href=#569 id=569 data-nosnippet>569</a>// Re-export `Zeroizing` so downstream consumers (including our own tests)
-<a href=#570 id=570 data-nosnippet>570</a>// can name the wrapper type returned by `decrypt()` without needing to add
-<a href=#571 id=571 data-nosnippet>571</a>// `zeroize` as a separate dependency.
-<a href=#572 id=572 data-nosnippet>572</a></span><span class="kw">pub use </span>zeroize::Zeroizing;
+<a href=#563 id=563 data-nosnippet>563</a><span class="comment">// ============================================================================
+<a href=#564 id=564 data-nosnippet>564</a>// Portable Key Format
+<a href=#565 id=565 data-nosnippet>565</a>// ============================================================================
+<a href=#566 id=566 data-nosnippet>566</a>
+<a href=#567 id=567 data-nosnippet>567</a></span><span class="kw">pub use </span>unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+<a href=#568 id=568 data-nosnippet>568</a>
+<a href=#569 id=569 data-nosnippet>569</a><span class="comment">// ============================================================================
+<a href=#570 id=570 data-nosnippet>570</a>// Zeroize re-export
+<a href=#571 id=571 data-nosnippet>571</a>// ============================================================================
+<a href=#572 id=572 data-nosnippet>572</a>//
+<a href=#573 id=573 data-nosnippet>573</a>// Re-export `Zeroizing` so downstream consumers (including our own tests)
+<a href=#574 id=574 data-nosnippet>574</a>// can name the wrapper type returned by `decrypt()` without needing to add
+<a href=#575 id=575 data-nosnippet>575</a>// `zeroize` as a separate dependency.
+<a href=#576 id=576 data-nosnippet>576</a></span><span class="kw">pub use </span>zeroize::Zeroizing;
 </code></pre></div></section></main></body></html>
