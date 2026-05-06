@@ -705,7 +705,15 @@ impl ZeroTrustAuth {
     pub fn start_continuous_verification(&self) -> Result<ContinuousSession> {
         let last_verified = match self.last_verification.lock() {
             Ok(g) => *g,
-            Err(poisoned) => *poisoned.into_inner(),
+            Err(poisoned) => {
+                tracing::warn!(
+                    target: "latticearc::unified_api::zero_trust",
+                    "ZeroTrustAuth.last_verification mutex was poisoned in \
+                     start_continuous_verification; a previous writer panicked. \
+                     Recovering inner guard."
+                );
+                *poisoned.into_inner()
+            }
         };
         let last_verified = last_verified.ok_or_else(|| {
             CoreError::AuthenticationFailed(
@@ -809,7 +817,15 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
             // valid.
             let mut guard = match self.last_verification.lock() {
                 Ok(g) => g,
-                Err(poisoned) => poisoned.into_inner(),
+                Err(poisoned) => {
+                    tracing::warn!(
+                        target: "latticearc::unified_api::zero_trust",
+                        "ZeroTrustAuth.last_verification mutex was poisoned in \
+                         verify_proof success path; a previous writer panicked. \
+                         Recovering inner guard."
+                    );
+                    poisoned.into_inner()
+                }
             };
             *guard = Some(Utc::now());
         }
@@ -995,7 +1011,15 @@ impl ContinuousVerifiable for ZeroTrustAuth {
         // otherwise healthy auth session.
         let last_verification_at = match self.last_verification.lock() {
             Ok(g) => *g,
-            Err(poisoned) => *poisoned.into_inner(),
+            Err(poisoned) => {
+                tracing::warn!(
+                    target: "latticearc::unified_api::zero_trust",
+                    "ZeroTrustAuth.last_verification mutex was poisoned in \
+                     maybe_continuous_verification; a previous writer panicked. \
+                     Recovering inner guard."
+                );
+                *poisoned.into_inner()
+            }
         };
         // No prior verification ⇒ continuous-verify mode reports
         // `Pending`, mirroring the "must reauthenticate" path. We never
@@ -1049,7 +1073,14 @@ impl ContinuousVerifiable for ZeroTrustAuth {
 
         let mut guard = match self.last_verification.lock() {
             Ok(g) => g,
-            Err(poisoned) => poisoned.into_inner(),
+            Err(poisoned) => {
+                tracing::warn!(
+                    target: "latticearc::unified_api::zero_trust",
+                    "ZeroTrustAuth.last_verification mutex was poisoned in \
+                     reauthenticate; a previous writer panicked. Recovering inner guard."
+                );
+                poisoned.into_inner()
+            }
         };
         *guard = Some(Utc::now());
         Ok(())
@@ -1227,6 +1258,15 @@ impl ContinuousSession {
     #[must_use]
     pub fn auth_public_key(&self) -> &PublicKey {
         &self.auth_public_key
+    }
+
+    /// Timestamp of the last successful verification on this session.
+    /// Exposed so callers (and tests) can confirm that
+    /// [`Self::update_verification`] actually advances the cached
+    /// timestamp rather than no-oping.
+    #[must_use]
+    pub fn last_verification(&self) -> DateTime<Utc> {
+        self.last_verification
     }
 
     /// Checks whether the continuous session is still valid.

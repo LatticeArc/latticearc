@@ -106,7 +106,7 @@ impl<'a> AtomicWrite<'a> {
     /// world-readable, even briefly.
     ///
     /// On Windows this sets `harden_windows_acl = true`; after the
-    /// rename completes, [`set_owner_only_dacl`] replaces the file's
+    /// rename completes, [`set_local_admin_dacl`] replaces the file's
     /// inherited DACL with the workspace's owner-only policy. The
     /// rename target inherits the parent directory's ACL on creation,
     /// which on a default user profile typically grants `Users:Read`
@@ -229,7 +229,7 @@ impl<'a> AtomicWrite<'a> {
         // — silently leaving the secret-key file world-readable
         // would be a worse outcome than failing the write.
         if self.harden_windows_acl {
-            crate::unified_api::set_owner_only_dacl(path).map_err(|e| {
+            crate::unified_api::set_local_admin_dacl(path).map_err(|e| {
                 CoreError::Internal(format!(
                     "windows DACL hardening on {} failed: {e}",
                     path.display()

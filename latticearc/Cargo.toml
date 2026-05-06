@@ -200,7 +200,12 @@ region = { version = "3.0", optional = true }
 # `unsafe_code = "forbid"` lint covers our own source only, so this dep
 # is the canonical way to set DACLs without violating the policy.
 [target.'cfg(windows)'.dependencies]
-windows-permissions = "0.2"
+# Exact-pinned to 0.2.4: this is the version we audited (last
+# upstream release 2021-06-29). A patch release with a behavioural
+# change would silently land via `cargo update` under a loose `"0.2"`
+# constraint, which is unacceptable for security-critical Windows
+# ACL plumbing. Bump deliberately with a re-audit.
+windows-permissions = "=0.2.4"
 
 [dev-dependencies]
 proptest = { workspace = true }

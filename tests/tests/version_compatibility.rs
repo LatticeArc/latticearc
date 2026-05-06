@@ -682,7 +682,22 @@ fn test_concurrent_serialization_safety_succeeds() -> Result<()> {
         .collect();
 
     for handle in handles {
-        handle.join().ok();
+        // Propagate panics: `.ok()` previously discarded
+        // `Err(Box<dyn Any>)` so a thread that panicked during the
+        // race silently produced `Ok(())` for the test. Surface the
+        // panic via `Result` rather than `.expect()` because the
+        // workspace lints disallow `.expect()` in fns that return
+        // `Result`.
+        if let Err(payload) = handle.join() {
+            return Err(CoreError::Internal(format!(
+                "worker thread panicked during concurrent serialization: {:?}",
+                payload
+                    .downcast_ref::<&str>()
+                    .copied()
+                    .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+                    .unwrap_or("<panic payload was not a string>")
+            )));
+        }
     }
     Ok(())
 }

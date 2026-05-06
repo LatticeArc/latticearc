@@ -508,16 +508,26 @@ impl AuditConfig {
 
 /// Parse the timestamp embedded in an audit-log filename.
 ///
-/// Audit logs are named `audit-YYYY-MM-DDTHH-MM-SS.jsonl` (created by
-/// `FileAuditStorage::create_new_file`). This helper inverts that
-/// formatting and returns the embedded creation time. Used by the
-/// retention sweep so cleanup decisions don't depend on filesystem
-/// `mtime`, which a privileged attacker can rewrite with `touch`.
+/// Audit logs are named either:
+/// - `audit-YYYY-MM-DDTHH-MM-SS.jsonl` (legacy second-precision form)
+/// - `audit-YYYY-MM-DDTHH-MM-SS-NNNNNN.jsonl` (current form, with
+///   `NNNNNN` = microseconds since the second, added to defeat
+///   sub-second rotation collisions under `create_new(true)`)
+///
+/// Both shapes parse to the same chronological key — microseconds
+/// are stripped at parse time because retention is second-grained.
+/// Treat the parsed `NaiveDateTime` as UTC since the producer writes
+/// UTC clock readings. Used by the retention sweep so cleanup
+/// decisions don't depend on filesystem `mtime`, which a privileged
+/// attacker can rewrite with `touch`.
 fn parse_audit_filename_timestamp(file_name: &str) -> Option<DateTime<Utc>> {
     let stem = file_name.strip_prefix("audit-")?.strip_suffix(".jsonl")?;
-    // The format string mirrors `create_new_file`'s
-    // `now.format("%Y-%m-%dT%H-%M-%S")`. Treat the parsed `NaiveDateTime`
-    // as UTC since the producer writes UTC clock readings.
+    // Try the current micro-precision form first (`SS-NNNNNN`), then
+    // fall back to the legacy second-only form. The micro suffix is
+    // exactly six digits; chrono's `%6f` matches.
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(stem, "%Y-%m-%dT%H-%M-%S-%6f") {
+        return Some(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
+    }
     let naive = chrono::NaiveDateTime::parse_from_str(stem, "%Y-%m-%dT%H-%M-%S").ok()?;
     Some(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc))
 }
@@ -634,13 +644,21 @@ const AUDIT_GENESIS_DOMAIN_LABEL: &[u8] = b"latticearc-audit-genesis-v1";
 /// final hash; absence (or mismatch) of this anchor at the start of a
 /// non-initial file indicates the chain has been truncated, reordered,
 /// or had files deleted.
-pub const CHAIN_ANCHOR_ACTION: &str = "audit-chain-link";
+///
+/// `pub(crate)` (not `pub`): downstream callers must not be able to
+/// construct an `AuditEvent` whose action equals this verb, otherwise
+/// they could append a counterfeit anchor anywhere in a writable log
+/// — the `first_event_in_file` gate in `verify_chain` only guards the
+/// first-line position, not later positions within the same file.
+pub(crate) const CHAIN_ANCHOR_ACTION: &str = "audit-chain-link";
 /// Metadata key on a chain-anchor event recording the filename of the
-/// prior audit file in the rotation sequence.
-pub const CHAIN_ANCHOR_PREV_FILE_KEY: &str = "previous_file";
+/// prior audit file in the rotation sequence. `pub(crate)` for the
+/// same reason as [`CHAIN_ANCHOR_ACTION`].
+pub(crate) const CHAIN_ANCHOR_PREV_FILE_KEY: &str = "previous_file";
 /// Metadata key on a chain-anchor event recording the integrity hash
 /// at the moment of rotation (i.e. the prior file's final event hash).
-pub const CHAIN_ANCHOR_PREV_HASH_KEY: &str = "previous_hash";
+/// `pub(crate)` for the same reason as [`CHAIN_ANCHOR_ACTION`].
+pub(crate) const CHAIN_ANCHOR_PREV_HASH_KEY: &str = "previous_hash";
 
 impl FileAuditStorage {
     /// Create a new file-based audit storage.
@@ -1052,9 +1070,16 @@ impl FileAuditStorage {
     }
 
     /// Create a new audit file.
+    ///
+    /// Filename includes microsecond precision so sub-second rotations
+    /// (rapid `with_max_file_size` triggering, repeated explicit
+    /// `flush()` calls, or stress tests) cannot collide. The
+    /// `create_new(true)` flag below would otherwise error on
+    /// collisions and leave the rotation loop stuck.
     fn create_new_file(&self) -> Result<FileState> {
         let now = Utc::now();
-        let filename = format!("audit-{}.jsonl", now.format("%Y-%m-%dT%H-%M-%S"));
+        let micros = now.timestamp_subsec_micros();
+        let filename = format!("audit-{}-{:06}.jsonl", now.format("%Y-%m-%dT%H-%M-%S"), micros);
         let path = self.config.storage_path.join(&filename);
 
         let file = {
@@ -1063,10 +1088,21 @@ impl FileAuditStorage {
             // contain operation context (key IDs, paths, actors) and must
             // not inherit the default umask the way the previous bare
             // `OpenOptions::new().create(...).open(...)` did.
+            // `create_new(true)` (not `create(true)`): refuse to open a
+            // pre-existing file. The rotation code generates the
+            // filename from `Utc::now()` to second precision; if a
+            // file already exists at that path it means either (a) a
+            // sub-second rotation race or (b) a stale file from a
+            // prior process. In either case we MUST NOT silently
+            // adopt the existing inode and rewrite its DACL — that
+            // would (a) make the chain hash-input contiguous across
+            // processes that didn't actually share state, and (b)
+            // hide the race. Surface the conflict as an error so the
+            // caller can rotate forward by one second.
             #[cfg(unix)]
             {
                 use std::os::unix::fs::OpenOptionsExt;
-                OpenOptions::new().create(true).append(true).mode(0o600).open(&path).map_err(
+                OpenOptions::new().create_new(true).append(true).mode(0o600).open(&path).map_err(
                     |e| {
                         CoreError::AuditError(format!(
                             "Failed to create audit file '{}': {}",
@@ -1079,22 +1115,23 @@ impl FileAuditStorage {
             #[cfg(not(unix))]
             {
                 // LINT-OK: cfg-not-unix — Windows confidentiality is
-                // enforced via `set_owner_only_dacl` immediately after
+                // enforced via `set_local_admin_dacl` immediately after
                 // open (Win32 `OpenOptionsExt` has no `.mode()` analog).
-                let f = OpenOptions::new().create(true).append(true).open(&path).map_err(|e| {
-                    CoreError::AuditError(format!(
-                        "Failed to create audit file '{}': {}",
-                        path.display(),
-                        e
-                    ))
-                })?;
+                let f =
+                    OpenOptions::new().create_new(true).append(true).open(&path).map_err(|e| {
+                        CoreError::AuditError(format!(
+                            "Failed to create audit file '{}': {}",
+                            path.display(),
+                            e
+                        ))
+                    })?;
                 // Replace the default DACL inherited from the parent
                 // directory with the owner-only policy applied
                 // workspace-wide. Symmetric with the Unix `mode(0o600)`
                 // above. A failure here is fatal — letting an audit
                 // log inherit a permissive DACL silently would defeat
                 // the whole point of the rotation.
-                crate::unified_api::set_owner_only_dacl(&path).map_err(|e| {
+                crate::unified_api::set_local_admin_dacl(&path).map_err(|e| {
                     CoreError::AuditError(format!(
                         "Failed to harden audit file DACL '{}': {}",
                         path.display(),
@@ -1220,8 +1257,16 @@ impl FileAuditStorage {
             }
         }
         // Filename-timestamp ordering: `audit-YYYYMMDD-HHMMSS-NNN.jsonl`
-        // is lexicographically chronological.
-        log_files.sort();
+        // is lexicographically chronological. Sort by basename rather
+        // than the full `PathBuf` — the latter is byte-ordered, which
+        // on Windows can differ across drive-letter case (`C:\` vs
+        // `c:\`) or path-separator normalisation, producing an order
+        // that doesn't match the chronological intent.
+        log_files.sort_by(|a, b| {
+            a.file_name()
+                .unwrap_or_else(|| a.as_os_str())
+                .cmp(b.file_name().unwrap_or_else(|| b.as_os_str()))
+        });
 
         // Recompute from genesis. Reads the persisted genesis directly
         // rather than the in-memory `previous_hash` so verification
@@ -1256,30 +1301,81 @@ impl FileAuditStorage {
         let mut previous_file_final_hash: Option<String> = None;
 
         for file in &log_files {
-            use std::io::BufRead;
+            use std::io::Read;
             let f = File::open(file).map_err(|e| {
                 CoreError::AuditError(format!("Failed to open {}: {}", file.display(), e))
             })?;
-            let reader = std::io::BufReader::new(f);
+            let mut reader = std::io::BufReader::new(f);
             // Reset per-file: track whether we've seen the first
             // non-empty event of this file (used for the cross-file
             // anchor check below).
             let mut first_event_in_file = true;
-            for (line_idx, line_res) in reader.lines().enumerate() {
-                let line = line_res
-                    .map_err(|e| CoreError::AuditError(format!("Failed to read line: {}", e)))?;
+            // Bounded line-reader. `BufReader::lines()` allocates the
+            // whole `String` BEFORE returning it, so a 1 GiB
+            // newline-free file would OOM the verifier before the
+            // post-decode `MAX_LINE_LEN` check fires. Read byte-by-
+            // byte through a buffer we control: as soon as the
+            // accumulator exceeds `MAX_LINE_LEN`, abort with an
+            // error — bytes past the cap are never allocated.
+            let mut line_buf: Vec<u8> = Vec::new();
+            let mut byte = [0u8; 1];
+            let mut line_idx: usize = 0;
+            let mut hit_eof = false;
+            loop {
+                if hit_eof && line_buf.is_empty() {
+                    break;
+                }
+                let n = if hit_eof {
+                    0
+                } else {
+                    match reader.read(&mut byte) {
+                        Ok(n) => n,
+                        Err(e) => {
+                            return Err(CoreError::AuditError(format!(
+                                "Failed to read line: {}",
+                                e
+                            )));
+                        }
+                    }
+                };
+                if n == 0 {
+                    hit_eof = true;
+                    if line_buf.is_empty() {
+                        break;
+                    }
+                } else if byte[0] != b'\n' {
+                    if line_buf.len() >= MAX_LINE_LEN {
+                        return Err(CoreError::AuditError(format!(
+                            "audit line {} of {} exceeds maximum length {}",
+                            line_idx,
+                            file.display(),
+                            MAX_LINE_LEN
+                        )));
+                    }
+                    line_buf.push(byte[0]);
+                    continue;
+                }
+                // EOL or EOF reached — process the accumulated line
+                // (which is guaranteed `<= MAX_LINE_LEN` bytes by the
+                // cap above).
+                let line = match std::str::from_utf8(&line_buf) {
+                    Ok(s) => s.to_string(),
+                    Err(e) => {
+                        return Err(CoreError::AuditError(format!(
+                            "audit line {} of {} is not valid UTF-8: {}",
+                            line_idx,
+                            file.display(),
+                            e
+                        )));
+                    }
+                };
+                line_buf.clear();
+                let saved_idx = line_idx;
+                line_idx = line_idx.saturating_add(1);
                 if line.trim().is_empty() {
                     continue;
                 }
-                if line.len() > MAX_LINE_LEN {
-                    return Err(CoreError::AuditError(format!(
-                        "audit line {} of {} exceeds maximum length {} (was {})",
-                        line_idx,
-                        file.display(),
-                        MAX_LINE_LEN,
-                        line.len()
-                    )));
-                }
+                let line_idx = saved_idx;
                 // Pre-pass: extract `integrity_hash` cheaply with
                 // `serde_json::Value` partial parsing so we can fail
                 // fast on a tampered chain marker before paying for
@@ -1341,17 +1437,31 @@ impl FileAuditStorage {
                     if let (Some(prev_name), Some(prev_final_hash)) =
                         (previous_file_name.as_deref(), previous_file_final_hash.as_deref())
                     {
-                        let action_ok = event.action == CHAIN_ANCHOR_ACTION;
+                        // Constant-time compare on the chain hash:
+                        // it's a hex-encoded SHA-256 that authenticates
+                        // the prior file's tail state, and an attacker
+                        // who can time `verify_chain` could otherwise
+                        // recover it byte-by-byte. The action verb and
+                        // filename are public values (the rotation
+                        // produces deterministic timestamped names),
+                        // so they don't need CT-compare — but we use
+                        // the same primitive for consistency.
+                        use subtle::ConstantTimeEq;
+                        let action_ok =
+                            event.action.as_bytes().ct_eq(CHAIN_ANCHOR_ACTION.as_bytes());
                         let prev_file_meta_ok = event
                             .metadata
                             .get(CHAIN_ANCHOR_PREV_FILE_KEY)
-                            .map(|v| v == prev_name)
-                            .unwrap_or(false);
+                            .map(|v| v.as_bytes().ct_eq(prev_name.as_bytes()))
+                            .unwrap_or_else(|| 0u8.ct_eq(&1u8));
                         let prev_hash_meta_ok = event
                             .metadata
                             .get(CHAIN_ANCHOR_PREV_HASH_KEY)
-                            .map(|v| v == prev_final_hash)
-                            .unwrap_or(false);
+                            .map(|v| v.as_bytes().ct_eq(prev_final_hash.as_bytes()))
+                            .unwrap_or_else(|| 0u8.ct_eq(&1u8));
+                        let action_ok: bool = action_ok.into();
+                        let prev_file_meta_ok: bool = prev_file_meta_ok.into();
+                        let prev_hash_meta_ok: bool = prev_hash_meta_ok.into();
                         if !(action_ok && prev_file_meta_ok && prev_hash_meta_ok) {
                             // Surface as a chain mismatch on this line —
                             // matches the existing reporting shape so

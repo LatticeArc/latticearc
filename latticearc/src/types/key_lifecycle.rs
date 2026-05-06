@@ -399,6 +399,41 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
             }
         }
 
+        // (7) Top-level per-state timestamps must respect the
+        //     state-machine's temporal ordering:
+        //         generated_at ≤ activated_at ≤ rotated_at ≤ retired_at ≤ destroyed_at
+        //     The state_history monotonicity check (step 4) only
+        //     covers entries within the history vector — the top-
+        //     level timestamps are populated from independent JSON
+        //     fields and could otherwise carry impossible orderings
+        //     (e.g. `retired_at < activated_at`). The in-memory
+        //     `transition()` path always assigns these via
+        //     `Utc::now()` after the monotonicity-enforced state
+        //     change, so the relationship holds by construction
+        //     there; deserialization needs an explicit gate.
+        type TsPair = (
+            &'static str,
+            Option<chrono::DateTime<chrono::Utc>>,
+            &'static str,
+            Option<chrono::DateTime<chrono::Utc>>,
+        );
+        let pairs: [TsPair; 5] = [
+            ("generated_at", Some(raw.generated_at), "activated_at", raw.activated_at),
+            ("activated_at", raw.activated_at, "rotated_at", raw.rotated_at),
+            ("activated_at", raw.activated_at, "retired_at", raw.retired_at),
+            ("rotated_at", raw.rotated_at, "retired_at", raw.retired_at),
+            ("retired_at", raw.retired_at, "destroyed_at", raw.destroyed_at),
+        ];
+        for (earlier_name, earlier, later_name, later) in pairs {
+            if let (Some(e), Some(l)) = (earlier, later)
+                && l < e
+            {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "{later_name} ({l}) precedes {earlier_name} ({e}) — state-machine ordering violated"
+                )));
+            }
+        }
+
         Ok(KeyLifecycleRecord {
             key_id: raw.key_id,
             key_type: raw.key_type,

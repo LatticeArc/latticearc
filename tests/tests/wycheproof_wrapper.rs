@@ -92,7 +92,20 @@ fn aes_256_gcm_via_wrapper_matches_wycheproof() {
                         s.add_failure(format!("tc {} Invalid: decrypt succeeded", tc.tc_id));
                     }
                 },
-                TestResult::Acceptable => s.add_pass(),
+                // `Acceptable` means: implementation MAY accept or
+                // reject. If it accepts, the produced plaintext MUST
+                // still match `tc.pt` — silently passing on mismatched
+                // output (the prior behaviour) hides wrapper bugs.
+                TestResult::Acceptable => match result {
+                    Ok(pt) if pt.as_slice() == &tc.pt[..] => s.add_pass(),
+                    Ok(_) => {
+                        s.add_failure(format!(
+                            "tc {} Acceptable: decrypted but plaintext mismatch",
+                            tc.tc_id
+                        ));
+                    }
+                    Err(_) => s.add_pass(),
+                },
             }
         }
     }
@@ -152,7 +165,18 @@ fn chacha20_poly1305_via_wrapper_matches_wycheproof() {
                         s.add_failure(format!("tc {} Invalid: decrypt succeeded", tc.tc_id));
                     }
                 },
-                TestResult::Acceptable => s.add_pass(),
+                // See `Acceptable` rationale on the AES-256-GCM
+                // suite above.
+                TestResult::Acceptable => match result {
+                    Ok(pt) if pt.as_slice() == &tc.pt[..] => s.add_pass(),
+                    Ok(_) => {
+                        s.add_failure(format!(
+                            "tc {} Acceptable: decrypted but plaintext mismatch",
+                            tc.tc_id
+                        ));
+                    }
+                    Err(_) => s.add_pass(),
+                },
             }
         }
     }
@@ -208,7 +232,19 @@ fn hmac_sha256_via_wrapper_matches_wycheproof() {
                         s.add_failure(format!("tc {} Invalid: verify returned true", tc.tc_id));
                     }
                 }
-                TestResult::Acceptable => s.add_pass(),
+                // `Acceptable` for HMAC: if the verifier accepts,
+                // the computed tag MUST equal the expected tag.
+                // Silently passing on tag mismatch hides bugs.
+                TestResult::Acceptable => {
+                    if !verify_ok || matches_expected {
+                        s.add_pass();
+                    } else {
+                        s.add_failure(format!(
+                            "tc {} Acceptable: verify_ok=true but computed tag mismatch",
+                            tc.tc_id
+                        ));
+                    }
+                }
             }
         }
     }
@@ -271,7 +307,20 @@ fn hkdf_sha256_via_wrapper_matches_wycheproof() {
                         s.add_failure(format!("tc {} Invalid: OKM matched", tc.tc_id));
                     }
                 }
-                TestResult::Acceptable => s.add_pass(),
+                // `Acceptable` for KDF: the wrapper produced an
+                // output (didn't error in the `?` above), so the
+                // output MUST match `tc.okm`. Silently passing on
+                // mismatched output hides wrapper bugs.
+                TestResult::Acceptable => {
+                    if matches {
+                        s.add_pass();
+                    } else {
+                        s.add_failure(format!(
+                            "tc {} Acceptable: produced OKM differs from expected",
+                            tc.tc_id
+                        ));
+                    }
+                }
             }
         }
     }

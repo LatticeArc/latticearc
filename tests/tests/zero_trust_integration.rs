@@ -850,13 +850,35 @@ fn test_session_with_different_proof_complexities_succeeds() {
     for complexity in &complexities {
         let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-        // Test using VerifiedSession::establish which handles authentication internally
-        let session =
-            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
-                .expect("session establishment should succeed");
+        // Drive the manual path so the loop variable actually
+        // selects the proof complexity. Round-37 tests merely
+        // iterated over the enum without configuring it — every
+        // iteration ran with the default complexity, making the
+        // loop a vacuous repetition.
+        let config = ZeroTrustConfig::new().with_complexity(complexity.clone());
+        let auth = ZeroTrustAuth::with_config(public_key.clone(), private_key, config)
+            .expect("auth creation should succeed");
+        let mut session = ZeroTrustSession::new(auth);
 
-        assert!(session.is_valid(), "Session with {:?} should be valid", complexity);
-        assert_eq!(session.trust_level(), TrustLevel::Trusted, "Session should have Trusted level");
+        let challenge =
+            session.initiate_authentication().expect("challenge generation should succeed");
+        assert_eq!(
+            challenge.complexity(),
+            complexity,
+            "challenge must carry the configured complexity"
+        );
+
+        let proof = session.generate_proof(&challenge).expect("proof generation should succeed");
+        session.verify_response(&proof).expect("verification should succeed");
+
+        let verified = session.into_verified().expect("session promotion should succeed");
+
+        assert!(verified.is_valid(), "Session with {:?} should be valid", complexity);
+        assert_eq!(
+            verified.trust_level(),
+            TrustLevel::Trusted,
+            "Session with {complexity:?} should have Trusted level",
+        );
     }
 }
 

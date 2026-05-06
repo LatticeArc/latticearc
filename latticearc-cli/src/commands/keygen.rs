@@ -156,7 +156,7 @@ pub(crate) fn run(args: KeygenArgs) -> Result<()> {
         // the directory already existed (no-op create_dir_all path)
         // because we don't want to retroactively rewrite a DACL the
         // operator may have set on purpose.
-        latticearc::unified_api::win_acl::set_owner_only_dacl(&args.output)
+        latticearc::unified_api::win_acl::set_local_admin_dacl(&args.output)
             .map_err(|e| anyhow::anyhow!("Windows keygen-dir DACL hardening failed: {e}"))?;
     }
 

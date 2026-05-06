@@ -222,7 +222,7 @@ pub mod zero_trust;
 /// On non-Windows the entry point compiles to a no-op so call sites
 /// stay platform-agnostic.
 pub mod win_acl;
-pub(crate) use win_acl::set_owner_only_dacl;
+pub(crate) use win_acl::set_local_admin_dacl;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

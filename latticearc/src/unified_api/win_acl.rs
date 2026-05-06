@@ -15,8 +15,16 @@
 //!
 //! All paths converge on a single SDDL string so the policy is
 //! identical across call sites: protected DACL granting full access
-//! to the file owner (current user), Built-in Administrators, and
-//! `LocalSystem` only — no inheritance from the parent directory.
+//! to **three principals only** — the file owner (current user),
+//! Built-in Administrators (`BA`), and `LocalSystem` (`SY`). No
+//! inheritance from the parent directory; no entry for `Everyone`,
+//! `Users`, or `Authenticated Users`. The function is named
+//! [`set_local_admin_dacl`] (not "owner-only") to avoid promising
+//! more than the policy delivers — the `BA` entry is necessary so
+//! a local administrator can recover the file when the user account
+//! is later disabled, matching the posture Windows applies to
+//! per-user `%USERPROFILE%` files; the `SY` entry is necessary so
+//! VSS / backup services that run as `SYSTEM` can read the file.
 //!
 //! The implementation is gated on `cfg(windows)`. On non-Windows
 //! targets the entry points are present but compile to no-ops so the
@@ -42,18 +50,28 @@ use std::path::Path;
 ///   restic / VSS-based backups silently fail).
 ///
 /// No `Everyone`, no `Users`, no `Authenticated Users` entry. A
-/// second user on the same machine cannot read the file even though
-/// the parent directory may grant them traversal.
+/// second non-admin user on the same machine cannot read the file
+/// even though the parent directory may grant them traversal.
 #[cfg(windows)]
-const OWNER_ONLY_DACL_SDDL: &str = "D:P(A;OICI;FA;;;OW)(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)";
+const LOCAL_ADMIN_DACL_SDDL: &str = "D:P(A;OICI;FA;;;OW)(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)";
 
-/// Apply the owner-only DACL to a file or directory at `path`.
+/// Apply the protected owner+admin+system DACL to a file or
+/// directory at `path`. Three principals only (Owner / BA / SY).
 ///
-/// On Windows: replaces the object's DACL with [`OWNER_ONLY_DACL_SDDL`]
-/// via `SetNamedSecurityInfoW`. The DACL is `protected` so it does
-/// not inherit any permissive ACEs from the parent (e.g. a
-/// `Users:Read` entry on the user's profile root would otherwise
-/// leak into a fresh secret file).
+/// On Windows: replaces the object's DACL with
+/// [`LOCAL_ADMIN_DACL_SDDL`] via `SetNamedSecurityInfoW`. The DACL
+/// is `protected` so it does not inherit any permissive ACEs from
+/// the parent (e.g. a `Users:Read` entry on the user's profile root
+/// would otherwise leak into a fresh secret file).
+///
+/// **Path-based API note:** `SetNamedSecurityInfoW` resolves `path`
+/// at call time. Callers that have just created a file via
+/// `OpenOptions::create_new(...).open(...)` and then immediately
+/// invoke this helper close the TOCTOU window in practice (the
+/// kernel inode is already published under the path; the only race
+/// is rename-during-call which is fast). For higher-assurance call
+/// sites the handle-based `SetSecurityInfo` would be marginally
+/// safer; this is documented as a known residual path-API exposure.
 ///
 /// On non-Windows: no-op. Unix call sites set `mode(0o600)` /
 /// `mode(0o700)` atomically at create-time; this function is only
@@ -66,7 +84,7 @@ const OWNER_ONLY_DACL_SDDL: &str = "D:P(A;OICI;FA;;;OW)(A;OICI;FA;;;BA)(A;OICI;F
 /// `SetNamedSecurityInfoW` rejects the call (typical: target path
 /// does not exist, or the calling process lacks `WRITE_DAC`).
 #[allow(unused_variables)] // path is unused on non-Windows
-pub fn set_owner_only_dacl(path: &Path) -> Result<()> {
+pub fn set_local_admin_dacl(path: &Path) -> Result<()> {
     #[cfg(windows)]
     {
         use std::str::FromStr;
@@ -81,10 +99,10 @@ pub fn set_owner_only_dacl(path: &Path) -> Result<()> {
         // dropped at the end of this scope; SetNamedSecurityInfoW
         // copies what it needs internally.
         let sd: LocalBox<SecurityDescriptor> =
-            LocalBox::<SecurityDescriptor>::from_str(OWNER_ONLY_DACL_SDDL).map_err(|e| {
+            LocalBox::<SecurityDescriptor>::from_str(LOCAL_ADMIN_DACL_SDDL).map_err(|e| {
                 CoreError::Internal(format!(
                     "win_acl: failed to parse owner-only SDDL ({}): {}",
-                    OWNER_ONLY_DACL_SDDL, e
+                    LOCAL_ADMIN_DACL_SDDL, e
                 ))
             })?;
 

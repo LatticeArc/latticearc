@@ -9,6 +9,159 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-39 audit — fixes round-37 / round-38's own bugs (2026-05-06)
+
+External round-39 audit found 23 valid issues in the round-37 + round-38
+fixes (5 invalid / mis-cited). The valid set is fixed here; the
+hardest-to-close items (H2 AtomicWrite DACL race window, H3 path-based
+SetNamedSecurityInfo TOCTOU, M6 vacuous version_compatibility tests
+across multiple sites, D5 round-36b deferred-item disposition) are
+deferred to round-40 with explicit dispositions in this CHANGELOG.
+
+#### HIGH
+
+- **H1**: `verify_chain`'s 1 MiB per-line cap fired AFTER
+  `BufReader::lines()` allocated the full `String`, so a single 10 GiB
+  newline-free file would OOM the verifier before the check ran. Fixed
+  with a manual byte-by-byte read into a bounded `Vec<u8>` accumulator
+  that errors as soon as the cap is exceeded — bytes past the cap are
+  never allocated.
+- **H3**: `set_local_admin_dacl` (renamed from `set_owner_only_dacl`,
+  see M3) is documented as path-based with a known residual TOCTOU
+  exposure; handle-based `SetSecurityInfo` would close the window.
+  Marked as a known limitation pending a broader refactor that threads
+  open file handles through the helper.
+
+#### MED
+
+- **M1**: Chain-anchor verification in `verify_chain` now uses
+  `subtle::ConstantTimeEq` on the `previous_hash` metadata — the prior
+  `==` comparison was a timing oracle on the chain hash (a SHA-256
+  integrity anchor), recoverable byte-by-byte by an attacker timing
+  successive `verify_chain` calls. The `previous_file` and action verb
+  also use CT-compare for consistency, even though they are public
+  values.
+- **M2**: `CHAIN_ANCHOR_ACTION`, `CHAIN_ANCHOR_PREV_FILE_KEY`, and
+  `CHAIN_ANCHOR_PREV_HASH_KEY` narrowed from `pub` to `pub(crate)`.
+  The `pub` shape let downstream code construct `AuditEvent` records
+  with the anchor verb and forge counterfeit chain links anywhere in
+  a writable log; the `first_event_in_file` gate in `verify_chain`
+  only guards the first-line position, not later positions in the
+  same file.
+- **M3**: `set_owner_only_dacl` renamed to `set_local_admin_dacl` to
+  match the SDDL it actually applies. The previous name promised
+  "only the file owner has access", but the SDDL grants three
+  principals: `OW` (owner), `BA` (Built-in Administrators — needed
+  for admin recovery if the user account is disabled), and `SY`
+  (`LocalSystem` — needed for VSS / backup services). Doc now
+  explicitly enumerates the three trustees and explains why each is
+  necessary; rename surfaces the residual exposure to callers.
+- **M4**: Audit log `create_new_file` switched from `OpenOptions::create(true)`
+  to `OpenOptions::create_new(true)`. The prior shape silently opened
+  any existing file at the rotation path (e.g. a stale file from a
+  prior process or a sub-second rotation race), then rewrote its
+  DACL — fusing chain hash inputs across processes that didn't
+  actually share state. `create_new` returns
+  `ErrorKind::AlreadyExists` on conflict so the caller surfaces the
+  rotation collision instead of silently absorbing it.
+- **M5**: All four Wycheproof `Acceptable` arms in
+  `tests/tests/wycheproof_wrapper.rs` (AES-256-GCM, ChaCha20-Poly1305,
+  HMAC-SHA256, HKDF-SHA256) now compare wrapper output against the
+  expected value before passing. Previously they unconditionally
+  called `add_pass()`, masking implementation bugs on the
+  Acceptable-class vectors.
+- **M7**: `test_concurrent_serialization_safety` no longer swallows
+  panicked threads via `.join().ok()`. The handler now propagates the
+  panic payload as a `CoreError::Internal` so a race that panics one
+  worker thread surfaces as a test failure instead of a silent
+  `Ok(())`.
+- **M8**: `test_security_mode_unverified_validate_fails` (which
+  asserts `is_ok()`) renamed to `_succeeds`. The `_fails` suffix was
+  the bug; the body validates that `Unverified.validate()` succeeds.
+  Sibling test in `zero_trust_integration.rs` already used the
+  correct name; both files now agree.
+- **M9**: `KeyLifecycleRecord::TryFrom` now enforces cross-field
+  timestamp ordering: `generated_at ≤ activated_at ≤
+  rotated_at ≤ retired_at ≤ destroyed_at`. The round-37 L7 fix only
+  enforced monotonicity *within* `state_history`; a tampered record
+  with `retired_at < activated_at` would otherwise still pass.
+- **M10**: All three `ZeroTrustAuth.last_verification` mutex sites
+  introduced by round-37 M3
+  (`start_continuous_verification`, `verify_proof` success path,
+  `maybe_continuous_verification`, and `reauthenticate`) now emit
+  `tracing::warn!` on poisoned-mutex recovery. Round-37 L5
+  established the convention in `verify_equalizer.rs`; the new sites
+  silently inherited the `into_inner()` shape without the log.
+
+#### LOW
+
+- **L1+L2**: M5's symmetric-scheme cross-check tightened. Removed the
+  redundant `nonce.len().ct_eq()` / `tag.len().ct_eq()` calls — slice
+  `ConstantTimeEq` already short-circuits internally on length
+  mismatch. Replaced the silent passthrough on too-short ciphertexts
+  with an explicit `DecryptionFailed` rejection so the M5 check
+  cannot be bypassed by submitting a deliberately-malformed short
+  ciphertext.
+- **L3**: `log_files.sort()` (full-path byte order) replaced with
+  `sort_by(|a, b| a.file_name() ... cmp ... b.file_name())`. The
+  byte-order shape produced non-chronological order on Windows when
+  drive-letter case (`C:\` vs `c:\`) or path-separator normalisation
+  varied across the directory listing.
+- **L4**: `windows-permissions` Cargo dep pinned to `=0.2.4` (was
+  `"0.2"`). For a security-critical Windows ACL dependency, a loose
+  minor-version constraint allowed silent landings of patch releases
+  via `cargo update`; a deliberate bump now requires a re-audit.
+- **L7**: `test_continuous_session_update_verification_succeeds` now
+  captures the `last_verification` timestamp before and after
+  `update_verification()` and asserts the timestamp advances. Added
+  a public `ContinuousSession::last_verification()` accessor to make
+  this verifiable from outside the crate. Without this assertion a
+  no-op `update_verification() -> Ok(())` regression would pass.
+- **L8**: `test_session_with_different_proof_complexities_succeeds`
+  rewritten to actually use the loop variable. The prior shape
+  iterated `[Low, Medium, High]` but always called
+  `VerifiedSession::establish` with default complexity; only the
+  assert message string referenced `complexity`. The new shape
+  drives the manual `ZeroTrustAuth::with_config` path so each
+  iteration genuinely exercises a different complexity, and asserts
+  the produced `Challenge::complexity()` matches the configured
+  value.
+
+#### Deferred to round-40 with explicit disposition
+
+- **H2**: AtomicWrite DACL race window (post-rename DACL apply leaves
+  the file briefly under the parent's default DACL). Fix requires
+  threading the tempfile handle into `set_local_admin_dacl` and
+  applying the DACL BEFORE persist; the rename then preserves the
+  hardened DACL. Non-trivial because the `tempfile` crate's
+  `NamedTempFile` doesn't expose a DACL hook directly.
+- **H3 (full)**: Handle-based `SetSecurityInfo` would close the
+  path-API TOCTOU; same refactor as H2.
+- **M6 (full)**: Multiple vacuous tests in `version_compatibility.rs`
+  (lines 557–635 range) — pure compile-shape checks. Belongs in
+  `static_assertions!`, not `#[test]`. Bulk migration deferred.
+- **L6**: `test_core_error_variants_are_stable` is a compile-time
+  enum-exhaustiveness check; same migration target as M6.
+- **D5**: Round-36b deferred items (M7 entropy hookup, M8 SecretVec
+  zeroize tests, M10 ct-eq bounds, L2 output-cap gaps, L4 Windows
+  mode/fsync gaps, L6 `$TMPDIR`) tracked separately for round-40.
+
+#### DOC
+
+- **D1**: CHANGELOG round-30 reference to
+  `latticearc/tests/round30_behavior.rs` left stale by the
+  consolidation into named files. Removed the dead reference.
+- **D2**: `lib.rs:132` documentation IS already accurate (round-35 M3
+  narrowed `SigmaProof::challenge_mut` to `cfg(test)` only;
+  `test-utils` feature doc reflects this correctly). Auditor's claim
+  was a misread; no change needed.
+- **D3**: CHANGELOG round-31 reference to `ntt_processor.rs` (deleted
+  by round-36 H6) marked stale.
+- **D4 (auditor mis-cited)**: Round-36 H8 entry text was already
+  reconciled in-place during round-37 H2; the entry now correctly
+  reads "Marked `#[doc(hidden)]` and `#[deprecated(since = "0.8.0", ...)]`".
+  No additional change needed in this round.
+
 ### Round-38 self-audit + lint-extras fix (2026-05-06)
 
 Self-audit sweep across the seven bug-classes round-37 fixed (one
@@ -1202,8 +1355,9 @@ hand from the original sentence subject.
 The round-30 Python strip script's regex `[^:\n]*:` over-ate text through
 the *first* colon. Six doc comments survived round-30 with their sentence
 subjects deleted; this round rewrites each from the original meaning:
-- `pct.rs`, `ntt_processor.rs`, `ml_dsa.rs:1376`, `slh_dsa.rs:1105`,
-  `fndsa.rs:1116` (5 sites + 1 `// the` orphan).
+- `pct.rs`, `ntt_processor.rs` (file later removed by round-36 H6),
+  `ml_dsa.rs:1376`, `slh_dsa.rs:1105`, `fndsa.rs:1116` (5 sites + 1
+  `// the` orphan).
 
 ### Round-30 audit — 3 HIGH + 7 MED + 7 LOW + 2 doc-drift + audit-marker cleanup (2026-05-04)
 
@@ -1358,9 +1512,12 @@ repository before commit:
   yet implemented the `*f` variants. Doc updated to match
   implementation; restoration note added for when upstream lands.
 
-Regression coverage: new `latticearc/tests/round30_behavior.rs` pinning
-the H1 / L2 / L5 / M2 / M3 / M4 contracts (H3 and L8 are exercised by
-in-source unit tests; the new fields / methods are crate-private at
+Regression coverage: the H1 / L2 / L5 / M2 / M3 / M4 contracts are
+pinned in the consolidated `audit_regression_*.rs` test files
+(originally a dedicated `round30_behavior.rs` was added; round-NN
+tests have since been merged by topic into the named files). H3 and
+L8 are exercised by in-source unit tests; the new fields / methods
+are crate-private at
 construction time).
 
 ### Round-29 audit — 4 HIGH + 7 MED + 6 LOW + 8 NIT + 2 follow-ups (2026-05-04)

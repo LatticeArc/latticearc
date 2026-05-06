@@ -313,9 +313,26 @@ fn test_continuous_session_update_verification_succeeds() {
     let mut continuous_session =
         auth.start_continuous_verification().expect("session establishment");
 
-    // Update verification timestamp
+    // Capture the pre-update timestamp so we can confirm the update
+    // actually advances it. Without this assertion a no-op
+    // `update_verification() -> Ok(())` (e.g., if the field
+    // assignment regressed) would silently pass the test.
+    let before = continuous_session.last_verification();
+
+    // `Utc::now()` resolution is microseconds on most platforms but
+    // can collide if `update_verification` runs in the same
+    // microsecond as the prior assignment. Sleep ~2 ms so the
+    // timestamps reliably differ on every supported runner.
+    std::thread::sleep(std::time::Duration::from_millis(2));
+
     let result = continuous_session.update_verification();
     assert!(result.is_ok(), "Updating verification should succeed");
+
+    let after = continuous_session.last_verification();
+    assert!(
+        after > before,
+        "update_verification must advance the timestamp (before={before}, after={after})"
+    );
 
     // Session should still be valid
     let is_valid = continuous_session.is_valid().expect("validity check should succeed");
@@ -812,7 +829,10 @@ fn test_security_mode_verified_validate_succeeds() {
 }
 
 #[test]
-fn test_security_mode_unverified_validate_fails() {
+fn test_security_mode_unverified_validate_succeeds() {
+    // (Was previously misnamed `_fails` while asserting `is_ok()` —
+    // the body validates that `Unverified.validate()` SUCCEEDS, so
+    // the suffix was the bug. Renamed to match the assertion.)
     let mode = SecurityMode::Unverified;
     let result = mode.validate();
 

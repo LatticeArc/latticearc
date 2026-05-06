@@ -400,29 +400,33 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
         if scheme.requires_symmetric_key() {
             const AEAD_NONCE_LEN: usize = 12;
             const AEAD_TAG_LEN: usize = 16;
-            if ciphertext.len() >= AEAD_NONCE_LEN.saturating_add(AEAD_TAG_LEN) {
-                let embedded_nonce = ciphertext
-                    .get(..AEAD_NONCE_LEN)
-                    .ok_or_else(|| CoreError::DecryptionFailed("decryption failed".to_string()))?;
-                let tag_start = ciphertext.len().saturating_sub(AEAD_TAG_LEN);
-                let embedded_tag = ciphertext
-                    .get(tag_start..)
-                    .ok_or_else(|| CoreError::DecryptionFailed("decryption failed".to_string()))?;
-                use subtle::ConstantTimeEq;
-                let nonce_eq_len = nonce.len().ct_eq(&embedded_nonce.len());
-                let nonce_eq_bytes = nonce.ct_eq(embedded_nonce);
-                let tag_eq_len = tag.len().ct_eq(&embedded_tag.len());
-                let tag_eq_bytes = tag.ct_eq(embedded_tag);
-                let consistent: bool =
-                    (nonce_eq_len & nonce_eq_bytes & tag_eq_len & tag_eq_bytes).into();
-                if !consistent {
-                    return Err(CoreError::DecryptionFailed("decryption failed".to_string()));
-                }
+            const AEAD_FRAME_LEN: usize = AEAD_NONCE_LEN + AEAD_TAG_LEN; // 28
+            if ciphertext.len() < AEAD_FRAME_LEN {
+                // Too-short ciphertext can't carry an embedded nonce
+                // and tag — that's a structural error. Reject here
+                // (Pattern 6: same opaque variant as below) rather
+                // than skipping the consistency check and letting
+                // the AEAD path reject; previously the gate quietly
+                // passed and the M5 cross-check could be bypassed by
+                // a deliberately-malformed short ciphertext.
+                return Err(CoreError::DecryptionFailed("decryption failed".to_string()));
             }
-            // A too-short symmetric ciphertext is a structural error
-            // the AEAD path will reject anyway; we pass it through so
-            // error attribution stays at the primitive layer rather
-            // than splitting across two sites.
+            let embedded_nonce = ciphertext
+                .get(..AEAD_NONCE_LEN)
+                .ok_or_else(|| CoreError::DecryptionFailed("decryption failed".to_string()))?;
+            let tag_start = ciphertext.len().saturating_sub(AEAD_TAG_LEN);
+            let embedded_tag = ciphertext
+                .get(tag_start..)
+                .ok_or_else(|| CoreError::DecryptionFailed("decryption failed".to_string()))?;
+            // `subtle::ConstantTimeEq` for slices already short-
+            // circuits on length mismatch internally — no separate
+            // `len.ct_eq()` is needed (and adding one is dead
+            // combinatorics). Just `ct_eq` the bytes directly.
+            use subtle::ConstantTimeEq;
+            let consistent: bool = (nonce.ct_eq(embedded_nonce) & tag.ct_eq(embedded_tag)).into();
+            if !consistent {
+                return Err(CoreError::DecryptionFailed("decryption failed".to_string()));
+            }
         }
 
         EncryptedOutput::new(scheme, ciphertext, nonce, tag, hybrid_data, ser.timestamp, ser.key_id)
@@ -660,11 +664,25 @@ mod tests {
     // --- EncryptedOutput serialization ---
 
     fn make_encrypted_output_symmetric() -> EncryptedOutput {
+        // Round-37 M5 (and round-39 L1+L2 tightening) require the
+        // top-level `nonce`/`tag` to match the embedded copies in
+        // `ciphertext` for symmetric schemes — wire layout is
+        // `nonce(12) || actual_ct || tag(16)`. Build the fixture
+        // ciphertext with that invariant so the deserializer's
+        // cross-check passes.
+        let nonce: Vec<u8> = (1..=12).collect();
+        let tag = vec![0xAA_u8; 16];
+        let inner = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        let cap = nonce.len().saturating_add(inner.len()).saturating_add(tag.len());
+        let mut ct = Vec::with_capacity(cap);
+        ct.extend_from_slice(&nonce);
+        ct.extend_from_slice(&inner);
+        ct.extend_from_slice(&tag);
         EncryptedOutput::new(
             EncryptionScheme::Aes256Gcm,
-            vec![0xDE, 0xAD, 0xBE, 0xEF],
-            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-            vec![0xAA; 16],
+            ct,
+            nonce,
+            tag,
             None,
             1_700_000_000,
             Some("key-001".to_string()),
@@ -789,12 +807,27 @@ mod tests {
             EncryptionScheme::HybridMlKem768Aes256Gcm,
             EncryptionScheme::HybridMlKem1024Aes256Gcm,
         ];
+        // Symmetric schemes require `nonce(12) || ct || tag(16)`
+        // packed in `ciphertext` (round-37 M5 + round-39 L1+L2). For
+        // hybrid schemes the layout is different — `ciphertext` is
+        // just the AEAD output and the deserializer accepts any
+        // matching pair. We construct a single packed buffer and
+        // feed it to both arms; the hybrid arm ignores the embedded
+        // nonce/tag.
+        let nonce = vec![0u8; 12];
+        let tag = vec![0u8; 16];
+        let inner = vec![1u8, 2, 3];
+        let cap = nonce.len().saturating_add(inner.len()).saturating_add(tag.len());
+        let mut packed = Vec::with_capacity(cap);
+        packed.extend_from_slice(&nonce);
+        packed.extend_from_slice(&inner);
+        packed.extend_from_slice(&tag);
         for scheme in &schemes {
             let output = EncryptedOutput::new(
                 scheme.clone(),
-                vec![1, 2, 3],
-                vec![0u8; 12],
-                vec![0u8; 16],
+                if scheme.requires_symmetric_key() { packed.clone() } else { inner.clone() },
+                nonce.clone(),
+                tag.clone(),
                 if scheme.requires_hybrid_key() {
                     Some(HybridComponents::new(vec![0xAA; 32], vec![0xBB; 32]))
                 } else {
