@@ -106,7 +106,7 @@
 <a href=#106 id=106 data-nosnippet>106</a>    /// world-readable, even briefly.
 <a href=#107 id=107 data-nosnippet>107</a>    ///
 <a href=#108 id=108 data-nosnippet>108</a>    /// On Windows this sets `harden_windows_acl = true`; after the
-<a href=#109 id=109 data-nosnippet>109</a>    /// rename completes, [`set_owner_only_dacl`] replaces the file's
+<a href=#109 id=109 data-nosnippet>109</a>    /// rename completes, [`set_local_admin_dacl`] replaces the file's
 <a href=#110 id=110 data-nosnippet>110</a>    /// inherited DACL with the workspace's owner-only policy. The
 <a href=#111 id=111 data-nosnippet>111</a>    /// rename target inherits the parent directory's ACL on creation,
 <a href=#112 id=112 data-nosnippet>112</a>    /// which on a default user profile typically grants `Users:Read`
@@ -229,7 +229,7 @@
 <a href=#229 id=229 data-nosnippet>229</a>        // — silently leaving the secret-key file world-readable
 <a href=#230 id=230 data-nosnippet>230</a>        // would be a worse outcome than failing the write.
 <a href=#231 id=231 data-nosnippet>231</a>        </span><span class="kw">if </span><span class="self">self</span>.harden_windows_acl {
-<a href=#232 id=232 data-nosnippet>232</a>            <span class="kw">crate</span>::unified_api::set_owner_only_dacl(path).map_err(|e| {
+<a href=#232 id=232 data-nosnippet>232</a>            <span class="kw">crate</span>::unified_api::set_local_admin_dacl(path).map_err(|e| {
 <a href=#233 id=233 data-nosnippet>233</a>                CoreError::Internal(<span class="macro">format!</span>(
 <a href=#234 id=234 data-nosnippet>234</a>                    <span class="string">"windows DACL hardening on {} failed: {e}"</span>,
 <a href=#235 id=235 data-nosnippet>235</a>                    path.display()

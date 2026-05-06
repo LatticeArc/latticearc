@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["set_owner_only_dacl"]};
+window.SIDEBAR_ITEMS = {"fn":["set_local_admin_dacl"]};

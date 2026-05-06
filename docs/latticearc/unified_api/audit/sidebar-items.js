@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["CHAIN_ANCHOR_ACTION","CHAIN_ANCHOR_PREV_FILE_KEY","CHAIN_ANCHOR_PREV_HASH_KEY"],"enum":["AuditEventType","AuditOutcome"],"struct":["AuditConfig","AuditEvent","AuditEventBuilder","ChainMismatch","ChainVerificationReport","FileAuditStorage"],"trait":["AuditStorage"]};
+window.SIDEBAR_ITEMS = {"enum":["AuditEventType","AuditOutcome"],"struct":["AuditConfig","AuditEvent","AuditEventBuilder","ChainMismatch","ChainVerificationReport","FileAuditStorage"],"trait":["AuditStorage"]};

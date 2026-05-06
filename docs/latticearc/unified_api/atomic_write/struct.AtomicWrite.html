@@ -20,7 +20,7 @@ prior output. Mode left at process umask.</p>
 atomically before any bytes are written — the file is never
 world-readable, even briefly.</p>
 <p>On Windows this sets <code>harden_windows_acl = true</code>; after the
-rename completes, [<code>set_owner_only_dacl</code>] replaces the file’s
+rename completes, [<code>set_local_admin_dacl</code>] replaces the file’s
 inherited DACL with the workspace’s owner-only policy. The
 rename target inherits the parent directory’s ACL on creation,
 which on a default user profile typically grants <code>Users:Read</code>
