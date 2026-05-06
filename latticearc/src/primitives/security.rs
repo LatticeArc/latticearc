@@ -278,8 +278,22 @@ pub fn initialize_global_secure_rng() -> Result<()> {
 /// copied the bytes.
 ///
 /// # Errors
-/// Returns an error if random generation fails
+/// Returns `LatticeArcError::InvalidParameter` if `len` exceeds the
+/// 1 MiB cap (rejects `usize::MAX` before it can OOM the allocator).
+/// Returns an error if random generation fails.
 pub fn generate_secure_random_bytes(len: usize) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    // Round-36 M6: cap matches `allocate_secure_buffer` so both
+    // sibling helpers refuse the same `usize::MAX → 18 EiB
+    // allocation` foot-gun. Any legitimate caller stays well under
+    // 1 MiB (typical sizes: 16-byte salts, 32-byte keys, 96-byte
+    // material). A `usize::MAX` request previously aborted the
+    // process via OOM before any error path ran.
+    const MAX_RANDOM_BYTES: usize = 1024 * 1024;
+    if len > MAX_RANDOM_BYTES {
+        return Err(crate::prelude::LatticeArcError::InvalidParameter(format!(
+            "generate_secure_random_bytes: requested {len} bytes exceeds {MAX_RANDOM_BYTES} cap"
+        )));
+    }
     let mut bytes = zeroize::Zeroizing::new(vec![0u8; len]);
     RngHandle::secure()?.fill_bytes(&mut bytes)?;
     Ok(bytes)

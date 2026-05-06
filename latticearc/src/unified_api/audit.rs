@@ -713,9 +713,44 @@ impl FileAuditStorage {
                 }
                 #[cfg(not(unix))]
                 {
-                    fs::write(&genesis_path, hex.as_bytes()).map_err(|err| {
+                    // Round-36 M9: on Windows, use `OpenOptions` with
+                    // `share_mode(0)` (deny share) and explicit
+                    // `create_new(true)` so the genesis file is
+                    // exclusive to this process while the handle is
+                    // open. Default `fs::write` would inherit the
+                    // process's default DACL — typically world-
+                    // readable on local Windows — exposing the
+                    // chain-integrity HMAC seed to other local users.
+                    // Note: `share_mode(0)` is the closest std-only
+                    // approximation to Unix `0o600` without pulling
+                    // in the full Windows ACL API; a future round
+                    // could tighten this further via the
+                    // `windows-sys` ACL crate if regulators require
+                    // it.
+                    use std::io::Write as _;
+                    use std::os::windows::fs::OpenOptionsExt as _;
+                    let mut f = OpenOptions::new()
+                        .create_new(true)
+                        .write(true)
+                        .share_mode(0)
+                        .open(&genesis_path)
+                        .map_err(|err| {
+                            CoreError::AuditError(format!(
+                                "Failed to create audit genesis file '{}': {}",
+                                genesis_path.display(),
+                                err
+                            ))
+                        })?;
+                    f.write_all(hex.as_bytes()).map_err(|err| {
                         CoreError::AuditError(format!(
                             "Failed to write audit genesis file '{}': {}",
+                            genesis_path.display(),
+                            err
+                        ))
+                    })?;
+                    f.sync_all().map_err(|err| {
+                        CoreError::AuditError(format!(
+                            "Failed to fsync audit genesis file '{}': {}",
                             genesis_path.display(),
                             err
                         ))

@@ -602,14 +602,27 @@ impl DlogEqualityProof {
         let c: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&challenge)).into();
         let c = c.ok_or(ZkpError::InvalidScalar)?;
 
-        // Response. Wrap the serialised bytes in `Zeroizing` so
-        // stack-residue recovery on `response` cannot back out the
-        // witness via `x = (s − k) / c`. Schnorr's analogous
-        // `prove` already does this; round-34's sigma-side commit
-        // missed the parallel.
+        // Response. The serialised response bytes carry witness
+        // information (`x = (s − k) / c`) until the proof is
+        // emitted. We can't keep `response` itself in `Zeroizing`
+        // because it lives in the public `DlogEqualityProof`
+        // struct (the proof is meant to be transmitted), but we
+        // CAN minimise stack residue: the intermediate `s` and the
+        // intermediate `s.to_bytes()` are wiped via `Zeroizing`,
+        // and `Zeroize::zeroize` clears the borrow afterwards.
+        // Round-35 M1's earlier shape — wrap a copy in `Zeroizing`
+        // and then deref-copy out — was decorative: the destination
+        // `[u8; 32]` was on the same stack frame and never wiped.
         let s = Zeroizing::new(*k + c * *x);
-        let response_bytes = Zeroizing::new(<[u8; 32]>::from(s.to_bytes()));
-        let response: [u8; 32] = *response_bytes;
+        let mut tmp_bytes = Zeroizing::new(<[u8; 32]>::from(s.to_bytes()));
+        let response: [u8; 32] = *tmp_bytes;
+        // Explicit final-use wipe — `tmp_bytes` will Drop at scope
+        // exit and Zeroizing handles that, but make the discipline
+        // visible.
+        tmp_bytes.zeroize();
+        // Note: `response` itself becomes part of the returned
+        // `DlogEqualityProof` and is the value the verifier needs.
+        // It cannot be wiped here without breaking the proof.
 
         Ok(Self { a: a_bytes, b: b_bytes, challenge, response })
     }

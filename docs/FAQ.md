@@ -83,6 +83,33 @@ Choose based on your constraints:
 - Bandwidth-limited: Use -s variants
 - Performance-critical: Use -f variants
 
+### Does LatticeArc implement its own NTT, Montgomery arithmetic, or polynomial ring math?
+
+No. Every PQC algorithm in this crate delegates the underlying lattice
+math to an audited upstream crate:
+
+| Algorithm | Upstream crate | Notes |
+|-----------|----------------|-------|
+| ML-KEM (FIPS 203) | `aws-lc-rs` | FIPS-validated; provides NTT internally |
+| ML-DSA (FIPS 204) | `fips204` | NIST reference port |
+| SLH-DSA (FIPS 205) | `fips205` | Audited; hash-based, no NTT |
+| FN-DSA (FIPS 206) | `fn-dsa` | NIST reference port |
+| AES-GCM | `aws-lc-rs` | FIPS-validated AES-NI path |
+| ChaCha20-Poly1305 | `chacha20poly1305` | RustCrypto |
+
+The repository previously contained an internal `primitives::polynomial`
+module with NTT and Montgomery code, but no production path called into
+it — the round-36 audit (May 2026) confirmed it was dead and it was
+removed. If you need lattice math primitives directly (e.g., for
+research or a new algorithm), use a dedicated crate like
+[`concrete-ntt`](https://crates.io/crates/concrete-ntt) rather than
+expecting LatticeArc to expose them.
+
+This delegation strategy keeps the audit surface small, ensures every
+constant-time guarantee comes from a validated upstream, and avoids
+shipping unreachable code that an auditor would otherwise have to
+review.
+
 ## Usage
 
 ### How do I encrypt data?

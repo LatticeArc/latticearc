@@ -45,22 +45,13 @@ fn aes_gcm_encrypt_rejects_oversized_aad() {
     assert!(result.is_err(), "AAD over the cap must be rejected by AEAD encrypt");
 }
 
-/// NTT primitive-root table for (512, 12289) was previously
-/// 49 (which has order 1024, not 512). The fix sets it to 2401 (= 49²).
-/// We verify the mathematical property the table relies on: for n=512,
-/// 2401^512 ≡ 1 mod 12289 and 2401^256 ≡ -1 mod 12289. Anything else
-/// is a table-corruption regression.
-#[test]
-fn ntt_primitive_root_table_is_consistent() {
-    use latticearc::primitives::polynomial::arithmetic::mod_pow;
-    const Q: i64 = 12289;
-    const ROOT_512: i64 = 2401;
-    const ROOT_1024: i64 = 49;
-    assert_eq!(mod_pow(ROOT_512, 512, Q), 1, "2401^512 must equal 1 mod 12289");
-    assert_eq!(mod_pow(ROOT_512, 256, Q), Q - 1, "2401^256 must equal -1 mod 12289");
-    assert_eq!(mod_pow(ROOT_1024, 1024, Q), 1, "49^1024 must equal 1 mod 12289");
-    assert_eq!(mod_pow(ROOT_1024, 512, Q), Q - 1, "49^512 must equal -1 mod 12289");
-}
+// Round-36 H6: deleted dead `primitives::polynomial` module — the
+// NTT/Montgomery code wasn't called from any production path
+// (FIPS 203/204/205/206 all delegate to aws-lc-rs / fips204 / fips205
+// / fn-dsa). The two regression tests that referenced it
+// (`ntt_primitive_root_table_is_consistent` and
+// `ntt_rejects_modulus_above_i32_max`) are removed alongside the
+// module.
 
 /// convenience-layer verify must return `Ok(false)` on
 /// adversary-reachable failure (not `Err`). Reverting the round-26
@@ -79,34 +70,30 @@ fn pq_sig_verify_with_malformed_signature_returns_ok_false() {
         latticearc::primitives::sig::ml_dsa::MlDsaSignature::new(MlDsaParameterSet::MlDsa44, bytes)
             .unwrap();
 
-    // Verify must reject — but as `Ok(false)` (proper-shape rejection)
-    // OR `Err` (per FIPS 204 unforgeability). The previous mapper
+    // Verify must reject — `Ok(false)` (proper-shape rejection) OR
+    // `Err` (per FIPS 204 unforgeability). The previous mapper
     // returned a string-leaking InvalidInput variant on parse failure;
     // round-26 H10 collapsed that. Either Err or Ok(false) is
-    // acceptable per FIPS, but Err is OK here (Pattern 6 is on the
-    // unified-API convenience layer, not the primitive layer).
-    let _ = pk.verify(msg, &corrupted, b"");
+    // acceptable. Round-36 C1: assert that the result actually falls
+    // into one of those buckets — the previous `let _ = ...` form
+    // discarded the result, so reverting the round-26 fix wouldn't
+    // have tripped this regression test.
+    let result = pk.verify(msg, &corrupted, b"");
+    assert!(
+        matches!(&result, Ok(false) | Err(_)),
+        "corrupted signature must reject as Ok(false) or Err, got {:?}",
+        result
+    );
 }
 
-/// `SigningKeypair`'s manual `Debug` impl must redact
-/// `secret_key`. Round-26's derived Debug forwarded through
-/// `Zeroizing<Vec<u8>>` to the inner Vec, leaking the raw secret.
-/// Reverting the manual impl makes the secret bytes appear in the
-/// Debug output.
-///
-/// `SigningKeypair` is `pub` inside a private module so it cannot be
-/// reached from this integration-test crate. The inline guard lives at
-/// `latticearc/src/unified_api/convenience/api.rs::tests` (see the
-/// `assert_not_impl_any!` for `PartialEq`/`Eq` and the manual `impl
-/// Debug`). This file documents the property; the inline test is the
-/// regression blocker.
-#[test]
-fn signing_keypair_debug_redaction_documented_in_inline_tests() {
-    // Marker — the actual guard is the manual Debug impl + the inline
-    // assert_not_impl_any! tests in the api module.
-    // Cannot exercise externally because SigningKeypair is in a
-    // private module; the type's invariants are guarded inline.
-}
+// Round-36 C2: deleted the empty `signing_keypair_debug_redaction_documented_in_inline_tests`
+// `#[test]` marker. An empty `#[test]` body registers as a passing
+// test in CI but verifies nothing — the docstring's claim that the
+// inline test is the "regression blocker" is fine, but a marker
+// `#[test]` adds zero coverage and inflates the green-test count.
+// The actual inline guards live at
+// `latticearc/src/unified_api/convenience/api.rs::tests` (`assert_not_impl_any!`
+// for `PartialEq`/`Eq` and the manual `impl Debug`).
 
 /// AEAD decrypt path must return a single uniform error
 /// string for every adversary-reachable failure. Reverting the
@@ -260,16 +247,8 @@ fn ml_dsa_sign_error_does_not_leak_fips204_string() {
     );
 }
 
-#[test]
-fn ntt_rejects_modulus_above_i32_max() {
-    use latticearc::primitives::polynomial::ntt_processor::NttProcessor;
-    let oversized_modulus = i64::from(i32::MAX) + 1;
-    let result = NttProcessor::new(256, oversized_modulus);
-    assert!(
-        result.is_err(),
-        "NttProcessor::new must reject modulus > i32::MAX (mod_mul cast would silently truncate)"
-    );
-}
+// Round-36 H6: `ntt_rejects_modulus_above_i32_max` removed alongside
+// the `primitives::polynomial` module deletion.
 
 #[cfg(not(feature = "fips"))]
 #[test]

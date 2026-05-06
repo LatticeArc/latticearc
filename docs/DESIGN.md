@@ -9,6 +9,7 @@ This document describes the architecture of LatticeArc, a post-quantum cryptogra
 3. **Zero Trust Framework**: Challenge-response authentication with ZKP support
 4. **Modularity**: Use only what you need, from high-level to low-level APIs
 5. **FIPS Compliance**: NIST FIPS 203–205, draft 206 compliant implementations with `ComplianceMode` (Default, Fips140_3, Cnsa2_0) and `fips` feature flag
+6. **Delegate, don't reimplement**: The crate delegates all underlying lattice/symmetric math (NTT, Montgomery multiplication, AES, ChaCha) to audited upstream crates (`aws-lc-rs`, `fips204`, `fips205`, `fn-dsa`, `chacha20poly1305`). LatticeArc owns the *composition* — hybrid combiners, KDF binding, key formats, policy enforcement, FIPS self-test machinery — not the primitives themselves. This keeps the audit surface small and ensures every constant-time guarantee inherits from a validated upstream. (See FAQ §"Does LatticeArc implement its own NTT…?".)
 
 ## Architecture Overview
 

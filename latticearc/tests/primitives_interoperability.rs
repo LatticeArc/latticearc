@@ -881,7 +881,14 @@ fn test_rfc5869_hkdf_test_case_1_succeeds() {
     assert_eq!(okm.expose_secret(), &expected_okm[..], "RFC 5869: OKM should match test vector");
 }
 
-/// Test RFC 5869 HKDF test case 3 (zero-length salt/info)
+/// Test RFC 5869 HKDF test case 3 (salt absent — RFC §A.3 specifies
+/// "salt absent", which our API encodes as `None`, NOT `Some(&[])`).
+///
+/// Round-30 L5 added an explicit rejection of `Some(&[])` empty salt
+/// because it silently collapsed to the default zero-salt and erased
+/// caller intent. The previous version of this test passed
+/// `Some(&[])` and started failing once L5 landed; the fix is to
+/// match RFC's "salt absent" semantics literally with `None`.
 #[test]
 fn test_rfc5869_hkdf_test_case_3_succeeds() {
     // RFC 5869 Section A.3 Test Case 3
@@ -889,8 +896,6 @@ fn test_rfc5869_hkdf_test_case_3_succeeds() {
         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
     ];
-    let salt: &[u8] = &[];
-    let info: &[u8] = &[];
 
     let expected_okm = [
         0x8d, 0xa4, 0xe7, 0x75, 0xa5, 0x63, 0xc1, 0x8f, 0x71, 0x5f, 0x80, 0x2a, 0x06, 0x3c, 0x5a,
@@ -898,7 +903,7 @@ fn test_rfc5869_hkdf_test_case_3_succeeds() {
         0x8d, 0x2d, 0x9d, 0x20, 0x13, 0x95, 0xfa, 0xa4, 0xb6, 0x1a, 0x96, 0xc8,
     ];
 
-    let okm = hkdf(&ikm, Some(salt), Some(info), 42).expect("hkdf should succeed");
+    let okm = hkdf(&ikm, None, None, 42).expect("hkdf should succeed");
     assert_eq!(okm.expose_secret(), &expected_okm[..], "RFC 5869: Test case 3 OKM should match");
 }
 

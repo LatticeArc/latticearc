@@ -252,6 +252,16 @@ required-features = ["test-utils"]
 name = "primitives_side_channel"
 required-features = ["test-utils"]
 
+# Round-36 H3: file-level `#![cfg(all(feature = "fips-self-test",
+# feature = "test-utils"))]` previously made the entire FIPS power-up
+# KAT suite invisible to default `cargo test -p latticearc` runs —
+# the file compiled to nothing and gave no signal that 13 tests had
+# been silently dropped. The `required-features` declaration makes
+# cargo skip the test transparently with a visible message instead.
+[[test]]
+name = "primitives_self_test_conditional_kats"
+required-features = ["fips-self-test", "test-utils"]
+
 # =============================================================================
 # Benchmarks
 # =============================================================================

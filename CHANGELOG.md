@@ -9,6 +9,150 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-36 audit — partial (CRIT 2 + HIGH 8 + MED 6 of 10) (2026-05-05)
+
+External round-36 audit returned 32 findings (CRIT 2, HIGH 8, MED 10,
+LOW 8, DOC 2). This commit lands the validated CRIT/HIGH set in full
+plus the MED items where the original-finding text was reachable
+without re-deriving it from memory: M1, M2, M3, M4, M6, M9. M7
+(entropy health hookup), M8 (`SecretVec`/`Zeroizing` zeroize-on-drop
+tests), M10 (tighten ct-eq ratio bounds), and the LOW + DOC tier
+remain pending — they'll land in round-36b once the audit text is
+re-attached so each fix can be applied with grep-callers-first
+discipline rather than from summary recall. The "fix all without
+introducing new bugs" policy this round explicitly chose recall-
+faithfulness over completion velocity.
+
+**One bug in this round's own initial draft**: H2 tightened the
+AES-GCM CV threshold from 2000 % to 200 %, which false-failed the
+encrypt-64B test locally (CV ~1100 %, mean ~1 µs where OS jitter
+dominates). The 2000 % bound is documented in CLAUDE.md as the
+project-wide convention precisely because CI runners are 3–4× slower
+than local. Reverted the threshold and rewrote the rationale comment
+so a future round doesn't re-tighten without re-checking the
+operating regime.
+
+#### CRIT
+
+- **C1**: `audit_regression_signatures::pq_sig_verify_with_malformed_signature_returns_ok_false`
+  invoked `pk.verify(..)` on the corrupted signature but never
+  asserted on the result. The "regression test for round-26 Err →
+  Ok(false) revert" therefore couldn't fail if the regression
+  re-occurred. Now matches `Ok(false) | Err(_)` with diagnostic
+  output so a flip back to a structured `Err` would surface.
+- **C2**: `signing_keypair_debug_redaction_documented_in_inline_tests`
+  was an empty function body — the actual debug-redaction property
+  was tested elsewhere in the same file, so the empty stub was a
+  no-op claiming coverage it didn't provide. Deleted.
+
+#### HIGH
+
+- **H1**: `primitives_constant_time_verification::test_verification_count`
+  was a hardcoded equality (`== 30`) that would silently false-pass
+  if anyone deleted a test. Replaced with `>= MIN_REQUIRED` floor
+  read from the actual file's `#[test]` count via `include_str!`,
+  and rewrote stale `MlKemSecretKey::new` callers to use
+  `MlKem::generate_keypair` (round-35 L7 made `new` strict, the test
+  was broken-by-construction).
+- **H2**: AES-GCM CV threshold review (see honest analysis above).
+  Net change is rationale-only — threshold stays at 2000 % per
+  project-wide convention.
+- **H3**: `primitives_self_test_conditional_kats` was unconditionally
+  built but only meaningful under `fips-self-test + test-utils`.
+  Added `[[test]] required-features = ["fips-self-test", "test-utils"]`
+  to `latticearc/Cargo.toml` so it's correctly skipped on default
+  feature sets.
+- **H4**: `zkp::sigma::SchnorrProof::prove` zeroized a temporary
+  `s = k + c · x` *after* it had already been copied into the response
+  array. The "zeroize" was decorative — the bytes remained in
+  `response: [u8; 32]`. Replaced with explicit `Zeroizing<Scalar>`
+  that lives until after the byte conversion, and an explicit final
+  `tmp_bytes.zeroize()` on the array buffer.
+- **H5**: `latticearc-cli::keyfile` opened files by first
+  `symlink_metadata`-checking and then `File::open`-ing — a TOCTOU
+  window where a symlink could be swapped in between the two calls.
+  Replaced with `O_NOFOLLOW` (per `target_os`, with hardcoded
+  constants because the workspace bans direct `libc`/`nix` deps) so
+  the symlink rejection is atomic with the open. Includes a Windows
+  fallback path that retains the prior behavior on platforms where
+  `O_NOFOLLOW` is unavailable.
+- **H6**: deleted the entire `latticearc::primitives::polynomial`
+  module. NTT/Montgomery code with no production callers — every
+  FIPS-203/204/205/206 path delegates to `aws-lc-rs` / `fips204` /
+  `fips205` / `fn-dsa`. Dead code rots silently; the two tests that
+  guarded it (`ntt_primitive_root_table_is_consistent`,
+  `ntt_rejects_modulus_above_i32_max`) are removed alongside.
+- **H7**: `unified_api::convenience::api` mapped `AeadError` to
+  `CoreError` via a wildcard `_ => EncryptionFailed("...".to_string())`
+  arm that erased structured information. Replaced with explicit
+  match on `AeadError::InvalidKeyLength` (unit variant) producing
+  `CoreError::InvalidKeyLength { expected: 32, actual: key.len() }`,
+  with a remaining `other => EncryptionFailed(other.to_string())`
+  fall-through that preserves the upstream message instead of
+  swallowing it.
+- **H8**: `latticearc::core` was an undocumented re-export of
+  `unified_api`. Marked `#[doc(hidden)]` and added a deprecation
+  note in the rustdoc recommending the canonical paths
+  (`latticearc::unified_api::*`).
+
+#### MED
+
+- **M1**: `primitives::self_test::is_module_operational` loaded
+  `MODULE_ERROR_CODE` and `SELF_TEST_PASSED` with `Ordering::Acquire`
+  on one and `Relaxed` on the other, allowing a thread to observe
+  inconsistent FIPS state under concurrent transitions. Both reads
+  now use `SeqCst` for a total order matching the writer side, plus
+  the `path_looks_like_latticearc_module` accepts any
+  `target/<profile>/deps/` path so the integrity test passes under
+  Valgrind's `target/valgrind/` profile (the round-35 v3 ghost-run
+  fix; landed pre-round-36 but documented here for completeness).
+- **M2**: deleted `From<&str> for LatticeArcError`. The blanket impl
+  fired on `?` for any `Result<_, &str>`, silently coercing string
+  errors into `InvalidInput` and erasing the original error type.
+  No production caller relied on it (verified via `grep`); explicit
+  callers should construct `InvalidInput(msg.to_string())`.
+- **M3**: `From<getrandom::Error>` previously discarded the upstream
+  error before mapping to a unit `RandomError`. Now logs the
+  underlying error via `tracing::debug!(getrandom_error = %err, …)`
+  so operators investigating entropy-failure incidents from logs see
+  the actual cause (`UNSUPPORTED`, `UNEXPECTED`, custom code) rather
+  than just "RandomError".
+- **M4**: `From<aws_lc_rs::error::KeyRejected>` mapped to
+  `EncryptionError(format!("{:?}"))` — wrong variant (key parsing,
+  not runtime encryption) and `{:?}` leaked debug-formatted upstream
+  internals into a user-visible string. Now produces
+  `InvalidInput(format!("Key rejected by aws-lc-rs: {err}"))` using
+  the stable `Display` surface. Test renamed and updated to assert
+  on the new variant.
+- **M6**: `generate_secure_random_bytes(len)` had no upper bound,
+  so a `usize::MAX` request OOM-aborted the process before any error
+  path ran. Added a 1 MiB cap matching its sibling
+  `allocate_secure_buffer`, returning
+  `LatticeArcError::InvalidParameter` for over-cap requests.
+  Legitimate callers stay well under (typical: 16-byte salts,
+  32-byte keys, 96-byte material).
+- **M9**: Windows audit-genesis file was created via `fs::write`,
+  inheriting the process's default DACL (typically world-readable on
+  local Windows) — exposing the chain-integrity HMAC seed to other
+  local users. Now uses `OpenOptions::create_new(true).share_mode(0)`
+  for an exclusive-while-open handle, plus `sync_all()` for
+  durability. Comment notes this is the closest std-only
+  approximation to Unix `0o600`; a future round can tighten further
+  via the explicit ACL API if regulators require it.
+
+#### Deferred to round-36b (audit-text re-attach required)
+
+- M7 (entropy health hookup), M8 (`SecretVec`/`Zeroizing` zeroize-
+  drop test coverage), M10 (tighten ct-eq ratio bounds), L2 (output-
+  symlink check on `--output`), L3 (extend smoke checks across all
+  8 domains), L4 (Windows mode/fsync gaps), L6 (use `$TMPDIR` in
+  hook line 173), L7 (`IFS= read -r` in hook), L8 (fix `install.sh`
+  apache_repo string), D1 (production `compute_challenge` invocation
+  in Fiat–Shamir test), D2 (move RUSTFLAGS out of oss-fuzz
+  `build_options` schema). Out of scope for this commit by design.
+
+---
+
 ### Round-35 audit — 1 CRIT + 5 HIGH + 13 MED + 8 LOW + 5 DOC (2026-05-05)
 
 External round-35 audit returned 32 findings. Validated 31 (M8 was

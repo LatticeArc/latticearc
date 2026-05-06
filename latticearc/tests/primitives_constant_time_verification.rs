@@ -859,69 +859,23 @@ fn test_security_level_mismatch_error_fails() {
 // SUMMARY: Test Count Verification
 // =============================================================================
 
-/// This test verifies we have 30+ verification tests
-/// by documenting all test functions in this file
+/// Round-36 H1: replaced the prior `assert!(true)` form (with a
+/// hardcoded list of 45 expected test names that drifted from
+/// reality — `test_secure_bytes_*` had been renamed) with a
+/// runtime count via `include_str!` of the test file's own source.
+/// This catches drift automatically: if the count drops below
+/// the threshold, CI fails.
 #[test]
 fn test_verification_count_succeeds() {
-    // Section 1: subtle crate ConstantTimeEq Usage Tests (10 tests)
-    // - test_shared_secret_uses_constant_time_comparison_succeeds
-    // - test_mlkem_secret_key_constant_time_comparison_succeeds
-    // - test_mlkem_security_level_constant_time_comparison_succeeds
-    // - test_mldsa_secret_key_constant_time_comparison_succeeds
-    // - test_secure_bytes_constant_time_comparison_succeeds
-    // - test_secure_compare_constant_time_succeeds
-    // - test_aes_gcm_tag_verification_constant_time_succeeds
-    // - test_chacha20poly1305_tag_verification_constant_time_succeeds
-    // - test_ct_eq_returns_choice_type_succeeds
-
-    // Section 2: aws-lc-rs Constant-Time Guarantees (4 tests)
-    // - test_mlkem_uses_aws_lc_rs_succeeds
-    // - test_aes_gcm_uses_aws_lc_rs_succeeds
-    // - test_x25519_uses_aws_lc_rs_succeeds
-    // - test_mlkem_encapsulation_is_randomized_succeeds
-
-    // Section 3: Zeroization Verification (9 tests)
-    // - test_mlkem_shared_secret_implements_zeroize_is_covered
-    // - test_mlkem_secret_key_implements_zeroize_is_covered
-    // - test_mldsa_secret_key_implements_zeroize_is_covered
-    // - test_x25519_secret_key_implements_zeroize_is_covered
-    // - test_secure_bytes_zeroization_succeeds
-    // - test_mlkem_zeroization_all_security_levels_succeeds
-    // - test_mldsa_zeroization_all_parameter_sets_succeeds
-    // - test_multiple_zeroization_calls_safe_succeeds
-    // - test_intermediate_value_cleanup_succeeds
-
-    // Section 4: API Contract Tests (9 tests)
-    // - test_mlkem_secret_key_debug_format_has_correct_size
-    // - test_mlkem_shared_secret_debug_format_has_correct_size
-    // - test_x25519_secret_key_debug_redacts_succeeds
-    // - test_x25519_keypair_debug_redacts_private_succeeds
-    // - test_secure_bytes_debug_redacts_succeeds
-    // - test_hybrid_secret_key_debug_redacts
-    // - test_hybrid_public_key_debug_format
-    // - test_mlkem_shared_secret_no_clone_succeeds
-    // - test_mlkem_partialeq_uses_constant_time_succeeds
-
-    // Section 5: Branch-Free Operation Verification (5 tests)
-    // - test_choice_conditional_selection_succeeds
-    // - test_choice_operations_branch_free_succeeds
-    // - test_ct_eq_no_short_circuit_succeeds
-    // - test_conditional_swap_branch_free_succeeds
-    // - test_slice_constant_time_comparison_succeeds
-
-    // Section 6: FIPS Signature Constant-Time (3 tests)
-    // - test_mldsa_signature_operations_succeeds
-    // - test_mldsa_all_parameter_sets_succeeds
-    // - test_chacha20poly1305_operations_succeeds
-
-    // Section 7: Edge Cases (4 tests)
-    // - test_constant_time_comparison_empty_succeeds
-    // - test_constant_time_comparison_single_byte_succeeds
-    // - test_constant_time_comparison_large_succeeds
-    // - test_error_cases_constant_time_fails
-    // - test_security_level_mismatch_error_fails
-
-    // Total: 45 tests (exceeds 30+ requirement)
-
-    assert!(true, "Test file contains 45 verification tests, meeting the 30+ requirement");
+    const SOURCE: &str = include_str!("primitives_constant_time_verification.rs");
+    // Count `#[test]` attribute occurrences — robust to test renames
+    // and additions; only changes when tests are added or removed.
+    // Subtract 1 for this self-counting test.
+    let test_count = SOURCE.matches("#[test]").count().saturating_sub(1);
+    const MIN_REQUIRED: usize = 30;
+    assert!(
+        test_count >= MIN_REQUIRED,
+        "Verification test file must contain ≥ {MIN_REQUIRED} `#[test]` items \
+         (found {test_count}). Add tests or update the threshold deliberately."
+    );
 }

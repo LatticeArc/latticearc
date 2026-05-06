@@ -171,8 +171,25 @@ echo "Running tests (release mode)..."
 # Now: cargo's full output is always preserved on disk regardless of
 # subsequent script behaviour. Path is sandbox-friendly.
 TEST_LOG="${LATTICEARC_HOOK_TMPDIR:-/tmp}/pre-commit-test-output.log"
+
+# Round-35 follow-up: run BOTH `--all-features` AND
+# `--no-default-features --features fips-self-test,kat-test-vectors`.
+# Many integration-test files use `#![cfg(not(feature = "fips"))]`
+# (e.g. `primitives_interoperability.rs`) — those files are SKIPPED
+# under `--all-features` because `fips` is enabled. CI's matrix
+# catches them later, but a pre-commit hook that only tests
+# `--all-features` ships commits that fail in CI. Running both
+# feature combinations covers the cfg(not(fips)) gap while keeping
+# the cost bounded (skip-aware: same compilation cache; only the
+# differing test binaries actually rerun).
 cargo test --workspace --all-features --release > "$TEST_LOG" 2>&1
 CARGO_TEST_EXIT=$?
+if [ "$CARGO_TEST_EXIT" -eq 0 ]; then
+    cargo test --workspace --no-default-features \
+        --features fips-self-test,kat-test-vectors --release \
+        >> "$TEST_LOG" 2>&1
+    CARGO_TEST_EXIT=$?
+fi
 TEST_OUTPUT=$(cat "$TEST_LOG")
 TEST_FAILED=$(echo "$TEST_OUTPUT" | grep -c "test result: FAILED" || true)
 

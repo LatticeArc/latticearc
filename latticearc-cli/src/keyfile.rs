@@ -123,23 +123,103 @@ impl KeyFile {
         let allow_symlinks = std::env::var("LATTICEARC_ALLOW_SYMLINK_KEYS")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
-        let symlink_meta = std::fs::symlink_metadata(path)
-            .with_context(|| format!("Failed to stat {} (path does not exist?)", path.display()))?;
-        if symlink_meta.file_type().is_symlink() && !allow_symlinks {
-            bail!(
-                "Refusing to read key file {} because it is a symlink. \
-                 Symlinks can silently redirect reads to unintended targets \
-                 (e.g. ~/.ssh/id_rsa). Either pass the symlink target's \
-                 canonical path directly, or set \
-                 LATTICEARC_ALLOW_SYMLINK_KEYS=1 to opt in.",
-                path.display()
-            );
-        }
 
-        // Open once. The handle's `metadata()` is inode-bound so a
-        // post-open path swap can't race the size check.
-        let file = std::fs::File::open(path)
-            .with_context(|| format!("Failed to open {}", path.display()))?;
+        // Round-36 H5: open with `O_NOFOLLOW` (Unix) so the
+        // symlink check is atomic with the open. The previous form
+        // did `symlink_metadata(path)` then a separate
+        // `File::open(path)` — TOCTOU race window. This site reads
+        // SECRET key material, so the impact is higher than the
+        // input-file path round-35 M10 already migrated. Constants
+        // hardcoded per `target_os` because the workspace bans
+        // direct `libc` / `nix` deps; values are ABI-stable.
+        #[cfg(target_os = "linux")]
+        const O_NOFOLLOW: i32 = 0o400000;
+        #[cfg(any(
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+            target_os = "dragonfly"
+        ))]
+        const O_NOFOLLOW: i32 = 0x100;
+        #[cfg(target_os = "linux")]
+        const ELOOP: i32 = 40;
+        #[cfg(any(
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+            target_os = "dragonfly"
+        ))]
+        const ELOOP: i32 = 62;
+
+        let file = {
+            #[cfg(any(
+                target_os = "linux",
+                target_os = "macos",
+                target_os = "ios",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd",
+                target_os = "dragonfly"
+            ))]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                let mut opts = std::fs::OpenOptions::new();
+                opts.read(true);
+                if !allow_symlinks {
+                    opts.custom_flags(O_NOFOLLOW);
+                }
+                opts.open(path).map_err(|e| {
+                    if e.raw_os_error() == Some(ELOOP) && !allow_symlinks {
+                        anyhow::anyhow!(
+                            "Refusing to read key file {} because it is a symlink. \
+                             Symlinks can silently redirect reads to unintended \
+                             targets (e.g. ~/.ssh/id_rsa). Either pass the symlink \
+                             target's canonical path directly, or set \
+                             LATTICEARC_ALLOW_SYMLINK_KEYS=1 to opt in.",
+                            path.display()
+                        )
+                    } else {
+                        anyhow::anyhow!("Failed to open {}: {e}", path.display())
+                    }
+                })?
+            }
+            #[cfg(not(any(
+                target_os = "linux",
+                target_os = "macos",
+                target_os = "ios",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd",
+                target_os = "dragonfly"
+            )))]
+            {
+                // Windows / unknown-unix fallback: stat-then-open
+                // with the documented TOCTOU window. Primary
+                // deployment targets are the Unix variants above
+                // where the atomic `O_NOFOLLOW` path closes it.
+                let symlink_meta = std::fs::symlink_metadata(path).with_context(|| {
+                    format!("Failed to stat {} (path does not exist?)", path.display())
+                })?;
+                if symlink_meta.file_type().is_symlink() && !allow_symlinks {
+                    bail!(
+                        "Refusing to read key file {} because it is a symlink. \
+                         Symlinks can silently redirect reads to unintended targets \
+                         (e.g. ~/.ssh/id_rsa). Either pass the symlink target's \
+                         canonical path directly, or set \
+                         LATTICEARC_ALLOW_SYMLINK_KEYS=1 to opt in.",
+                        path.display()
+                    );
+                }
+                std::fs::File::open(path)
+                    .with_context(|| format!("Failed to open {}", path.display()))?
+            }
+        };
+        // size check via the OPEN HANDLE's metadata — inode-bound,
+        // so a post-open path swap can't race.
         let meta = file
             .metadata()
             .with_context(|| format!("Failed to stat open handle for {}", path.display()))?;

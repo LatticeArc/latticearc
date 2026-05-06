@@ -281,7 +281,22 @@ fn encrypt_chacha20_internal(data: &[u8], key: &[u8], aad: &[u8]) -> Result<Vec<
              `latticearc::primitives::security::generate_secure_random_bytes(32)`."
                 .to_string(),
         ),
-        _ => CoreError::InvalidKeyLength { expected: 32, actual: key.len() },
+        // `AeadError::InvalidKeyLength` is a unit variant — actual
+        // length came from the caller's `key.len()`, expected is
+        // the algorithm's KEY_LEN (32 for ChaCha20-Poly1305).
+        AeadError::InvalidKeyLength => {
+            CoreError::InvalidKeyLength { expected: 32, actual: key.len() }
+        }
+        // Round-36 H7: replaced the wildcard `_ =>
+        // InvalidKeyLength { 32, 32 }` arm. With `AeadError` marked
+        // `#[non_exhaustive]`, any future variant routed through
+        // here produced the contradictory diagnostic "wrong key
+        // length: expected 32, got 32" — exactly the
+        // self-contradictory shape that round-32 onwards has been
+        // collapsing. Forward unknown variants as
+        // `EncryptionFailed(e.to_string())`, matching the AES-GCM
+        // sibling at `aes_gcm.rs:97`.
+        other => CoreError::EncryptionFailed(other.to_string()),
     })?;
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     // Empty AAD is the no-AAD case; pass through directly. The

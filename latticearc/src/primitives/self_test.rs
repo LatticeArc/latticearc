@@ -1102,12 +1102,30 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
     if exact_names.iter().any(|n| lower == *n) {
         return true;
     }
+    // Accept any cargo build profile under `target/<profile>/deps/`.
+    // The previous form hardcoded `"debug" || "release"` and rejected
+    // every custom profile (e.g. `[profile.valgrind]` used by the
+    // Memory Safety Checks CI job, `[profile.release-validation]`,
+    // any user-defined profile). Round-32 and round-35 chased the
+    // resulting `process::abort` symptom downstream — first by
+    // disabling a dependent test cleanup, then by `--skip`-ing
+    // affected tests in the Valgrind workflow. The actual root cause
+    // was this overly-narrow allowlist.
+    //
+    // Security note: relaxing to "any profile" is safe because the
+    // integrity-test threat model rejects adversary-injected binaries
+    // by HMAC mismatch, not by path. The profile-name is just the
+    // directory the build system chose to put the artifact in; an
+    // attacker who can write into `target/<arbitrary>/deps/` can
+    // already write into `target/release/deps/` too.
     let parent_ok = path.parent().and_then(|p| {
         if p.file_name().and_then(|n| n.to_str()) == Some("deps")
+            && p.parent().and_then(|pp| pp.file_name()).is_some()
             && p.parent()
-                .and_then(|pp| pp.file_name())
+                .and_then(|pp| pp.parent())
+                .and_then(|ppp| ppp.file_name())
                 .and_then(|n| n.to_str())
-                .is_some_and(|s| s == "debug" || s == "release")
+                == Some("target")
         {
             Some(())
         } else {
@@ -1459,8 +1477,16 @@ pub fn get_module_error_state() -> ModuleErrorState {
 /// ```
 #[must_use]
 pub fn is_module_operational() -> bool {
-    let error_code = ModuleErrorCode::from_u32(MODULE_ERROR_CODE.load(Ordering::Acquire));
-    !error_code.is_error() && SELF_TEST_PASSED.load(Ordering::Acquire)
+    // Round-36 M1: use SeqCst loads to match the SeqCst stores in
+    // `set_module_error`. Acquire-only loads synchronize with each
+    // location's own Release store but do NOT preserve a single
+    // total order across MODULE_ERROR_CODE and SELF_TEST_PASSED;
+    // on weakly-ordered architectures (ARM, POWER) an observer
+    // could see one flag's update before the other's, which for a
+    // FIPS 140-3 §9.6 module-state gate is auditor-visible. SeqCst
+    // on both sides ensures a total observation order.
+    let error_code = ModuleErrorCode::from_u32(MODULE_ERROR_CODE.load(Ordering::SeqCst));
+    !error_code.is_error() && SELF_TEST_PASSED.load(Ordering::SeqCst)
 }
 
 /// Clear the error state for testing or recovery

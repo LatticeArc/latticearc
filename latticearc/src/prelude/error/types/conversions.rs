@@ -17,7 +17,16 @@ impl From<std::io::Error> for LatticeArcError {
 }
 
 impl From<getrandom::Error> for LatticeArcError {
-    fn from(_err: getrandom::Error) -> Self {
+    fn from(err: getrandom::Error) -> Self {
+        // Round-36 M3: surface the upstream error in tracing logs
+        // so operators investigating entropy-failure incidents see
+        // the underlying cause (e.g. `Error::UNSUPPORTED`,
+        // `Error::UNEXPECTED`, or a custom code) instead of just
+        // "RandomError". The user-facing variant stays unit-shaped
+        // because no caller branches on the discrimination today.
+        // `getrandom 0.3` removed the `.code()` accessor; rely on
+        // `Display`/`Debug` of the error itself.
+        tracing::debug!(getrandom_error = %err, "getrandom failed");
         LatticeArcError::RandomError
     }
 }
@@ -60,7 +69,15 @@ impl From<uuid::Error> for LatticeArcError {
 
 impl From<aws_lc_rs::error::KeyRejected> for LatticeArcError {
     fn from(err: aws_lc_rs::error::KeyRejected) -> Self {
-        LatticeArcError::EncryptionError(format!("Key rejected: {:?}", err))
+        // Round-36 M4: route through `InvalidInput` with a stable
+        // string format instead of the previous
+        // `EncryptionError(format!("{:?}"))`. `KeyRejected` is a
+        // key-parsing failure, not a runtime encryption failure;
+        // and the `{:?}` form leaked debug-formatted upstream
+        // internals into a user-visible string. The
+        // `aws_lc_rs::error::KeyRejected` Display impl is the
+        // stable surface; we use that.
+        LatticeArcError::InvalidInput(format!("Key rejected by aws-lc-rs: {err}"))
     }
 }
 
@@ -76,11 +93,15 @@ impl From<std::alloc::LayoutError> for LatticeArcError {
     }
 }
 
-impl From<&str> for LatticeArcError {
-    fn from(err: &str) -> Self {
-        LatticeArcError::InvalidInput(err.to_string())
-    }
-}
+// Round-36 M2: deleted the blanket `From<&str>` for
+// `LatticeArcError`. It fired automatically on `?` for any
+// `Result<_, &str>`, silently coercing string errors into
+// `InvalidInput` and erasing the original error type. No production
+// caller relied on it (verified via `grep`), and the implicit
+// conversion is a landmine for any future dep that returns
+// `Result<_, &str>`. Callers that genuinely want a string-based
+// error should construct the variant explicitly:
+//   `LatticeArcError::InvalidInput(msg.to_string())`
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
@@ -176,14 +197,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_from_str_produces_invalid_input_variant_fails() {
-        let err: LatticeArcError = "some error".into();
-        match err {
-            LatticeArcError::InvalidInput(msg) => assert_eq!(msg, "some error"),
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
-    }
+    // Round-36 M2: deleted `test_from_str_produces_invalid_input_variant_fails`
+    // alongside the `From<&str>` impl removal.
 
     #[test]
     fn test_from_layout_error_produces_invalid_input_variant_fails() {
@@ -211,8 +226,10 @@ mod tests {
     }
 
     #[test]
-    fn test_from_key_rejected_produces_encryption_error_variant_fails() {
-        // Create a KeyRejected error by using an invalid ECDSA key
+    fn test_from_key_rejected_produces_invalid_input_variant() {
+        // Round-36 M4: assertion updated to match the new mapping —
+        // `KeyRejected` now produces `InvalidInput` (it's a parse
+        // failure, not a runtime encryption failure).
         use aws_lc_rs::signature;
         let invalid_pkcs8 = [0u8; 10]; // Too short to be valid PKCS#8
         let key_err = signature::EcdsaKeyPair::from_pkcs8(
@@ -222,8 +239,8 @@ mod tests {
         .unwrap_err();
         let err: LatticeArcError = key_err.into();
         match err {
-            LatticeArcError::EncryptionError(msg) => assert!(msg.contains("Key rejected")),
-            other => panic!("Expected EncryptionError, got {:?}", other),
+            LatticeArcError::InvalidInput(msg) => assert!(msg.contains("Key rejected")),
+            other => panic!("Expected InvalidInput, got {:?}", other),
         }
     }
 }

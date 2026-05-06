@@ -80,9 +80,6 @@ pub mod fips_error;
 /// Resource limits for cryptographic operations (DoS prevention).
 pub mod resource_limits;
 
-// NTT polynomial arithmetic
-pub mod polynomial;
-
 // FIPS 140-3 Self-Test Module
 #[cfg(feature = "fips-self-test")]
 pub mod self_test;

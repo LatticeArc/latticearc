@@ -321,7 +321,16 @@ pub mod perf;
 // Backward-compatible module aliases
 // ============================================================================
 
-/// Alias for `unified_api` module (backward compatibility with `latticearc::core::*`).
+/// Backward-compatible alias for [`unified_api`].
+///
+/// **Deprecation note (round-36 H8):** new code should reach types
+/// through the canonical paths (`latticearc::Foo` flat re-exports
+/// below, or `latticearc::unified_api::Foo`). The `latticearc::core`
+/// alias dates from a pre-0.7 module rename and is retained only so
+/// integrations carrying `use latticearc::core::*;` keep compiling.
+/// Pre-1.0 the alias may be removed in a future round; the canonical
+/// path is `latticearc::unified_api`.
+#[doc(hidden)]
 pub use unified_api as core;
 
 // Explicit re-export of LatticeArcError for error compatibility.
