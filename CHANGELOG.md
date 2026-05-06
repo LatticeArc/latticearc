@@ -9,6 +9,231 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-37 audit — full pass + CI/release infra fixes (2026-05-06)
+
+External round-37 audit returned 28 findings (HIGH 5, MED 11, LOW 8,
+DOC 4) plus the new CRITICAL-class `EncryptedOutput` decorative-fields
+finding. All 28 validated against the committed state (round-36
+follow-up `6edfbca34`); all 28 fixed in this commit, plus three
+infrastructure fixes that were tripping CI / GitHub Actions on every
+push.
+
+#### HIGH
+
+- **H1**: `SchnorrProof::prove` still used the "decorative `Zeroizing`"
+  pattern that round-36 H4 fixed in `DlogEqualityProof` — the
+  `*s_bytes` deref-copy materialised secret-derived bytes into the
+  unzeroized `response: [u8; 32]` field. Mirrors the sigma.rs fix:
+  explicit `tmp_bytes.zeroize()` after the move-into-struct so any
+  stack residue from the `k + c*x` arithmetic is wiped at scope exit.
+- **H2**: `latticearc::core` re-export now carries `#[deprecated(since
+  = "0.8.0", note = ...)]` in addition to `#[doc(hidden)]`, so
+  `use latticearc::core::*;` produces a compiler warning pointing at
+  the canonical path. Round-36 H8 added only the `doc(hidden)`; the
+  CHANGELOG's claim of "deprecation note" referred to rustdoc prose,
+  not the compiler-enforced attribute. CHANGELOG entry corrected.
+- **H3+M1**: All accesses to `SELF_TEST_PASSED` (and `MODULE_ERROR_CODE`)
+  promoted to `SeqCst`. Round-36 M1 only swept the loads in
+  `is_module_operational`; `clear_error_state`, `restore_operational_state`,
+  `initialize_and_test`, the doc-test-anchored standalone path, and
+  the public `self_tests_passed()` accessor all retained `Release` /
+  `Acquire`. Mixed `SeqCst`-load + `Release`-store does not preserve a
+  total order on weakly-ordered ARM/POWER, leaving the FIPS module-state
+  gate observably inconsistent. Both public accessors now share the
+  same total-order semantics.
+- **H4**: Audit log file creation on Windows previously fell through to
+  bare `OpenOptions` with the comment "ACL hardening is the caller's
+  job." Now invokes the new `unified_api::win_acl::set_owner_only_dacl`
+  helper after `OpenOptions::open(...)` succeeds, replacing the
+  inherited DACL with a protected owner-only policy. Failure is fatal
+  — silently leaving an audit log inheriting `Users:Read` would defeat
+  the rotation-time integrity story.
+- **H5+L6**: `AtomicWrite::secret_mode` now also sets
+  `harden_windows_acl = true`, and the `write()` method calls
+  `set_owner_only_dacl` after the atomic rename completes (the rename
+  target inherits the parent's ACL; without this step every secret-key
+  file on Windows would be readable by `Users`). The CLI `keygen`
+  command's `#[cfg(not(unix))]` directory-creation path also calls
+  `set_owner_only_dacl` so the algorithm-identity-encoding directory
+  layout (e.g. `ml-dsa-65/`) is not world-listable.
+
+#### MED
+
+- **M2**: `verify_chain` now runs a fast `serde_json::Value` pre-pass
+  with a 1 MiB per-line cap before the typed `AuditEvent`
+  deserialization. A tampered `.jsonl` file dropping a 4 MiB `action`
+  field can no longer DoS the verifier through string allocation +
+  hashing before rejection. Per-line size cap matches the in-memory
+  per-field caps' product, with generous slack for header / chain-
+  marker fields.
+- **M3**: `ZeroTrustAuth.last_verification` was `RefCell<DateTime<Utc>>`
+  — making the type `!Sync` despite the inline comment claiming
+  `Mutex` was chosen "so the type stays `Sync`". The compiler
+  confirmed: `Arc<ZeroTrustAuth>` shared between Tokio tasks failed to
+  compile. Replaced with `Mutex<Option<DateTime<Utc>>>` (the `Option`
+  is required for M9 — see below). Poison recovery is graceful:
+  the cached timestamp is still valid even if a writer panicked, so
+  `into_inner()` is preferred over `bail!` to avoid locking out
+  otherwise-healthy auth sessions.
+- **M4**: `Cargo.toml` feature description for `secret-mlock` now
+  honestly documents that the feature is a no-op on Windows. The
+  prior text claimed "Uses `mlock(2)` on Linux/macOS and
+  `VirtualLock` on Windows via the `region` crate", contradicting
+  `lib.rs:130` and the round-17 cfg gate. The Windows path is
+  unsupported because the workspace's `panic = "abort"` release
+  profile makes the working-set-trim panic an abort hazard;
+  documenting the limitation is the rigorous fix until that profile
+  decision is revisited (out of scope here).
+- **M5 (NEW, CRITICAL-class)**: `EncryptedOutput`'s top-level `nonce`
+  and `tag` fields were duplicates of bytes embedded in the
+  `ciphertext` field for symmetric AEAD schemes — never consulted by
+  decrypt. The auditor demonstrated live: replacing the top-level
+  `tag` with all-zeros and `nonce` with all-`0xFF` still produced the
+  correct plaintext. Removing the fields entirely failed
+  deserialization with "missing field". Wire-format theatre: any
+  third-party tool that authenticates against the top-level fields
+  was silently passing without checking authenticity.
+  `TryFrom<SerializableEncryptedOutput>` now constant-time-verifies
+  the top-level `nonce` / `tag` against `ciphertext[0..12]` and
+  `ciphertext[len-16..]` for symmetric schemes; mismatch collapses to
+  `DecryptionFailed` (Pattern 6). Hybrid / PQ-only schemes use a
+  different wire layout (no embedded copy); the check is gated on
+  `scheme.requires_symmetric_key()` so they pass through untouched —
+  in those cases the top-level fields ARE the canonical values.
+- **M6**: `AuditEventBuilder::actor` and `::resource` previously wrote
+  `actor.into()` directly, bypassing the `sanitize_audit_field`
+  control-char strip and `MAX_ACTOR_LEN` / `MAX_RESOURCE_LEN` caps
+  the `AuditEvent::with_*` inherent methods enforce (round-35 L5).
+  The builder now routes through `with_actor` / `with_resource`, so
+  caps and sanitization apply uniformly across construction shapes.
+- **M7**: `AuditEvent::new` accepted an unbounded `&str` for `action`
+  and stored it raw. Added `MAX_ACTION_LEN = 256` plus a
+  `sanitize_action_field` helper (control-char strip + truncate);
+  empty inputs collapse to `"<empty>"` rather than `None` because
+  `action` is mandatory on every event.
+- **M8**: `validate_encrypted_envelope_fields` (the `KeyData::Encrypted`
+  validator) now caps `kdf_salt` / `nonce` / `ciphertext` base64
+  strings BEFORE handing them to `base64::decode`. Mirrors the
+  pre-decode pattern in `serialization.rs:292–301`; matters because
+  the 1 MiB whole-document JSON gate fires later than the per-field
+  base64 allocation.
+- **M9**: `PortableKey` metadata now caps entry count
+  (`MAX_METADATA_ENTRIES = 64`), per-key length
+  (`MAX_METADATA_KEY_LEN = 256`), and per-value JSON-serialized length
+  (`MAX_METADATA_VALUE_JSON_LEN = 4 KiB`). `set_metadata` and
+  `set_label` return `Result` instead of silently dropping (the
+  alternative would be enterprise crates believing they stored an
+  entry the format-layer would later reject). `validate()` enforces
+  the same caps on every deserialization path so a tampered persisted
+  key cannot smuggle a 100k-entry `serde_json::Value` tree past the
+  whole-document gate.
+- **M10**: `start_continuous_verification` now requires a successful
+  prior proof verification — returns `Result<ContinuousSession>` and
+  errors with `AuthenticationFailed` if `last_verification` is `None`
+  (i.e. no `verify_proof` has succeeded for this auth instance).
+  Without the gate, a freshly-constructed `ZeroTrustAuth::new(pk, sk)`
+  could immediately hand out a `ContinuousSession` whose `is_valid()`
+  returned true, bypassing the ZKP handshake entirely. `verify_proof`
+  bumps `last_verification` on success; `reauthenticate` likewise.
+  Tests updated to drive a warm-up proof through before exercising
+  the continuous path; new regression test pins the negative case.
+- **M11**: Audit log rotation now writes a synthetic `audit-chain-link`
+  event as the first entry of every rotated file, carrying the prior
+  filename and chain hash in metadata. Without this anchor,
+  `verify_chain` walked file boundaries blindly — a deletion or
+  reorder would not be detected because each file individually
+  chained via in-memory state alone. The anchor's own `integrity_hash`
+  covers the metadata, so tampering breaks the chain at verification
+  time. `verify_chain` validates the anchor on every non-initial
+  file; missing or wrong metadata surfaces as a `ChainMismatch`.
+
+#### LOW
+
+- **L1**: `primitives_constant_time_verification.rs`'s `#[test]`-count
+  guard switched from `SOURCE.matches("#[test]").count()` to a
+  line-prefix filter. The prior form over-counted because the literal
+  `"#[test]"` also appeared in a doc-comment, the `.matches(...)` call
+  itself, and the assert message; `saturating_sub(1)` only stripped
+  one. Quantified: 45 string occurrences vs 42 actual `#[test]`
+  attributes. `MIN_REQUIRED` raised from 30 → 40 to remove the
+  silent-deletion slack.
+- **L2**: `CORRELATION_COUNTER.fetch_add(1, SeqCst)` demoted to
+  `Relaxed`. The counter produces a thread-unique ID for log
+  correlation — no other atomic depends on its ordering, so
+  `SeqCst`'s full-memory-fence-on-every-call was paid overhead for
+  zero correctness benefit on weakly-ordered architectures.
+- **L3**: `init_tracing` is now `OnceLock`-guarded and uses `try_init`
+  instead of `init`. Concurrent calls observe the first installation
+  result; the second call no longer panics on a `set_global_default`
+  race.
+- **L4**: `MetricsCollector` merged its two `Mutex<HashMap>` fields
+  (histograms + operation_counts) into a single `Mutex<MetricsState>`.
+  `record_operation` now holds one lock for the histogram update AND
+  the counter increment — observers can no longer see N samples with
+  N-1 counts during the gap between the two prior locks.
+- **L5**: `parsed_or_init` paths for both `HybridVerifyDummy` and
+  `Ed25519VerifyDummy` now emit `tracing::warn!` when recovering
+  from a poisoned mutex. A previous init panic is no longer silent.
+- **L7**: `KeyLifecycleRecord::TryFrom` now enforces non-decreasing
+  `state_history` timestamps via `.windows(2)`. A persisted record
+  with `state_history[0].timestamp = 2030, [1].timestamp = 2020`
+  previously roundtripped cleanly.
+- **L8**: `KeyLifecycleRecord::TryFrom` now rejects duplicate
+  `approvers` IDs. The in-memory `add_approver` mutator already
+  deduplicates; deserialization bypassed it. Threshold-quorum schemes
+  counting `approvers.len()` no longer inflate from
+  `["alice", "alice", "alice"]`.
+
+#### DOC
+
+- **D1**: CHANGELOG H8 entry text reconciled with the actual code (now
+  truthfully says `#[deprecated]` was applied).
+- **D2**: `sigma.rs` H4-fix comment no longer references the
+  "decorative" pattern in conflict with `schnorr.rs` — both now share
+  the explicit-`zeroize()` discipline. Round-marker phrasing trimmed
+  per the project rule against in-source audit-round labels.
+- **D3**: `audit_regression_signatures.rs` file header no longer
+  claims to cover "NTT primitive-root table integrity" — both NTT
+  tests were removed by round-36 H6.
+- **D4**: `LATTICEARC_PASSPHRASE` warning text is now cross-platform.
+  Linux's `/proc/<pid>/environ` is one of three vectors named
+  alongside macOS (`proc_pidinfo` / `KERN_PROCARGS2` / `ps -E`) and
+  Windows (`OpenProcess(PROCESS_VM_READ)` + `ReadProcessMemory` on
+  the PEB).
+
+#### Infrastructure (not part of round-37, fixed alongside)
+
+- **CI fix**: `.github/workflows/ci.yml`'s integration-test step
+  changed `--test '*'` → `--tests`. The glob form explicitly named
+  every test target, so cargo errored on targets with unmet
+  `required-features` (`primitives_ml_dsa`, `primitives_regression`,
+  `primitives_side_channel`) instead of skipping them. `--tests`
+  respects `required-features` and gracefully skips. Closes the
+  recurring red CI on the `Tests (release, no-default-features)`,
+  `Tests (release, kat-test-vectors)`, and `Tests (release,
+  tracing-init)` jobs that had been failing since round-35.
+- **`release.yml` ghost-fire fix**: line 85 of `release.yml` had a
+  literal `${{ ... }}` inside a shell-comment in a `run: |` block.
+  GitHub Actions parses `${{ }}` expressions everywhere in a
+  workflow file, including comment lines inside `run:` scripts; the
+  literal `...` is not valid expression syntax, so the file failed
+  GH-Actions schema validation. Symptom: every push to `main` since
+  round-35 (`a5ed901a5`) registered a `.github/workflows/release.yml`
+  workflow run with 0-second duration and a `failure` conclusion,
+  even though the `on: push: tags:` filter would have skipped any
+  branch push. Confirmed by `gh api`'s `name` field returning the
+  file path instead of `Release` (only happens when GH can't parse
+  the top-level `name:` field). Comment text rewritten to describe
+  the inlining hazard without the literal `${{ ... }}` token.
+- **Windows DACL helper**: new internal module
+  `latticearc::unified_api::win_acl` plus a target-cfg dep on
+  `windows-permissions = "0.2"` (only compiles on
+  `cfg(windows)`). Single canonical entry point
+  `set_owner_only_dacl(path)` applies a protected owner-only DACL
+  via `SetNamedSecurityInfoW`, used by the H4/H5/L6 sites above.
+  Workspace `unsafe_code = "forbid"` is unchanged — the unsafe is
+  inside the wrapper crate.
+
 ### Round-36 follow-up — Lint Extras fix (2026-05-05)
 
 The initial round-36 push (`a601d6969`) failed the `Lint Extras /
@@ -110,8 +335,9 @@ operating regime.
   fall-through that preserves the upstream message instead of
   swallowing it.
 - **H8**: `latticearc::core` was an undocumented re-export of
-  `unified_api`. Marked `#[doc(hidden)]` and added a deprecation
-  note in the rustdoc recommending the canonical paths
+  `unified_api`. Marked `#[doc(hidden)]` and `#[deprecated(since =
+  "0.8.0", ...)]` so `use latticearc::core::*;` now produces a
+  compiler warning pointing callers at the canonical paths
   (`latticearc::unified_api::*`).
 
 #### MED

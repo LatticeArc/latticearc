@@ -354,6 +354,60 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
             })
             .transpose()?;
 
+        // Cross-verify the top-level `nonce` and `tag` fields against
+        // the copies embedded in `ciphertext` for SYMMETRIC schemes.
+        //
+        // Symmetric schemes (AES-256-GCM, ChaCha20-Poly1305) pack the
+        // wire format as `nonce(12) || actual_ciphertext || tag(16)`
+        // INSIDE the `ciphertext` field, AND duplicate the nonce/tag
+        // into the top-level fields. The decrypt path consumes only
+        // the packed bytes — without this check the top-level fields
+        // are decorative, and a third-party tool that authenticates
+        // against `ser.tag` would silently pass even if `ser.tag` was
+        // zeroed out.
+        //
+        // Hybrid (`requires_hybrid_key`) and PQ-only
+        // (`requires_pq_key`) schemes use a different wire layout:
+        // `ciphertext` holds only the AEAD ciphertext bytes (no
+        // embedded nonce/tag prefix or suffix), and the top-level
+        // `nonce` / `tag` are the canonical values consumed by
+        // decrypt. There is nothing to cross-verify in those cases —
+        // the top-level fields are authoritative, not decorative —
+        // so the check is skipped.
+        //
+        // Constant-time comparison mirrors the AEAD tag-equality
+        // discipline (no oracle on which half disagreed); mismatch
+        // collapses to `DecryptionFailed` (Pattern 6 — distinguishable
+        // errors here would let an attacker probe which field they
+        // were allowed to tamper).
+        if scheme.requires_symmetric_key() {
+            const AEAD_NONCE_LEN: usize = 12;
+            const AEAD_TAG_LEN: usize = 16;
+            if ciphertext.len() >= AEAD_NONCE_LEN.saturating_add(AEAD_TAG_LEN) {
+                let embedded_nonce = ciphertext
+                    .get(..AEAD_NONCE_LEN)
+                    .ok_or_else(|| CoreError::DecryptionFailed("decryption failed".to_string()))?;
+                let tag_start = ciphertext.len().saturating_sub(AEAD_TAG_LEN);
+                let embedded_tag = ciphertext
+                    .get(tag_start..)
+                    .ok_or_else(|| CoreError::DecryptionFailed("decryption failed".to_string()))?;
+                use subtle::ConstantTimeEq;
+                let nonce_eq_len = nonce.len().ct_eq(&embedded_nonce.len());
+                let nonce_eq_bytes = nonce.ct_eq(embedded_nonce);
+                let tag_eq_len = tag.len().ct_eq(&embedded_tag.len());
+                let tag_eq_bytes = tag.ct_eq(embedded_tag);
+                let consistent: bool =
+                    (nonce_eq_len & nonce_eq_bytes & tag_eq_len & tag_eq_bytes).into();
+                if !consistent {
+                    return Err(CoreError::DecryptionFailed("decryption failed".to_string()));
+                }
+            }
+            // A too-short symmetric ciphertext is a structural error
+            // the AEAD path will reject anyway; we pass it through so
+            // error attribution stays at the primitive layer rather
+            // than splitting across two sites.
+        }
+
         EncryptedOutput::new(scheme, ciphertext, nonce, tag, hybrid_data, ser.timestamp, ser.key_id)
             .map_err(|e| CoreError::SerializationError(e.to_string()))
     }

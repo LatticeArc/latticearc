@@ -853,7 +853,10 @@ fn test_zero_trust_auth_method_return_types_are_stable() {
     let _: Result<Challenge> = auth.generate_challenge();
     let challenge = auth.generate_challenge().expect("challenge");
     let _: Result<bool> = auth.verify_challenge_age(&challenge);
-    let _: ContinuousSession = auth.start_continuous_verification();
+    // `start_continuous_verification` now returns `Result` to enforce
+    // the precondition that a successful proof has been verified
+    // (rejects fresh `ZeroTrustAuth` instances). Pin the new type.
+    let _: Result<ContinuousSession> = auth.start_continuous_verification();
 }
 
 /// Test 3.10: ZeroTrustSession methods return expected types

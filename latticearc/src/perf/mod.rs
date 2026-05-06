@@ -321,10 +321,21 @@ impl Histogram {
     }
 }
 
+/// Histograms and per-operation counters held under a single mutex
+/// so observers always see a consistent (samples, count) pair for
+/// any operation name. Splitting these into two mutexes opens an
+/// interleave where another thread reads `count = N` after the
+/// histogram has accepted sample `N+1` but before the counter has
+/// been incremented.
+#[derive(Default)]
+struct MetricsState {
+    histograms: HashMap<String, Histogram>,
+    operation_counts: HashMap<String, usize>,
+}
+
 /// A thread-safe collector for performance metrics
 pub struct MetricsCollector {
-    histograms: Arc<Mutex<HashMap<String, Histogram>>>,
-    operation_counts: Arc<Mutex<HashMap<String, usize>>>,
+    state: Arc<Mutex<MetricsState>>,
 }
 
 impl MetricsCollector {
@@ -336,56 +347,49 @@ impl MetricsCollector {
     /// Create a new metrics collector
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            histograms: Arc::new(Mutex::new(HashMap::new())),
-            operation_counts: Arc::new(Mutex::new(HashMap::new())),
-        }
+        Self { state: Arc::new(Mutex::new(MetricsState::default())) }
     }
 
     /// Record a single operation timing
     #[allow(clippy::arithmetic_side_effects)] // Histogram bucket indexing on bounded duration values
     pub fn record_operation(&self, name: &str, duration: Duration) {
-        // Emit a tracing warning on poisoned mutex rather than silently
-        // dropping the metric — metrics are observability, and a silent
-        // drop hides the panic that poisoned the mutex.
-        match self.histograms.lock() {
-            Ok(mut histograms) => {
-                if let Some(h) = histograms.get_mut(name) {
+        // Single lock acquisition keeps the histogram update and the
+        // counter increment atomic w.r.t. other observers.
+        match self.state.lock() {
+            Ok(mut state) => {
+                let MetricsState { histograms, operation_counts } = &mut *state;
+
+                let histogram_accepted = if let Some(h) = histograms.get_mut(name) {
                     h.record(duration);
+                    true
                 } else if histograms.len() < Self::MAX_DISTINCT_OPERATIONS {
                     let mut h = Histogram::new_default();
                     h.record(duration);
                     histograms.insert(name.to_string(), h);
+                    true
                 } else {
                     tracing::warn!(
                         operation = name,
                         cap = Self::MAX_DISTINCT_OPERATIONS,
                         "perf::MetricsCollector: distinct-operation cap reached; metric dropped"
                     );
-                }
-            }
-            Err(_) => {
-                tracing::warn!(
-                    operation = name,
-                    "perf::MetricsCollector: histograms mutex poisoned; metric dropped"
-                );
-            }
-        }
+                    false
+                };
 
-        match self.operation_counts.lock() {
-            Ok(mut counts) => {
-                if let Some(c) = counts.get_mut(name) {
-                    *c = c.saturating_add(1);
-                } else if counts.len() < Self::MAX_DISTINCT_OPERATIONS {
-                    counts.insert(name.to_string(), 1);
+                if histogram_accepted {
+                    if let Some(c) = operation_counts.get_mut(name) {
+                        *c = c.saturating_add(1);
+                    } else {
+                        // Histogram accepted (existing OR newly inserted under
+                        // the same cap), so the counter half is also under cap.
+                        operation_counts.insert(name.to_string(), 1);
+                    }
                 }
-                // The cap warning is already emitted on the histograms
-                // branch for the same call; no need to repeat it here.
             }
             Err(_) => {
                 tracing::warn!(
                     operation = name,
-                    "perf::MetricsCollector: operation_counts mutex poisoned; metric dropped"
+                    "perf::MetricsCollector: state mutex poisoned; metric dropped"
                 );
             }
         }
@@ -393,8 +397,9 @@ impl MetricsCollector {
 
     /// Get statistics for a specific operation
     pub fn get_statistics(&self, name: &str) -> TimingStatistics {
-        if let Ok(histograms) = self.histograms.lock() {
-            histograms
+        if let Ok(state) = self.state.lock() {
+            state
+                .histograms
                 .get(name)
                 .map(Histogram::calculate_statistics)
                 .unwrap_or_else(TimingStatistics::empty)
@@ -406,8 +411,8 @@ impl MetricsCollector {
     /// Get the total count for a specific operation
     #[must_use]
     pub fn get_count(&self, name: &str) -> usize {
-        if let Ok(counts) = self.operation_counts.lock() {
-            *counts.get(name).unwrap_or(&0)
+        if let Ok(state) = self.state.lock() {
+            *state.operation_counts.get(name).unwrap_or(&0)
         } else {
             0
         }
@@ -416,8 +421,8 @@ impl MetricsCollector {
     /// Get all operation names
     #[must_use]
     pub fn operation_names(&self) -> Vec<String> {
-        if let Ok(histograms) = self.histograms.lock() {
-            histograms.keys().cloned().collect()
+        if let Ok(state) = self.state.lock() {
+            state.histograms.keys().cloned().collect()
         } else {
             Vec::new()
         }
@@ -426,8 +431,12 @@ impl MetricsCollector {
     /// Get all statistics
     #[must_use]
     pub fn get_all_statistics(&self) -> HashMap<String, TimingStatistics> {
-        if let Ok(histograms) = self.histograms.lock() {
-            histograms.iter().map(|(name, h)| (name.clone(), h.calculate_statistics())).collect()
+        if let Ok(state) = self.state.lock() {
+            state
+                .histograms
+                .iter()
+                .map(|(name, h)| (name.clone(), h.calculate_statistics()))
+                .collect()
         } else {
             HashMap::new()
         }
@@ -435,22 +444,16 @@ impl MetricsCollector {
 
     /// Clear all collected metrics
     pub fn clear(&self) {
-        if let Ok(mut histograms) = self.histograms.lock() {
-            histograms.clear();
-        }
-
-        if let Ok(mut counts) = self.operation_counts.lock() {
-            counts.clear();
+        if let Ok(mut state) = self.state.lock() {
+            state.histograms.clear();
+            state.operation_counts.clear();
         }
     }
 
     /// Create a clone of the collector that shares the same underlying data
     #[must_use]
     pub fn clone_collector(&self) -> Self {
-        Self {
-            histograms: Arc::clone(&self.histograms),
-            operation_counts: Arc::clone(&self.operation_counts),
-        }
+        Self { state: Arc::clone(&self.state) }
     }
 }
 

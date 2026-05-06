@@ -323,19 +323,20 @@ impl SchnorrProver {
         let c = fiat_shamir_challenge(&self.public_key, &r_bytes, context)?;
 
         // Compute response s = k + c*x. `s` is non-secret (verifier
-        // sees it), but the intermediate computation passes through
-        // the secret-laden registers — keep s in Zeroizing so any
-        // residue is scrubbed on drop.
+        // sees it), but the intermediate `k + c*x` passes through
+        // secret-laden registers; keep `s` in Zeroizing so any
+        // residue is scrubbed on drop. The serialised byte form is
+        // also held in Zeroizing and explicitly wiped before scope
+        // exit. We cannot Zeroize `response` itself — it lives in the
+        // returned `SchnorrProof` and is the value the verifier needs
+        // — but we minimise the stack copy that briefly holds the
+        // arithmetic intermediate.
         let s = Zeroizing::new(*k + c * *x);
-        // the byte-extracted copy of `s` is also
-        // Zeroized. Although `s` itself reveals nothing about `x`
-        // alone (it's a linear combination of nonce and secret),
-        // careless reuse of the stack frame can leak the
-        // intermediate `k + c*x` arithmetic. Treating `s_bytes` as
-        // sensitive matches the discipline applied to `k` and `x`.
-        let s_bytes: Zeroizing<[u8; 32]> = Zeroizing::new(s.to_bytes().into());
+        let mut tmp_bytes = Zeroizing::new(<[u8; 32]>::from(s.to_bytes()));
+        let response: [u8; 32] = *tmp_bytes;
+        tmp_bytes.zeroize();
 
-        Ok(SchnorrProof { commitment: r_bytes, response: *s_bytes })
+        Ok(SchnorrProof { commitment: r_bytes, response })
     }
 
     /// Get the public key

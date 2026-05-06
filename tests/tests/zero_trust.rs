@@ -304,7 +304,14 @@ fn test_continuous_session_update_verification_succeeds() {
 
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
-    let mut continuous_session = auth.start_continuous_verification();
+    // `start_continuous_verification` requires a prior successful proof
+    // verification — drive one through to clear the gate.
+    let challenge = auth.generate_challenge().expect("challenge generation");
+    let proof = auth.generate_proof(challenge.data()).expect("proof generation");
+    assert!(auth.verify_proof(&proof, challenge.data()).expect("verify"));
+
+    let mut continuous_session =
+        auth.start_continuous_verification().expect("session establishment");
 
     // Update verification timestamp
     let result = continuous_session.update_verification();
@@ -851,9 +858,20 @@ fn test_continuous_verification_status_succeeds() {
 
     let auth = ZeroTrustAuth::with_config(pk, sk, config).expect("auth creation should succeed");
 
+    // With `continuous_verification = true`, a never-verified auth
+    // now reports Pending until the first successful proof —
+    // continuous verification extends a trust relationship, it does
+    // not bootstrap one. Drive a proof through to clear the gate.
+    let challenge = auth.generate_challenge().expect("challenge");
+    let proof = auth.generate_proof(challenge.data()).expect("proof");
+    assert!(auth.verify_proof(&proof, challenge.data()).expect("verify"));
+
     let status = auth.verify_continuously().expect("continuous verification check should succeed");
 
-    assert!(matches!(status, VerificationStatus::Verified), "Fresh auth should be verified");
+    assert!(
+        matches!(status, VerificationStatus::Verified),
+        "Verified auth within interval should report Verified, got {status:?}"
+    );
 }
 
 #[test]
@@ -865,7 +883,14 @@ fn test_continuous_session_validity_succeeds() {
 
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
-    let continuous_session = auth.start_continuous_verification();
+    // Warm up: a fresh ZeroTrustAuth has never observed a verified
+    // proof, so `start_continuous_verification` correctly refuses to
+    // hand out a session until one is performed.
+    let challenge = auth.generate_challenge().expect("challenge generation");
+    let proof = auth.generate_proof(challenge.data()).expect("proof generation");
+    assert!(auth.verify_proof(&proof, challenge.data()).expect("verify"));
+
+    let continuous_session = auth.start_continuous_verification().expect("session establishment");
 
     let is_valid = continuous_session.is_valid().expect("validity check should succeed");
     assert!(is_valid, "New continuous session should be valid");

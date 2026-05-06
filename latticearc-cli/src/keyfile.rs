@@ -359,7 +359,7 @@ pub(crate) fn write_key_protected(
 ) -> Result<()> {
     let mut key = PortableKey::new(algorithm, key_type, KeyData::from_raw(key_bytes));
     if let Some(l) = label {
-        key.set_label(l);
+        key.set_label(l).with_context(|| "label exceeds metadata caps")?;
     }
     encrypt_if_secret(&mut key, key_type, passphrase)?;
     key.write_to_file_with_overwrite(path, overwrite)
@@ -410,10 +410,11 @@ pub(crate) fn write_key_protected_with_metadata(
 ) -> Result<()> {
     let mut key = PortableKey::new(algorithm, key_type, KeyData::from_raw(key_bytes));
     if let Some(l) = label {
-        key.set_label(l);
+        key.set_label(l).with_context(|| "label exceeds metadata caps")?;
     }
     for (k, v) in metadata {
-        key.set_metadata((*k).to_string(), v.clone());
+        key.set_metadata((*k).to_string(), v.clone())
+            .with_context(|| format!("metadata entry {:?} exceeds caps", k))?;
     }
     encrypt_if_secret(&mut key, key_type, passphrase)?;
     key.write_to_file_with_overwrite(path, overwrite)
@@ -435,7 +436,7 @@ pub(crate) fn write_composite_key_protected(
     let mut key =
         PortableKey::new(algorithm, key_type, KeyData::from_composite(pq_bytes, classical_bytes));
     if let Some(l) = label {
-        key.set_label(l);
+        key.set_label(l).with_context(|| "label exceeds metadata caps")?;
     }
     encrypt_if_secret(&mut key, key_type, passphrase)?;
     key.write_to_file_with_overwrite(path, overwrite)
@@ -538,12 +539,21 @@ pub(crate) fn read_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
 ///
 /// # Security trade-off — env var is convenient but leaky
 ///
-/// Environment variables are visible to other processes running as the same
-/// user via `/proc/<pid>/environ` (Linux), are inherited by child processes
-/// across `fork()`/`exec()`, and can be captured in core dumps. For
-/// interactive use, prefer the TTY prompt (do not export the variable).
-/// `LATTICEARC_PASSPHRASE` is intended for CI / non-interactive automation
-/// only — see `SECURITY.md` for the full threat model.
+/// Environment variables are visible to other processes running as the
+/// same user. The leak vectors differ per OS:
+///
+/// - **Linux**: any same-UID process can `read /proc/<pid>/environ`.
+/// - **macOS**: same-UID processes can call `proc_pidinfo` /
+///   `KERN_PROCARGS2`; `ps -E` exposes them at the shell.
+/// - **Windows**: another process running as the same user can
+///   `OpenProcess(PROCESS_VM_READ)` and walk the PEB via
+///   `ReadProcessMemory` to recover the env block.
+///
+/// They are also inherited by every child process this binary launches,
+/// and can land in core / minidump files. For interactive use, prefer
+/// the TTY prompt (do not export the variable). `LATTICEARC_PASSPHRASE`
+/// is intended for CI / non-interactive automation only — see
+/// `SECURITY.md` for the full threat model.
 ///
 /// When the variable is read on a process whose stdin is a TTY, a warning is
 /// emitted to `stderr`: that combination usually means an interactive user
@@ -570,10 +580,12 @@ fn resolve_passphrase(
         // we cannot mitigate either fully without `unsafe` code (which
         // the workspace `unsafe_code = "forbid"` policy bans).
         //
-        // 1. Other processes running as the same UID can read
-        //    `/proc/self/environ` of this process (or
-        //    `/proc/<pid>/environ` for child processes). This applies
-        //    for the lifetime of the process; we cannot
+        // 1. Other processes running as the same user can read this
+        //    process's environment block. On Linux that's
+        //    `/proc/<pid>/environ`; on macOS, `proc_pidinfo` /
+        //    `KERN_PROCARGS2`; on Windows, `OpenProcess(PROCESS_VM_READ)`
+        //    plus `ReadProcessMemory` against the target's PEB. The
+        //    leak applies for the lifetime of the process; we cannot
         //    `std::env::remove_var()` it because that's an unsafe API
         //    in the 2024 edition (data races with concurrent env reads
         //    in multi-threaded programs).
@@ -598,12 +610,14 @@ fn resolve_passphrase(
         if is_tty {
             eprintln!(
                 "warning: LATTICEARC_PASSPHRASE is set on an interactive TTY session. \
-                 Env-var passphrases are visible to same-UID processes via \
-                 /proc/<pid>/environ for the lifetime of this process and to \
-                 any subprocess we spawn. Unset the variable and use the \
-                 prompt unless you are running in non-interactive automation. \
-                 Scripts that intentionally use this path should `unset \
-                 LATTICEARC_PASSPHRASE` immediately after this command exits."
+                 Env-var passphrases are readable by other processes running as the \
+                 same user (Linux: /proc/<pid>/environ; macOS: proc_pidinfo / ps -E; \
+                 Windows: OpenProcess + ReadProcessMemory on the PEB) for the \
+                 lifetime of this process and are inherited by any subprocess we \
+                 spawn. Unset the variable and use the prompt unless you are \
+                 running in non-interactive automation. Scripts that intentionally \
+                 use this path should `unset LATTICEARC_PASSPHRASE` immediately \
+                 after this command exits."
             );
             tracing::warn!(
                 tty = true,

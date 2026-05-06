@@ -83,19 +83,32 @@ pub struct AuditEvent {
 }
 
 impl AuditEvent {
+    /// Maximum byte length for the `action` string. Caller-supplied
+    /// `action` text is the third free-form field on every event;
+    /// without a cap, a single oversized argument would multiply
+    /// memory + hashing cost across the whole audit chain.
+    pub const MAX_ACTION_LEN: usize = 256;
+
     /// Create a new audit event with the given parameters.
     ///
     /// The integrity hash is initially empty and will be set when
-    /// the event is written to storage.
+    /// the event is written to storage. `action` is sanitized
+    /// (control chars stripped, truncated to [`MAX_ACTION_LEN`]
+    /// (Self::MAX_ACTION_LEN)) so a `\n`-laced or oversized argument
+    /// cannot break JSONL consumers or amplify hashing cost.
+    /// Sanitization that empties the string keeps a placeholder
+    /// `"<empty>"` so every event still carries a non-empty action
+    /// — audit must never silently drop the verb.
     #[must_use]
     pub fn new(event_type: AuditEventType, action: &str, outcome: AuditOutcome) -> Self {
+        let action = sanitize_action_field(action.to_string());
         Self {
             id: generate_uuid(),
             timestamp: Utc::now(),
             event_type,
             actor: None,
             resource: None,
-            action: action.to_string(),
+            action,
             outcome,
             metadata: HashMap::new(),
             integrity_hash: String::new(),
@@ -262,6 +275,20 @@ fn sanitize_audit_field(input: String, max_bytes: usize) -> Option<String> {
     Some(s)
 }
 
+/// Sanitize the `action` verb. Unlike `actor`/`resource`, `action`
+/// is mandatory on every event (the verb that triggered the audit
+/// entry), so an empty result substitutes a `"<empty>"` placeholder
+/// rather than dropping the field — auditors prefer "we know it
+/// happened but the verb was unrepresentable" over a silent gap.
+fn sanitize_action_field(input: String) -> String {
+    let mut s: String = input.chars().filter(|c| !c.is_control()).collect();
+    if s.is_empty() {
+        return "<empty>".to_string();
+    }
+    truncate_utf8_safe(&mut s, AuditEvent::MAX_ACTION_LEN);
+    s
+}
+
 /// Builder for constructing audit events with a fluent API.
 pub struct AuditEventBuilder {
     event: AuditEvent,
@@ -274,17 +301,23 @@ impl AuditEventBuilder {
         Self { event: AuditEvent::new(event_type, action, outcome) }
     }
 
-    /// Set the actor for this event.
+    /// Set the actor for this event. Routes through
+    /// [`AuditEvent::with_actor`] so the same control-char strip and
+    /// `MAX_ACTOR_LEN` cap apply to builder callers as to direct
+    /// callers.
     #[must_use]
     pub fn actor(mut self, actor: impl Into<String>) -> Self {
-        self.event.actor = Some(actor.into());
+        self.event = self.event.with_actor(actor);
         self
     }
 
-    /// Set the resource for this event.
+    /// Set the resource for this event. Routes through
+    /// [`AuditEvent::with_resource`] so the same sanitization and
+    /// `MAX_RESOURCE_LEN` cap apply to builder callers as to direct
+    /// callers.
     #[must_use]
     pub fn resource(mut self, resource: impl Into<String>) -> Self {
-        self.event.resource = Some(resource.into());
+        self.event = self.event.with_resource(resource);
         self
     }
 
@@ -386,9 +419,17 @@ pub struct AuditConfig {
 }
 
 impl Default for AuditConfig {
+    /// The default path is rooted at the OS temp directory under
+    /// `latticearc/audit_logs` so a daemon started from `/` does not
+    /// silently write into the filesystem root, and a daemon started
+    /// from a user's home doesn't bury audit logs in `~/audit_logs`.
+    /// Production deployments must call [`AuditConfig::new`] with an
+    /// explicit path; this default is only for tests / quick-start
+    /// examples.
     fn default() -> Self {
+        let storage_path = std::env::temp_dir().join("latticearc").join("audit_logs");
         Self {
-            storage_path: PathBuf::from("audit_logs"),
+            storage_path,
             max_file_size_bytes: 100 * 1024 * 1024, // 100MB
             max_file_age: Duration::from_secs(24 * 60 * 60), // 24 hours
             retention_days: 90,
@@ -587,6 +628,19 @@ const AUDIT_GENESIS_FILENAME: &str = "genesis";
 /// every other transcript prefix in the crate so a genesis bytestring
 /// cannot collide with any other artifact.
 const AUDIT_GENESIS_DOMAIN_LABEL: &[u8] = b"latticearc-audit-genesis-v1";
+
+/// Action verb of the synthetic event written as the first entry of
+/// each rotated audit file. Anchors the new file to the prior file's
+/// final hash; absence (or mismatch) of this anchor at the start of a
+/// non-initial file indicates the chain has been truncated, reordered,
+/// or had files deleted.
+pub const CHAIN_ANCHOR_ACTION: &str = "audit-chain-link";
+/// Metadata key on a chain-anchor event recording the filename of the
+/// prior audit file in the rotation sequence.
+pub const CHAIN_ANCHOR_PREV_FILE_KEY: &str = "previous_file";
+/// Metadata key on a chain-anchor event recording the integrity hash
+/// at the moment of rotation (i.e. the prior file's final event hash).
+pub const CHAIN_ANCHOR_PREV_HASH_KEY: &str = "previous_hash";
 
 impl FileAuditStorage {
     /// Create a new file-based audit storage.
@@ -894,12 +948,33 @@ impl FileAuditStorage {
     }
 
     /// Rotate the current file if needed.
+    ///
+    /// On rotation, a `chain-link` event is written as the FIRST entry
+    /// of the new file. The link carries the previous file's name and
+    /// the chain hash at the moment of rotation. Without this anchor,
+    /// `verify_chain` cannot detect a deletion or reorder of files at
+    /// the boundary — the new file's first event would chain from
+    /// in-memory `previous_hash`, but no on-disk record would tie that
+    /// hash to the file it descended from. The anchor's own
+    /// `integrity_hash` covers the metadata, so tampering with the
+    /// recorded `previous_file` / `previous_hash` breaks the chain at
+    /// verification time.
     fn rotate_if_needed(&self, state: &mut Option<FileState>) -> Result<()> {
         let should_rotate = state.as_ref().is_some_and(|s| self.needs_rotation(s));
 
+        let mut rotation_link: Option<(String, String)> = None;
         if should_rotate {
-            // Close current file and create new one
+            // Close current file and create new one. Capture the
+            // outgoing filename and chain hash BEFORE we drop the old
+            // state so the new file's chain-anchor can reference both.
             if let Some(mut old_state) = state.take() {
+                let old_filename = old_state
+                    .current_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("<unknown>")
+                    .to_string();
+                let old_hash = self.previous_hash.read().clone();
                 tracing::info!(
                     "Rotating audit file: {} (size: {} bytes)",
                     old_state.current_path.display(),
@@ -908,6 +983,7 @@ impl FileAuditStorage {
                 old_state.writer.flush().map_err(|e| {
                     CoreError::AuditError(format!("Failed to flush audit file: {}", e))
                 })?;
+                rotation_link = Some((old_filename, old_hash));
             }
         }
 
@@ -916,6 +992,62 @@ impl FileAuditStorage {
             *state = Some(self.create_new_file()?);
         }
 
+        // Write chain-anchor as the first entry of the new file when we
+        // rotated from an existing file. (First-ever-file case has
+        // `rotation_link = None` and the genesis hash anchors the chain
+        // implicitly, as documented above.)
+        if let Some((prev_file, prev_hash)) = rotation_link
+            && let Some(new_state) = state.as_mut()
+        {
+            self.write_chain_anchor(new_state, &prev_file, &prev_hash)?;
+        }
+
+        Ok(())
+    }
+
+    /// Write a chain-anchor event as the first entry of a freshly
+    /// rotated audit file.
+    ///
+    /// The anchor is itself a normal `AuditEvent`, chained from the
+    /// outgoing file's final hash, with metadata recording that
+    /// outgoing file's name and hash. Its own `integrity_hash` is
+    /// recomputed by `verify_chain` and bumped into `previous_hash`
+    /// like any other event, so the chain is unbroken across the
+    /// rotation. Tampering with the anchor's metadata invalidates its
+    /// integrity hash; deletion of either file makes the anchor
+    /// reference dangling.
+    fn write_chain_anchor(
+        &self,
+        state: &mut FileState,
+        previous_file: &str,
+        previous_hash: &str,
+    ) -> Result<()> {
+        let mut anchor =
+            AuditEvent::new(AuditEventType::System, CHAIN_ANCHOR_ACTION, AuditOutcome::Success)
+                .with_metadata(CHAIN_ANCHOR_PREV_FILE_KEY, previous_file)
+                .with_metadata(CHAIN_ANCHOR_PREV_HASH_KEY, previous_hash);
+
+        // Chain the anchor from the outgoing file's final hash
+        // (= current `previous_hash`), then advance the in-memory
+        // chain pointer to the anchor's own hash.
+        let chain_prev = self.previous_hash.read().clone();
+        anchor.integrity_hash = Self::compute_integrity_hash(&anchor, &chain_prev)?;
+        {
+            let mut prev = self.previous_hash.write();
+            prev.clone_from(&anchor.integrity_hash);
+        }
+
+        let json = serde_json::to_string(&anchor).map_err(|e| {
+            CoreError::AuditError(format!("Failed to serialize chain anchor: {}", e))
+        })?;
+        let line = format!("{}\n", json);
+        let line_bytes = line.as_bytes();
+        state
+            .writer
+            .write_all(line_bytes)
+            .map_err(|e| CoreError::AuditError(format!("Failed to write chain anchor: {}", e)))?;
+        let line_len_u64 = u64::try_from(line_bytes.len()).unwrap_or(u64::MAX);
+        state.current_size = state.current_size.saturating_add(line_len_u64);
         Ok(())
     }
 
@@ -946,15 +1078,27 @@ impl FileAuditStorage {
             }
             #[cfg(not(unix))]
             {
-                // LINT-OK: cfg-not-unix — Windows / non-Unix has no
-                // mode bits; ACL hardening is the caller's job.
-                OpenOptions::new().create(true).append(true).open(&path).map_err(|e| {
+                let f = OpenOptions::new().create(true).append(true).open(&path).map_err(|e| {
                     CoreError::AuditError(format!(
                         "Failed to create audit file '{}': {}",
                         path.display(),
                         e
                     ))
-                })?
+                })?;
+                // Replace the default DACL inherited from the parent
+                // directory with the owner-only policy applied
+                // workspace-wide. Symmetric with the Unix `mode(0o600)`
+                // above. A failure here is fatal — letting an audit
+                // log inherit a permissive DACL silently would defeat
+                // the whole point of the rotation.
+                crate::unified_api::set_owner_only_dacl(&path).map_err(|e| {
+                    CoreError::AuditError(format!(
+                        "Failed to harden audit file DACL '{}': {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
+                f
             }
         };
 
@@ -1085,21 +1229,88 @@ impl FileAuditStorage {
         let mut events_checked: u64 = 0;
         let mut mismatch: Option<ChainMismatch> = None;
 
+        // Defense-in-depth pre-decode caps. A persisted JSONL line is at
+        // worst the product of in-memory caps (action 256 B + actor
+        // 256 B + resource 1 KiB + 32 metadata × 4 KiB ≈ 130 KiB),
+        // plus header / chain-marker fields and JSON encoding
+        // overhead. 1 MiB is generously above that ceiling but small
+        // enough to defeat a tampered file dropping a 1 GiB action
+        // string in front of the verifier.
+        const MAX_LINE_LEN: usize = 1024 * 1024;
+
+        // Cross-file chain back-reference state. After processing the
+        // first file, every subsequent file's first event MUST be a
+        // `chain-link` anchor whose `previous_file` and `previous_hash`
+        // metadata match the file we just finished. Without this check
+        // the chain rotates "blindly" — `verify_chain` would happily
+        // walk a sequence of files even after one was deleted, because
+        // each file individually chains via in-memory state alone.
+        //
+        // `previous_file_name` is the basename of the prior file in the
+        // sorted log_files list. `previous_file_final_hash` is the
+        // chain hash when we exited the prior file's loop.
+        let mut previous_file_name: Option<String> = None;
+        let mut previous_file_final_hash: Option<String> = None;
+
         for file in &log_files {
             use std::io::BufRead;
             let f = File::open(file).map_err(|e| {
                 CoreError::AuditError(format!("Failed to open {}: {}", file.display(), e))
             })?;
             let reader = std::io::BufReader::new(f);
+            // Reset per-file: track whether we've seen the first
+            // non-empty event of this file (used for the cross-file
+            // anchor check below).
+            let mut first_event_in_file = true;
             for (line_idx, line_res) in reader.lines().enumerate() {
                 let line = line_res
                     .map_err(|e| CoreError::AuditError(format!("Failed to read line: {}", e)))?;
                 if line.trim().is_empty() {
                     continue;
                 }
-                let event: AuditEvent = serde_json::from_str(&line).map_err(|e| {
+                if line.len() > MAX_LINE_LEN {
+                    return Err(CoreError::AuditError(format!(
+                        "audit line {} of {} exceeds maximum length {} (was {})",
+                        line_idx,
+                        file.display(),
+                        MAX_LINE_LEN,
+                        line.len()
+                    )));
+                }
+                // Pre-pass: extract `integrity_hash` cheaply with
+                // `serde_json::Value` partial parsing so we can fail
+                // fast on a tampered chain marker before paying for
+                // the full `AuditEvent` deserialization (which
+                // allocates strings for every field). This still
+                // walks the whole line — `serde_json::from_str` is
+                // O(n) regardless — but skips the secondary
+                // allocation of a fully-typed event.
+                //
+                // Rejection here cannot leak which structural field
+                // failed: any pre-pass parse error collapses to a
+                // single "unparseable" outcome.
+                let bare: serde_json::Value = serde_json::from_str(&line).map_err(|e| {
                     CoreError::AuditError(format!(
                         "Failed to parse line {} of {}: {}",
+                        line_idx,
+                        file.display(),
+                        e
+                    ))
+                })?;
+                let _stored_hash_seen =
+                    bare.get("integrity_hash").and_then(|v| v.as_str()).ok_or_else(|| {
+                        CoreError::AuditError(format!(
+                            "Audit line {} of {} missing integrity_hash",
+                            line_idx,
+                            file.display(),
+                        ))
+                    })?;
+                // Now do the full typed parse — guaranteed by the
+                // pre-pass to be a structurally valid event JSON
+                // with an `integrity_hash` field present.
+                let event: AuditEvent = serde_json::from_value(bare).map_err(|e| {
+                    CoreError::AuditError(format!(
+                        "Failed to typed-parse line {} of {}: {}",
                         line_idx,
                         file.display(),
                         e
@@ -1118,11 +1329,56 @@ impl FileAuditStorage {
                     });
                     break;
                 }
+
+                // Cross-file anchor check: when this is the first
+                // event of a non-initial file, it must be a chain-link
+                // anchor whose metadata matches the prior file we
+                // just verified.
+                if first_event_in_file {
+                    if let (Some(prev_name), Some(prev_final_hash)) =
+                        (previous_file_name.as_deref(), previous_file_final_hash.as_deref())
+                    {
+                        let action_ok = event.action == CHAIN_ANCHOR_ACTION;
+                        let prev_file_meta_ok = event
+                            .metadata
+                            .get(CHAIN_ANCHOR_PREV_FILE_KEY)
+                            .map(|v| v == prev_name)
+                            .unwrap_or(false);
+                        let prev_hash_meta_ok = event
+                            .metadata
+                            .get(CHAIN_ANCHOR_PREV_HASH_KEY)
+                            .map(|v| v == prev_final_hash)
+                            .unwrap_or(false);
+                        if !(action_ok && prev_file_meta_ok && prev_hash_meta_ok) {
+                            // Surface as a chain mismatch on this line —
+                            // matches the existing reporting shape so
+                            // callers don't need a second error
+                            // variant for "anchor missing/wrong."
+                            mismatch = Some(ChainMismatch {
+                                file: file.clone(),
+                                line: line_idx,
+                                event_id: event.id.clone(),
+                                stored_hash: stored.clone(),
+                                expected_hash: format!(
+                                    "expected chain-link from previous_file={prev_name:?} \
+                                     previous_hash={prev_final_hash}"
+                                ),
+                            });
+                            break;
+                        }
+                    }
+                    first_event_in_file = false;
+                }
+
                 prev_hash = recomputed;
             }
             if mismatch.is_some() {
                 break;
             }
+            // Capture this file's tail state so the next iteration can
+            // validate its chain-link anchor.
+            previous_file_name = file.file_name().and_then(|n| n.to_str()).map(str::to_string);
+            previous_file_final_hash = Some(prev_hash.clone());
         }
 
         Ok(ChainVerificationReport { files_checked: log_files.len(), events_checked, mismatch })

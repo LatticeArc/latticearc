@@ -52,12 +52,24 @@ kani = []
 saw = []
 # OS-level memory locking for `SecretVec` (Secret Type Invariant I-10):
 # prevents heap-backed secret buffers from being swapped to disk or appearing
-# in core dumps. Uses `mlock(2)` on Linux/macOS and `VirtualLock` on Windows
-# via the `region` crate. Default-off because `RLIMIT_MEMLOCK` can cause
-# constructor-time lock failures on some deployments; when the feature is
-# enabled and locking fails, `SecretVec` falls back to an unlocked buffer (the
-# bytes are still zeroized on drop). `SecretBytes<N>` is always stack-allocated
-# and is deliberately NOT covered by this feature — see the `SecretBytes` doc.
+# in core dumps. Uses `mlock(2)` on Linux and macOS via the `region` crate.
+#
+# Windows: this feature compiles as a no-op. `VirtualLock` is documented as
+# best-effort (the working set may be trimmed under memory pressure, after
+# which `VirtualUnlock` raises `ERROR_NOT_LOCKED`). `region` panics on that
+# error; under the workspace's `panic = "abort"` release profile,
+# `catch_unwind` does not intercept the panic, so a working-set trim would
+# abort the process. Operators who need swap protection on Windows should
+# rely on full-disk encryption + paging-file encryption + service-account
+# isolation; routing through `VirtualLock` cannot meaningfully improve on
+# that under our release profile.
+#
+# Default-off because `RLIMIT_MEMLOCK` can cause constructor-time lock
+# failures on some Linux/macOS deployments; when the feature is enabled and
+# locking fails, `SecretVec` falls back to an unlocked buffer (the bytes
+# are still zeroized on drop). `SecretBytes<N>` is always stack-allocated
+# and is deliberately NOT covered by this feature — see the `SecretBytes`
+# doc.
 secret-mlock = ["dep:region"]
 
 # Exposes `AeadCipher::new_allow_weak_key` (and the equivalent inherent
@@ -177,6 +189,18 @@ tempfile = { workspace = true }
 # flag comment in the `[features]` section for rationale.
 region = { version = "3.0", optional = true }
 
+# =============================================================================
+# Windows-only dependencies
+# =============================================================================
+# Safe-Rust wrapper for Windows ACL APIs. Used by
+# `unified_api::win_acl::set_owner_only_dacl` to set restrictive DACLs on
+# audit log files, secret-key files, and key-output directories — the
+# Windows analogue of the `mode(0o600)` / `mode(0o700)` we already apply
+# on Unix. The crate's `unsafe` is internal; the workspace
+# `unsafe_code = "forbid"` lint covers our own source only, so this dep
+# is the canonical way to set DACLs without violating the policy.
+[target.'cfg(windows)'.dependencies]
+windows-permissions = "0.2"
 
 [dev-dependencies]
 proptest = { workspace = true }

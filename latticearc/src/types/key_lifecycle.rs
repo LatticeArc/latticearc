@@ -346,6 +346,41 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
                 "destroyed_at presence disagrees with state_history".to_string(),
             ));
         }
+
+        // (4) state_history timestamps must be non-decreasing. A
+        //     persisted record with `state_history[i].timestamp >
+        //     state_history[i+1].timestamp` is a tamper signal — the
+        //     in-memory `transition()` path always appends with
+        //     `Utc::now()`, which is monotone in practice and forbids
+        //     out-of-order entries by construction.
+        for pair in raw.state_history.windows(2) {
+            // `windows(2)` always yields 2-element slices; pattern-
+            // bind so clippy's indexing-may-panic gate is satisfied
+            // without an `[allow]` waiver.
+            let [prev, curr] = pair else { continue };
+            if curr.timestamp < prev.timestamp {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "state_history timestamps decrease between {:?} ({}) and {:?} ({})",
+                    prev.to_state, prev.timestamp, curr.to_state, curr.timestamp
+                )));
+            }
+        }
+
+        // (5) Approver identifiers must be unique. The in-memory
+        //     `add_approver` path explicitly deduplicates; a persisted
+        //     record with `approvers = ["alice", "alice"]` would
+        //     otherwise inflate threshold-quorum counts.
+        let mut seen: std::collections::HashSet<&String> =
+            std::collections::HashSet::with_capacity(raw.approvers.len());
+        for approver in &raw.approvers {
+            if !seen.insert(approver) {
+                return Err(TypeError::InvalidAuditInput(format!(
+                    "approvers contains duplicate id {:?}",
+                    approver
+                )));
+            }
+        }
+
         Ok(KeyLifecycleRecord {
             key_id: raw.key_id,
             key_type: raw.key_type,

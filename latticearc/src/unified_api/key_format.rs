@@ -1127,13 +1127,54 @@ impl PortableKey {
     }
 
     /// Insert or update a metadata entry.
-    pub fn set_metadata(&mut self, key: String, value: serde_json::Value) {
+    ///
+    /// # Errors
+    /// Returns `CoreError::ResourceExceeded` when the key would exceed
+    /// [`MAX_METADATA_KEY_LEN`](Self::MAX_METADATA_KEY_LEN), the
+    /// serialized value would exceed
+    /// [`MAX_METADATA_VALUE_JSON_LEN`](Self::MAX_METADATA_VALUE_JSON_LEN),
+    /// or inserting a new key would push the map past
+    /// [`MAX_METADATA_ENTRIES`](Self::MAX_METADATA_ENTRIES). Returning
+    /// `Result` instead of silently dropping prevents enterprise crates
+    /// from believing they stored an entry that the format-layer
+    /// validator would later reject.
+    pub fn set_metadata(&mut self, key: String, value: serde_json::Value) -> Result<()> {
+        if key.len() > Self::MAX_METADATA_KEY_LEN {
+            return Err(CoreError::ResourceExceeded(format!(
+                "metadata key length {} exceeds maximum {}",
+                key.len(),
+                Self::MAX_METADATA_KEY_LEN
+            )));
+        }
+        let value_len = serde_json::to_string(&value)
+            .map(|s| s.len())
+            .unwrap_or(Self::MAX_METADATA_VALUE_JSON_LEN.saturating_add(1));
+        if value_len > Self::MAX_METADATA_VALUE_JSON_LEN {
+            return Err(CoreError::ResourceExceeded(format!(
+                "metadata value JSON length {} exceeds maximum {}",
+                value_len,
+                Self::MAX_METADATA_VALUE_JSON_LEN
+            )));
+        }
+        if !self.metadata.contains_key(&key) && self.metadata.len() >= Self::MAX_METADATA_ENTRIES {
+            return Err(CoreError::ResourceExceeded(format!(
+                "metadata entry count {} would exceed maximum {}",
+                self.metadata.len().saturating_add(1),
+                Self::MAX_METADATA_ENTRIES
+            )));
+        }
         self.metadata.insert(key, value);
+        Ok(())
     }
 
     /// Set a human-readable label in metadata.
-    pub fn set_label(&mut self, label: impl Into<String>) {
-        self.metadata.insert("label".to_string(), serde_json::Value::String(label.into()));
+    ///
+    /// # Errors
+    /// Returns `CoreError::ResourceExceeded` if the label, when stored
+    /// as a JSON string, would exceed
+    /// [`MAX_METADATA_VALUE_JSON_LEN`](Self::MAX_METADATA_VALUE_JSON_LEN).
+    pub fn set_label(&mut self, label: impl Into<String>) -> Result<()> {
+        self.set_metadata("label".to_string(), serde_json::Value::String(label.into()))
     }
 
     /// Get the label from metadata, if any.
@@ -1726,6 +1767,42 @@ impl PortableKey {
             )));
         }
 
+        // Metadata caps: enforce on every deserialization path so an
+        // attacker-supplied document cannot smuggle a 100k-entry map
+        // past the 1 MiB whole-document gate. `serde_json::Value` is
+        // recursive — even a small JSON string can build a much larger
+        // heap tree — and the metadata is hashed into the AAD on
+        // every encrypted-key load.
+        if self.metadata.len() > Self::MAX_METADATA_ENTRIES {
+            return Err(CoreError::InvalidKey(format!(
+                "metadata entry count {} exceeds maximum {}",
+                self.metadata.len(),
+                Self::MAX_METADATA_ENTRIES
+            )));
+        }
+        for (key, value) in &self.metadata {
+            if key.len() > Self::MAX_METADATA_KEY_LEN {
+                return Err(CoreError::InvalidKey(format!(
+                    "metadata key length {} exceeds maximum {}",
+                    key.len(),
+                    Self::MAX_METADATA_KEY_LEN
+                )));
+            }
+            let value_len = serde_json::to_string(value).map(|s| s.len()).map_err(|e| {
+                CoreError::SerializationError(format!(
+                    "metadata value re-serialization failed: {e}"
+                ))
+            })?;
+            if value_len > Self::MAX_METADATA_VALUE_JSON_LEN {
+                return Err(CoreError::InvalidKey(format!(
+                    "metadata value JSON length {} for key {:?} exceeds maximum {}",
+                    value_len,
+                    key,
+                    Self::MAX_METADATA_VALUE_JSON_LEN
+                )));
+            }
+        }
+
         // Symmetric algorithm ↔ key type
         if self.algorithm.is_symmetric() && self.key_type != KeyType::Symmetric {
             return Err(CoreError::InvalidKey(format!(
@@ -1818,6 +1895,37 @@ impl PortableKey {
         nonce: &str,
         ciphertext: &str,
     ) -> Result<()> {
+        // Defense-in-depth: reject pathologically large field strings
+        // BEFORE handing them to `base64::decode`. The 1 MiB
+        // [`MAX_KEY_JSON_SIZE`] / [`MAX_KEY_CBOR_SIZE`] gate fires
+        // earlier on the whole document, but post-decode allocation
+        // amplifies (a 1 MiB base64 expands to ~750 KiB raw which is
+        // then often re-allocated), and these per-field caps mirror
+        // the pattern in `serialization.rs` for `EncryptedOutput`.
+        // Generous slack vs. the cryptographic minimums lets future
+        // schemes (e.g. larger PBKDF2 salts, XChaCha nonces) ship
+        // without revisiting these constants.
+        const MAX_KDF_SALT_B64: usize = 256; // raw cap is 64 B (PBKDF2)
+        const MAX_NONCE_B64: usize = 64; // 12 B raw for AES-GCM
+        const MAX_CIPHERTEXT_B64: usize = 1024 * 1024; // 1 MiB raw cap
+        if kdf_salt.len() > MAX_KDF_SALT_B64 {
+            return Err(CoreError::InvalidKey(format!(
+                "kdf_salt base64 length {} exceeds maximum {MAX_KDF_SALT_B64}",
+                kdf_salt.len()
+            )));
+        }
+        if nonce.len() > MAX_NONCE_B64 {
+            return Err(CoreError::InvalidKey(format!(
+                "nonce base64 length {} exceeds maximum {MAX_NONCE_B64}",
+                nonce.len()
+            )));
+        }
+        if ciphertext.len() > MAX_CIPHERTEXT_B64 {
+            return Err(CoreError::InvalidKey(format!(
+                "ciphertext base64 length {} exceeds maximum {MAX_CIPHERTEXT_B64}",
+                ciphertext.len()
+            )));
+        }
         // emit a distinct error for the v1
         // → v2 transition so users know to re-encrypt rather than
         // chase a passphrase that was already correct (the v1 AAD
@@ -2349,6 +2457,19 @@ impl PortableKey {
     /// memory exhaustion from maliciously crafted payloads.
     pub const MAX_KEY_CBOR_SIZE: usize = 1024 * 1024; // 1 MiB
 
+    /// Maximum number of entries the open `metadata` map may carry.
+    /// `serde_json::Value` is recursive, so a 1 MiB JSON document can
+    /// expand into a much larger heap tree; the entry cap and the
+    /// per-value byte cap below bound that amplification.
+    pub const MAX_METADATA_ENTRIES: usize = 64;
+    /// Maximum byte length of a single metadata key.
+    pub const MAX_METADATA_KEY_LEN: usize = 256;
+    /// Maximum byte length of any single metadata value's serialized
+    /// JSON representation. AAD includes serialized metadata on every
+    /// encrypted-key decrypt; without this cap one oversized value
+    /// would amplify hashing cost across every load of the same key.
+    pub const MAX_METADATA_VALUE_JSON_LEN: usize = 4 * 1024;
+
     /// Deserialize from JSON string.
     ///
     /// # Errors
@@ -2626,7 +2747,7 @@ impl PortableKey {
 
         let mut key = Self::new(algorithm, key_type, key_data);
         if let Some(label) = legacy.label {
-            key.set_label(label);
+            key.set_label(label)?;
         }
         key.validate()?;
         Ok(key)
@@ -3409,8 +3530,8 @@ mod tests {
             KeyType::Symmetric,
             KeyData::from_raw(&[0u8; 32]),
         );
-        key.set_label("Production signing key");
-        key.set_metadata("custom_field".to_string(), serde_json::json!(42));
+        key.set_label("Production signing key").unwrap();
+        key.set_metadata("custom_field".to_string(), serde_json::json!(42)).unwrap();
 
         let json = key.to_json().unwrap();
         let restored = PortableKey::from_json(&json).unwrap();
@@ -4063,12 +4184,16 @@ mod tests {
             PortableKey::from_hybrid_kem_keypair(UseCase::HealthcareRecords, &pk, &sk).unwrap();
 
         // Enterprise crate adds metadata
-        portable_pk.set_label("HIPAA-compliant DEK");
-        portable_pk.set_metadata(
-            "compliance".to_string(),
-            serde_json::json!({"standard": "HIPAA", "audit_id": "AUD-2026-0042"}),
-        );
-        portable_pk.set_metadata("department".to_string(), serde_json::json!("cardiology"));
+        portable_pk.set_label("HIPAA-compliant DEK").unwrap();
+        portable_pk
+            .set_metadata(
+                "compliance".to_string(),
+                serde_json::json!({"standard": "HIPAA", "audit_id": "AUD-2026-0042"}),
+            )
+            .unwrap();
+        portable_pk
+            .set_metadata("department".to_string(), serde_json::json!("cardiology"))
+            .unwrap();
 
         let pk_json = portable_pk.to_json().unwrap();
         let sk_json = portable_sk.to_json().unwrap();
@@ -4328,7 +4453,7 @@ mod tests {
         let ts = ct_fixture_ts();
         let a = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
         let mut b = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
-        b.set_metadata("tenant".to_string(), serde_json::json!("acme"));
+        b.set_metadata("tenant".to_string(), serde_json::json!("acme")).unwrap();
         assert!(!bool::from(a.ct_eq(&b)));
     }
 

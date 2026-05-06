@@ -80,10 +80,10 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # Extract changelog section for this version. Round-35 M9
-          # binds VERSION via env: so the value is shell-expanded at
-          # runtime. Inlining `${{ ... }}` directly into a sed
-          # expression let a malicious tag inject shell metacharacters.
+          # Extract changelog section for this version. VERSION is
+          # bound via env: above so the value is shell-expanded at
+          # runtime; inlining a workflow expression directly into a sed
+          # argument let a malicious tag inject shell metacharacters.
           CHANGELOG=$(sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | sed '$d')
           echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGELOG" >> "$GITHUB_OUTPUT"

@@ -52,9 +52,14 @@ use std::path::Path;
 pub struct AtomicWrite<'a> {
     bytes: &'a [u8],
     /// On Unix, set the resulting file's mode to this. None = inherit
-    /// process umask. Ignored on Windows (use the OS ACL machinery
-    /// separately if hardening is needed there).
+    /// process umask. Set by [`AtomicWrite::secret_mode`] to `0o600`.
     unix_mode: Option<u32>,
+    /// On Windows, replace the post-rename file's DACL with the
+    /// workspace owner-only policy. Set by
+    /// [`AtomicWrite::secret_mode`]. The Unix counterpart is
+    /// `unix_mode = Some(0o600)`; both are populated by `secret_mode`
+    /// so callers don't have to remember a cross-platform pair.
+    harden_windows_acl: bool,
     /// If true, an existing target file is overwritten (atomic-rename
     /// style — the prior file is replaced wholesale, not truncated-then-
     /// written). If false (default), an existing target causes the
@@ -68,7 +73,7 @@ impl<'a> AtomicWrite<'a> {
     /// Stage bytes for an atomic write.
     #[must_use]
     pub fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, unix_mode: None, overwrite_existing: false }
+        Self { bytes, unix_mode: None, harden_windows_acl: false, overwrite_existing: false }
     }
 
     /// Convenience for the most common case: write secret bytes to
@@ -94,11 +99,23 @@ impl<'a> AtomicWrite<'a> {
         AtomicWrite::new(bytes).overwrite_existing(true).write(path)
     }
 
-    /// Set the Unix file mode to `0o600` (owner read+write only). Ignored
-    /// on Windows — use OS ACL hardening separately if needed.
+    /// Mark this write as a secret-bearing file.
+    ///
+    /// On Unix this sets the mode to `0o600` (owner read+write only)
+    /// atomically before any bytes are written — the file is never
+    /// world-readable, even briefly.
+    ///
+    /// On Windows this sets `harden_windows_acl = true`; after the
+    /// rename completes, [`set_owner_only_dacl`] replaces the file's
+    /// inherited DACL with the workspace's owner-only policy. The
+    /// rename target inherits the parent directory's ACL on creation,
+    /// which on a default user profile typically grants `Users:Read`
+    /// — without this hardening every secret key file would lose its
+    /// confidentiality protection on Windows.
     #[must_use]
     pub fn secret_mode(mut self) -> Self {
         self.unix_mode = Some(0o600);
+        self.harden_windows_acl = true;
         self
     }
 
@@ -201,6 +218,23 @@ impl<'a> AtomicWrite<'a> {
             if let Ok(dir) = std::fs::File::open(parent) {
                 let _ = dir.sync_all();
             }
+        }
+
+        // Windows DACL hardening — the post-rename file inherits the
+        // parent dir's ACL by default, which on a typical user
+        // profile root grants `Users:Read`. `secret_mode()` opts into
+        // replacing that with the workspace owner-only policy. Done
+        // AFTER the rename so the DACL applies to the live target,
+        // not the discarded tempfile inode. A failure here is fatal
+        // — silently leaving the secret-key file world-readable
+        // would be a worse outcome than failing the write.
+        if self.harden_windows_acl {
+            crate::unified_api::set_owner_only_dacl(path).map_err(|e| {
+                CoreError::Internal(format!(
+                    "windows DACL hardening on {} failed: {e}",
+                    path.display()
+                ))
+            })?;
         }
         Ok(())
     }

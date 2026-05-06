@@ -426,11 +426,19 @@ fn test_continuous_verification_status_succeeds() {
 
     let auth = ZeroTrustAuth::with_config(pk, sk, config).expect("auth creation should succeed");
 
-    // Check verification status
+    // With `continuous_verification = true`, a never-verified auth
+    // reports Pending until the first successful proof bumps the
+    // last-verification timestamp.
+    let challenge = auth.generate_challenge().expect("challenge");
+    let proof = auth.generate_proof(challenge.data()).expect("proof");
+    assert!(auth.verify_proof(&proof, challenge.data()).expect("verify"));
+
     let status = auth.verify_continuously().expect("continuous verification check should succeed");
 
-    // Should be verified initially (just created)
-    assert!(matches!(status, VerificationStatus::Verified), "Fresh auth should be verified");
+    assert!(
+        matches!(status, VerificationStatus::Verified),
+        "Verified auth within interval should report Verified, got {status:?}"
+    );
 }
 
 #[test]
@@ -472,7 +480,13 @@ fn test_continuous_session_validity_succeeds() {
 
     let auth = ZeroTrustAuth::with_config(pk, sk, config).expect("auth creation should succeed");
 
-    let continuous_session = auth.start_continuous_verification();
+    // `start_continuous_verification` requires a successful prior proof
+    // verification — drive one through to clear the gate.
+    let challenge = auth.generate_challenge().expect("challenge generation");
+    let proof = auth.generate_proof(challenge.data()).expect("proof generation");
+    assert!(auth.verify_proof(&proof, challenge.data()).expect("verify"));
+
+    let continuous_session = auth.start_continuous_verification().expect("session establishment");
 
     // Session should be valid initially
     let is_valid = continuous_session.is_valid().expect("validity check should succeed");
@@ -495,7 +509,12 @@ fn test_continuous_session_update_verification_succeeds() {
 
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
-    let mut continuous_session = auth.start_continuous_verification();
+    let challenge = auth.generate_challenge().expect("challenge generation");
+    let proof = auth.generate_proof(challenge.data()).expect("proof generation");
+    assert!(auth.verify_proof(&proof, challenge.data()).expect("verify"));
+
+    let mut continuous_session =
+        auth.start_continuous_verification().expect("session establishment");
 
     // Update verification timestamp
     let result = continuous_session.update_verification();

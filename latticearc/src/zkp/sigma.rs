@@ -602,27 +602,17 @@ impl DlogEqualityProof {
         let c: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&challenge)).into();
         let c = c.ok_or(ZkpError::InvalidScalar)?;
 
-        // Response. The serialised response bytes carry witness
-        // information (`x = (s − k) / c`) until the proof is
-        // emitted. We can't keep `response` itself in `Zeroizing`
-        // because it lives in the public `DlogEqualityProof`
-        // struct (the proof is meant to be transmitted), but we
-        // CAN minimise stack residue: the intermediate `s` and the
-        // intermediate `s.to_bytes()` are wiped via `Zeroizing`,
-        // and `Zeroize::zeroize` clears the borrow afterwards.
-        // Round-35 M1's earlier shape — wrap a copy in `Zeroizing`
-        // and then deref-copy out — was decorative: the destination
-        // `[u8; 32]` was on the same stack frame and never wiped.
+        // Response s = k + c*x is non-secret (verifier sees it), but the
+        // intermediate arithmetic passes through secret-laden registers.
+        // `response` cannot itself be Zeroizing — it lives in the public
+        // proof struct — but the stack copies that briefly hold
+        // `k + c*x` and its byte-encoding can be: `Zeroizing` wipes them
+        // on scope exit, and the explicit `zeroize()` makes the
+        // discipline auditable.
         let s = Zeroizing::new(*k + c * *x);
         let mut tmp_bytes = Zeroizing::new(<[u8; 32]>::from(s.to_bytes()));
         let response: [u8; 32] = *tmp_bytes;
-        // Explicit final-use wipe — `tmp_bytes` will Drop at scope
-        // exit and Zeroizing handles that, but make the discipline
-        // visible.
         tmp_bytes.zeroize();
-        // Note: `response` itself becomes part of the returned
-        // `DlogEqualityProof` and is the value the verifier needs.
-        // It cannot be wiped here without breaking the proof.
 
         Ok(Self { a: a_bytes, b: b_bytes, challenge, response })
     }

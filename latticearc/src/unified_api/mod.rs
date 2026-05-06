@@ -217,6 +217,13 @@ pub mod types;
 /// Zero-trust authentication primitives.
 pub mod zero_trust;
 
+/// Windows-only DACL hardening helper used by audit log creation,
+/// atomic-write secret persistence, and CLI keygen directory creation.
+/// On non-Windows the entry point compiles to a no-op so call sites
+/// stay platform-agnostic.
+pub mod win_acl;
+pub(crate) use win_acl::set_owner_only_dacl;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub use crate::types::config::{

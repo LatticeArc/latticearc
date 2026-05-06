@@ -123,9 +123,20 @@ impl HybridVerifyDummy {
     #[must_use]
     pub fn parsed_or_init(&self) -> Option<HybridVerifyDummyParsed> {
         // Avoid the `.unwrap()` lint by explicitly handling poison.
+        // Surface a warning so a prior init panic isn't silent — the
+        // recovered guard is fine to reuse here (we're about to
+        // overwrite it), but operators should know the cache state
+        // came from a poisoned mutex.
         let mut guard = match self.parsed.lock() {
             Ok(g) => g,
-            Err(poisoned) => poisoned.into_inner(),
+            Err(poisoned) => {
+                tracing::warn!(
+                    target: "latticearc::hybrid::verify_equalizer",
+                    "ML-DSA verify-equalizer parsed-cache mutex was poisoned; \
+                     a previous init panicked. Recovering inner guard."
+                );
+                poisoned.into_inner()
+            }
         };
         if guard.is_none() {
             *guard = try_init_parsed(self.param_set);
@@ -248,7 +259,14 @@ impl Ed25519VerifyDummy {
     pub fn parsed_or_init(&self) -> Option<Ed25519VerifyDummyParsed> {
         let mut guard = match self.parsed.lock() {
             Ok(g) => g,
-            Err(poisoned) => poisoned.into_inner(),
+            Err(poisoned) => {
+                tracing::warn!(
+                    target: "latticearc::hybrid::verify_equalizer",
+                    "Ed25519 verify-equalizer parsed-cache mutex was poisoned; \
+                     a previous init panicked. Recovering inner guard."
+                );
+                poisoned.into_inner()
+            }
         };
         if guard.is_none() {
             *guard = try_init_ed25519_parsed();

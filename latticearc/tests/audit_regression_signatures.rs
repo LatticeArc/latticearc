@@ -1,8 +1,8 @@
-//! Signature, AEAD, NTT, and Pattern-6-opacity regressions.
+//! Signature, AEAD, and Pattern-6-opacity regressions.
 //!
 //! Covers signatures (ML-DSA, SLH-DSA, FN-DSA, Ed25519, secp256k1),
-//! AEAD encrypt/decrypt opacity, NTT primitive-root table integrity,
-//! and ZK-proof transcripts. Reverting the fix must make the test fail.
+//! AEAD encrypt/decrypt opacity, and ZK-proof transcripts. Reverting
+//! the fix must make the test fail.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]

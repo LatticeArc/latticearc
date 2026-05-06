@@ -529,14 +529,26 @@ mod encrypted_output_roundtrip {
     use proptest::prelude::*;
 
     fn arb_aes_gcm_output() -> impl Strategy<Value = EncryptedOutput> {
+        // AES-256-GCM wire format on the unified API surface packs
+        // `nonce(12) || actual_ct || tag(16)` into the `ciphertext`
+        // field AND duplicates `nonce` / `tag` into the top-level
+        // fields. The TryFrom path enforces those duplicates match
+        // the embedded copies (M5 consistency check), so the proptest
+        // generator must produce data that satisfies the same
+        // invariant — generating independent random `ct` / `nonce` /
+        // `tag` would never pass deserialize.
         (
-            proptest::collection::vec(any::<u8>(), 0usize..512),
+            proptest::collection::vec(any::<u8>(), 0usize..512), // inner ct
             proptest::collection::vec(any::<u8>(), 12usize..=12),
             proptest::collection::vec(any::<u8>(), 16usize..=16),
             any::<u64>(),
             proptest::option::of("[A-Za-z0-9_-]{1,32}"),
         )
-            .prop_map(|(ct, nonce, tag, ts, key_id)| {
+            .prop_map(|(inner_ct, nonce, tag, ts, key_id)| {
+                let mut ct = Vec::with_capacity(nonce.len() + inner_ct.len() + tag.len());
+                ct.extend_from_slice(&nonce);
+                ct.extend_from_slice(&inner_ct);
+                ct.extend_from_slice(&tag);
                 EncryptedOutput::new(EncryptionScheme::Aes256Gcm, ct, nonce, tag, None, ts, key_id)
                     .expect("Aes256Gcm + None hybrid_data is always a valid shape")
             })

@@ -571,7 +571,11 @@ pub fn generate_correlation_id() -> String {
 /// ```
 #[must_use]
 pub fn generate_lightweight_correlation_id() -> String {
-    let counter = CORRELATION_COUNTER.fetch_add(1, Ordering::SeqCst);
+    // Relaxed is sufficient: the counter only needs uniqueness, not
+    // a happens-before relationship with any other atomic. SeqCst
+    // would emit a full memory fence per call on weakly-ordered
+    // archs.
+    let counter = CORRELATION_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("corr-{counter:016x}")
 }
 
@@ -974,11 +978,8 @@ pub fn sanitize_metadata(metadata: &HashMap<String, String>) -> HashMap<String, 
 /// Initialize tracing with security-conscious defaults.
 ///
 /// **Gated behind the `tracing-init` Cargo feature** (off by default).
-/// Subscriber wiring is the binary's responsibility — calling this from
-/// a library that's also a transitive dependency of another binary will
-/// `panic!()` on the second `subscriber.init()` invocation. The
-/// `latticearc-cli` crate enables `tracing-init` and calls this; library
-/// consumers should set up their own subscriber via the `tracing` ecosystem.
+/// Subscriber wiring is the binary's responsibility; library consumers
+/// should set up their own subscriber via the `tracing` ecosystem.
 ///
 /// Sets up structured logging with:
 /// - Environment-based filtering (RUST_LOG)
@@ -988,29 +989,48 @@ pub fn sanitize_metadata(metadata: &HashMap<String, String>) -> HashMap<String, 
 ///
 /// # Errors
 ///
-/// Returns an error if the tracing subscriber cannot be initialized,
-/// typically due to a subscriber already being set.
+/// Returns an error if the tracing subscriber cannot be installed —
+/// typically because another subscriber is already the global default.
+/// The function is safe to call multiple times: subsequent calls
+/// observe the first installation and return its result, so concurrent
+/// callers cannot panic via double-init.
 #[cfg(feature = "tracing-init")]
 pub fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
-    let filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("latticearc=info"));
+    use std::sync::OnceLock;
+    static INIT_RESULT: OnceLock<Result<(), String>> = OnceLock::new();
 
-    let subscriber = tracing_subscriber::registry().with(filter).with(
-        tracing_subscriber::fmt::layer()
-            // Route to stderr (not stdout — the default) so CLI tools that
-            // emit machine-parseable output on stdout don't get tracing
-            // events interleaved with their data.
-            .with_writer(std::io::stderr)
-            .with_target(false)
-            .with_thread_ids(false)
-            .with_thread_names(false)
-            .compact(),
-    );
+    let result = INIT_RESULT.get_or_init(|| {
+        let filter =
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("latticearc=info"));
 
-    subscriber.init();
+        let subscriber = tracing_subscriber::registry().with(filter).with(
+            tracing_subscriber::fmt::layer()
+                // Route to stderr (not stdout — the default) so CLI tools
+                // that emit machine-parseable output on stdout don't get
+                // tracing events interleaved with their data.
+                .with_writer(std::io::stderr)
+                .with_target(false)
+                .with_thread_ids(false)
+                .with_thread_names(false)
+                .compact(),
+        );
 
-    info!("LatticeArc logging initialized");
-    Ok(())
+        // `try_init` returns a `Result` instead of panicking when the
+        // global default is already set, so concurrent calls into this
+        // OnceLock cannot blow up the process.
+        match subscriber.try_init() {
+            Ok(()) => {
+                info!("LatticeArc logging initialized");
+                Ok(())
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    });
+
+    match result {
+        Ok(()) => Ok(()),
+        Err(msg) => Err(msg.clone().into()),
+    }
 }
 
 /// Sanitize data to prevent logging of sensitive information

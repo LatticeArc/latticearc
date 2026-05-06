@@ -582,9 +582,32 @@ mod l4_serialization_size_limit {
 
     #[test]
     fn l4_normal_size_data_accepted() {
-        let normal = make_payload(b64(&[0x42; 1024]));
+        // The TryFrom path now cross-verifies the top-level `nonce`
+        // and `tag` fields against the copies embedded at the start
+        // and end of `ciphertext` (wire format is `nonce || ct || tag`).
+        // Constructing inconsistent test data triggers the
+        // anti-decorative check that rejects payloads where the
+        // top-level fields disagree with the embedded copies, so we
+        // build a structurally consistent payload here.
+        let nonce_bytes = [0u8; 12];
+        let tag_bytes = [0u8; 16];
+        let inner_ct = [0x42u8; 1024];
+        let mut ct_bytes = Vec::with_capacity(nonce_bytes.len() + inner_ct.len() + tag_bytes.len());
+        ct_bytes.extend_from_slice(&nonce_bytes);
+        ct_bytes.extend_from_slice(&inner_ct);
+        ct_bytes.extend_from_slice(&tag_bytes);
+        let normal = SerializableEncryptedOutput {
+            version: 2,
+            scheme: "aes-256-gcm".to_string(),
+            ciphertext: b64(&ct_bytes),
+            nonce: b64(&nonce_bytes),
+            tag: b64(&tag_bytes),
+            hybrid_data: None,
+            timestamp: 0,
+            key_id: None,
+        };
         let result: Result<EncryptedOutput, _> = normal.try_into();
-        assert!(result.is_ok(), "Normal-sized data should be accepted: {result:?}");
+        assert!(result.is_ok(), "Normal-sized consistent data should be accepted: {result:?}");
     }
 
     #[test]

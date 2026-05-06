@@ -144,7 +144,21 @@ pub(crate) fn run(args: KeygenArgs) -> Result<()> {
         std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&args.output)?;
     }
     #[cfg(not(unix))]
-    std::fs::create_dir_all(&args.output)?;
+    {
+        std::fs::create_dir_all(&args.output)?;
+        // Windows analogue of `mode(0o700)`: replace the freshly-
+        // created directory's DACL with the workspace owner-only
+        // policy. Without this step the directory inherits the
+        // parent's ACL — typically `Users:Read` on a default user
+        // profile root — which is the same algorithm-identity leak
+        // (filenames encode scheme, e.g. `ml-dsa-65.sec.json`) the
+        // Unix path closes via `mode(0o700)`. Skipped silently when
+        // the directory already existed (no-op create_dir_all path)
+        // because we don't want to retroactively rewrite a DACL the
+        // operator may have set on purpose.
+        latticearc::unified_api::win_acl::set_owner_only_dacl(&args.output)
+            .map_err(|e| anyhow::anyhow!("Windows keygen-dir DACL hardening failed: {e}"))?;
+    }
 
     // Use-case-driven path: let the library select the algorithm
     if args.use_case.is_some() {
@@ -228,8 +242,12 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
         let (mut portable_pk, mut portable_sk) =
             build_hybrid_sig_portable_keys(use_case, &scheme, &pk, sk.as_ref())?;
         if let Some(l) = args.label.clone() {
-            portable_pk.set_label(l.clone());
-            portable_sk.set_label(l);
+            portable_pk
+                .set_label(l.clone())
+                .map_err(|e| anyhow::anyhow!("public-key label rejected: {e}"))?;
+            portable_sk
+                .set_label(l)
+                .map_err(|e| anyhow::anyhow!("secret-key label rejected: {e}"))?;
         }
         if let Some(pp) = passphrase.as_ref() {
             portable_sk

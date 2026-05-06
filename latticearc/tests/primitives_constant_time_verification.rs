@@ -859,20 +859,16 @@ fn test_security_level_mismatch_error_fails() {
 // SUMMARY: Test Count Verification
 // =============================================================================
 
-/// Round-36 H1: replaced the prior `assert!(true)` form (with a
-/// hardcoded list of 45 expected test names that drifted from
-/// reality — `test_secure_bytes_*` had been renamed) with a
-/// runtime count via `include_str!` of the test file's own source.
-/// This catches drift automatically: if the count drops below
-/// the threshold, CI fails.
 #[test]
 fn test_verification_count_succeeds() {
     const SOURCE: &str = include_str!("primitives_constant_time_verification.rs");
-    // Count `#[test]` attribute occurrences — robust to test renames
-    // and additions; only changes when tests are added or removed.
-    // Subtract 1 for this self-counting test.
-    let test_count = SOURCE.matches("#[test]").count().saturating_sub(1);
-    const MIN_REQUIRED: usize = 30;
+    // Count lines whose first non-whitespace token is the `#[test]`
+    // attribute. A naive `SOURCE.matches("#[test]").count()` over-
+    // counts because the literal also appears in this file's doc
+    // comments, the `.matches(..)` call below, and the assertion
+    // message — none of which are test attributes.
+    let test_count = SOURCE.lines().filter(|line| line.trim_start().starts_with("#[test]")).count();
+    const MIN_REQUIRED: usize = 40;
     assert!(
         test_count >= MIN_REQUIRED,
         "Verification test file must contain ≥ {MIN_REQUIRED} `#[test]` items \

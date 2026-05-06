@@ -489,7 +489,7 @@ jobs:
     - name: Run integration tests
       run: |
         START_TIME=$(date +%s)
-        cargo test ${{ matrix.features.scope }} --profile ${{ matrix.profile }} ${{ matrix.features.flags }} --test '*' --no-fail-fast
+        cargo test ${{ matrix.features.scope }} --profile ${{ matrix.profile }} ${{ matrix.features.flags }} --tests --no-fail-fast
         END_TIME=$(date +%s)
         INTEGRATION_DURATION=$((END_TIME - START_TIME))
         echo "integration_test_duration_seconds $INTEGRATION_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/features/${{ matrix.features.label }}/operation/integration-test || true

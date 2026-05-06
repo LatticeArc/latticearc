@@ -111,7 +111,7 @@ use crate::{
 // Re-export TrustLevel from types module (pure Rust, no FFI deps)
 pub use crate::types::zero_trust::TrustLevel;
 use chrono::{DateTime, Duration, Utc};
-use std::cell::RefCell;
+use std::sync::Mutex;
 use subtle::ConstantTimeEq;
 
 // ============================================================================
@@ -582,8 +582,18 @@ pub struct ZeroTrustAuth {
     config: ZeroTrustConfig,
     /// Session start timestamp.
     session_start: DateTime<Utc>,
-    /// Last successful verification timestamp.
-    last_verification: RefCell<DateTime<Utc>>,
+    /// Timestamp of the most recent successful proof verification, or
+    /// `None` if no proof has yet been verified for this auth instance.
+    ///
+    /// The `None` ↔ `Some` boundary is the precondition gate for
+    /// [`Self::start_continuous_verification`]: starting a continuous
+    /// session before any successful challenge-response would let a
+    /// fresh `ZeroTrustAuth` skip the ZKP handshake entirely.
+    ///
+    /// `Mutex` (not `RefCell`) so the type stays `Sync` for use across
+    /// async tasks and multi-threaded callers; an `Arc<ZeroTrustAuth>`
+    /// shared between Tokio workers must compile.
+    last_verification: Mutex<Option<DateTime<Utc>>>,
     /// Replay cache for proofs-of-possession (round-26 audit fix M16).
     /// Keyed on `pk || sig || ts_micros_be` (microsecond precision —
     /// see the M16 follow-up note in `generate_pop` for why second
@@ -595,7 +605,7 @@ pub struct ZeroTrustAuth {
     /// at 16 KiB entries to bound memory under attack. `Mutex` rather
     /// than `RefCell` so the type stays `Sync` for use across
     /// async/multi-threaded callers.
-    pop_replay_cache: std::sync::Mutex<std::collections::HashMap<Vec<u8>, i64>>,
+    pop_replay_cache: Mutex<std::collections::HashMap<Vec<u8>, i64>>,
 }
 
 impl ZeroTrustAuth {
@@ -616,8 +626,10 @@ impl ZeroTrustAuth {
             private_key,
             config,
             session_start: now,
-            last_verification: RefCell::new(now),
-            pop_replay_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
+            // `None` until the first successful proof verification —
+            // see field doc.
+            last_verification: Mutex::new(None),
+            pop_replay_cache: Mutex::new(std::collections::HashMap::new()),
         })
     }
 
@@ -643,8 +655,8 @@ impl ZeroTrustAuth {
             private_key,
             config,
             session_start: now,
-            last_verification: RefCell::new(now),
-            pop_replay_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
+            last_verification: Mutex::new(None),
+            pop_replay_cache: Mutex::new(std::collections::HashMap::new()),
         })
     }
 
@@ -680,14 +692,34 @@ impl ZeroTrustAuth {
     }
 
     /// Starts a new continuous verification session.
-    #[must_use]
-    pub fn start_continuous_verification(&self) -> ContinuousSession {
-        ContinuousSession {
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::AuthenticationFailed` if no successful
+    /// challenge-response has occurred for this `ZeroTrustAuth`
+    /// instance. Continuous verification is supposed to *extend* a
+    /// trust relationship that was already established cryptographically;
+    /// without this gate, a freshly-constructed `ZeroTrustAuth` could
+    /// hand out a `ContinuousSession` whose `is_valid()` returns true,
+    /// bypassing the ZKP handshake entirely.
+    pub fn start_continuous_verification(&self) -> Result<ContinuousSession> {
+        let last_verified = match self.last_verification.lock() {
+            Ok(g) => *g,
+            Err(poisoned) => *poisoned.into_inner(),
+        };
+        let last_verified = last_verified.ok_or_else(|| {
+            CoreError::AuthenticationFailed(
+                "start_continuous_verification requires a prior successful proof verification \
+                 (call verify_proof() against a fresh challenge first)"
+                    .to_string(),
+            )
+        })?;
+        Ok(ContinuousSession {
             auth_public_key: self.public_key.clone(),
             start_time: Utc::now(),
             verification_interval_ms: self.config.verification_interval_ms,
-            last_verification: Utc::now(),
-        }
+            last_verification: last_verified,
+        })
     }
 }
 
@@ -767,6 +799,20 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
         }
 
         let result = self.verify_proof_data(proof.proof_data(), challenge)?;
+        if result {
+            // Bump the last-verified timestamp so subsequent calls to
+            // `start_continuous_verification` and the elapsed-time
+            // gate in `maybe_continuous_verification` observe a real
+            // handshake rather than a fresh `None`. Recover from
+            // poison: a panicked writer would only have been writing
+            // a `Utc::now()` value; the cached timestamp is still
+            // valid.
+            let mut guard = match self.last_verification.lock() {
+                Ok(g) => g,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            *guard = Some(Utc::now());
+        }
         log_zero_trust_proof_verified!(result);
         Ok(result)
     }
@@ -943,8 +989,22 @@ impl ContinuousVerifiable for ZeroTrustAuth {
             return Ok(VerificationStatus::Verified);
         }
 
-        let verification_elapsed =
-            Utc::now().signed_duration_since(*self.last_verification.borrow());
+        // Recover from poison: a panicked write would only have been a
+        // failed `Utc::now()` assignment; the cached timestamp is still
+        // valid. Treating poison as fatal would lock callers out of an
+        // otherwise healthy auth session.
+        let last_verification_at = match self.last_verification.lock() {
+            Ok(g) => *g,
+            Err(poisoned) => *poisoned.into_inner(),
+        };
+        // No prior verification ⇒ continuous-verify mode reports
+        // `Pending`, mirroring the "must reauthenticate" path. We never
+        // return `Verified` for an instance that has never completed a
+        // proof, even if the configured interval hasn't expired.
+        let Some(last_verification_at) = last_verification_at else {
+            return Ok(VerificationStatus::Pending);
+        };
+        let verification_elapsed = Utc::now().signed_duration_since(last_verification_at);
 
         // Convert safely: negative elapsed times treated as 0 (just verified)
         let verification_elapsed_u64 =
@@ -987,7 +1047,11 @@ impl ContinuousVerifiable for ZeroTrustAuth {
             ));
         }
 
-        *self.last_verification.borrow_mut() = Utc::now();
+        let mut guard = match self.last_verification.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        *guard = Some(Utc::now());
         Ok(())
     }
 }
@@ -1640,6 +1704,17 @@ mod tests {
     use super::*;
     use crate::unified_api::generate_keypair;
 
+    /// Test helper: drive `auth` through a successful challenge-response
+    /// so subsequent calls to `start_continuous_verification` clear the
+    /// "must verify at least once" precondition.
+    fn warm_up_auth(auth: &ZeroTrustAuth) -> Result<()> {
+        let challenge = auth.generate_challenge()?;
+        let proof = auth.generate_proof(challenge.data())?;
+        let verified = auth.verify_proof(&proof, challenge.data())?;
+        assert!(verified, "warm-up proof must verify");
+        Ok(())
+    }
+
     // TrustLevel tests
     #[test]
     fn test_trust_level_default_has_correct_value_succeeds() {
@@ -1854,11 +1929,28 @@ mod tests {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
-        let continuous = auth.start_continuous_verification();
+        warm_up_auth(&auth)?;
+
+        let continuous = auth.start_continuous_verification()?;
         let result = continuous.is_valid();
 
         assert!(result.is_ok());
         Ok(())
+    }
+
+    #[test]
+    fn test_start_continuous_verification_rejects_unverified_session() -> Result<()> {
+        // A freshly-constructed `ZeroTrustAuth` (no successful proof
+        // handshake) must NOT hand out a continuous session — that
+        // path would bypass the ZKP gate entirely.
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let result = auth.start_continuous_verification();
+        match result {
+            Err(CoreError::AuthenticationFailed(_)) => Ok(()),
+            other => panic!("expected AuthenticationFailed, got {:?}", other),
+        }
     }
 
     // Challenge tests
@@ -2001,7 +2093,9 @@ mod tests {
         let config = ZeroTrustConfig::new().with_continuous_verification(true);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
-        let continuous = auth.start_continuous_verification();
+        warm_up_auth(&auth)?;
+
+        let continuous = auth.start_continuous_verification()?;
         assert!(continuous.is_valid().is_ok());
         Ok(())
     }
@@ -2094,7 +2188,9 @@ mod tests {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key.clone(), private_key)?;
 
-        let continuous = auth.start_continuous_verification();
+        warm_up_auth(&auth)?;
+
+        let continuous = auth.start_continuous_verification()?;
         assert_eq!(continuous.auth_public_key(), &public_key);
         Ok(())
     }
@@ -2104,7 +2200,9 @@ mod tests {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
-        let mut continuous = auth.start_continuous_verification();
+        warm_up_auth(&auth)?;
+
+        let mut continuous = auth.start_continuous_verification()?;
         assert!(continuous.is_valid()?);
 
         continuous.update_verification()?;
@@ -2145,8 +2243,13 @@ mod tests {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
+        // Default config has `continuous_verification = true`, so the
+        // status now depends on `last_verification`. Drive a successful
+        // proof to bump it; without this warm-up the M9/M10 gate
+        // correctly reports `Pending` for a never-verified instance.
+        warm_up_auth(&auth)?;
+
         let status = auth.verify_continuously()?;
-        // Default config has continuous_verification=false, so should be Verified
         assert_eq!(status, VerificationStatus::Verified);
         Ok(())
     }
@@ -2159,9 +2262,27 @@ mod tests {
             .with_verification_interval(60000);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
+        warm_up_auth(&auth)?;
+
         let status = auth.verify_continuously()?;
-        // Just created, should be Verified (within interval)
+        // Within the 60 s interval, just-warmed-up auth reports Verified.
         assert_eq!(status, VerificationStatus::Verified);
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_continuously_pending_before_first_proof() -> Result<()> {
+        // M9/M10 regression guard: with `continuous_verification`
+        // enabled, a freshly-constructed auth that has never
+        // completed a proof must report `Pending`, not `Verified`.
+        let (public_key, private_key) = generate_keypair()?;
+        let config = ZeroTrustConfig::new()
+            .with_continuous_verification(true)
+            .with_verification_interval(60000);
+        let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
+
+        let status = auth.verify_continuously()?;
+        assert_eq!(status, VerificationStatus::Pending);
         Ok(())
     }
 
@@ -2686,8 +2807,11 @@ mod tests {
             .with_verification_interval(3_600_000);
         let auth_b = ZeroTrustAuth::with_config(public_key_b, private_key_b, config_b)?;
 
-        let session_a = auth_a.start_continuous_verification();
-        let session_b = auth_b.start_continuous_verification();
+        warm_up_auth(&auth_a)?;
+        warm_up_auth(&auth_b)?;
+
+        let session_a = auth_a.start_continuous_verification()?;
+        let session_b = auth_b.start_continuous_verification()?;
 
         // Let 1ms pass so the short-interval session expires
         std::thread::sleep(std::time::Duration::from_millis(5));

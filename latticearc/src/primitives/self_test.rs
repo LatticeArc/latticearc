@@ -213,10 +213,12 @@ pub fn run_power_up_tests() -> SelfTestResult {
     // The doc example advertises this function as a standalone entry
     // point, so it must set `SELF_TEST_PASSED` itself — otherwise
     // `is_module_operational()` returns `false` after a clean Pass for
-    // callers that don't go through `initialize_and_test`. `Release`
-    // matches the other stores in this file and pairs with the
-    // `Acquire` loads on the reader side.
-    SELF_TEST_PASSED.store(true, Ordering::Release);
+    // callers that don't go through `initialize_and_test`. `SeqCst`
+    // pairs with the `SeqCst` loads on the reader side and gives a
+    // single total order across `SELF_TEST_PASSED` and
+    // `MODULE_ERROR_CODE` — needed because the FIPS module-state
+    // gate reads both atomics non-atomically.
+    SELF_TEST_PASSED.store(true, Ordering::SeqCst);
     SelfTestResult::Pass
 }
 
@@ -1519,7 +1521,9 @@ pub fn is_module_operational() -> bool {
 pub fn clear_error_state() {
     MODULE_ERROR_CODE.store(ModuleErrorCode::NoError as u32, Ordering::SeqCst);
     MODULE_ERROR_TIMESTAMP.store(0, Ordering::SeqCst);
-    SELF_TEST_PASSED.store(false, Ordering::Release);
+    // SeqCst (not Release) so this store participates in the same total
+    // order as the SeqCst loads in `is_module_operational`/`self_tests_passed`.
+    SELF_TEST_PASSED.store(false, Ordering::SeqCst);
 }
 
 /// Clear error state and restore module to operational (**testing only**).
@@ -1537,7 +1541,9 @@ pub fn clear_error_state() {
 pub fn restore_operational_state() {
     MODULE_ERROR_CODE.store(ModuleErrorCode::NoError as u32, Ordering::SeqCst);
     MODULE_ERROR_TIMESTAMP.store(0, Ordering::SeqCst);
-    SELF_TEST_PASSED.store(true, Ordering::Release);
+    // SeqCst (not Release) so this store participates in the same total
+    // order as the SeqCst loads in `is_module_operational`/`self_tests_passed`.
+    SELF_TEST_PASSED.store(true, Ordering::SeqCst);
 }
 
 /// Check if the module has passed self-tests
@@ -1550,7 +1556,9 @@ pub fn restore_operational_state() {
 /// `true` if self-tests have passed, `false` otherwise
 #[must_use]
 pub fn self_tests_passed() -> bool {
-    SELF_TEST_PASSED.load(Ordering::Acquire)
+    // SeqCst matches `is_module_operational` so both public FIPS gate
+    // accessors observe writers in the same total order.
+    SELF_TEST_PASSED.load(Ordering::SeqCst)
 }
 
 /// Run power-up tests and set the module state
@@ -1567,7 +1575,7 @@ pub fn self_tests_passed() -> bool {
 pub fn initialize_and_test() -> SelfTestResult {
     let result = run_power_up_tests();
     if result.is_pass() {
-        SELF_TEST_PASSED.store(true, Ordering::Release);
+        SELF_TEST_PASSED.store(true, Ordering::SeqCst);
     } else {
         // FIPS 140-3 §9.1: Self-test failure requires module abort.
         // Set error state first so any concurrent readers see a definitive error.
@@ -1680,7 +1688,7 @@ mod tests {
     #[test]
     fn test_initialize_and_verify_sets_passed_flag_succeeds() {
         // Reset state for test
-        SELF_TEST_PASSED.store(false, Ordering::Release);
+        SELF_TEST_PASSED.store(false, Ordering::SeqCst);
 
         // Before initialization, verify should fail
         assert!(verify_operational().is_err());
