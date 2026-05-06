@@ -729,10 +729,15 @@ impl FileAuditStorage {
                     // it.
                     use std::io::Write as _;
                     use std::os::windows::fs::OpenOptionsExt as _;
+                    // `.mode(0o600)` is `std::os::unix::fs::OpenOptionsExt`
+                    // and is unavailable on this `cfg(not(unix))` branch;
+                    // Windows confidentiality is enforced via the
+                    // `share_mode(0)` exclusive-handle below.
                     let mut f = OpenOptions::new()
                         .create_new(true)
                         .write(true)
                         .share_mode(0)
+                        // LINT-OK: cfg-not-unix; no Unix `mode` API available
                         .open(&genesis_path)
                         .map_err(|err| {
                             CoreError::AuditError(format!(

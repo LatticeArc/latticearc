@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-36 follow-up — Lint Extras fix (2026-05-05)
+
+The initial round-36 push (`a601d6969`) failed the `Lint Extras /
+Forbidden patterns` gate on the M9 Windows path. The CI lint enforces
+`.mode(0o600)` on every `.open(` call in `audit.rs`, with an escape
+mechanism: a `// LINT-OK:` comment within the 3 lines immediately
+preceding the `.open(`. The Windows branch (`#[cfg(not(unix))]`) can't
+call `.mode(0o600)` because that's the Unix-only `OpenOptionsExt`, and
+my comment block was 5+ lines above the `.open(`, outside the lint's
+window. Fix: moved the escape comment to the line immediately above
+`.open(`. The Windows confidentiality contract (`share_mode(0)` for
+exclusive-while-open + `sync_all`) is unchanged.
+
+The `release.yml` 0-second "failure" entry is not a real CI failure —
+it's a GitHub Actions display quirk that records a phantom run for any
+modified workflow file on subsequent pushes, even when the workflow's
+trigger conditions (here: tag push only) don't match. Round-35 M9 was
+the last modification to that file. No action needed on our side.
+
 ### Round-36 audit — partial (CRIT 2 + HIGH 8 + MED 6 of 10) (2026-05-05)
 
 External round-36 audit returned 32 findings (CRIT 2, HIGH 8, MED 10,
