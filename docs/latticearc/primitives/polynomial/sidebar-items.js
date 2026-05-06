@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["arithmetic","montgomery","ntt_processor"]};
