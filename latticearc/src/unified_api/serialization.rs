@@ -135,6 +135,23 @@ impl TryFrom<SerializableSignedData> for SignedData {
             .decode(&serializable.metadata.public_key)
             .map_err(|e| CoreError::SerializationError(e.to_string()))?;
 
+        // Cross-verify the metadata `signature_algorithm` against the
+        // top-level `scheme`. The verify path dispatches exclusively
+        // on `scheme`; without this check `signature_algorithm` would
+        // be a decorative field (an attacker could replace it with
+        // an arbitrary string and verification would still succeed,
+        // misleading any consumer that displays or logs the algorithm
+        // name for audit / UX purposes). Both fields are set to the
+        // same value on the sign side; the producer guarantees the
+        // invariant, so deserialization rejects any record where they
+        // disagree.
+        if serializable.metadata.signature_algorithm != serializable.scheme {
+            return Err(CoreError::SerializationError(format!(
+                "metadata.signature_algorithm ({:?}) disagrees with scheme ({:?})",
+                serializable.metadata.signature_algorithm, serializable.scheme
+            )));
+        }
+
         Ok(SignedData {
             data,
             metadata: crate::types::SignedMetadata {
@@ -481,11 +498,19 @@ mod tests {
     use crate::unified_api::crypto_types::{EncryptedOutput, EncryptionScheme, HybridComponents};
 
     fn make_signed_data() -> SignedData {
+        // The production sign path (`api.rs:1019-1029`) sets
+        // `metadata.signature_algorithm = scheme.clone()` — the two
+        // fields must agree on every produced record. Round-38's S4
+        // fix elevates that producer-side guarantee to a deserializer
+        // invariant, so test fixtures must match the production
+        // shape. The earlier test data here used a mismatched pair
+        // (`"ML-DSA-65"` vs `"ML-DSA-65+Ed25519"`), which only
+        // worked because the deserializer was previously a passthrough.
         CryptoPayload {
             data: vec![1, 2, 3, 4],
             metadata: SignedMetadata {
                 signature: vec![0xBB; 64],
-                signature_algorithm: "ML-DSA-65".to_string(),
+                signature_algorithm: "ML-DSA-65+Ed25519".to_string(),
                 public_key: vec![0xCC; 32],
                 key_id: Some("sig-key-001".to_string()),
             },
@@ -523,7 +548,7 @@ mod tests {
         let original = make_signed_data();
         let serializable = SerializableSignedData::from(&original);
         assert!(!serializable.data.is_empty());
-        assert_eq!(serializable.metadata.signature_algorithm, "ML-DSA-65");
+        assert_eq!(serializable.metadata.signature_algorithm, "ML-DSA-65+Ed25519");
     }
 
     #[test]

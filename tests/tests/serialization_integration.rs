@@ -61,7 +61,9 @@ fn create_test_signed_data(
             public_key,
             key_id,
         },
-        scheme: "ML-DSA".to_string(),
+        // Round-38 S4: deserializer requires `scheme == signature_algorithm`,
+        // mirroring the production sign path (`signature_algorithm: scheme.clone()`).
+        scheme: "ML-DSA-65".to_string(),
         timestamp: 1706745600,
     }
 }
@@ -346,7 +348,7 @@ fn test_serializable_signed_data_from_signed_data_succeeds() {
     assert_eq!(serializable.metadata.signature_algorithm, "ML-DSA-65");
     assert_eq!(serializable.metadata.public_key, BASE64_ENGINE.encode(b"public_key"));
     assert_eq!(serializable.metadata.key_id, Some("key-203".to_string()));
-    assert_eq!(serializable.scheme, "ML-DSA");
+    assert_eq!(serializable.scheme, "ML-DSA-65");
 }
 
 #[test]
@@ -359,7 +361,7 @@ fn test_signed_data_from_serializable_succeeds() {
             public_key: BASE64_ENGINE.encode(b"public_key"),
             key_id: Some("key-204".to_string()),
         },
-        scheme: "SLH-DSA".to_string(),
+        scheme: "SLH-DSA-SHA2-128s".to_string(),
         timestamp: 1706745800,
     };
 
@@ -370,7 +372,7 @@ fn test_signed_data_from_serializable_succeeds() {
     assert_eq!(signed.metadata.signature_algorithm, "SLH-DSA-SHA2-128s");
     assert_eq!(signed.metadata.public_key, b"public_key");
     assert_eq!(signed.metadata.key_id, Some("key-204".to_string()));
-    assert_eq!(signed.scheme, "SLH-DSA");
+    assert_eq!(signed.scheme, "SLH-DSA-SHA2-128s");
     assert_eq!(signed.timestamp, 1706745800);
 }
 
@@ -484,7 +486,12 @@ fn test_signed_data_very_long_algorithm_name_roundtrip_succeeds() {
         b"pk".to_vec(),
         Some("key-402".to_string()),
     );
-    signed.metadata.signature_algorithm = "B".repeat(500);
+    // Round-38 S4: `signature_algorithm == scheme` is enforced on
+    // deserialize. Update both halves so the roundtrip exercises a
+    // long-but-consistent algorithm name.
+    let long_name = "B".repeat(500);
+    signed.metadata.signature_algorithm = long_name.clone();
+    signed.scheme = long_name;
 
     let json = serialize_signed_data(&signed).expect("serialization should succeed");
     let deserialized = deserialize_signed_data(&json).expect("deserialization should succeed");

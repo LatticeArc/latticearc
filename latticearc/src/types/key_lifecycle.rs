@@ -381,6 +381,24 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
             }
         }
 
+        // (6) Each `StateTransition` entry's audit-trail strings
+        //     (`custodian_id`, `justification`, `approval_id`) must
+        //     pass the same sanitization as the in-memory
+        //     `transition()` path — empty / control-char / oversized
+        //     strings are rejected. Without this check a tampered
+        //     persisted record could load a `StateTransition` with
+        //     embedded `\n` (corrupting JSONL audit consumers),
+        //     empty attribution (defeating the audit trail), or
+        //     a 1 MiB `justification` (memory amplification on the
+        //     in-memory side after deserialization).
+        for (idx, t) in raw.state_history.iter().enumerate() {
+            validate_audit_field(&format!("state_history[{idx}].custodian_id"), &t.custodian_id)?;
+            validate_audit_field(&format!("state_history[{idx}].justification"), &t.justification)?;
+            if let Some(ref approval_id) = t.approval_id {
+                validate_audit_field(&format!("state_history[{idx}].approval_id"), approval_id)?;
+            }
+        }
+
         Ok(KeyLifecycleRecord {
             key_id: raw.key_id,
             key_type: raw.key_type,

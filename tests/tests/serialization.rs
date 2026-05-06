@@ -40,6 +40,10 @@ use latticearc::unified_api::types::{KeyPair, PrivateKey, SignedData, SignedMeta
 // ============================================================================
 
 fn create_test_signed_data() -> SignedData {
+    // Round-38 S4 fix elevated `signature_algorithm == scheme` from a
+    // sign-side guarantee to a deserializer invariant. The fields
+    // must match in every fixture because the production sign path
+    // sets them via `signature_algorithm: scheme.clone()`.
     SignedData {
         data: b"Hello, World!".to_vec(),
         metadata: SignedMetadata {
@@ -48,7 +52,7 @@ fn create_test_signed_data() -> SignedData {
             public_key: vec![0xCA; 32],
             key_id: Some("signer-key-id".to_string()),
         },
-        scheme: "ML-DSA".to_string(),
+        scheme: "ML-DSA-65".to_string(),
         timestamp: 1706745602,
     }
 }
@@ -133,7 +137,7 @@ fn test_serialize_signed_data_large_signature_roundtrip() -> Result<()> {
             public_key: vec![0xCD; 64],
             key_id: Some("slh-dsa-key".to_string()),
         },
-        scheme: "SLH-DSA".to_string(),
+        scheme: "SLH-DSA-256s".to_string(),
         timestamp: 9999999999,
     };
 

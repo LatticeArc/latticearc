@@ -1078,6 +1078,9 @@ impl FileAuditStorage {
             }
             #[cfg(not(unix))]
             {
+                // LINT-OK: cfg-not-unix — Windows confidentiality is
+                // enforced via `set_owner_only_dacl` immediately after
+                // open (Win32 `OpenOptionsExt` has no `.mode()` analog).
                 let f = OpenOptions::new().create(true).append(true).open(&path).map_err(|e| {
                     CoreError::AuditError(format!(
                         "Failed to create audit file '{}': {}",

@@ -9,6 +9,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-38 self-audit + lint-extras fix (2026-05-06)
+
+Self-audit sweep across the seven bug-classes round-37 fixed (one
+fix per class implies a class to sweep). Five classes returned
+clean; two found additional instances using the same shape.
+
+#### HIGH
+
+- **S5-followup** (Pattern 5 — TryFrom invariant skipping):
+  `KeyLifecycleRecord::TryFrom<KeyLifecycleRecordRaw>` validates
+  structure (caps, monotonicity, uniqueness — round-37 L7+L8) but
+  never called `validate_audit_field` on `StateTransition::custodian_id`
+  / `::justification` / `::approval_id` for entries in
+  `raw.state_history`. The in-memory `transition()` mutator does
+  validate these — empty / control-char / >512 B strings are
+  rejected at the mutation site. A tampered persisted record could
+  load entries with embedded `\n` (corrupting JSONL audit consumers),
+  empty attribution (defeating the audit trail), or a 1 MiB
+  `justification` (memory amplification). TryFrom now applies
+  `validate_audit_field` per-entry, indexed for diagnostic clarity.
+
+- **S4-followup** (Pattern 4 — decorative wire-format duplicates):
+  `SerializableSignedMetadata.signature_algorithm` was a duplicate of
+  `SerializableSignedData.scheme`. The verify path dispatches
+  exclusively on `signed.scheme.as_str()`; `signature_algorithm` is
+  set to the same value at sign time but never read during
+  verification. Same class as round-37 M5 (the EncryptedOutput
+  nonce/tag finding) — third-party consumers that display or log
+  `signature_algorithm` for audit/UX purposes saw attacker-controlled
+  text without affecting the cryptographic result. Fix:
+  `TryFrom<SerializableSignedData>` now rejects records where
+  `signature_algorithm != scheme`.
+
+#### Infrastructure
+
+- **Lint Extras** (CI gate, not an audit finding): the round-37 push
+  removed the `// LINT-OK: cfg-not-unix` escape comment from the
+  Windows-branch `.open(` call in `audit.rs` because the new
+  `set_owner_only_dacl` call replaced the prior justification.
+  The lint script (`scripts/audit.sh`) requires the comment within
+  3 lines preceding any `.open(` that lacks `.mode(0o600)`. Re-added
+  the escape comment with updated rationale referencing the
+  immediate-following DACL hardening.
+
+#### Self-audit findings that came back CLEAN
+
+- Pattern 1 (decorative `Zeroizing` deref-copy): no other instances.
+  schnorr.rs and sigma.rs are the only deref-into-struct shapes; both
+  now use the explicit `tmp_bytes.zeroize()` discipline.
+- Pattern 2 (mixed atomic orderings on the same atomic): all 6
+  workspace atomics use internally consistent orderings.
+- Pattern 3 (builder bypass of inherent sanitization): `AuditEventBuilder`
+  is the only `*Builder` in the crate; round-37 M6 already covers it.
+- Pattern 6 (`RefCell` on `Sync`-claiming types): the only remaining
+  `RefCell` uses are inside `thread_local!` statics, where `!Sync` is
+  intentional and correct.
+- Pattern 7 (workflow `${{ ... }}` literals in `run:` shell-comments):
+  release.yml fix verified, no other instances workspace-wide.
+
 ### Round-37 audit — full pass + CI/release infra fixes (2026-05-06)
 
 External round-37 audit returned 28 findings (HIGH 5, MED 11, LOW 8,
