@@ -1114,17 +1114,18 @@ impl FileAuditStorage {
             }
             #[cfg(not(unix))]
             {
-                // LINT-OK: cfg-not-unix — Windows confidentiality is
-                // enforced via `set_local_admin_dacl` immediately after
-                // open (Win32 `OpenOptionsExt` has no `.mode()` analog).
-                let f =
+                let f = {
+                    // LINT-OK: cfg-not-unix — Windows confidentiality
+                    // enforced via `set_local_admin_dacl` immediately
+                    // below (Win32 `OpenOptionsExt` has no `.mode()`).
                     OpenOptions::new().create_new(true).append(true).open(&path).map_err(|e| {
                         CoreError::AuditError(format!(
                             "Failed to create audit file '{}': {}",
                             path.display(),
                             e
                         ))
-                    })?;
+                    })?
+                };
                 // Replace the default DACL inherited from the parent
                 // directory with the owner-only policy applied
                 // workspace-wide. Symmetric with the Unix `mode(0o600)`
