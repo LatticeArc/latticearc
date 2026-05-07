@@ -304,19 +304,13 @@ impl PedersenCommitment {
         let r: Option<Scalar> =
             Scalar::from_repr(*FieldBytes::from_slice(opening.blinding())).into();
 
-        let v = match v {
-            Some(scalar) => scalar,
-            None => {
-                tracing::debug!("Pedersen verify: opening.value out of field");
-                return Err(ZkpError::VerificationFailed);
-            }
+        let Some(v) = v else {
+            tracing::debug!("Pedersen verify: opening.value out of field");
+            return Err(ZkpError::VerificationFailed);
         };
-        let r = match r {
-            Some(scalar) => scalar,
-            None => {
-                tracing::debug!("Pedersen verify: opening.blinding out of field");
-                return Err(ZkpError::VerificationFailed);
-            }
+        let Some(r) = r else {
+            tracing::debug!("Pedersen verify: opening.blinding out of field");
+            return Err(ZkpError::VerificationFailed);
         };
 
         if bool::from(v.is_zero()) || bool::from(r.is_zero()) {
@@ -344,12 +338,9 @@ impl PedersenCommitment {
             }
         };
         let stored: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded).into();
-        let stored = match stored {
-            Some(p) => p,
-            None => {
-                tracing::debug!("Pedersen verify: stored commitment not on curve");
-                return Err(ZkpError::VerificationFailed);
-            }
+        let Some(stored) = stored else {
+            tracing::debug!("Pedersen verify: stored commitment not on curve");
+            return Err(ZkpError::VerificationFailed);
         };
 
         let expected_bytes = expected.to_affine().to_encoded_point(true);
@@ -439,17 +430,17 @@ impl PedersenCommitment {
         for counter in 0u32..256 {
             // Accumulate into a buffer and route through the primitives wrapper
             // so hash backends remain swappable in one place. Label is `-v3`
-            // because the L3 endianness migration changed the derivation —
-            // the `-v2` label was bound to the LE-counter derivation and a
+            // because an endianness migration changed the derivation — the
+            // `-v2` label was bound to the LE-counter derivation, and a
             // same-label/different-derivation collision would defeat the
-            // whole point of the version suffix (round-12 audit fix L3 +
-            // label-bump-on-derivation-change discipline).
+            // whole point of the version suffix. Bump the label on every
+            // derivation change.
             let mut buf =
                 Vec::with_capacity(b"arc-zkp/pedersen-generator-H-v3".len().saturating_add(4));
             buf.extend_from_slice(b"arc-zkp/pedersen-generator-H-v3");
             #[allow(clippy::arithmetic_side_effects)] // counter.to_be_bytes() is infallible
-            // Big-endian to match the transcript convention used elsewhere in
-            // the crate (round-12 audit fix L3).
+            // Big-endian to match the transcript convention used elsewhere
+            // in the crate.
             buf.extend_from_slice(&counter.to_be_bytes());
             // Input is 34 bytes (30-byte label + 4-byte counter), well below the
             // 1 GiB SHA-256 DoS cap.

@@ -1105,7 +1105,7 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
         return true;
     }
     // Accept any cargo-test binary under a `…/target/**/deps/` path
-    // (no hardcoded profile name or nesting depth). An exact
+    // (no hardcoded profile name, but bounded nesting depth). An exact
     // `target/<profile>/deps/` allowlist would reject:
     //   * custom profiles (`[profile.valgrind]`, `[profile.release-validation]`)
     //   * `cargo llvm-cov`'s nested `target/llvm-cov-target/release/deps/`
@@ -1113,24 +1113,28 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
     // — and the resulting `path_looks_like` rejection would fail the
     // integrity test, abort the FIPS POST, and SIGABRT the process.
     //
-    // Security note: walking the parent chain for `target` (not
-    // requiring an exact ancestor depth) is safe because the
-    // integrity-test threat model rejects adversary-injected binaries
-    // by HMAC mismatch, not by path. The profile-name and any tool-
-    // specific nesting are just where the build system chose to put
-    // the artifact; an attacker who can write into
-    // `target/<arbitrary>/.../deps/` can already write into
-    // `target/release/deps/` too.
+    // Security note: walking the parent chain for `target` is safe
+    // even at this fuzzier shape because the integrity-test threat
+    // model rejects adversary-injected binaries by HMAC mismatch, not
+    // by path. The profile-name and any tool-specific nesting are
+    // just where the build system chose to put the artifact; an
+    // attacker who can write into `target/<arbitrary>/.../deps/` can
+    // already write into `target/release/deps/` too.
+    //
+    // Hop bound: the deepest known cargo-tooling layout is
+    // `target/llvm-cov-target/<profile>/deps/binary` — exactly 3 hops
+    // from `deps`'s parent (`<profile>` → `llvm-cov-target` → `target`).
+    // The plain `target/<profile>/deps/binary` shape is 2 hops. Bound
+    // at 3 hops: covers every known cargo, llvm-cov, and custom-
+    // profile layout while rejecting deeper Bazel-style or pathological
+    // CI paths like `/builds/foo/target/cache/x/y/deps/`.
     let parent_ok = path.parent().and_then(|p| {
         if p.file_name().and_then(|n| n.to_str()) != Some("deps") {
             return None;
         }
-        // Walk up from `deps`'s parent looking for any ancestor whose
-        // file_name is `target`. Bounded to 8 hops to avoid pathological
-        // climbs in unrelated filesystems.
         p.ancestors()
             .skip(1)
-            .take(8)
+            .take(3)
             .any(|a| a.file_name().and_then(|n| n.to_str()) == Some("target"))
             .then_some(())
     });
@@ -1645,12 +1649,11 @@ mod tests {
     /// it (correctly) reports the module as non-operational, then
     /// fails its own assertion.
     ///
-    /// `serial_test`-style serialisation was tried in round-40b and
-    /// was strictly worse: it widened the false-state window from
-    /// "during this test only" to "during this test AND every
-    /// concurrent reader the queue blocks on", which cascaded the
-    /// failure into hundreds of unrelated tests. The guard pattern
-    /// keeps the window scoped to the test body.
+    /// `serial_test`-style serialisation is strictly worse here: it
+    /// widens the false-state window from "during this test only" to
+    /// "during this test AND every concurrent reader the queue blocks
+    /// on", cascading the failure into hundreds of unrelated tests.
+    /// The guard pattern keeps the window scoped to the test body.
     ///
     /// `_not_send_or_sync: PhantomData<*mut ()>` makes the guard
     /// neither `Send` nor `Sync` at compile time (raw pointers are
@@ -1740,18 +1743,18 @@ mod tests {
             );
         }
 
-        // Standard cargo-test deps shapes (any profile, any tool nesting under target/).
+        // Cargo-test deps shapes within the bounded ancestor walk.
+        // Layouts at depth >3 (more than `target/.../<profile>/deps/`)
+        // are intentionally NOT accepted — see the rejection test below.
         for path in [
-            // Standard `target/release/deps/` shape.
+            // Standard `target/<profile>/deps/` (2 hops to target).
             "/work/repo/target/release/deps/latticearc-0123456789abcdef",
             "/work/repo/target/debug/deps/audit_regression_signatures-fedcba9876543210",
-            // Custom profile (e.g. `[profile.valgrind]`).
+            // Custom profile (e.g. `[profile.valgrind]`) — still 2 hops.
             "/work/repo/target/valgrind/deps/latticearc-0123456789abcdef",
-            // `cargo llvm-cov`'s nested target dir.
+            // `cargo llvm-cov` nested target dir — 3 hops (the deepest
+            // known legitimate cargo-tooling layout).
             "/work/repo/target/llvm-cov-target/release/deps/latticearc-0123456789abcdef",
-            // Hypothetical deeper nesting; the walk is bounded but
-            // still climbs through several intermediate directories.
-            "/work/repo/target/some-tool/release/instrumented/deps/foo-0123456789abcdef",
         ] {
             assert!(
                 path_looks_like_latticearc_module(&PathBuf::from(path)),
@@ -1774,6 +1777,12 @@ mod tests {
             // Not under any `target` ancestor — host interpreter case.
             "/usr/bin/python3.12",
             "/opt/node/bin/node",
+            // Depth >3 from `deps` to `target`. Beyond the deepest
+            // known cargo-tooling layout (`target/llvm-cov-target/
+            // <profile>/deps/`); accepting this opens the trust scope
+            // to Bazel-style or pathological CI paths like
+            // `/builds/foo/target/cache/x/y/deps/`.
+            "/work/repo/target/some-tool/release/instrumented/deps/foo-0123456789abcdef",
         ] {
             assert!(
                 !path_looks_like_latticearc_module(&PathBuf::from(path)),

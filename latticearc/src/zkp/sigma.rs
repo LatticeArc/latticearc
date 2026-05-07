@@ -310,16 +310,16 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         // own 1 GiB DoS cap below) but a silent failure mode is worse
         // than an explicit error. Map to a Fiat-Shamir-specific Err
         // so reviewers can see the bound is enforced.
-        let domain_separator_len = u32::try_from(self.domain_separator.len()).map_err(|_| {
+        let domain_separator_len = u32::try_from(self.domain_separator.len()).map_err(|_e| {
             ZkpError::InvalidInput("Fiat-Shamir: domain_separator exceeds 2^32 bytes".into())
         })?;
-        let statement_len = u32::try_from(statement_bytes.len()).map_err(|_| {
+        let statement_len = u32::try_from(statement_bytes.len()).map_err(|_e| {
             ZkpError::InvalidInput("Fiat-Shamir: statement exceeds 2^32 bytes".into())
         })?;
-        let commitment_len = u32::try_from(commitment.len()).map_err(|_| {
+        let commitment_len = u32::try_from(commitment.len()).map_err(|_e| {
             ZkpError::InvalidInput("Fiat-Shamir: commitment exceeds 2^32 bytes".into())
         })?;
-        let context_len = u32::try_from(context.len()).map_err(|_| {
+        let context_len = u32::try_from(context.len()).map_err(|_e| {
             ZkpError::InvalidInput("Fiat-Shamir: context exceeds 2^32 bytes".into())
         })?;
 
@@ -478,8 +478,8 @@ impl DlogEqualityStatement {
     /// canonical-base constructor. Returns a statement
     /// pre-filled with `g = secp256k1 generator` and
     /// `h = PedersenCommitment::generator_h()`. This is the only
-    /// constructor whose result is guaranteed to pass the round-29
-    /// base-canonicity check on prove/verify.
+    /// constructor whose result is guaranteed to pass the
+    /// base-canonicity check on `prove` / `verify`.
     ///
     /// # Errors
     /// Returns [`ZkpError::SerializationError`] if the NUMS H
@@ -536,17 +536,15 @@ impl DlogEqualityProof {
     ) -> Result<Self> {
         use k256::{FieldBytes, Scalar, elliptic_curve::group::GroupEncoding};
 
-        // enforce that the statement's bases are the
-        // canonical (G, NUMS H) pair. A caller supplying arbitrary
-        // bases — or a peer-supplied statement with `h = g^x` for a
-        // known `x` — would otherwise yield a trivially-forgeable
-        // proof. Reject up-front; opaque error matches the round-26
-        // H11 verify-side posture.
+        // enforce that the statement's bases are the canonical
+        // (G, NUMS H) pair. A caller supplying arbitrary bases — or a
+        // peer-supplied statement with `h = g^x` for a known `x` —
+        // would otherwise yield a trivially-forgeable proof. Reject
+        // up-front with an opaque error to match the verify-side
+        // posture (no Result-shape distinguishers).
         let (canonical_g, canonical_h) = DlogEqualityStatement::canonical_bases()?;
         if statement.g != canonical_g || statement.h != canonical_h {
-            tracing::debug!(
-                "DlogEqualityProof::prove rejected: statement bases not canonical (round-29 M7)"
-            );
+            tracing::debug!("DlogEqualityProof::prove rejected: statement bases not canonical");
             return Err(ZkpError::InvalidScalar);
         }
 
@@ -574,9 +572,10 @@ impl DlogEqualityProof {
             let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
             let candidate: Option<Scalar> =
                 Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
-            // Round-35 L1: use ct_eq instead of `!=`. `Scalar::PartialEq`
-            // is not documented constant-time, and the challenge-side
-            // (round-33 L1) already uses ct_eq — this restores symmetry.
+            // Use `ct_eq` instead of `!=`: `Scalar::PartialEq` is not
+            // documented constant-time, and the challenge-side check
+            // already uses `ct_eq` — symmetry on the secret-bearing
+            // nonce path matters more than the verify side.
             if let Some(s) = candidate
                 && !bool::from(s.ct_eq(&Scalar::ZERO))
             {
@@ -628,25 +627,17 @@ impl DlogEqualityProof {
     pub fn verify(&self, statement: &DlogEqualityStatement, context: &[u8]) -> Result<bool> {
         use k256::{FieldBytes, Scalar};
 
-        // enforce canonical bases (mirror of `prove`).
-        // Mismatch collapses to `Err(VerificationFailed)` per the
-        // round-26 H11 Pattern 6 posture — not distinguishable from
-        // any other reject cause via the Result shape.
-        match DlogEqualityStatement::canonical_bases() {
-            Ok((canonical_g, canonical_h)) => {
-                if statement.g != canonical_g || statement.h != canonical_h {
-                    tracing::debug!(
-                        "DlogEqualityProof::verify rejected: statement bases not canonical (round-29 M7)"
-                    );
-                    return Err(ZkpError::VerificationFailed);
-                }
-            }
-            Err(_) => {
-                tracing::debug!(
-                    "DlogEqualityProof::verify rejected: canonical-base derivation failed"
-                );
-                return Err(ZkpError::VerificationFailed);
-            }
+        // enforce canonical bases (mirror of `prove`). Mismatch
+        // collapses to `Err(VerificationFailed)` so the reject is not
+        // distinguishable from any other reject cause via the Result
+        // shape (Pattern 6).
+        let Ok((canonical_g, canonical_h)) = DlogEqualityStatement::canonical_bases() else {
+            tracing::debug!("DlogEqualityProof::verify rejected: canonical-base derivation failed");
+            return Err(ZkpError::VerificationFailed);
+        };
+        if statement.g != canonical_g || statement.h != canonical_h {
+            tracing::debug!("DlogEqualityProof::verify rejected: statement bases not canonical");
+            return Err(ZkpError::VerificationFailed);
         }
 
         // collapse all adversary-reachable
@@ -1094,8 +1085,8 @@ mod tests {
         ) -> Result<bool> {
             // Reconstruct the expected response from public data and
             // compare in constant time. A mock that returns `Ok(true)`
-            // for any 32-byte input gives `FiatShamir` callers no
-            // signal — round-10 audit fix #8 closes that gap.
+            // for any 32-byte input would give `FiatShamir` callers no
+            // signal — every test would pass regardless of correctness.
             if commitment.len() != 32 || response.len() != 32 {
                 return Ok(false);
             }

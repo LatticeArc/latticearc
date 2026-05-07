@@ -197,21 +197,41 @@ impl<'a> AtomicWrite<'a> {
             // from raw disk until those clusters get reallocated.
             //
             // Sequence:
-            //   1. seek-and-overwrite with zeros for the active
-            //      length (NTFS resident-data files <~700 B are
-            //      truly zeroed; for cluster-resident files the
-            //      currently-mapped clusters are zeroed before
-            //      release)
-            //   2. sync_all so the zeros hit disk before truncate
-            //   3. set_len(0) releases the now-zeroed clusters
-            // All operations are best-effort (`let _ =`) — we are
-            // already in the error-return path; secondary I/O
-            // failures here cannot improve the user-visible error
-            // and `tmp`'s drop will still unlink either way.
+            //   1. seek-to-start (MUST succeed — see below)
+            //   2. write zeros for the active length (NTFS resident-
+            //      data files <~700 B are truly zeroed; for cluster-
+            //      resident files the currently-mapped clusters are
+            //      zeroed before release)
+            //   3. sync_all so the zeros hit disk before truncate
+            //   4. set_len(0) releases the now-zeroed clusters
+            //
+            // Steps 2-4 are best-effort (`let _ =`) — if zero-write or
+            // sync fails partway, the active clusters still hold a mix
+            // of zeros and original bytes, which is strictly better
+            // than the no-scrub baseline. Only the seek MUST succeed:
+            // without rewinding, write_all would APPEND zeros after the
+            // already-written secret bytes (extending the file from N
+            // to 2N), then `set_len(0)` would release the original N
+            // bytes of plaintext to the free-cluster pool. That is
+            // worse than returning early without scrubbing — a silent
+            // failure that claims to scrub. So a seek failure aborts
+            // the scrub and surfaces in the returned error.
             use std::io::{Seek, SeekFrom, Write};
             const ZERO_CHUNK: [u8; 4096] = [0u8; 4096];
             let f = tmp.as_file_mut();
-            let _ = f.seek(SeekFrom::Start(0));
+            if let Err(seek_err) = f.seek(SeekFrom::Start(0)) {
+                // Don't fall through to write_all + set_len(0) — that
+                // would propagate the secret without zeroing it. tmp's
+                // drop still unlinks, releasing the original clusters
+                // un-scrubbed; surface the seek failure so the operator
+                // can decide whether to wipe the volume's free-cluster
+                // pool.
+                return Err(CoreError::Internal(format!(
+                    "windows DACL hardening on tempfile {} failed: {e}; \
+                     plaintext-scrub aborted because seek-to-start failed: {seek_err}",
+                    tmp.path().display()
+                )));
+            }
             let mut remaining = self.bytes.len();
             while remaining > 0 {
                 let n = remaining.min(ZERO_CHUNK.len());
@@ -276,9 +296,11 @@ impl<'a> AtomicWrite<'a> {
             }
         }
 
-        // (Windows DACL hardening was applied to the tempfile above,
+        // Windows DACL hardening was applied to the tempfile above,
         // BEFORE persist, so the rename preserves the hardened DACL.
-        // No post-rename DACL apply is needed — closes round-39 H2.)
+        // No post-rename DACL apply is needed — a post-rename apply
+        // would have a race window where the file at `path` exists
+        // with the parent dir's permissive default DACL.
         Ok(())
     }
 }

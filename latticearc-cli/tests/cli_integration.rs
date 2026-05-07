@@ -134,12 +134,17 @@ fn cli_bin() -> PathBuf {
     path
 }
 
-/// Run a CLI command, assert success, return stdout.
-fn run_ok(args: &[&str]) -> String {
-    let output = Command::new(cli_bin())
+/// Spawn the CLI with `args`, wait for completion, return raw `Output`.
+fn execute_cli(args: &[&str]) -> std::process::Output {
+    Command::new(cli_bin())
         .args(args)
         .output()
-        .unwrap_or_else(|e| panic!("Failed to execute CLI: {e}"));
+        .unwrap_or_else(|e| panic!("Failed to execute CLI: {e}"))
+}
+
+/// Run a CLI command, assert success, return stdout.
+fn run_ok(args: &[&str]) -> String {
+    let output = execute_cli(args);
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     assert!(
@@ -157,10 +162,7 @@ fn run_ok(args: &[&str]) -> String {
 /// status on stderr). Tests that pre-date that move and assert on
 /// "Generated ... keypair" should switch to this helper.
 fn run_ok_combined(args: &[&str]) -> String {
-    let output = Command::new(cli_bin())
-        .args(args)
-        .output()
-        .unwrap_or_else(|e| panic!("Failed to execute CLI: {e}"));
+    let output = execute_cli(args);
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     assert!(
@@ -172,10 +174,7 @@ fn run_ok_combined(args: &[&str]) -> String {
 
 /// Run a CLI command, assert failure, return stderr.
 fn run_fail(args: &[&str]) -> String {
-    let output = Command::new(cli_bin())
-        .args(args)
-        .output()
-        .unwrap_or_else(|e| panic!("Failed to execute CLI: {e}"));
+    let output = execute_cli(args);
     assert!(!output.status.success(), "CLI should have failed with args {args:?}");
     String::from_utf8_lossy(&output.stderr).to_string()
 }
@@ -183,6 +182,40 @@ fn run_fail(args: &[&str]) -> String {
 /// Create a temp dir that auto-cleans.
 fn temp_dir() -> tempfile::TempDir {
     tempfile::TempDir::new().expect("Failed to create temp dir")
+}
+
+/// Read a JSON file from disk as `serde_json::Value`. Generic helper
+/// for tests that load sig / pk / encrypted-blob JSON.
+fn read_json_file(path: impl AsRef<std::path::Path>) -> serde_json::Value {
+    let s = std::fs::read_to_string(path).expect("read JSON file");
+    serde_json::from_str(&s).expect("parse JSON file")
+}
+
+/// Tamper a base64-encoded payload such that the decoded bytes are
+/// guaranteed to differ in at least one bit from the original.
+///
+/// A naïve "swap the first two characters" approach is fragile: when
+/// the underlying bytes encode to two consecutive identical base64
+/// chars (which happens for some signature byte patterns — observed
+/// in SLH-DSA-SHAKE-128s), swapping is a no-op and the test silently
+/// fails to actually tamper. Decode, flip the low bit of byte 0,
+/// re-encode — this always changes the binary content.
+fn corrupt_base64(b64: &str) -> String {
+    use base64::Engine;
+    let mut bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64)
+        .expect("input should be valid base64");
+    if let Some(first) = bytes.first_mut() {
+        *first ^= 0x01;
+    }
+    base64::engine::general_purpose::STANDARD.encode(&bytes)
+}
+
+/// Pretty-print a `serde_json::Value` to disk. Used by the Pattern-6
+/// tampering tests to write back a modified JSON tree.
+fn write_json_file_pretty(path: impl AsRef<std::path::Path>, v: &serde_json::Value) {
+    let s = serde_json::to_string_pretty(v).expect("serialize JSON");
+    std::fs::write(path, s).expect("write JSON file");
 }
 
 // ============================================================================
@@ -288,11 +321,9 @@ fn test_ed25519_keygen_sign_verify_roundtrip() {
     assert!(out.contains("VALID"));
 
     // Capture real artifact sizes for proof
-    let sig_json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&sig_path).unwrap()).unwrap();
+    let sig_json: serde_json::Value = read_json_file(&sig_path);
     let sig_b64 = sig_json["signature"].as_str().unwrap();
-    let pk_json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&pk_path).unwrap()).unwrap();
+    let pk_json: serde_json::Value = read_json_file(&pk_path);
     let pk_b64 = pk_json["key_data"]["raw"].as_str().or_else(|| pk_json["key"].as_str()).unwrap();
 
     println!(
@@ -343,13 +374,11 @@ fn test_ml_dsa_65_keygen_sign_verify_roundtrip() {
     ]);
     assert!(out.contains("VALID"));
 
-    let sig_json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&sig_path).unwrap()).unwrap();
+    let sig_json: serde_json::Value = read_json_file(&sig_path);
     let sig_b64 = sig_json["signature"].as_str().unwrap();
     let sig_bytes_len =
         base64::Engine::decode(&base64::engine::general_purpose::STANDARD, sig_b64).unwrap().len();
-    let pk_json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&pk_path).unwrap()).unwrap();
+    let pk_json: serde_json::Value = read_json_file(&pk_path);
     let pk_bytes_len =
         base64::Engine::decode(&base64::engine::general_purpose::STANDARD, get_key_b64(&pk_json))
             .unwrap()
@@ -1100,8 +1129,7 @@ fn test_e2e_code_signing_workflow_succeeds() {
 
     // Capture real proof data
     let artifact_hash = hash_out.trim().strip_prefix("SHA-256: ").unwrap();
-    let sig_json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&sig_path).unwrap()).unwrap();
+    let sig_json: serde_json::Value = read_json_file(&sig_path);
     let sig_b64 = sig_json["signature"].as_str().unwrap();
     let sig_bytes_len =
         base64::Engine::decode(&base64::engine::general_purpose::STANDARD, sig_b64).unwrap().len();
@@ -1245,8 +1273,7 @@ fn test_ml_kem_keygen_all_levels_succeeds() {
         assert!(sk_path.exists(), "Secret key file should exist for {name}");
 
         // Validate key file structure
-        let pk_json: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&pk_path).unwrap()).unwrap();
+        let pk_json: serde_json::Value = read_json_file(&pk_path);
         assert_eq!(pk_json["algorithm"].as_str().unwrap(), name);
         assert_eq!(pk_json["key_type"].as_str().unwrap(), "public");
     }
@@ -1317,8 +1344,7 @@ fn test_hash_deterministic_output_is_deterministic() {
 
 /// Decode the Base64 "key" field from a key file and return raw byte length.
 fn key_file_raw_len(path: &std::path::Path) -> usize {
-    let json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let json: serde_json::Value = read_json_file(path);
     // Support both PortableKey format (key_data.raw) and legacy format (key)
     let b64 = json["key_data"]["raw"]
         .as_str()
@@ -1329,8 +1355,7 @@ fn key_file_raw_len(path: &std::path::Path) -> usize {
 
 /// Get the total raw byte length of a composite hybrid key (pq + classical).
 fn hybrid_key_file_raw_len(path: &std::path::Path) -> (usize, usize) {
-    let json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let json: serde_json::Value = read_json_file(path);
     // PortableKey composite format: key_data.pq + key_data.classical
     if let (Some(pq), Some(cl)) =
         (json["key_data"]["pq"].as_str(), json["key_data"]["classical"].as_str())
@@ -1357,8 +1382,7 @@ fn get_key_b64(json: &serde_json::Value) -> &str {
 
 /// Decode the Base64 "signature" field from a signature file and return raw byte length.
 fn sig_file_raw_len(path: &std::path::Path) -> usize {
-    let json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let json: serde_json::Value = read_json_file(path);
     let b64 = json["signature"].as_str().unwrap();
     base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64).unwrap().len()
 }
@@ -1737,8 +1761,7 @@ fn test_fips197_aes256_key_size_has_correct_size() {
         dir.path().join("aes256.key.json").to_str().unwrap(),
     ]);
 
-    let enc_json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&enc_path).unwrap()).unwrap();
+    let enc_json: serde_json::Value = read_json_file(&enc_path);
 
     // Verify nonce field exists and is 12 bytes (96 bits per SP 800-38D)
     let nonce_b64 = enc_json["nonce"].as_str().expect("Encrypted file must have 'nonce' field");
@@ -3014,10 +3037,8 @@ fn test_aes_gcm_nonce_uniqueness_are_unique() {
         dir.path().join("aes256.key.json").to_str().unwrap(),
     ]);
 
-    let enc1: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&enc1_path).unwrap()).unwrap();
-    let enc2: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&enc2_path).unwrap()).unwrap();
+    let enc1: serde_json::Value = read_json_file(&enc1_path);
+    let enc2: serde_json::Value = read_json_file(&enc2_path);
 
     // Nonces must be different (random generation)
     assert_ne!(
@@ -3109,10 +3130,8 @@ fn test_ed25519_signature_determinism_is_deterministic() {
         dir.path().join("ed25519.sec.json").to_str().unwrap(),
     ]);
 
-    let sig1: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&sig1_path).unwrap()).unwrap();
-    let sig2: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&sig2_path).unwrap()).unwrap();
+    let sig1: serde_json::Value = read_json_file(&sig1_path);
+    let sig2: serde_json::Value = read_json_file(&sig2_path);
 
     // Ed25519 is deterministic per RFC 8032 §5.1.6
     assert_eq!(
@@ -4266,10 +4285,8 @@ fn test_ml_dsa_signature_randomized_succeeds() {
     // Signatures should differ (hedged signing), but both are valid
     // Note: some implementations may use deterministic mode, so we test
     // that both verify rather than asserting they differ
-    let sig1: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&sig1_path).unwrap()).unwrap();
-    let sig2: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&sig2_path).unwrap()).unwrap();
+    let sig1: serde_json::Value = read_json_file(&sig1_path);
+    let sig2: serde_json::Value = read_json_file(&sig2_path);
 
     let sigs_differ = sig1["signature"].as_str().unwrap() != sig2["signature"].as_str().unwrap();
 
@@ -4844,4 +4861,526 @@ fn round20_fix5_decrypt_output_is_chmod_0o600() {
          The decrypt path must call AtomicWrite::secret_mode() so plaintext at rest is \
          not world-readable."
     );
+}
+
+// ============================================================================
+// S99: Pattern-6 reject-path indistinguishability (round-42 H1/L1/L2/M1/M3)
+// ============================================================================
+//
+// Every reject path triggered by attacker-controllable signature-file content
+// must produce identical observable behaviour:
+//   1. Stderr contains "Signature is INVALID." and nothing more specific
+//   2. Exit code is exactly 1 (the "invalid signature" class), not ≥2 (the
+//      "operational error" class)
+//
+// Without these tests the audit table from round-41 reappears the next time a
+// new error path is added: the per-axis tests (legacy-only or per-algorithm)
+// would each pass while the cross-product reveals the leak.
+//
+// The leak strings tested below are the literal substrings that round-41
+// audit found in the round-41 binary's stderr — adding a new substring here
+// when a new audit round finds another distinguisher is the intended way to
+// extend the contract.
+
+/// Capture exit code + stderr for a CLI invocation that must fail.
+///
+/// `output.status.code()` returns `None` when the process was killed
+/// by a signal (SIGSEGV / SIGKILL / etc.). Map that to `-1` so the
+/// caller's `assert_eq!(code, 1, ...)` produces a "got -1, expected 1"
+/// error rather than a confusing pattern-mismatch.
+fn run_capture_fail(args: &[&str]) -> (i32, String) {
+    let output = execute_cli(args);
+    assert!(!output.status.success(), "CLI should have failed with args {args:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let code = output.status.code().unwrap_or(-1);
+    (code, stderr)
+}
+
+/// Assert a `verify` invocation collapses to the indistinguishable INVALID
+/// shape required by Pattern-6: exit 1, stderr says "Signature is INVALID.",
+/// stderr contains none of the known leak substrings. Returns the captured
+/// stderr so callers can perform additional scenario-specific assertions
+/// (e.g., absence of an attacker-controlled marker) without re-spawning
+/// the CLI.
+fn assert_verify_invalid_collapse(args: &[&str], scenario: &str) -> String {
+    let (code, stderr) = run_capture_fail(args);
+    assert_eq!(
+        code, 1,
+        "verify ({scenario}) must exit 1 (INVALID class), not {code} (operational class). \
+         A non-1 exit lets attackers distinguish reject paths via $? -- Pattern-6 leak.\nstderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("Signature is INVALID"),
+        "verify ({scenario}) must emit 'Signature is INVALID' on reject. stderr: {stderr}"
+    );
+    // Substrings that historically leaked reject detail. Each is the
+    // literal text from a `bail!` / `anyhow!` / `.context(...)` site
+    // a prior audit round found distinguishable. New leak shapes
+    // should be appended here, not silently dropped.
+    let leaks = [
+        "Verification failed",
+        "Hybrid verification failed",
+        "Signature was created over different data",
+        "Failed to parse signature JSON",
+        "Failed to parse hybrid signature JSON",
+        "Missing 'signature' field",
+        "Missing 'ml_dsa_sig'",
+        "Missing 'ed25519_sig'",
+        "Invalid base64 in signature",
+        "Invalid base64 in ml_dsa_sig",
+        "Invalid base64 in ed25519_sig",
+        "missing 'algorithm' field",
+        "Unknown algorithm in signature file",
+        "Invalid padding",
+        "could not detect signature algorithm",
+    ];
+    for leak in &leaks {
+        assert!(
+            !stderr.contains(leak),
+            "verify ({scenario}) stderr leaked reject detail '{leak}': {stderr}"
+        );
+    }
+    stderr
+}
+
+/// CLI vs keyfile-stem mapping for legacy-mode signing.
+///
+/// `keygen --algorithm <cli_keygen>` produces `<keyfile_stem>.{sec,pub}.json`.
+/// `sign --algorithm <cli_sign>` writes the signature.
+///
+/// The mismatch between CLI value and keyfile stem (e.g. `ml-dsa65` vs
+/// `ml-dsa-65`) is intentional — the CLI value is a clap enum, the
+/// keyfile name is the canonical algorithm string.
+struct LegacyAlg<'a> {
+    cli_keygen: &'a str,
+    cli_sign: &'a str,
+    keyfile_stem: &'a str,
+}
+
+// `keygen --algorithm` and `sign --algorithm` accept different value
+// sets — keygen uses the strict SLH-DSA / FN-DSA parameter-set names
+// (`slh-dsa128s`, `fn-dsa512`), sign uses the family names (`slh-dsa`,
+// `fn-dsa`). Pre-fix tests that hardcoded one assumed both were the
+// same and silently failed at the cross-product level.
+const LEGACY_ALGS: &[LegacyAlg] = &[
+    LegacyAlg { cli_keygen: "ml-dsa65", cli_sign: "ml-dsa65", keyfile_stem: "ml-dsa-65" },
+    LegacyAlg { cli_keygen: "ml-dsa44", cli_sign: "ml-dsa44", keyfile_stem: "ml-dsa-44" },
+    LegacyAlg { cli_keygen: "ml-dsa87", cli_sign: "ml-dsa87", keyfile_stem: "ml-dsa-87" },
+    LegacyAlg {
+        cli_keygen: "slh-dsa128s",
+        cli_sign: "slh-dsa",
+        keyfile_stem: "slh-dsa-shake-128s",
+    },
+    LegacyAlg { cli_keygen: "fn-dsa512", cli_sign: "fn-dsa", keyfile_stem: "fn-dsa-512" },
+    LegacyAlg { cli_keygen: "ed25519", cli_sign: "ed25519", keyfile_stem: "ed25519" },
+];
+
+const HYBRID_ALG: LegacyAlg =
+    LegacyAlg { cli_keygen: "hybrid-sign", cli_sign: "hybrid", keyfile_stem: "hybrid-sign" };
+
+const ED25519_ALG: LegacyAlg =
+    LegacyAlg { cli_keygen: "ed25519", cli_sign: "ed25519", keyfile_stem: "ed25519" };
+
+/// Helper: keygen + sign (legacy `--algorithm` mode) for a given alg
+/// descriptor. Returns (msg_path, sig_path, pub_key_path).
+fn legacy_sign_fixture(dir: &tempfile::TempDir, alg: &LegacyAlg) -> (PathBuf, PathBuf, PathBuf) {
+    let d = dir.path().to_str().unwrap();
+    run_ok(&["keygen", "--algorithm", alg.cli_keygen, "--output", d]);
+
+    let msg_path = dir.path().join("msg.txt");
+    std::fs::write(&msg_path, b"pattern-6 cross-product fixture").unwrap();
+
+    let sig_path = dir.path().join("msg.sig.json");
+    let sk_path = dir.path().join(format!("{}.sec.json", alg.keyfile_stem));
+    let pk_path = dir.path().join(format!("{}.pub.json", alg.keyfile_stem));
+    run_ok(&[
+        "sign",
+        "--algorithm",
+        alg.cli_sign,
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--output",
+        sig_path.to_str().unwrap(),
+        "--key",
+        sk_path.to_str().unwrap(),
+    ]);
+    (msg_path, sig_path, pk_path)
+}
+
+#[test]
+fn test_pattern6_legacy_signature_bytes_tamper_collapses_invalid() {
+    // Tamper the base64 `signature` field's bytes. This is the
+    // already-collapsed baseline ("Signature is INVALID.") that round-41
+    // recorded as `(collapsed)`; the test pins it so a future regression
+    // can't silently un-collapse it.
+    let dir = temp_dir();
+    let (msg, sig, pk) = legacy_sign_fixture(&dir, &ED25519_ALG);
+
+    let mut v = read_json_file(&sig);
+    let orig_b64 = v["signature"].as_str().expect("signature str").to_string();
+    v["signature"] = serde_json::Value::String(corrupt_base64(&orig_b64));
+    let tampered_path = dir.path().join("tampered_sig.sig.json");
+    write_json_file_pretty(&tampered_path, &v);
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            tampered_path.to_str().unwrap(),
+            "--key",
+            pk.to_str().unwrap(),
+        ],
+        "legacy signature-bytes tamper",
+    );
+}
+
+#[test]
+fn test_pattern6_legacy_bad_base64_collapses_invalid() {
+    // Replace the base64 signature with a string that fails base64
+    // decoding (invalid padding). Round-41 H1 found this leaked
+    // "Invalid padding" / "Invalid base64 in signature".
+    let dir = temp_dir();
+    let (msg, sig, pk) = legacy_sign_fixture(&dir, &ED25519_ALG);
+
+    let mut v = read_json_file(&sig);
+    // 3-char string is invalid base64 (must be multiple of 4 with padding).
+    v["signature"] = serde_json::Value::String("AAA".to_string());
+    let tampered_path = dir.path().join("bad_b64.sig.json");
+    write_json_file_pretty(&tampered_path, &v);
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            tampered_path.to_str().unwrap(),
+            "--key",
+            pk.to_str().unwrap(),
+        ],
+        "legacy bad-base64",
+    );
+}
+
+#[test]
+fn test_pattern6_legacy_missing_signature_field_collapses_invalid() {
+    // Strip the entire `"signature"` field. Round-41 H1: reachable via
+    // tampered JSON, leaked "Missing 'signature' field".
+    let dir = temp_dir();
+    let (msg, sig, pk) = legacy_sign_fixture(&dir, &ED25519_ALG);
+
+    let mut v = read_json_file(&sig);
+    if let Some(obj) = v.as_object_mut() {
+        obj.remove("signature");
+    }
+    let tampered_path = dir.path().join("missing_sig.sig.json");
+    write_json_file_pretty(&tampered_path, &v);
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            tampered_path.to_str().unwrap(),
+            "--key",
+            pk.to_str().unwrap(),
+        ],
+        "legacy missing-signature-field",
+    );
+}
+
+#[test]
+fn test_pattern6_legacy_unknown_algorithm_collapses_invalid() {
+    // Replace the algorithm field with an attacker-controlled string.
+    // Round-41 L2: leaked the algorithm string back into stderr
+    // ("Unknown algorithm in signature file: '<attacker-string>'") with
+    // length-amplification.
+    let dir = temp_dir();
+    let (msg, sig, pk) = legacy_sign_fixture(&dir, &ED25519_ALG);
+
+    // 64-char attacker-controlled marker — if it shows up in stderr we
+    // know the echo leak regressed.
+    let attacker_marker = "X".repeat(64);
+    let mut v = read_json_file(&sig);
+    v["algorithm"] = serde_json::Value::String(format!("unknown-alg-{attacker_marker}"));
+    let tampered_path = dir.path().join("unknown_alg.sig.json");
+    write_json_file_pretty(&tampered_path, &v);
+
+    let args = [
+        "verify",
+        "--input",
+        msg.to_str().unwrap(),
+        "--signature",
+        tampered_path.to_str().unwrap(),
+        "--key",
+        pk.to_str().unwrap(),
+    ];
+    let stderr = assert_verify_invalid_collapse(&args, "legacy unknown-algorithm");
+    assert!(
+        !stderr.contains(&attacker_marker),
+        "verify must NOT echo the attacker-controlled algorithm string into stderr — \
+         echoing it back gives an attacker a length-amplification primitive. \
+         stderr: {stderr}"
+    );
+}
+
+#[test]
+fn test_pattern6_legacy_missing_algorithm_field_collapses_invalid() {
+    // Strip the `algorithm` field entirely. Pre-fix path emitted
+    // "Signature file missing 'algorithm' field — cannot auto-detect".
+    let dir = temp_dir();
+    let (msg, sig, pk) = legacy_sign_fixture(&dir, &ED25519_ALG);
+
+    let mut v = read_json_file(&sig);
+    if let Some(obj) = v.as_object_mut() {
+        obj.remove("algorithm");
+    }
+    let tampered_path = dir.path().join("missing_alg.sig.json");
+    write_json_file_pretty(&tampered_path, &v);
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            tampered_path.to_str().unwrap(),
+            "--key",
+            pk.to_str().unwrap(),
+        ],
+        "legacy missing-algorithm-field",
+    );
+}
+
+#[test]
+fn test_pattern6_legacy_crypto_reject_collapses_invalid() {
+    // Crypto-side reject (signature verifies false). Round-41 H1
+    // recorded this as leaking "Verification failed" via
+    // `.map_err(|_| anyhow!("Verification failed"))`.
+    //
+    // Sign with one key, then verify against a wrong key for the same
+    // algorithm — same scheme, different public key → crypto reject.
+    let dir = temp_dir();
+    let (msg, sig, _pk) = legacy_sign_fixture(&dir, &ED25519_ALG);
+
+    let dir2 = temp_dir();
+    run_ok(&["keygen", "--algorithm", "ed25519", "--output", dir2.path().to_str().unwrap()]);
+    let wrong_pk = dir2.path().join("ed25519.pub.json");
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            sig.to_str().unwrap(),
+            "--key",
+            wrong_pk.to_str().unwrap(),
+        ],
+        "legacy crypto-reject (wrong key)",
+    );
+}
+
+#[test]
+fn test_pattern6_signed_data_data_mismatch_collapses_invalid() {
+    // SignedData envelope: tamper the input file after signing.
+    // Round-41 H1: leaked "Signature was created over different data
+    // than the input." via `bail!(...)` at verify.rs:150.
+    let dir = temp_dir();
+    let d = dir.path().to_str().unwrap();
+    run_ok(&["keygen", "--use-case", "secure-messaging", "--output", d]);
+
+    let scheme = "hybrid-ml-dsa-65-ed25519";
+    let sk_path = dir.path().join(format!("{scheme}.sec.json"));
+    let pk_path = dir.path().join(format!("{scheme}.pub.json"));
+
+    let msg_path = dir.path().join("msg.txt");
+    std::fs::write(&msg_path, b"original signed bytes").unwrap();
+
+    let sig_path = dir.path().join("msg.sig");
+    run_ok(&[
+        "sign",
+        "--key",
+        sk_path.to_str().unwrap(),
+        "--public-key",
+        pk_path.to_str().unwrap(),
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--output",
+        sig_path.to_str().unwrap(),
+    ]);
+
+    // Tamper the input file to a different content; SignedData embeds
+    // the original data, so the two bytes won't match.
+    let tampered_input = dir.path().join("tampered.txt");
+    std::fs::write(&tampered_input, b"different bytes after sign").unwrap();
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            tampered_input.to_str().unwrap(),
+            "--signature",
+            sig_path.to_str().unwrap(),
+        ],
+        "SignedData data-mismatch",
+    );
+}
+
+#[test]
+fn test_pattern6_hybrid_legacy_crypto_reject_collapses_invalid() {
+    // Hybrid path crypto reject. Round-41 M1: leaked structured
+    // upstream error via `anyhow!("Hybrid verification failed: {e}")`,
+    // which on a half-pair rejection (ML-DSA OK, Ed25519 rejected, or
+    // vice versa) revealed which half failed. Sign with one hybrid
+    // keypair, verify against a different hybrid public key.
+    let dir = temp_dir();
+    let (msg, sig, _pk) = legacy_sign_fixture(&dir, &HYBRID_ALG);
+
+    let dir2 = temp_dir();
+    run_ok(&[
+        "keygen",
+        "--algorithm",
+        HYBRID_ALG.cli_keygen,
+        "--output",
+        dir2.path().to_str().unwrap(),
+    ]);
+    let wrong_pk = dir2.path().join(format!("{}.pub.json", HYBRID_ALG.keyfile_stem));
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            sig.to_str().unwrap(),
+            "--key",
+            wrong_pk.to_str().unwrap(),
+        ],
+        "legacy hybrid crypto-reject (wrong key)",
+    );
+}
+
+#[test]
+fn test_pattern6_hybrid_missing_ml_dsa_field_collapses_invalid() {
+    // Hybrid signature with `ml_dsa_sig` field stripped. Pre-fix path
+    // emitted "Missing 'ml_dsa_sig' field in hybrid signature".
+    let dir = temp_dir();
+    let (msg, sig, pk) = legacy_sign_fixture(&dir, &HYBRID_ALG);
+
+    let mut v = read_json_file(&sig);
+    if let Some(obj) = v.as_object_mut() {
+        obj.remove("ml_dsa_sig");
+    }
+    let tampered_path = dir.path().join("missing_ml_dsa.sig.json");
+    write_json_file_pretty(&tampered_path, &v);
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            tampered_path.to_str().unwrap(),
+            "--key",
+            pk.to_str().unwrap(),
+        ],
+        "legacy hybrid missing-ml-dsa-field",
+    );
+}
+
+#[test]
+fn test_pattern6_hybrid_bad_base64_in_ed25519_collapses_invalid() {
+    // Hybrid signature with corrupt base64 in `ed25519_sig`. Pre-fix
+    // path emitted "Invalid base64 in ed25519_sig".
+    let dir = temp_dir();
+    let (msg, sig, pk) = legacy_sign_fixture(&dir, &HYBRID_ALG);
+
+    let mut v = read_json_file(&sig);
+    v["ed25519_sig"] = serde_json::Value::String("AAA".to_string());
+    let tampered_path = dir.path().join("bad_b64_ed25519.sig.json");
+    write_json_file_pretty(&tampered_path, &v);
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            tampered_path.to_str().unwrap(),
+            "--key",
+            pk.to_str().unwrap(),
+        ],
+        "legacy hybrid bad-base64 ed25519",
+    );
+}
+
+#[test]
+fn test_pattern6_legacy_crypto_reject_per_algorithm_collapses_invalid() {
+    // Cross-product over every legacy-supported algorithm: each
+    // crypto-reject path must collapse identically. This is the
+    // axis-vs-cross-product test that feedback_verify_api_intersections.md
+    // calls for — per-algorithm tests existed individually, but a per-
+    // algorithm × tamper-shape matrix didn't.
+    for alg in LEGACY_ALGS {
+        let dir = temp_dir();
+        let (msg, sig, _pk) = legacy_sign_fixture(&dir, alg);
+
+        let dir2 = temp_dir();
+        run_ok(&[
+            "keygen",
+            "--algorithm",
+            alg.cli_keygen,
+            "--output",
+            dir2.path().to_str().unwrap(),
+        ]);
+        let wrong_pk = dir2.path().join(format!("{}.pub.json", alg.keyfile_stem));
+
+        assert_verify_invalid_collapse(
+            &[
+                "verify",
+                "--input",
+                msg.to_str().unwrap(),
+                "--signature",
+                sig.to_str().unwrap(),
+                "--key",
+                wrong_pk.to_str().unwrap(),
+            ],
+            &format!("legacy {} crypto-reject (wrong key)", alg.cli_keygen),
+        );
+    }
+}
+
+#[test]
+fn test_pattern6_legacy_signature_tamper_per_algorithm_collapses_invalid() {
+    // Cross-product: for each algorithm, tamper the signature bytes
+    // and confirm collapse. This is the "tamper × algorithm" axis the
+    // round-41 H1 audit used to find that 5 reject messages remained
+    // distinguishable (one per algorithm path through verify_standard).
+    for alg in LEGACY_ALGS {
+        let dir = temp_dir();
+        let (msg, sig, pk) = legacy_sign_fixture(&dir, alg);
+
+        let mut v = read_json_file(&sig);
+        let orig_b64 = v["signature"].as_str().expect("signature str").to_string();
+        v["signature"] = serde_json::Value::String(corrupt_base64(&orig_b64));
+        let tampered_path = dir.path().join("tampered.sig.json");
+        write_json_file_pretty(&tampered_path, &v);
+
+        assert_verify_invalid_collapse(
+            &[
+                "verify",
+                "--input",
+                msg.to_str().unwrap(),
+                "--signature",
+                tampered_path.to_str().unwrap(),
+                "--key",
+                pk.to_str().unwrap(),
+            ],
+            &format!("legacy {} signature-bytes tamper", alg.cli_keygen),
+        );
+    }
 }

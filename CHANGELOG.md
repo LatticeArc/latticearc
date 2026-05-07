@@ -9,6 +9,172 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-42 audit — Pattern-6 sweep + scrub-path hardening + CI baseline (2026-05-07)
+
+External round-42 audit returned 7 findings (2 HIGH, 3 MED, 2 LOW,
+1 DOC). H1 / H2 / M1 are direct regressions in round-41's own fixes
+(Pattern-6 sweep was incomplete; round-41 M1 atomic-write scrub
+silently ignores seek failure; round-41 closed Pattern-6 only at the
+SignedData branch and not the legacy CLI layer). All fixed in this
+commit; **no defer**, per `feedback_stop_deferring.md`.
+
+#### HIGH
+
+- **H1**: `latticearc-cli/src/commands/verify.rs` — round-41 M3 closed
+  the Pattern-6 distinguishers in the SignedData branch only. The
+  legacy verify path still emitted at least 5 distinguishable reject
+  messages: `"Signature was created over different data..."`,
+  `"Invalid base64 in signature"`, `"Verification failed"`,
+  `"Unknown algorithm in signature file: '<attacker>'"`, and
+  `"Hybrid verification failed: <upstream>"`. Each gave an attacker
+  who can tamper with the signature file a stderr-text or exit-code
+  side channel. Fixed by refactoring `verify_legacy` into a two-phase
+  shape: operator-side validation (key file, encrypted-key passphrase,
+  operator-picked `--algorithm` mismatch) keeps helpful Errs and
+  surfaces at exit ≥2; signature-side validation (JSON parse, base64
+  decode, missing fields, auto-detect, validate-algorithm against
+  the auto-detected name, crypto verify) is wrapped in a closure with
+  `unwrap_or_else(|e| { tracing::debug!(...); false })`, which routes
+  every rejection through the centralised `print_invalid()` helper.
+  Reject text is uniform; exit code is uniformly 1; original error
+  detail is preserved in `tracing::debug` for `RUST_LOG=debug`.
+  `detect_algorithm` now returns `Option<VerifyAlgorithm>` instead of
+  `Result` so missing-field, parse-failure, and unknown-algorithm
+  cases are indistinguishable by construction.
+
+- **H2**: `latticearc/src/unified_api/atomic_write.rs:214` — round-41
+  M1's secret-byte scrub on the DACL-failure recovery path silently
+  swallowed `seek(SeekFrom::Start(0))` failures via `let _ =`. If the
+  seek failed (rare but possible on Windows under handle pressure),
+  the subsequent `write_all(zeros)` extended the file from N bytes to
+  2N (zeros after the secret), and the final `set_len(0)` released
+  cluster runs that still contained the secret bytes. The "scrub"
+  silently became "leak". Fixed by propagating the seek failure
+  explicitly: on seek error, abort the scrub (don't extend, don't
+  truncate) and return an `Err(CoreError::Internal)` whose message
+  carries both the DACL error and the seek error so the operator can
+  decide whether to wipe the volume's free-cluster pool.
+
+#### MED
+
+- **M1**: `latticearc-cli/src/commands/verify.rs:447` — hybrid verify
+  Err arm embedded the upstream error string directly into stderr
+  via `anyhow!("Hybrid verification failed: {e}")`. A structured
+  upstream error like `"ML-DSA component verify failed"` vs
+  `"Ed25519 component verify failed"` would tell an attacker which
+  half of the hybrid pair rejected — a half-pair distinguisher.
+  Fixed by replacing the interpolated `{e}` with `anyhow::Error::new(e)`
+  — the error propagates as a typed source for `tracing::debug` but
+  the verify_legacy closure's `unwrap_or_else` collapses it to
+  `print_invalid()` before any text reaches stderr.
+
+- **M2**: `latticearc/src/primitives/self_test.rs:1131` — round-41b
+  widened `path_looks_like_latticearc_module`'s ancestor walk for
+  `target` to `take(8)`, accepting a binary as long as some ancestor
+  within 8 hops was named `target`. The widening was intentional
+  (covers `target/llvm-cov-target/release/deps/`), but 8 hops is
+  larger than the deepest known cargo layout (3 hops) and accepts
+  CI/Bazel paths like `/builds/foo/target/cache/x/y/deps/`. Tightened
+  to `take(3)` — exactly covers the deepest known cargo, llvm-cov,
+  and custom-profile layouts while rejecting deeper Bazel-style or
+  pathological CI paths. Defense-in-depth only; the integrity check's
+  actual security comes from HMAC mismatch.
+
+- **M3**: `latticearc-cli/src/commands/verify.rs:280` — legacy verify
+  reject path used inline `eprintln!("Signature is INVALID.")` instead
+  of the centralised `print_invalid()`. Symbolic — the message text
+  was identical — but a future maintainer adjusting `print_invalid()`
+  would silently leave the legacy path emitting the prior shape.
+  Routed through `print_invalid()` so the contract has a single source
+  of truth.
+
+#### LOW
+
+- **L1**: `latticearc-cli/src/commands/verify.rs:251` — wrong-key-type
+  bail used `{:?}` Debug repr of `KeyFile.key_type`. The Debug repr of
+  a `#[non_exhaustive]` enum is variant-fingerprintable across
+  versions; a future variant addition would silently leak through this
+  format string. Replaced with `key_file.key_type.canonical_name()` —
+  the stable wire string. Same posture as the round-32 D1 / round-34
+  M2 keyfile-validate fix.
+
+- **L2**: `latticearc-cli/src/commands/verify.rs:301` —
+  `bail!("Unknown algorithm in signature file: '{other}'")` echoed an
+  attacker-controlled algorithm string back into stderr, with
+  length-amplification (a 1 MiB attacker `algorithm` field produced a
+  1 MiB log line). Fixed as part of the H1 refactor: `detect_algorithm`
+  now returns `None` for any unrecognised name and the caller routes
+  to `print_invalid()` without echoing the attacker string. Regression
+  test `test_pattern6_legacy_unknown_algorithm_collapses_invalid` pins
+  the no-echo contract with a 64-char attacker marker.
+
+#### DOC
+
+- **D1**: Added a SECURITY-class doc comment to `print_invalid()`
+  enumerating the three concrete distinguishers the indistinguishability
+  contract closes (stderr text, exit-code class, echo amplification),
+  what counts as "attacker-controllable" content (signature file
+  bytes; SignedData embedded data + metadata), and what counts as
+  operator-side (helpful errors are OK there). Future contributors
+  adding a new reject path now have a written contract to reference,
+  rather than rediscovering the rule from audit comments scattered
+  across rounds 32–41.
+
+#### Tests
+
+- `latticearc-cli/tests/cli_integration.rs` (S99 section): added 12
+  cross-product tests for the Pattern-6 indistinguishability contract.
+  Covers (legacy × SignedData) × (algorithm tampered, signature bytes
+  tampered, base64 corrupt, unknown algorithm, missing fields,
+  signed.data mismatch, hybrid half-pair reject) × each algorithm.
+  Per `feedback_verify_api_intersections.md`: previous tests were
+  per-axis (per-algorithm OR per-tamper-shape, never both); two CLI
+  bugs slipped through 0.7.0 because the cross-product wasn't
+  exercised. Each test asserts (a) exit code is exactly 1, not ≥2;
+  (b) stderr contains `"Signature is INVALID"`; (c) stderr does NOT
+  contain any of 15 known-leak substrings.
+
+#### CI baseline
+
+- Fixed pre-existing clippy 0.1.93 errors in `latticearc/src/zkp/`
+  that blocked `-D warnings`: 4× `clippy::map_err_ignore` in
+  `sigma.rs:313/316/319/322` (`|_|` → `|_e|`), 6× `clippy::manual_let_else`
+  / `single_match_else` in `commitment.rs:307/314/347` and `sigma.rs:635`
+  (rewritten as `let-else`). Not part of round-42 audit findings, but
+  required for the post-fix workspace to pass `cargo clippy --workspace
+  --all-targets --all-features -- -D warnings` cleanly.
+
+#### Follow-ups (post-review, no-defer)
+
+- **Operator UX restored for hybrid pk parse**: in the original H1
+  refactor, `parse_hybrid_sign_pk_from_bytes` ran inside the Phase-2
+  closure, so a malformed *operator-supplied* hybrid pk file would
+  collapse to "Signature is INVALID" (exit 1) instead of surfacing as
+  a helpful operator error. Restructured `verify_legacy` into Phase
+  1a/1b/1c/2 with a `LegacyVerifier` enum dispatch: the enum carries
+  either `Standard { algorithm, pk_bytes }` or `Hybrid { pk: HybridSig
+  PublicKey }`, with the hybrid pk parsed in Phase 1c (operator-side,
+  helpful Err at exit ≥2). The Phase-2 closure dispatches on the enum
+  variant — type-system enforcement that the right pk shape exists for
+  the chosen algorithm without `expect()` or `unreachable!()`.
+
+- **Pre-existing audit-round markers stripped** from all five files
+  this diff touches (verify.rs, atomic_write.rs, self_test.rs,
+  sigma.rs, commitment.rs) — 21 instances total across `///` doc
+  comments, `//` line comments, and `tracing::debug!` strings. Per
+  `CLAUDE.md` "no audit-round markers in source": audit-round labels
+  live in CHANGELOG.md and commit messages only; `git blame` recovers
+  the round context for free. WHY commentary preserved.
+
+- **JSON helpers generalised + applied repo-wide** in `tests/cli_
+  integration.rs`: `read_sig_json` / `write_sig_json` (introduced in
+  this diff for the S99 Pattern-6 tests) renamed to `read_json_file`
+  / `write_json_file_pretty` and applied to 16 pre-existing inline
+  `serde_json::from_str(&std::fs::read_to_string(...).unwrap()).unwrap()`
+  call sites. Test-fixture noise reduced; new tests in any section can
+  discover the helpers from the shared helper block instead of
+  reinventing the inline form.
+
 ### Round-41 audit — fixes round-40's own bugs + CI hot-fix (2026-05-07)
 
 External round-41 audit returned 9 findings (1 CRIT, 0 HIGH, 4 MED,
