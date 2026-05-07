@@ -177,6 +177,24 @@ impl<'a> AtomicWrite<'a> {
             .sync_all()
             .map_err(|e| CoreError::Internal(format!("fsync tempfile: {e}")))?;
 
+        // Windows DACL hardening — apply BEFORE the atomic rename so
+        // there's no window where the post-rename file at `path`
+        // exists with the parent dir's permissive default DACL (round-
+        // 39 H2 race). NTFS object security descriptors travel with
+        // the inode/MFT entry, so a same-volume rename is just a
+        // directory-entry update — the hardened DACL we apply to the
+        // tempfile here persists across `tmp.persist()` to the final
+        // path. A failure here is fatal: silently leaving the secret-
+        // key file world-readable is worse than failing the write.
+        if self.harden_windows_acl {
+            crate::unified_api::set_local_admin_dacl(tmp.path()).map_err(|e| {
+                CoreError::Internal(format!(
+                    "windows DACL hardening on tempfile {} failed: {e}",
+                    tmp.path().display()
+                ))
+            })?;
+        }
+
         // Atomic rename — the choice between `persist` and `persist_noclobber`
         // is the difference between "atomic but clobber-OK" and "atomic AND
         // refuse to clobber via link(2)+unlink(2)". The earlier shape used
@@ -220,22 +238,9 @@ impl<'a> AtomicWrite<'a> {
             }
         }
 
-        // Windows DACL hardening — the post-rename file inherits the
-        // parent dir's ACL by default, which on a typical user
-        // profile root grants `Users:Read`. `secret_mode()` opts into
-        // replacing that with the workspace owner-only policy. Done
-        // AFTER the rename so the DACL applies to the live target,
-        // not the discarded tempfile inode. A failure here is fatal
-        // — silently leaving the secret-key file world-readable
-        // would be a worse outcome than failing the write.
-        if self.harden_windows_acl {
-            crate::unified_api::set_local_admin_dacl(path).map_err(|e| {
-                CoreError::Internal(format!(
-                    "windows DACL hardening on {} failed: {e}",
-                    path.display()
-                ))
-            })?;
-        }
+        // (Windows DACL hardening was applied to the tempfile above,
+        // BEFORE persist, so the rename preserves the hardened DACL.
+        // No post-rename DACL apply is needed — closes round-39 H2.)
         Ok(())
     }
 }

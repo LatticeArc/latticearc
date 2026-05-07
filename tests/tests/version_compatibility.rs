@@ -586,53 +586,58 @@ fn test_patch_version_serialization_compatibility_is_compatible_succeeds() -> Re
     Ok(())
 }
 
-#[test]
-fn test_api_type_exports_stable_is_compatible_succeeds() {
-    // Core types should be publicly available (compile-time check)
-    // Using fully qualified names to verify exports work from external crates
-    fn check_types() {
-        let _ = std::any::type_name::<EncryptedData>();
-        let _ = std::any::type_name::<SignedData>();
-        let _ = std::any::type_name::<KeyPair>();
-    }
-    check_types();
-    // This test passes if it compiles
-}
-
-#[test]
-fn test_error_types_stable_is_compatible_fails() {
-    // Error types should be stable across versions
-    let _err: CoreError = CoreError::InvalidInput("test".to_string());
-    let _err2: CoreError = CoreError::SerializationError("test".to_string());
-    let _err3: CoreError = CoreError::VerificationFailed;
-
-    // This test passes if it compiles
-}
+// Type-export and ABI-shape checks belong in `static_assertions!`,
+// not `#[test]`. Round-40 M6/L6 migration: previous body was a
+// compile-only `let _ = ...` chain dressed as a test, which left the
+// runner suite green even when the underlying constraint regressed.
+// `static_assertions::assert_impl_all!` / `assert_type_eq_all!` /
+// `const_assert!` fail the BUILD on regression instead.
+static_assertions::assert_impl_all!(EncryptedData: std::fmt::Debug, Clone, Send, Sync);
+static_assertions::assert_impl_all!(SignedData: std::fmt::Debug, Clone, Send, Sync);
+static_assertions::assert_impl_all!(KeyPair: std::fmt::Debug);
+static_assertions::assert_impl_all!(CoreError: std::error::Error, std::fmt::Debug);
 
 #[test]
 fn test_security_level_enum_values_stable_is_compatible_succeeds() {
-    // SecurityLevel variants should be stable
+    // SecurityLevel variants should be stable. The `Default` impl IS
+    // a runtime-observable behaviour (callers depend on `High` being
+    // returned when `default()` is called) — keep this as a real
+    // `#[test]`. Existence of the enum variants is a compile check
+    // and is covered above with `static_assertions`.
     use latticearc::unified_api::SecurityLevel;
 
-    let _standard = SecurityLevel::Standard;
-    let _high = SecurityLevel::High;
-    let _maximum = SecurityLevel::Maximum;
-
-    // Default should be defined
     let default = SecurityLevel::default();
     assert!(matches!(default, SecurityLevel::High), "Default security level should be High");
+    // Pin the equality between every variant ordinal for serde-stability.
+    assert_ne!(SecurityLevel::Standard, SecurityLevel::High);
+    assert_ne!(SecurityLevel::High, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_crypto_config_builder_api_stable_is_compatible_succeeds() {
+    use latticearc::types::types::AlgorithmSelection;
     use latticearc::unified_api::{CryptoConfig, SecurityLevel, UseCase};
 
-    // Builder pattern should be stable
-    let _config = CryptoConfig::new().security_level(SecurityLevel::High);
+    // Builder pattern: round-40 M6 added behavioural assertions so a
+    // regression that turned `security_level(_)` / `use_case(_)` into
+    // no-ops would fail this test. The setters update an internal
+    // `AlgorithmSelection` enum; the test pattern-matches on the
+    // expected variant. Without these matchers, the previous shape
+    // (`let _config = ...`) was a compile-only check.
+    let config = CryptoConfig::new().security_level(SecurityLevel::High);
+    assert!(
+        matches!(config.get_selection(), AlgorithmSelection::SecurityLevel(SecurityLevel::High)),
+        "security_level builder must update AlgorithmSelection::SecurityLevel"
+    );
 
-    let _config_with_use_case = CryptoConfig::new().use_case(UseCase::FileStorage);
-
-    // This test passes if it compiles
+    let config_with_use_case = CryptoConfig::new().use_case(UseCase::FileStorage);
+    assert!(
+        matches!(
+            config_with_use_case.get_selection(),
+            AlgorithmSelection::UseCase(UseCase::FileStorage)
+        ),
+        "use_case builder must update AlgorithmSelection::UseCase"
+    );
 }
 
 #[test]

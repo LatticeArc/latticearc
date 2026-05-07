@@ -96,8 +96,39 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
     let sig_json = String::from_utf8(sig_bytes)
         .with_context(|| format!("{} is not valid UTF-8", args.signature.display()))?;
 
-    // Try SignedData format first (produced by sign --public-key)
-    if let Ok(signed) = latticearc::unified_api::serialization::deserialize_signed_data(&sig_json) {
+    // Detect whether the file is in the SignedData envelope shape
+    // *before* committing to a verifier. The shape check is a
+    // structural pre-pass: if the JSON has the unified-API SignedData
+    // fields (`metadata.signature`, `metadata.signature_algorithm`,
+    // `scheme`), require `deserialize_signed_data` to succeed; any
+    // deserialization failure (including round-38 S4's
+    // signature_algorithm/scheme mismatch reject) collapses to the
+    // opaque "Verification failed" emitted by the cryptographic-
+    // rejection path. Without this, the prior `if let Ok(...)` shape
+    // silently fell through to the legacy auto-detect branch, which
+    // emits a distinguishable "Signature file missing 'algorithm'
+    // field" — letting an attacker tell apart "I tampered with
+    // metadata.signature_algorithm" from "wrong signature" by
+    // branching on the error string (round-39 M1 — Pattern-6).
+    let looks_like_signed_data = serde_json::from_str::<serde_json::Value>(&sig_json)
+        .ok()
+        .and_then(|v| {
+            v.get("metadata")?.get("signature")?;
+            v.get("metadata")?.get("signature_algorithm")?;
+            v.get("scheme")?;
+            Some(())
+        })
+        .is_some();
+    let signed_data_parse =
+        latticearc::unified_api::serialization::deserialize_signed_data(&sig_json);
+    if looks_like_signed_data && signed_data_parse.is_err() {
+        tracing::debug!(
+            error = ?signed_data_parse.as_ref().err(),
+            "verify (SignedData shape detected, parse rejected)"
+        );
+        bail!("Verification failed");
+    }
+    if let Ok(signed) = signed_data_parse {
         // Verify the signed data matches the input file. `signed.data`
         // currently carries public message material, so the comparison
         // doesn't need to be CT in the threat-model sense — but the

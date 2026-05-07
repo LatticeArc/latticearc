@@ -95,6 +95,11 @@ tempfile = { workspace = true }
 tokio-test = "0.4.4"
 wycheproof = "0.6"
 criterion = { workspace = true }
+# Compile-time assertions used by `tests/tests/version_compatibility.rs`
+# (round-40 M6 migration: type-export and trait-impl checks belong in
+# `static_assertions!`, not `#[test]` — runtime tests with no
+# assertions silently pass when the underlying constraint regresses).
+static_assertions = "1.1"
 # Allocation-budget test harness. Exposes `Region::new` for per-call byte deltas.
 # Used by tests/tests/allocation_budgets.rs to enforce per-API alloc ceilings.
 stats_alloc = "0.1"

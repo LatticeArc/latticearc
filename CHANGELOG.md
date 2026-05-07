@@ -9,6 +9,144 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-40 audit — fixes round-39's own bugs (2026-05-07)
+
+External round-40 audit returned 10 findings (3 HIGH, 4 MED, 2 LOW,
+1 DOC). Two MEDs (M2, M3) were verify-tasks that confirmed
+already-correct state; the remaining 8 are fixed here. Round-40
+also closes the round-39 deferral list in the same commit (H2
+DACL race, M6 / L6 vacuous tests, FIPS-state-race-under-coverage),
+and removes the previously-unconditional defer language. Two of the
+ten findings are direct regressions in round-39's own fixes (H3 and
+M1).
+
+#### HIGH
+
+- **H1**: `lib.rs:132` `test-utils` feature doc table claimed
+  `SigmaProof::challenge_mut` was exposed by enabling the feature,
+  but round-35 M3 narrowed the mutator to `#[cfg(test)]` — strictly
+  narrower than `test-utils`. Downstream consumers reading the doc
+  to decide whether to enable `test-utils` saw a soundness-bypass
+  capability that they couldn't actually acquire. The doc now lists
+  only `clear_error_state` / `restore_operational_state` under
+  `test-utils` and adds a parenthetical explaining that
+  `challenge_mut` is reachable only from in-tree lib unit tests.
+  This corrects round-39's D2 dismissal which incorrectly reported
+  the doc as already-accurate.
+
+- **H2**: `latticearc/src/primitives/polynomial/arithmetic.rs` was
+  re-introduced in round-38 (commit `1fbd8f250`) without any module
+  declaration referencing it. Round-36 H6's regression test in
+  `audit_regression_signatures.rs:48,251` explicitly asserts the
+  `primitives::polynomial` module was deleted; the file's silent
+  return contradicted that. Deleted the orphan; `cargo check
+  --workspace --all-features` is unchanged (the file was not part
+  of the build graph).
+
+- **H3**: Round-39 M1's chain-anchor verification ANDed three
+  `bool` values converted from `subtle::Choice<u8>`:
+  ```rust
+  if !(action_ok && prev_file_meta_ok && prev_hash_meta_ok) { ... }
+  ```
+  Rust's `&&` short-circuits, leaking via timing which of the three
+  CT-eq comparisons returned false — exactly the side-channel the
+  CT-compare was supposed to close. Fixed: combine the three
+  `Choice<u8>` values with `subtle::Choice::&` BEFORE the final
+  `.into() -> bool`, so the comparison stays data-independent end
+  to end.
+
+#### MED
+
+- **M1**: `latticearc-cli/src/commands/verify.rs` previously fell
+  through from `if let Ok(signed) = deserialize_signed_data(&sig_json)`
+  to a legacy auto-detect branch when the SignedData parse errored.
+  Round-38 S4's `signature_algorithm`/`scheme` mismatch reject was
+  one such path — and the legacy branch emitted a distinguishable
+  "Signature file missing 'algorithm' field" error, letting an
+  attacker tell apart "I tampered with metadata.signature_algorithm"
+  (S4 reject) from "wrong signature" (verify reject) by branching
+  on the error string. Fixed with a structural pre-pass: if the JSON
+  carries `metadata.signature` + `metadata.signature_algorithm` +
+  `scheme`, deserialize is required to succeed; any failure
+  collapses to the opaque "Verification failed" via `bail!`.
+
+- **M2 (verify task)**: Confirmed parity between
+  `KeyLifecycleRecord::transition()` and `TryFrom`. Both call the
+  same `validate_audit_field` helper with identical names; the
+  512-byte `MAX_AUDIT_FIELD_LEN` cap is enforced consistently
+  across in-memory and deserialization paths. No code change.
+
+- **M3 (verify task)**: Confirmed `unified_api::win_acl` module-level
+  doc already says "three principals only" and "[`set_local_admin_dacl`]
+  (not 'owner-only')". Round-39's M3 rename touched both the function
+  name AND the doc; cross-file callers were updated. No code change.
+
+- **M4**: All round-39 deferred items (H2, M6, L6, FIPS-state-race)
+  are closed in this same commit — see "Closes round-39 deferral
+  list" below. No tracking file shipped because nothing is deferred.
+  D5's round-36b carryovers (M7 entropy hookup, M8 SecretVec
+  zeroize tests, M10 ct-eq bounds, L2 output-cap, L4 Windows
+  mode/fsync, L6 `$TMPDIR`) remain — they predate round-39 and are
+  separate scope; tracking them here would conflate the audits.
+
+#### LOW
+
+- **L1**: Same as H2 (orphan file). Acknowledged as not visible to
+  build, but the round-38 commit message did not explain its
+  reintroduction.
+
+- **L2**: Round-39 H1's byte-by-byte read shape (`reader.read(&mut
+  byte)` per byte) was correct but did one syscall per byte under
+  glibc / Windows. Replaced with `BufRead::fill_buf` + `consume`
+  scanning for `b'\n'` in the buffered chunk: the kernel/buffer
+  combine reads while we still cap accumulation at `MAX_LINE_LEN +
+  1` bytes, aborting the moment the cap is exceeded. The naive
+  `read_until(b'\n', &mut buf)` was tempting but allocates the
+  whole line up front (same shape as `BufReader::lines()`'s
+  unbounded behaviour H1 fixed) — explicitly NOT used.
+
+#### DOC
+
+- **D1**: CHANGELOG round-39 D2 entry struck through with a
+  reference to round-40 H1's actual fix. The dismissal was wrong;
+  the doc IS updated now.
+
+#### Closes round-39 deferral list (no defer this round)
+
+- **H2 (AtomicWrite DACL race)**: `set_local_admin_dacl` now applies
+  to `tmp.path()` BEFORE `tmp.persist(path)`. NTFS object security
+  descriptors travel with the inode/MFT entry; same-volume rename is
+  just a directory-entry update, so the hardened DACL we apply to
+  the tempfile persists across the rename. The post-rename DACL
+  apply is removed; the race window is closed.
+- **M6 / L6 (vacuous tests)**: `tests/tests/version_compatibility.rs`
+  type-export and trait-impl checks migrated to
+  `static_assertions::assert_impl_all!` (build-time failure, not
+  silent runtime pass). `test_security_level_enum_values_stable_*`
+  and `test_crypto_config_builder_api_stable_*` gained behavioural
+  assertions on the `Default` impl and the
+  `AlgorithmSelection`-update side-effect of the builder methods.
+  `tests/tests/api_stability.rs::test_core_error_variants_are_stable`
+  rewritten to use a `check_variant` helper that exercises `Display`,
+  `error::Error::source`, `Send + Sync` for every variant — a
+  regression where `Display` started emitting empty strings or the
+  trait conformance was lost would now fail the test, not the
+  type-checker.
+- **FIPS-state-race-under-coverage** (round-39c CI red): added a
+  `FipsStateGuard` RAII helper in `primitives::self_test::tests`
+  whose `Drop` impl calls `restore_operational_state()` (sets
+  `SELF_TEST_PASSED = true` SeqCst, clears the error code +
+  timestamp). Each of the 15 FIPS-module-state-mutating tests now
+  starts with `let _guard = FipsStateGuard;` so that — even on
+  panic — the global state is restored before the next concurrent
+  test sees it. (`serial_test`-style serialisation was tried first
+  and was strictly worse: it widened the false-state window from
+  "during this test only" to "during this test AND every concurrent
+  reader the queue blocks on", which cascaded the failure into
+  hundreds of unrelated `unified_api::convenience::pq_kem` tests
+  — see the round-40b commit history for the empirical confirmation.
+  The Drop-guard pattern keeps the window scoped.)
+
 ### Round-39 audit — fixes round-37 / round-38's own bugs (2026-05-06)
 
 External round-39 audit found 23 valid issues in the round-37 + round-38
@@ -151,10 +289,14 @@ deferred to round-40 with explicit dispositions in this CHANGELOG.
 - **D1**: CHANGELOG round-30 reference to
   `latticearc/tests/round30_behavior.rs` left stale by the
   consolidation into named files. Removed the dead reference.
-- **D2**: `lib.rs:132` documentation IS already accurate (round-35 M3
-  narrowed `SigmaProof::challenge_mut` to `cfg(test)` only;
-  `test-utils` feature doc reflects this correctly). Auditor's claim
-  was a misread; no change needed.
+- **D2**: ~~`lib.rs:132` documentation IS already accurate~~ —
+  **this dismissal was incorrect**, see round-40 H1 for the actual
+  fix. The original auditor was right: `SigmaProof::challenge_mut`
+  was listed under the `test-utils` feature doc, but round-35 M3
+  narrowed it to `#[cfg(test)]` (lib unit tests only — strictly
+  narrower than `test-utils`), so enabling the feature does NOT
+  expose it. Round-40 H1 rewrites the doc table entry and adds a
+  parenthetical explaining the previous misattribution.
 - **D3**: CHANGELOG round-31 reference to `ntt_processor.rs` (deleted
   by round-36 H6) marked stale.
 - **D4 (auditor mis-cited)**: Round-36 H8 entry text was already

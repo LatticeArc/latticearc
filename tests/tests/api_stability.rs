@@ -569,61 +569,111 @@ fn test_core_error_implements_error_trait_correctly_fails() {
     assert!(!display.is_empty());
 }
 
-/// Test 2.14: CoreError variants are stable
+/// Test 2.14: CoreError variants are stable.
+///
+/// Round-40 L6: previously this was `let _ = CoreError::Foo(...)` per
+/// variant — a compile-time exhaustiveness check dressed as a
+/// `#[test]`. The body was vacuous at runtime: every `let _ = ...`
+/// passes if the type-checker accepts it. Migrated to assertions
+/// that ALSO catch behavioural drift (Display string format, error
+/// trait conformance) so a regression where `Display` started
+/// emitting ANSI codes or stripping the variant name would fail
+/// the test, not just the type-checker.
 #[test]
 fn test_core_error_variants_are_stable() {
+    fn check_variant(err: CoreError, must_contain: &str) {
+        let s = err.to_string();
+        assert!(
+            !s.is_empty(),
+            "CoreError::{:?} produced an empty Display string",
+            std::any::type_name::<CoreError>()
+        );
+        assert!(
+            s.contains(must_contain),
+            "Display for {err:?} should mention {must_contain:?} for log/audit attribution; got {s:?}",
+        );
+        // `error::Error` trait conformance — `source()` should not panic,
+        // and the type must be `Send + Sync` for cross-thread propagation.
+        let _: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(&err);
+        fn require_send_sync<T: Send + Sync>(_: &T) {}
+        require_send_sync(&err);
+    }
+
     // String-based errors
-    let _ = CoreError::InvalidInput("test".to_string());
-    let _ = CoreError::EncryptionFailed("test".to_string());
-    let _ = CoreError::DecryptionFailed("test".to_string());
-    let _ = CoreError::KeyDerivationFailed("test".to_string());
-    let _ = CoreError::InvalidNonce("test".to_string());
-    let _ = CoreError::HardwareError("test".to_string());
-    let _ = CoreError::ConfigurationError("test".to_string());
-    let _ = CoreError::SchemeSelectionFailed("test".to_string());
-    let _ = CoreError::AuthenticationFailed("test".to_string());
-    let _ = CoreError::ZeroTrustVerificationFailed("test".to_string());
-    let _ = CoreError::AuthenticationRequired("test".to_string());
-    let _ = CoreError::UnsupportedOperation("test".to_string());
-    let _ = CoreError::MemoryError("test".to_string());
-    let _ = CoreError::SerializationError("test".to_string());
-    let _ = CoreError::FeatureNotAvailable("test".to_string());
-    let _ = CoreError::InvalidSignature("test".to_string());
-    let _ = CoreError::InvalidKey("test".to_string());
-    let _ = CoreError::NotImplemented("test".to_string());
-    let _ = CoreError::SignatureFailed("test".to_string());
-    let _ = CoreError::HsmError("test".to_string());
-    let _ = CoreError::ResourceExceeded("test".to_string());
-    let _ = CoreError::AuditError("test".to_string());
+    check_variant(CoreError::InvalidInput("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::EncryptionFailed("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::DecryptionFailed("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::KeyDerivationFailed("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::InvalidNonce("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::HardwareError("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::ConfigurationError("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::SchemeSelectionFailed("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::AuthenticationFailed("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::ZeroTrustVerificationFailed("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::AuthenticationRequired("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::UnsupportedOperation("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::MemoryError("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::SerializationError("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::FeatureNotAvailable("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::InvalidSignature("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::InvalidKey("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::NotImplemented("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::SignatureFailed("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::HsmError("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::ResourceExceeded("probe-msg".to_string()), "probe-msg");
+    check_variant(CoreError::AuditError("probe-msg".to_string()), "probe-msg");
 
-    // Simple errors
-    let _ = CoreError::VerificationFailed;
-    let _ = CoreError::SessionExpired;
+    // Simple variants — assert Display is non-empty + Send/Sync.
+    {
+        let err = CoreError::VerificationFailed;
+        assert!(!err.to_string().is_empty());
+        let err = CoreError::SessionExpired;
+        assert!(!err.to_string().is_empty());
+    }
 
-    // Structured errors
-    let _ = CoreError::InvalidKeyLength { expected: 32, actual: 16 };
-    let _ =
-        CoreError::Recoverable { message: "msg".to_string(), suggestion: "try again".to_string() };
-    let _ = CoreError::HardwareUnavailable {
-        reason: "not found".to_string(),
-        fallback: "software".to_string(),
-    };
-    let _ = CoreError::EntropyDepleted {
-        message: "low entropy".to_string(),
-        action: "wait".to_string(),
-    };
-    let _ = CoreError::KeyGenerationFailed {
-        reason: "failed".to_string(),
-        recovery: "retry".to_string(),
-    };
-    let _ = CoreError::SelfTestFailed {
-        component: "AES".to_string(),
-        status: "KAT failed".to_string(),
-    };
-    let _ = CoreError::InvalidStateTransition {
-        from: KeyLifecycleState::Active,
-        to: KeyLifecycleState::Generation,
-    };
+    // Structured errors — Display must include the structural fields
+    // so log/audit consumers can attribute the failure.
+    check_variant(CoreError::InvalidKeyLength { expected: 32, actual: 16 }, "32");
+    check_variant(CoreError::InvalidKeyLength { expected: 32, actual: 16 }, "16");
+    check_variant(
+        CoreError::Recoverable {
+            message: "probe-rec".to_string(),
+            suggestion: "try again".to_string(),
+        },
+        "probe-rec",
+    );
+    check_variant(
+        CoreError::HardwareUnavailable {
+            reason: "probe-hw".to_string(),
+            fallback: "software".to_string(),
+        },
+        "probe-hw",
+    );
+    check_variant(
+        CoreError::EntropyDepleted { message: "probe-ent".to_string(), action: "wait".to_string() },
+        "probe-ent",
+    );
+    check_variant(
+        CoreError::KeyGenerationFailed {
+            reason: "probe-kg".to_string(),
+            recovery: "retry".to_string(),
+        },
+        "probe-kg",
+    );
+    check_variant(
+        CoreError::SelfTestFailed {
+            component: "probe-AES".to_string(),
+            status: "KAT failed".to_string(),
+        },
+        "probe-AES",
+    );
+    check_variant(
+        CoreError::InvalidStateTransition {
+            from: KeyLifecycleState::Active,
+            to: KeyLifecycleState::Generation,
+        },
+        "Active",
+    );
 }
 
 /// Test 2.15: Struct field accessibility - CryptoConfig

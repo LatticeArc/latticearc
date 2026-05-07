@@ -1302,7 +1302,7 @@ impl FileAuditStorage {
         let mut previous_file_final_hash: Option<String> = None;
 
         for file in &log_files {
-            use std::io::Read;
+            use std::io::BufRead;
             let f = File::open(file).map_err(|e| {
                 CoreError::AuditError(format!("Failed to open {}: {}", file.display(), e))
             })?;
@@ -1311,54 +1311,83 @@ impl FileAuditStorage {
             // non-empty event of this file (used for the cross-file
             // anchor check below).
             let mut first_event_in_file = true;
-            // Bounded line-reader. `BufReader::lines()` allocates the
-            // whole `String` BEFORE returning it, so a 1 GiB
-            // newline-free file would OOM the verifier before the
-            // post-decode `MAX_LINE_LEN` check fires. Read byte-by-
-            // byte through a buffer we control: as soon as the
-            // accumulator exceeds `MAX_LINE_LEN`, abort with an
-            // error — bytes past the cap are never allocated.
+            // Bounded line-reader. `BufReader::lines()` (round-37 M2
+            // shape) and the obvious `read_until(b'\n', &mut buf)`
+            // BOTH allocate the whole line BEFORE returning, so a
+            // 1 GiB newline-free file would OOM the verifier before
+            // any post-decode `MAX_LINE_LEN` check could fire.
+            //
+            // We use `BufRead::fill_buf` / `consume` to scan for
+            // `b'\n'` in the buffered region and accumulate at most
+            // `MAX_LINE_LEN + 1` bytes into `line_buf` per line.
+            // The +1 byte lets us detect the over-cap case
+            // unambiguously (the cap is exclusive). Round-39's first
+            // pass used per-byte `reader.read()` which was correct
+            // but did one syscall per byte; this shape keeps the
+            // bound while letting the kernel/buffer combine reads.
             let mut line_buf: Vec<u8> = Vec::new();
-            let mut byte = [0u8; 1];
             let mut line_idx: usize = 0;
-            let mut hit_eof = false;
             loop {
+                line_buf.clear();
+                let mut hit_newline = false;
+                let mut hit_eof = false;
+                while !hit_newline && !hit_eof {
+                    let buf = reader.fill_buf().map_err(|e| {
+                        CoreError::AuditError(format!("Failed to read line: {}", e))
+                    })?;
+                    if buf.is_empty() {
+                        hit_eof = true;
+                        break;
+                    }
+                    // How many bytes can we still accumulate before
+                    // crossing `MAX_LINE_LEN + 1`? Stop the moment
+                    // we'd cross — that's the cap-exceeded signal.
+                    let remaining_room =
+                        MAX_LINE_LEN.saturating_add(1).saturating_sub(line_buf.len());
+                    let scan_end = buf.len().min(remaining_room);
+                    let scan_slice = buf.get(..scan_end).ok_or_else(|| {
+                        CoreError::AuditError("buffer slice index OOB".to_string())
+                    })?;
+                    if let Some(rel) = scan_slice.iter().position(|&b| b == b'\n') {
+                        // Found the newline within the room budget —
+                        // append up to (but excluding) it, consume
+                        // the newline.
+                        let prefix = scan_slice
+                            .get(..rel)
+                            .ok_or_else(|| CoreError::AuditError("prefix slice OOB".to_string()))?;
+                        line_buf.extend_from_slice(prefix);
+                        let consume_n = rel.saturating_add(1);
+                        reader.consume(consume_n);
+                        hit_newline = true;
+                    } else if scan_end < buf.len() {
+                        // No newline within room budget AND there's
+                        // more data in the kernel buffer — that
+                        // means this line exceeds the cap. Append
+                        // the room budget so the over-cap check
+                        // below trips deterministically, and consume
+                        // those bytes so the next iteration doesn't
+                        // see them again.
+                        line_buf.extend_from_slice(scan_slice);
+                        reader.consume(scan_end);
+                    } else {
+                        // No newline yet, but the entire buffered
+                        // chunk fits within room — append, consume,
+                        // refill.
+                        line_buf.extend_from_slice(scan_slice);
+                        reader.consume(scan_end);
+                    }
+                }
                 if hit_eof && line_buf.is_empty() {
                     break;
                 }
-                let n = if hit_eof {
-                    0
-                } else {
-                    match reader.read(&mut byte) {
-                        Ok(n) => n,
-                        Err(e) => {
-                            return Err(CoreError::AuditError(format!(
-                                "Failed to read line: {}",
-                                e
-                            )));
-                        }
-                    }
-                };
-                if n == 0 {
-                    hit_eof = true;
-                    if line_buf.is_empty() {
-                        break;
-                    }
-                } else if byte[0] != b'\n' {
-                    if line_buf.len() >= MAX_LINE_LEN {
-                        return Err(CoreError::AuditError(format!(
-                            "audit line {} of {} exceeds maximum length {}",
-                            line_idx,
-                            file.display(),
-                            MAX_LINE_LEN
-                        )));
-                    }
-                    line_buf.push(byte[0]);
-                    continue;
+                if line_buf.len() > MAX_LINE_LEN {
+                    return Err(CoreError::AuditError(format!(
+                        "audit line {} of {} exceeds maximum length {}",
+                        line_idx,
+                        file.display(),
+                        MAX_LINE_LEN
+                    )));
                 }
-                // EOL or EOF reached — process the accumulated line
-                // (which is guaranteed `<= MAX_LINE_LEN` bytes by the
-                // cap above).
                 let line = match std::str::from_utf8(&line_buf) {
                     Ok(s) => s.to_string(),
                     Err(e) => {
@@ -1370,7 +1399,6 @@ impl FileAuditStorage {
                         )));
                     }
                 };
-                line_buf.clear();
                 let saved_idx = line_idx;
                 line_idx = line_idx.saturating_add(1);
                 if line.trim().is_empty() {
@@ -1447,23 +1475,30 @@ impl FileAuditStorage {
                         // produces deterministic timestamped names),
                         // so they don't need CT-compare — but we use
                         // the same primitive for consistency.
+                        //
+                        // The three `ct_eq` results are combined with
+                        // `subtle::Choice::&` BEFORE the final
+                        // `.into() -> bool`. A naïve `bool && bool &&
+                        // bool` shape would short-circuit on the first
+                        // false result, leaking via timing which of
+                        // the three checks failed (round-39 H3
+                        // regression). Combining `Choice<u8>` values
+                        // keeps the comparison data-independent.
                         use subtle::ConstantTimeEq;
-                        let action_ok =
+                        let action_eq =
                             event.action.as_bytes().ct_eq(CHAIN_ANCHOR_ACTION.as_bytes());
-                        let prev_file_meta_ok = event
+                        let prev_file_eq = event
                             .metadata
                             .get(CHAIN_ANCHOR_PREV_FILE_KEY)
                             .map(|v| v.as_bytes().ct_eq(prev_name.as_bytes()))
                             .unwrap_or_else(|| 0u8.ct_eq(&1u8));
-                        let prev_hash_meta_ok = event
+                        let prev_hash_eq = event
                             .metadata
                             .get(CHAIN_ANCHOR_PREV_HASH_KEY)
                             .map(|v| v.as_bytes().ct_eq(prev_final_hash.as_bytes()))
                             .unwrap_or_else(|| 0u8.ct_eq(&1u8));
-                        let action_ok: bool = action_ok.into();
-                        let prev_file_meta_ok: bool = prev_file_meta_ok.into();
-                        let prev_hash_meta_ok: bool = prev_hash_meta_ok.into();
-                        if !(action_ok && prev_file_meta_ok && prev_hash_meta_ok) {
+                        let consistent: bool = (action_eq & prev_file_eq & prev_hash_eq).into();
+                        if !consistent {
                             // Surface as a chain mismatch on this line —
                             // matches the existing reporting shape so
                             // callers don't need a second error

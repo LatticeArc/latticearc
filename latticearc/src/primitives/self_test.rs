@@ -1633,6 +1633,36 @@ pub fn verify_operational() -> Result<()> {
 mod tests {
     use super::*;
 
+    /// RAII guard that restores `SELF_TEST_PASSED = true` and clears
+    /// the module error state when dropped. Tests that deliberately
+    /// set the FIPS module to an error state to exercise blocking
+    /// behaviour MUST instantiate this at the top of the test body
+    /// so that — even on panic — the global state is restored before
+    /// the next test (which may run in parallel and depend on
+    /// `is_module_operational()` returning true) starts. Without
+    /// this, a parallel runner schedules a state-reading test
+    /// during the brief window where SELF_TEST_PASSED is false and
+    /// it (correctly) reports the module as non-operational, then
+    /// fails its own assertion.
+    ///
+    /// `serial_test`-style serialisation was tried in round-40b and
+    /// was strictly worse: it widened the false-state window from
+    /// "during this test only" to "during this test AND every
+    /// concurrent reader the queue blocks on", which cascaded the
+    /// failure into hundreds of unrelated tests. The guard pattern
+    /// keeps the window scoped to the test body.
+    struct FipsStateGuard;
+    impl Drop for FipsStateGuard {
+        fn drop(&mut self) {
+            // `restore_operational_state` is the canonical "bring
+            // the module back to operational" entry point used by
+            // the `clear_error_state` doc-tests. It sets
+            // SELF_TEST_PASSED = true (SeqCst) and clears the error
+            // code + timestamp.
+            restore_operational_state();
+        }
+    }
+
     #[test]
     fn test_sha256_kat_passes() {
         assert!(kat_sha256().is_ok());
@@ -1687,6 +1717,7 @@ mod tests {
 
     #[test]
     fn test_initialize_and_verify_sets_passed_flag_succeeds() {
+        let _guard = FipsStateGuard;
         // Reset state for test
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
 
@@ -1765,6 +1796,7 @@ mod tests {
 
     #[test]
     fn test_set_and_get_module_error_succeeds() {
+        let _guard = FipsStateGuard;
         // Clear any existing error state
         clear_error_state();
 
@@ -1790,6 +1822,7 @@ mod tests {
 
     #[test]
     fn test_is_module_operational_succeeds() {
+        let _guard = FipsStateGuard;
         // Clear any existing state
         clear_error_state();
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
@@ -1813,6 +1846,7 @@ mod tests {
 
     #[test]
     fn test_verify_operational_with_error_state_fails() {
+        let _guard = FipsStateGuard;
         // Clear any existing state and initialize
         clear_error_state();
         let result = initialize_and_test();
@@ -1840,6 +1874,7 @@ mod tests {
 
     #[test]
     fn test_set_error_clears_self_test_passed_fails() {
+        let _guard = FipsStateGuard;
         // Initialize and verify self-tests passed
         clear_error_state();
         let result = initialize_and_test();
@@ -1893,6 +1928,7 @@ mod tests {
 
     #[test]
     fn test_set_module_error_no_error_does_not_clear_self_test_fails() {
+        let _guard = FipsStateGuard;
         // Setting NoError should not clear self_test_passed flag
         clear_error_state();
         let result = initialize_and_test();
@@ -1978,6 +2014,7 @@ mod tests {
 
     #[test]
     fn test_verify_operational_without_self_tests_fails() {
+        let _guard = FipsStateGuard;
         // Reset state: no error, but self-tests not passed
         clear_error_state();
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
@@ -1994,6 +2031,7 @@ mod tests {
 
     #[test]
     fn test_multiple_error_states_in_sequence_fails() {
+        let _guard = FipsStateGuard;
         clear_error_state();
 
         // Set different errors in sequence
@@ -2095,6 +2133,7 @@ mod tests {
 
     #[test]
     fn test_module_error_state_no_error_timestamp_zero_fails() {
+        let _guard = FipsStateGuard;
         clear_error_state();
         let state = get_module_error_state();
         assert!(!state.is_error());
@@ -2103,6 +2142,7 @@ mod tests {
 
     #[test]
     fn test_module_error_state_error_has_nonzero_timestamp_fails() {
+        let _guard = FipsStateGuard;
         clear_error_state();
         set_module_error(ModuleErrorCode::SelfTestFailure);
         let state = get_module_error_state();
@@ -2117,6 +2157,7 @@ mod tests {
 
     #[test]
     fn test_verify_operational_error_message_contains_description_fails() {
+        let _guard = FipsStateGuard;
         clear_error_state();
         set_module_error(ModuleErrorCode::EntropyFailure);
 
@@ -2134,6 +2175,7 @@ mod tests {
 
     #[test]
     fn test_all_error_codes_block_operations_fails() {
+        let _guard = FipsStateGuard;
         let error_codes = [
             ModuleErrorCode::SelfTestFailure,
             ModuleErrorCode::EntropyFailure,
@@ -2168,6 +2210,7 @@ mod tests {
 
     #[test]
     fn test_initialize_and_test_sets_flag_succeeds() {
+        let _guard = FipsStateGuard;
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
         clear_error_state();
         assert!(!self_tests_passed());
@@ -2271,6 +2314,7 @@ mod tests {
 
     #[test]
     fn test_error_state_timestamp_ordering_fails() {
+        let _guard = FipsStateGuard;
         clear_error_state();
 
         // Set first error
@@ -2293,6 +2337,7 @@ mod tests {
 
     #[test]
     fn test_verify_operational_after_reset_succeeds() {
+        let _guard = FipsStateGuard;
         // Set error state
         set_module_error(ModuleErrorCode::HsmError);
         assert!(verify_operational().is_err());
