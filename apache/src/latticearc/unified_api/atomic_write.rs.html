@@ -197,89 +197,111 @@
 <a href=#197 id=197 data-nosnippet>197</a>            // from raw disk until those clusters get reallocated.
 <a href=#198 id=198 data-nosnippet>198</a>            //
 <a href=#199 id=199 data-nosnippet>199</a>            // Sequence:
-<a href=#200 id=200 data-nosnippet>200</a>            //   1. seek-and-overwrite with zeros for the active
-<a href=#201 id=201 data-nosnippet>201</a>            //      length (NTFS resident-data files &lt;~700 B are
-<a href=#202 id=202 data-nosnippet>202</a>            //      truly zeroed; for cluster-resident files the
-<a href=#203 id=203 data-nosnippet>203</a>            //      currently-mapped clusters are zeroed before
-<a href=#204 id=204 data-nosnippet>204</a>            //      release)
-<a href=#205 id=205 data-nosnippet>205</a>            //   2. sync_all so the zeros hit disk before truncate
-<a href=#206 id=206 data-nosnippet>206</a>            //   3. set_len(0) releases the now-zeroed clusters
-<a href=#207 id=207 data-nosnippet>207</a>            // All operations are best-effort (`let _ =`) — we are
-<a href=#208 id=208 data-nosnippet>208</a>            // already in the error-return path; secondary I/O
-<a href=#209 id=209 data-nosnippet>209</a>            // failures here cannot improve the user-visible error
-<a href=#210 id=210 data-nosnippet>210</a>            // and `tmp`'s drop will still unlink either way.
-<a href=#211 id=211 data-nosnippet>211</a>            </span><span class="kw">use </span>std::io::{Seek, SeekFrom, Write};
-<a href=#212 id=212 data-nosnippet>212</a>            <span class="kw">const </span>ZERO_CHUNK: [u8; <span class="number">4096</span>] = [<span class="number">0u8</span>; <span class="number">4096</span>];
-<a href=#213 id=213 data-nosnippet>213</a>            <span class="kw">let </span>f = tmp.as_file_mut();
-<a href=#214 id=214 data-nosnippet>214</a>            <span class="kw">let _ </span>= f.seek(SeekFrom::Start(<span class="number">0</span>));
-<a href=#215 id=215 data-nosnippet>215</a>            <span class="kw">let </span><span class="kw-2">mut </span>remaining = <span class="self">self</span>.bytes.len();
-<a href=#216 id=216 data-nosnippet>216</a>            <span class="kw">while </span>remaining &gt; <span class="number">0 </span>{
-<a href=#217 id=217 data-nosnippet>217</a>                <span class="kw">let </span>n = remaining.min(ZERO_CHUNK.len());
-<a href=#218 id=218 data-nosnippet>218</a>                <span class="attr">#[allow(clippy::indexing_slicing)]
-<a href=#219 id=219 data-nosnippet>219</a>                </span><span class="comment">// SAFETY: `n = remaining.min(ZERO_CHUNK.len())`
-<a href=#220 id=220 data-nosnippet>220</a>                // ⇒ `n ≤ ZERO_CHUNK.len()` ⇒ `&amp;ZERO_CHUNK[..n]` is
-<a href=#221 id=221 data-nosnippet>221</a>                // in-bounds. (no possible panic)
-<a href=#222 id=222 data-nosnippet>222</a>                </span><span class="kw">let </span>chunk = <span class="kw-2">&amp;</span>ZERO_CHUNK[..n];
-<a href=#223 id=223 data-nosnippet>223</a>                <span class="kw">if </span>f.write_all(chunk).is_err() {
-<a href=#224 id=224 data-nosnippet>224</a>                    <span class="kw">break</span>;
-<a href=#225 id=225 data-nosnippet>225</a>                }
-<a href=#226 id=226 data-nosnippet>226</a>                remaining = remaining.saturating_sub(n);
-<a href=#227 id=227 data-nosnippet>227</a>            }
-<a href=#228 id=228 data-nosnippet>228</a>            <span class="kw">let _ </span>= f.sync_all();
-<a href=#229 id=229 data-nosnippet>229</a>            <span class="kw">let _ </span>= f.set_len(<span class="number">0</span>);
-<a href=#230 id=230 data-nosnippet>230</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::Internal(<span class="macro">format!</span>(
-<a href=#231 id=231 data-nosnippet>231</a>                <span class="string">"windows DACL hardening on tempfile {} failed: {e}"</span>,
-<a href=#232 id=232 data-nosnippet>232</a>                tmp.path().display()
-<a href=#233 id=233 data-nosnippet>233</a>            )));
-<a href=#234 id=234 data-nosnippet>234</a>        }
-<a href=#235 id=235 data-nosnippet>235</a>
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="comment">// Atomic rename — the choice between `persist` and `persist_noclobber`
-<a href=#237 id=237 data-nosnippet>237</a>        // is the difference between "atomic but clobber-OK" and "atomic AND
-<a href=#238 id=238 data-nosnippet>238</a>        // refuse to clobber via link(2)+unlink(2)". The earlier shape used
-<a href=#239 id=239 data-nosnippet>239</a>        // `path.exists()` + `persist`, which had a TOCTOU window: another
-<a href=#240 id=240 data-nosnippet>240</a>        // process could create `path` between the check and the rename and
-<a href=#241 id=241 data-nosnippet>241</a>        // get silently overwritten. `persist_noclobber` collapses both
-<a href=#242 id=242 data-nosnippet>242</a>        // into a single syscall, so the exclusive-create guarantee is real,
-<a href=#243 id=243 data-nosnippet>243</a>        // not best-effort.
-<a href=#244 id=244 data-nosnippet>244</a>        </span><span class="kw">if </span><span class="self">self</span>.overwrite_existing {
-<a href=#245 id=245 data-nosnippet>245</a>            tmp.persist(path).map_err(|e| {
-<a href=#246 id=246 data-nosnippet>246</a>                CoreError::Internal(<span class="macro">format!</span>(<span class="string">"atomic rename to {}: {e}"</span>, path.display()))
-<a href=#247 id=247 data-nosnippet>247</a>            })<span class="question-mark">?</span>;
-<a href=#248 id=248 data-nosnippet>248</a>        } <span class="kw">else </span>{
-<a href=#249 id=249 data-nosnippet>249</a>            tmp.persist_noclobber(path).map_err(|e| {
-<a href=#250 id=250 data-nosnippet>250</a>                <span class="comment">// tempfile's `PersistError` carries the source io::Error;
-<a href=#251 id=251 data-nosnippet>251</a>                // surface AlreadyExists as the user-facing
-<a href=#252 id=252 data-nosnippet>252</a>                // ConfigurationError ("refusing to overwrite") and wrap any
-<a href=#253 id=253 data-nosnippet>253</a>                // other I/O failure as Internal.
-<a href=#254 id=254 data-nosnippet>254</a>                </span><span class="kw">if </span>e.error.kind() == std::io::ErrorKind::AlreadyExists {
-<a href=#255 id=255 data-nosnippet>255</a>                    CoreError::ConfigurationError(<span class="macro">format!</span>(
-<a href=#256 id=256 data-nosnippet>256</a>                        <span class="string">"Refusing to overwrite existing file: {}. \
-<a href=#257 id=257 data-nosnippet>257</a>                         Pass --force (or pre-delete the file) if this is intentional."</span>,
-<a href=#258 id=258 data-nosnippet>258</a>                        path.display()
-<a href=#259 id=259 data-nosnippet>259</a>                    ))
-<a href=#260 id=260 data-nosnippet>260</a>                } <span class="kw">else </span>{
-<a href=#261 id=261 data-nosnippet>261</a>                    CoreError::Internal(<span class="macro">format!</span>(<span class="string">"atomic rename to {}: {e}"</span>, path.display()))
-<a href=#262 id=262 data-nosnippet>262</a>                }
-<a href=#263 id=263 data-nosnippet>263</a>            })<span class="question-mark">?</span>;
-<a href=#264 id=264 data-nosnippet>264</a>        }
-<a href=#265 id=265 data-nosnippet>265</a>
-<a href=#266 id=266 data-nosnippet>266</a>        <span class="comment">// fsync the parent directory so the rename is durable across a
-<a href=#267 id=267 data-nosnippet>267</a>        // power-loss event. Without this step, on ext4/XFS with the
-<a href=#268 id=268 data-nosnippet>268</a>        // default `data=ordered` the directory entry can be flushed after
-<a href=#269 id=269 data-nosnippet>269</a>        // the file inode but before the rename, leaving the file
-<a href=#270 id=270 data-nosnippet>270</a>        // unrecoverable. Best-effort on non-Unix platforms (Windows
-<a href=#271 id=271 data-nosnippet>271</a>        // doesn't expose a parent-fsync primitive in the same way).
-<a href=#272 id=272 data-nosnippet>272</a>        </span><span class="attr">#[cfg(unix)]
-<a href=#273 id=273 data-nosnippet>273</a>        </span>{
-<a href=#274 id=274 data-nosnippet>274</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(dir) = std::fs::File::open(parent) {
-<a href=#275 id=275 data-nosnippet>275</a>                <span class="kw">let _ </span>= dir.sync_all();
-<a href=#276 id=276 data-nosnippet>276</a>            }
-<a href=#277 id=277 data-nosnippet>277</a>        }
-<a href=#278 id=278 data-nosnippet>278</a>
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="comment">// (Windows DACL hardening was applied to the tempfile above,
-<a href=#280 id=280 data-nosnippet>280</a>        // BEFORE persist, so the rename preserves the hardened DACL.
-<a href=#281 id=281 data-nosnippet>281</a>        // No post-rename DACL apply is needed — closes round-39 H2.)
-<a href=#282 id=282 data-nosnippet>282</a>        </span><span class="prelude-val">Ok</span>(())
-<a href=#283 id=283 data-nosnippet>283</a>    }
-<a href=#284 id=284 data-nosnippet>284</a>}
+<a href=#200 id=200 data-nosnippet>200</a>            //   1. seek-to-start (MUST succeed — see below)
+<a href=#201 id=201 data-nosnippet>201</a>            //   2. write zeros for the active length (NTFS resident-
+<a href=#202 id=202 data-nosnippet>202</a>            //      data files &lt;~700 B are truly zeroed; for cluster-
+<a href=#203 id=203 data-nosnippet>203</a>            //      resident files the currently-mapped clusters are
+<a href=#204 id=204 data-nosnippet>204</a>            //      zeroed before release)
+<a href=#205 id=205 data-nosnippet>205</a>            //   3. sync_all so the zeros hit disk before truncate
+<a href=#206 id=206 data-nosnippet>206</a>            //   4. set_len(0) releases the now-zeroed clusters
+<a href=#207 id=207 data-nosnippet>207</a>            //
+<a href=#208 id=208 data-nosnippet>208</a>            // Steps 2-4 are best-effort (`let _ =`) — if zero-write or
+<a href=#209 id=209 data-nosnippet>209</a>            // sync fails partway, the active clusters still hold a mix
+<a href=#210 id=210 data-nosnippet>210</a>            // of zeros and original bytes, which is strictly better
+<a href=#211 id=211 data-nosnippet>211</a>            // than the no-scrub baseline. Only the seek MUST succeed:
+<a href=#212 id=212 data-nosnippet>212</a>            // without rewinding, write_all would APPEND zeros after the
+<a href=#213 id=213 data-nosnippet>213</a>            // already-written secret bytes (extending the file from N
+<a href=#214 id=214 data-nosnippet>214</a>            // to 2N), then `set_len(0)` would release the original N
+<a href=#215 id=215 data-nosnippet>215</a>            // bytes of plaintext to the free-cluster pool. That is
+<a href=#216 id=216 data-nosnippet>216</a>            // worse than returning early without scrubbing — a silent
+<a href=#217 id=217 data-nosnippet>217</a>            // failure that claims to scrub. So a seek failure aborts
+<a href=#218 id=218 data-nosnippet>218</a>            // the scrub and surfaces in the returned error.
+<a href=#219 id=219 data-nosnippet>219</a>            </span><span class="kw">use </span>std::io::{Seek, SeekFrom, Write};
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="kw">const </span>ZERO_CHUNK: [u8; <span class="number">4096</span>] = [<span class="number">0u8</span>; <span class="number">4096</span>];
+<a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">let </span>f = tmp.as_file_mut();
+<a href=#222 id=222 data-nosnippet>222</a>            <span class="kw">if let </span><span class="prelude-val">Err</span>(seek_err) = f.seek(SeekFrom::Start(<span class="number">0</span>)) {
+<a href=#223 id=223 data-nosnippet>223</a>                <span class="comment">// Don't fall through to write_all + set_len(0) — that
+<a href=#224 id=224 data-nosnippet>224</a>                // would propagate the secret without zeroing it. tmp's
+<a href=#225 id=225 data-nosnippet>225</a>                // drop still unlinks, releasing the original clusters
+<a href=#226 id=226 data-nosnippet>226</a>                // un-scrubbed; surface the seek failure so the operator
+<a href=#227 id=227 data-nosnippet>227</a>                // can decide whether to wipe the volume's free-cluster
+<a href=#228 id=228 data-nosnippet>228</a>                // pool.
+<a href=#229 id=229 data-nosnippet>229</a>                </span><span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::Internal(<span class="macro">format!</span>(
+<a href=#230 id=230 data-nosnippet>230</a>                    <span class="string">"windows DACL hardening on tempfile {} failed: {e}; \
+<a href=#231 id=231 data-nosnippet>231</a>                     plaintext-scrub aborted because seek-to-start failed: {seek_err}"</span>,
+<a href=#232 id=232 data-nosnippet>232</a>                    tmp.path().display()
+<a href=#233 id=233 data-nosnippet>233</a>                )));
+<a href=#234 id=234 data-nosnippet>234</a>            }
+<a href=#235 id=235 data-nosnippet>235</a>            <span class="kw">let </span><span class="kw-2">mut </span>remaining = <span class="self">self</span>.bytes.len();
+<a href=#236 id=236 data-nosnippet>236</a>            <span class="kw">while </span>remaining &gt; <span class="number">0 </span>{
+<a href=#237 id=237 data-nosnippet>237</a>                <span class="kw">let </span>n = remaining.min(ZERO_CHUNK.len());
+<a href=#238 id=238 data-nosnippet>238</a>                <span class="attr">#[allow(clippy::indexing_slicing)]
+<a href=#239 id=239 data-nosnippet>239</a>                </span><span class="comment">// SAFETY: `n = remaining.min(ZERO_CHUNK.len())`
+<a href=#240 id=240 data-nosnippet>240</a>                // ⇒ `n ≤ ZERO_CHUNK.len()` ⇒ `&amp;ZERO_CHUNK[..n]` is
+<a href=#241 id=241 data-nosnippet>241</a>                // in-bounds. (no possible panic)
+<a href=#242 id=242 data-nosnippet>242</a>                </span><span class="kw">let </span>chunk = <span class="kw-2">&amp;</span>ZERO_CHUNK[..n];
+<a href=#243 id=243 data-nosnippet>243</a>                <span class="kw">if </span>f.write_all(chunk).is_err() {
+<a href=#244 id=244 data-nosnippet>244</a>                    <span class="kw">break</span>;
+<a href=#245 id=245 data-nosnippet>245</a>                }
+<a href=#246 id=246 data-nosnippet>246</a>                remaining = remaining.saturating_sub(n);
+<a href=#247 id=247 data-nosnippet>247</a>            }
+<a href=#248 id=248 data-nosnippet>248</a>            <span class="kw">let _ </span>= f.sync_all();
+<a href=#249 id=249 data-nosnippet>249</a>            <span class="kw">let _ </span>= f.set_len(<span class="number">0</span>);
+<a href=#250 id=250 data-nosnippet>250</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::Internal(<span class="macro">format!</span>(
+<a href=#251 id=251 data-nosnippet>251</a>                <span class="string">"windows DACL hardening on tempfile {} failed: {e}"</span>,
+<a href=#252 id=252 data-nosnippet>252</a>                tmp.path().display()
+<a href=#253 id=253 data-nosnippet>253</a>            )));
+<a href=#254 id=254 data-nosnippet>254</a>        }
+<a href=#255 id=255 data-nosnippet>255</a>
+<a href=#256 id=256 data-nosnippet>256</a>        <span class="comment">// Atomic rename — the choice between `persist` and `persist_noclobber`
+<a href=#257 id=257 data-nosnippet>257</a>        // is the difference between "atomic but clobber-OK" and "atomic AND
+<a href=#258 id=258 data-nosnippet>258</a>        // refuse to clobber via link(2)+unlink(2)". The earlier shape used
+<a href=#259 id=259 data-nosnippet>259</a>        // `path.exists()` + `persist`, which had a TOCTOU window: another
+<a href=#260 id=260 data-nosnippet>260</a>        // process could create `path` between the check and the rename and
+<a href=#261 id=261 data-nosnippet>261</a>        // get silently overwritten. `persist_noclobber` collapses both
+<a href=#262 id=262 data-nosnippet>262</a>        // into a single syscall, so the exclusive-create guarantee is real,
+<a href=#263 id=263 data-nosnippet>263</a>        // not best-effort.
+<a href=#264 id=264 data-nosnippet>264</a>        </span><span class="kw">if </span><span class="self">self</span>.overwrite_existing {
+<a href=#265 id=265 data-nosnippet>265</a>            tmp.persist(path).map_err(|e| {
+<a href=#266 id=266 data-nosnippet>266</a>                CoreError::Internal(<span class="macro">format!</span>(<span class="string">"atomic rename to {}: {e}"</span>, path.display()))
+<a href=#267 id=267 data-nosnippet>267</a>            })<span class="question-mark">?</span>;
+<a href=#268 id=268 data-nosnippet>268</a>        } <span class="kw">else </span>{
+<a href=#269 id=269 data-nosnippet>269</a>            tmp.persist_noclobber(path).map_err(|e| {
+<a href=#270 id=270 data-nosnippet>270</a>                <span class="comment">// tempfile's `PersistError` carries the source io::Error;
+<a href=#271 id=271 data-nosnippet>271</a>                // surface AlreadyExists as the user-facing
+<a href=#272 id=272 data-nosnippet>272</a>                // ConfigurationError ("refusing to overwrite") and wrap any
+<a href=#273 id=273 data-nosnippet>273</a>                // other I/O failure as Internal.
+<a href=#274 id=274 data-nosnippet>274</a>                </span><span class="kw">if </span>e.error.kind() == std::io::ErrorKind::AlreadyExists {
+<a href=#275 id=275 data-nosnippet>275</a>                    CoreError::ConfigurationError(<span class="macro">format!</span>(
+<a href=#276 id=276 data-nosnippet>276</a>                        <span class="string">"Refusing to overwrite existing file: {}. \
+<a href=#277 id=277 data-nosnippet>277</a>                         Pass --force (or pre-delete the file) if this is intentional."</span>,
+<a href=#278 id=278 data-nosnippet>278</a>                        path.display()
+<a href=#279 id=279 data-nosnippet>279</a>                    ))
+<a href=#280 id=280 data-nosnippet>280</a>                } <span class="kw">else </span>{
+<a href=#281 id=281 data-nosnippet>281</a>                    CoreError::Internal(<span class="macro">format!</span>(<span class="string">"atomic rename to {}: {e}"</span>, path.display()))
+<a href=#282 id=282 data-nosnippet>282</a>                }
+<a href=#283 id=283 data-nosnippet>283</a>            })<span class="question-mark">?</span>;
+<a href=#284 id=284 data-nosnippet>284</a>        }
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="comment">// fsync the parent directory so the rename is durable across a
+<a href=#287 id=287 data-nosnippet>287</a>        // power-loss event. Without this step, on ext4/XFS with the
+<a href=#288 id=288 data-nosnippet>288</a>        // default `data=ordered` the directory entry can be flushed after
+<a href=#289 id=289 data-nosnippet>289</a>        // the file inode but before the rename, leaving the file
+<a href=#290 id=290 data-nosnippet>290</a>        // unrecoverable. Best-effort on non-Unix platforms (Windows
+<a href=#291 id=291 data-nosnippet>291</a>        // doesn't expose a parent-fsync primitive in the same way).
+<a href=#292 id=292 data-nosnippet>292</a>        </span><span class="attr">#[cfg(unix)]
+<a href=#293 id=293 data-nosnippet>293</a>        </span>{
+<a href=#294 id=294 data-nosnippet>294</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(dir) = std::fs::File::open(parent) {
+<a href=#295 id=295 data-nosnippet>295</a>                <span class="kw">let _ </span>= dir.sync_all();
+<a href=#296 id=296 data-nosnippet>296</a>            }
+<a href=#297 id=297 data-nosnippet>297</a>        }
+<a href=#298 id=298 data-nosnippet>298</a>
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="comment">// Windows DACL hardening was applied to the tempfile above,
+<a href=#300 id=300 data-nosnippet>300</a>        // BEFORE persist, so the rename preserves the hardened DACL.
+<a href=#301 id=301 data-nosnippet>301</a>        // No post-rename DACL apply is needed — a post-rename apply
+<a href=#302 id=302 data-nosnippet>302</a>        // would have a race window where the file at `path` exists
+<a href=#303 id=303 data-nosnippet>303</a>        // with the parent dir's permissive default DACL.
+<a href=#304 id=304 data-nosnippet>304</a>        </span><span class="prelude-val">Ok</span>(())
+<a href=#305 id=305 data-nosnippet>305</a>    }
+<a href=#306 id=306 data-nosnippet>306</a>}
 </code></pre></div></section></main></body></html>
