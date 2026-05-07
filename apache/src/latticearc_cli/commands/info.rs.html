@@ -25,7 +25,7 @@
 <a href=#25 id=25 data-nosnippet>25</a>    <span class="macro">println!</span>(<span class="string">"LatticeArc CLI v{}"</span>, <span class="macro">env!</span>(<span class="string">"CARGO_PKG_VERSION"</span>));
 <a href=#26 id=26 data-nosnippet>26</a>    <span class="macro">println!</span>(<span class="string">"Library:  latticearc v{}"</span>, latticearc::VERSION);
 <a href=#27 id=27 data-nosnippet>27</a>    <span class="macro">println!</span>();
-<a href=#28 id=28 data-nosnippet>28</a>    <span class="comment">// Round-26 audit fix (L30): cross-reference `self_tests_passed()`
+<a href=#28 id=28 data-nosnippet>28</a>    <span class="comment">// cross-reference `self_tests_passed()`
 <a href=#29 id=29 data-nosnippet>29</a>    // before printing the "validated backend" claim. The compile-time
 <a href=#30 id=30 data-nosnippet>30</a>    // `fips_available()` flag is necessary but not sufficient — a
 <a href=#31 id=31 data-nosnippet>31</a>    // FIPS-validated module is only operational while POST has
@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>    <span class="macro">println!</span>(
 <a href=#36 id=36 data-nosnippet>36</a>        <span class="string">"FIPS 140-3 backend: {}"</span>,
 <a href=#37 id=37 data-nosnippet>37</a>        <span class="kw">if </span>latticearc::fips_available() &amp;&amp; post_ok {
-<a href=#38 id=38 data-nosnippet>38</a>            <span class="comment">// Round-21 audit fix #11: distinguish "validated backend"
+<a href=#38 id=38 data-nosnippet>38</a>            <span class="comment">// distinguish "validated backend"
 <a href=#39 id=39 data-nosnippet>39</a>            // (aws-lc-rs is FIPS 140-3 validated as a stand-alone
 <a href=#40 id=40 data-nosnippet>40</a>            // module) from "validated module" (this binary linking
 <a href=#41 id=41 data-nosnippet>41</a>            // aws-lc-rs is NOT itself certified). The previous
@@ -74,6 +74,7 @@
 <a href=#74 id=74 data-nosnippet>74</a>    <span class="macro">println!</span>(<span class="string">"  Key Derivation:"</span>);
 <a href=#75 id=75 data-nosnippet>75</a>    <span class="macro">println!</span>(<span class="string">"    HKDF-SHA256             (SP 800-56C)"</span>);
 <a href=#76 id=76 data-nosnippet>76</a>    <span class="macro">println!</span>(<span class="string">"    PBKDF2-HMAC-SHA256      (SP 800-132)"</span>);
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="prelude-val">Ok</span>(())
-<a href=#78 id=78 data-nosnippet>78</a>}
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="macro">println!</span>(<span class="string">"    PBKDF2-HMAC-SHA512      (SP 800-132)"</span>);
+<a href=#78 id=78 data-nosnippet>78</a>    <span class="prelude-val">Ok</span>(())
+<a href=#79 id=79 data-nosnippet>79</a>}
 </code></pre></div></section></main></body></html>

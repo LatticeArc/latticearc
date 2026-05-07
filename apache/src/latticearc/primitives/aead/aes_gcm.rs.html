@@ -32,12 +32,12 @@
 <a href=#32 id=32 data-nosnippet>32</a>    validate_aad_size, validate_decryption_size, validate_encryption_size,
 <a href=#33 id=33 data-nosnippet>33</a>};
 <a href=#34 id=34 data-nosnippet>34</a>
-<a href=#35 id=35 data-nosnippet>35</a><span class="comment">// Round-27 H2: single opaque string for every decrypt failure path. Pattern
+<a href=#35 id=35 data-nosnippet>35</a><span class="comment">// single opaque string for every decrypt failure path. Pattern
 <a href=#36 id=36 data-nosnippet>36</a>// 6 forbids stage-distinguishing error strings on AEAD decrypt — see the
 <a href=#37 id=37 data-nosnippet>37</a>// detailed comment in the macro body below.
 <a href=#38 id=38 data-nosnippet>38</a></span><span class="kw">const </span>DECRYPTION_FAILED: <span class="kw-2">&amp;</span>str = <span class="string">"decryption failed"</span>;
 <a href=#39 id=39 data-nosnippet>39</a>
-<a href=#40 id=40 data-nosnippet>40</a><span class="comment">// Round-28 H1: matching opacity sweep on the AEAD encrypt path. Encrypt
+<a href=#40 id=40 data-nosnippet>40</a><span class="comment">// matching opacity sweep on the AEAD encrypt path. Encrypt
 <a href=#41 id=41 data-nosnippet>41</a>// errors are reachable by callers who probe the configured size cap with
 <a href=#42 id=42 data-nosnippet>42</a>// chosen plaintext lengths — collapsing to a single uniform string blocks
 <a href=#43 id=43 data-nosnippet>43</a>// that side channel without losing operator diagnosability (the per-stage
@@ -116,7 +116,7 @@
 <a href=#116 id=116 data-nosnippet>116</a>                plaintext: <span class="kw-2">&amp;</span>[u8],
 <a href=#117 id=117 data-nosnippet>117</a>                aad: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
 <a href=#118 id=118 data-nosnippet>118</a>            ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;u8&gt;, Tag), AeadError&gt; {
-<a href=#119 id=119 data-nosnippet>119</a>                <span class="comment">// Round-28 H1: Pattern 6 opacity sweep on the encrypt
+<a href=#119 id=119 data-nosnippet>119</a>                <span class="comment">// Pattern 6 opacity sweep on the encrypt
 <a href=#120 id=120 data-nosnippet>120</a>                // path mirrors the decrypt-side sweep at round-27 H2.
 <a href=#121 id=121 data-nosnippet>121</a>                // Every adversary-reachable failure (size caps, AEAD
 <a href=#122 id=122 data-nosnippet>122</a>                // seal, post-seal buffer-shape checks) collapses to a
@@ -176,7 +176,7 @@
 <a href=#176 id=176 data-nosnippet>176</a>                tag: <span class="kw-2">&amp;</span>Tag,
 <a href=#177 id=177 data-nosnippet>177</a>                aad: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
 <a href=#178 id=178 data-nosnippet>178</a>            ) -&gt; <span class="prelude-ty">Result</span>&lt;Zeroizing&lt;Vec&lt;u8&gt;&gt;, AeadError&gt; {
-<a href=#179 id=179 data-nosnippet>179</a>                <span class="comment">// Round-27 H2: Pattern 6 opacity sweep. All decrypt failure
+<a href=#179 id=179 data-nosnippet>179</a>                <span class="comment">// Pattern 6 opacity sweep. All decrypt failure
 <a href=#180 id=180 data-nosnippet>180</a>                // paths now share the same opaque error string. Size-check
 <a href=#181 id=181 data-nosnippet>181</a>                // branches at the top are still reachable before key init,
 <a href=#182 id=182 data-nosnippet>182</a>                // but they no longer distinguish which size limit was
@@ -582,7 +582,7 @@
 <a href=#582 id=582 data-nosnippet>582</a>        }
 <a href=#583 id=583 data-nosnippet>583</a>    }
 <a href=#584 id=584 data-nosnippet>584</a>
-<a href=#585 id=585 data-nosnippet>585</a>    <span class="comment">// Round-29 follow-up: the previous comment here claimed
+<a href=#585 id=585 data-nosnippet>585</a>    <span class="comment">// the previous comment here claimed
 <a href=#586 id=586 data-nosnippet>586</a>    // "NIST test vectors may produce different tags because aws-lc-rs
 <a href=#587 id=587 data-nosnippet>587</a>    // uses hardware-accelerated implementations that may have subtle
 <a href=#588 id=588 data-nosnippet>588</a>    // differences in intermediate computations while still producing
@@ -651,7 +651,7 @@
 <a href=#651 id=651 data-nosnippet>651</a>        <span class="kw">let </span>result = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>plaintext, <span class="prelude-val">None</span>);
 <a href=#652 id=652 data-nosnippet>652</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should fail with resource limit exceeded"</span>);
 <a href=#653 id=653 data-nosnippet>653</a>
-<a href=#654 id=654 data-nosnippet>654</a>        <span class="comment">// Round-28 H1: Pattern 6 opacity sweep collapsed every encrypt
+<a href=#654 id=654 data-nosnippet>654</a>        <span class="comment">// Pattern 6 opacity sweep collapsed every encrypt
 <a href=#655 id=655 data-nosnippet>655</a>        // failure to the same opaque "encryption failed" string, so this
 <a href=#656 id=656 data-nosnippet>656</a>        // test now only asserts the variant shape.
 <a href=#657 id=657 data-nosnippet>657</a>        </span><span class="macro">assert!</span>(
@@ -673,7 +673,7 @@
 <a href=#673 id=673 data-nosnippet>673</a>        <span class="kw">let </span>result = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">None</span>);
 <a href=#674 id=674 data-nosnippet>674</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"Should fail with resource limit exceeded"</span>);
 <a href=#675 id=675 data-nosnippet>675</a>
-<a href=#676 id=676 data-nosnippet>676</a>        <span class="comment">// Round-27 H2: Pattern 6 opacity sweep collapsed every decrypt
+<a href=#676 id=676 data-nosnippet>676</a>        <span class="comment">// Pattern 6 opacity sweep collapsed every decrypt
 <a href=#677 id=677 data-nosnippet>677</a>        // failure to the same opaque "decryption failed" string, so this
 <a href=#678 id=678 data-nosnippet>678</a>        // test now only asserts the variant shape.
 <a href=#679 id=679 data-nosnippet>679</a>        </span><span class="macro">assert!</span>(

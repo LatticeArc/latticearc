@@ -23,7 +23,7 @@ keypair, generate a new one, and investigate.”</p>
 <p>SLH-DSA signing cost scales with message length; this guard prevents
 unbounded-message DoS when callers bypass the unified-api resource
 checks.</p>
-<p>Round-28 H7: kept for ABI compatibility but no longer returned from
+<p>kept for ABI compatibility but no longer returned from
 <code>sign()</code> — the cap-rejection now collapses to <code>SigningFailed</code> so
 the sign path matches Pattern 6 opacity (round-26 M1 closed the
 verify-side; this completes the sign-side symmetry). Will be

@@ -71,7 +71,7 @@
 <a href=#71 id=71 data-nosnippet>71</a>    <span class="doccomment">/// Message length exceeds the configured resource limit. Unit variant —
 <a href=#72 id=72 data-nosnippet>72</a>    /// length is known to the sender.
 <a href=#73 id=73 data-nosnippet>73</a>    ///
-<a href=#74 id=74 data-nosnippet>74</a>    /// Round-28 H7: kept for ABI compatibility but no longer returned from
+<a href=#74 id=74 data-nosnippet>74</a>    /// kept for ABI compatibility but no longer returned from
 <a href=#75 id=75 data-nosnippet>75</a>    /// `sign_with_rng()` — the cap-rejection now collapses to
 <a href=#76 id=76 data-nosnippet>76</a>    /// `SigningFailed` so the sign path matches Pattern 6 opacity
 <a href=#77 id=77 data-nosnippet>77</a>    /// (round-26 M1 closed the verify-side; this completes the sign-side
@@ -97,7 +97,7 @@
 <a href=#97 id=97 data-nosnippet>97</a>            )),
 <a href=#98 id=98 data-nosnippet>98</a>            FnDsaError::InvalidKey(msg) =&gt; <span class="self">Self</span>::InvalidKey(msg),
 <a href=#99 id=99 data-nosnippet>99</a>            FnDsaError::InvalidSignature(msg) =&gt; <span class="self">Self</span>::InvalidSignature(msg),
-<a href=#100 id=100 data-nosnippet>100</a>            <span class="comment">// Round-28 H7: kept for ABI completeness — production code now
+<a href=#100 id=100 data-nosnippet>100</a>            <span class="comment">// kept for ABI completeness — production code now
 <a href=#101 id=101 data-nosnippet>101</a>            // emits `SigningFailed` instead. The arm preserves the
 <a href=#102 id=102 data-nosnippet>102</a>            // historical mapping for any consumer that constructs the
 <a href=#103 id=103 data-nosnippet>103</a>            // variant directly.
@@ -388,7 +388,7 @@
 <a href=#388 id=388 data-nosnippet>388</a>        // point. Mirrors the bound applied in `sign_with_rng()`. The
 <a href=#389 id=389 data-nosnippet>389</a>        // size-limit error is folded into `LatticeArcError` (the public
 <a href=#390 id=390 data-nosnippet>390</a>        // Result type) via the existing `From&lt;FnDsaError&gt;` impl.
-<a href=#391 id=391 data-nosnippet>391</a>        // Round-26 audit fix (M1): collapse to opaque verification
+<a href=#391 id=391 data-nosnippet>391</a>        // collapse to opaque verification
 <a href=#392 id=392 data-nosnippet>392</a>        // failure on verify so a probing attacker cannot binary-search
 <a href=#393 id=393 data-nosnippet>393</a>        // the configured cap from the Result shape.
 <a href=#394 id=394 data-nosnippet>394</a>        </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="kw">crate</span>::primitives::resource_limits::validate_signature_size(message.len()) {
@@ -563,7 +563,7 @@
 <a href=#563 id=563 data-nosnippet>563</a>        rng: <span class="kw-2">&amp;mut </span>R,
 <a href=#564 id=564 data-nosnippet>564</a>        message: <span class="kw-2">&amp;</span>[u8],
 <a href=#565 id=565 data-nosnippet>565</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Signature&gt; {
-<a href=#566 id=566 data-nosnippet>566</a>        <span class="comment">// Round-28 H7 (Pattern 6): collapse the resource-cap rejection to
+<a href=#566 id=566 data-nosnippet>566</a>        <span class="comment">// collapse the resource-cap rejection to
 <a href=#567 id=567 data-nosnippet>567</a>        // the new `SigningFailed` variant. Cap probing was the same leak
 <a href=#568 id=568 data-nosnippet>568</a>        // round-26 M1 closed on the verify-side; this completes the
 <a href=#569 id=569 data-nosnippet>569</a>        // sign-side symmetry. Trace captures the actual cause for
@@ -1113,8 +1113,8 @@
 <a href=#1113 id=1113 data-nosnippet>1113</a>            .expect(<span class="string">"Thread join failed"</span>);
 <a href=#1114 id=1114 data-nosnippet>1114</a>    }
 <a href=#1115 id=1115 data-nosnippet>1115</a>
-<a href=#1116 id=1116 data-nosnippet>1116</a>    <span class="doccomment">/// Round-27 H5 (Pattern 14): the `MessageTooLong` variant must be
-<a href=#1117 id=1117 data-nosnippet>1117</a>    /// triggerable through the public sign path. Default global cap is
+<a href=#1116 id=1116 data-nosnippet>1116</a>    <span class="doccomment">/// The `MessageTooLong` variant must be triggerable through the
+<a href=#1117 id=1117 data-nosnippet>1117</a>    /// public sign path. Default global cap is
 <a href=#1118 id=1118 data-nosnippet>1118</a>    /// 64 KiB; pass 64 KiB + 1 to exceed it before the upstream
 <a href=#1119 id=1119 data-nosnippet>1119</a>    /// `fn-dsa` signer runs. Round-28 H7 collapsed the variant to the
 <a href=#1120 id=1120 data-nosnippet>1120</a>    /// opaque `SigningFailed`. FN-DSA uses a stack-heavy signer so the

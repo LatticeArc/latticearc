@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>    <span class="doccomment">/// Maximum AEAD additional-authenticated-data (AAD) size in bytes.
 <a href=#43 id=43 data-nosnippet>43</a>    /// Default: `1024 * 1024` (1 MiB).
 <a href=#44 id=44 data-nosnippet>44</a>    ///
-<a href=#45 id=45 data-nosnippet>45</a>    /// Round-26 audit fix (H8): AEAD MACs run linear time over AAD, so an
+<a href=#45 id=45 data-nosnippet>45</a>    /// AEAD MACs run linear time over AAD, so an
 <a href=#46 id=46 data-nosnippet>46</a>    /// attacker-controlled AAD bypasses the plaintext/ciphertext caps and
 <a href=#47 id=47 data-nosnippet>47</a>    /// turns into a CPU-amplification DoS. The 1 MiB default is a
 <a href=#48 id=48 data-nosnippet>48</a>    /// conservative ceiling — applications that legitimately need larger
@@ -203,7 +203,7 @@
 <a href=#203 id=203 data-nosnippet>203</a>
 <a href=#204 id=204 data-nosnippet>204</a>    <span class="doccomment">/// Validates that the AEAD AAD size does not exceed the configured limit.
 <a href=#205 id=205 data-nosnippet>205</a>    ///
-<a href=#206 id=206 data-nosnippet>206</a>    /// Round-26 audit fix (H8): AEAD MACs run linear time over the AAD,
+<a href=#206 id=206 data-nosnippet>206</a>    /// AEAD MACs run linear time over the AAD,
 <a href=#207 id=207 data-nosnippet>207</a>    /// so an attacker-controlled AAD bypasses the plaintext/ciphertext
 <a href=#208 id=208 data-nosnippet>208</a>    /// caps and turns into a CPU-amplification DoS. Every AEAD encrypt
 <a href=#209 id=209 data-nosnippet>209</a>    /// and decrypt entrypoint must call this before passing AAD to the
@@ -468,7 +468,7 @@
 <a href=#468 id=468 data-nosnippet>468</a>        <span class="macro">assert!</span>(validate_decryption_size(<span class="number">1024</span>).is_ok());
 <a href=#469 id=469 data-nosnippet>469</a>    }
 <a href=#470 id=470 data-nosnippet>470</a>
-<a href=#471 id=471 data-nosnippet>471</a>    <span class="doccomment">/// Round-27 M2 (Pattern 14): the `AadSizeLimitExceeded` variant must
+<a href=#471 id=471 data-nosnippet>471</a>    <span class="doccomment">/// the `AadSizeLimitExceeded` variant must
 <a href=#472 id=472 data-nosnippet>472</a>    /// be triggerable through the public API. The default global cap is
 <a href=#473 id=473 data-nosnippet>473</a>    /// 1 MiB; passing 1 MiB + 1 bytes exceeds it.
 <a href=#474 id=474 data-nosnippet>474</a>    </span><span class="attr">#[test]

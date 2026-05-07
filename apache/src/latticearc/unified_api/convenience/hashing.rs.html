@@ -20,7 +20,7 @@
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::log_crypto_operation_error;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::primitives::hash::sha3::sha3_256 <span class="kw">as </span>hash_sha3_256;
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::primitives::mac::hmac::hmac_sha256;
-<a href=#23 id=23 data-nosnippet>23</a><span class="comment">// Round-26 audit fix (M23): the previous `validate_key_derivation_count(1)`
+<a href=#23 id=23 data-nosnippet>23</a><span class="comment">// the previous `validate_key_derivation_count(1)`
 <a href=#24 id=24 data-nosnippet>24</a>// no-op was removed (passing `1` to a per-call cap is structurally
 <a href=#25 id=25 data-nosnippet>25</a>// useless — it always succeeds whenever the global limit is ≥1). The
 <a href=#26 id=26 data-nosnippet>26</a>// real DoS bound on this path is enforced by `validate_signature_size`
@@ -54,7 +54,7 @@
 <a href=#54 id=54 data-nosnippet>54</a>        length,
 <a href=#55 id=55 data-nosnippet>55</a>    )
 <a href=#56 id=56 data-nosnippet>56</a>    .map_err(|e| CoreError::KeyDerivationFailed(<span class="macro">format!</span>(<span class="string">"HKDF failed: {e}"</span>)))<span class="question-mark">?</span>;
-<a href=#57 id=57 data-nosnippet>57</a>    <span class="comment">// Round-26 audit fix (M22): consume the HkdfResult via
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="comment">// consume the HkdfResult via
 <a href=#58 id=58 data-nosnippet>58</a>    // `into_zeroizing` so we don't allocate an un-zeroed transient
 <a href=#59 id=59 data-nosnippet>59</a>    // `Vec&lt;u8&gt;` between the `expose_secret().to_vec()` and the
 <a href=#60 id=60 data-nosnippet>60</a>    // re-wrap.
@@ -70,7 +70,7 @@
 <a href=#70 id=70 data-nosnippet>70</a>) -&gt; <span class="prelude-ty">Result</span>&lt;zeroize::Zeroizing&lt;Vec&lt;u8&gt;&gt;&gt; {
 <a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">let </span>result = <span class="kw">crate</span>::primitives::kdf::hkdf::hkdf(password, <span class="prelude-val">Some</span>(salt), <span class="prelude-val">Some</span>(info), length)
 <a href=#72 id=72 data-nosnippet>72</a>        .map_err(|e| CoreError::KeyDerivationFailed(<span class="macro">format!</span>(<span class="string">"HKDF failed: {e}"</span>)))<span class="question-mark">?</span>;
-<a href=#73 id=73 data-nosnippet>73</a>    <span class="comment">// Round-26 audit fix (M22): consume the HkdfResult via
+<a href=#73 id=73 data-nosnippet>73</a>    <span class="comment">// consume the HkdfResult via
 <a href=#74 id=74 data-nosnippet>74</a>    // `into_zeroizing` so we don't allocate an un-zeroed transient
 <a href=#75 id=75 data-nosnippet>75</a>    // `Vec&lt;u8&gt;` between the `expose_secret().to_vec()` and the
 <a href=#76 id=76 data-nosnippet>76</a>    // re-wrap.
@@ -91,7 +91,7 @@
 <a href=#91 id=91 data-nosnippet>91</a>        info_len = info.len()
 <a href=#92 id=92 data-nosnippet>92</a>    );
 <a href=#93 id=93 data-nosnippet>93</a>
-<a href=#94 id=94 data-nosnippet>94</a>    <span class="comment">// Round-26 audit fix (M23): per-call no-op `validate_key_derivation_count(1)`
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="comment">// per-call no-op `validate_key_derivation_count(1)`
 <a href=#95 id=95 data-nosnippet>95</a>    // removed. See module-level comment.
 <a href=#96 id=96 data-nosnippet>96</a>
 <a href=#97 id=97 data-nosnippet>97</a>    </span><span class="kw">if </span>salt.is_empty() {
@@ -148,7 +148,7 @@
 <a href=#148 id=148 data-nosnippet>148</a>        output_len = length
 <a href=#149 id=149 data-nosnippet>149</a>    );
 <a href=#150 id=150 data-nosnippet>150</a>
-<a href=#151 id=151 data-nosnippet>151</a>    <span class="comment">// Round-26 audit fix (M23): per-call no-op removed. See M23 note above.
+<a href=#151 id=151 data-nosnippet>151</a>    <span class="comment">// per-call no-op removed. See M23 note above.
 <a href=#152 id=152 data-nosnippet>152</a>
 <a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">if </span>salt.is_empty() {
 <a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">let </span>err = CoreError::InvalidInput(<span class="string">"Salt cannot be empty"</span>.to_string());

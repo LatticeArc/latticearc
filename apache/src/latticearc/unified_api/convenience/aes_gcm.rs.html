@@ -188,7 +188,7 @@
 <a href=#188 id=188 data-nosnippet>188</a>    // the only actionable signal.
 <a href=#189 id=189 data-nosnippet>189</a>    </span><span class="kw">use </span><span class="kw">crate</span>::primitives::aead::AeadError;
 <a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">let </span>cipher = AesGcm256::new(key).map_err(|e| {
-<a href=#191 id=191 data-nosnippet>191</a>        <span class="comment">// Round-26 audit fix (M24): collapse non-WeakKey AES init
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="comment">// collapse non-WeakKey AES init
 <a href=#192 id=192 data-nosnippet>192</a>        // failures to the same opaque "decryption failed" string used
 <a href=#193 id=193 data-nosnippet>193</a>        // by all other adversary-reachable decrypt errors. The
 <a href=#194 id=194 data-nosnippet>194</a>        // previous `"AES key init failed"` was a distinct third

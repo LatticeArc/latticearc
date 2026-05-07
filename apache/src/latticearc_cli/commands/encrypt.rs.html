@@ -53,7 +53,7 @@
 <a href=#53 id=53 data-nosnippet>53</a></span><span class="attr">#[derive(Args)]
 <a href=#54 id=54 data-nosnippet>54</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>EncryptArgs {
 <a href=#55 id=55 data-nosnippet>55</a>    <span class="doccomment">/// Encryption mode (expert override). Ignored when --use-case is provided.
-<a href=#56 id=56 data-nosnippet>56</a>    /// Round-26 audit fix (M20): clap-level `conflicts_with` makes the
+<a href=#56 id=56 data-nosnippet>56</a>    /// clap-level `conflicts_with` makes the
 <a href=#57 id=57 data-nosnippet>57</a>    /// constraint visible in --help instead of just emitting a runtime
 <a href=#58 id=58 data-nosnippet>58</a>    /// warning.
 <a href=#59 id=59 data-nosnippet>59</a>    </span><span class="attr">#[arg(short, long, value_enum, conflicts_with = <span class="string">"use_case"</span>)]
@@ -111,7 +111,7 @@
 <a href=#111 id=111 data-nosnippet>111</a>    // produced "Expected symmetric key file, got Public" — accurate
 <a href=#112 id=112 data-nosnippet>112</a>    // but surprising for the common case.
 <a href=#113 id=113 data-nosnippet>113</a>    //
-<a href=#114 id=114 data-nosnippet>114</a>    // Round-26 audit fix (H13): branch on the key's algorithm so
+<a href=#114 id=114 data-nosnippet>114</a>    // branch on the key's algorithm so
 <a href=#115 id=115 data-nosnippet>115</a>    // pure-PQ ML-KEM PKs are routed to `PqOnly` and hybrid
 <a href=#116 id=116 data-nosnippet>116</a>    // `HybridMlKem*X25519` PKs to `Hybrid`. Previously we forced
 <a href=#117 id=117 data-nosnippet>117</a>    // `Hybrid` for any `KeyType::Public`, which made the hybrid splitter
@@ -294,7 +294,7 @@
 <a href=#294 id=294 data-nosnippet>294</a>}
 <a href=#295 id=295 data-nosnippet>295</a>
 <a href=#296 id=296 data-nosnippet>296</a><span class="kw">fn </span>read_input(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
-<a href=#297 id=297 data-nosnippet>297</a>    <span class="comment">// Round-9 audit fix #3: route through the shared helper.
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="comment">// route through the shared helper.
 <a href=#298 id=298 data-nosnippet>298</a>    </span><span class="kw">super</span>::common::read_file_or_stdin(
 <a href=#299 id=299 data-nosnippet>299</a>        path.as_deref(),
 <a href=#300 id=300 data-nosnippet>300</a>        <span class="kw">super</span>::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
@@ -308,7 +308,7 @@
 <a href=#308 id=308 data-nosnippet>308</a>            <span class="comment">// Atomic write — closes the partial-file confidentiality
 <a href=#309 id=309 data-nosnippet>309</a>            // window for decrypted material at rest. Same helper the
 <a href=#310 id=310 data-nosnippet>310</a>            // keyfile writer uses (round-7 audit fix #18).
-<a href=#311 id=311 data-nosnippet>311</a>            // Round-26 audit fix (H12): only overwrite when --force is
+<a href=#311 id=311 data-nosnippet>311</a>            // only overwrite when --force is
 <a href=#312 id=312 data-nosnippet>312</a>            // passed; otherwise refuse to clobber, matching keygen's
 <a href=#313 id=313 data-nosnippet>313</a>            // default-safe behavior.
 <a href=#314 id=314 data-nosnippet>314</a>            // LINT-OK: public-write-ciphertext (encrypted data is not secret)

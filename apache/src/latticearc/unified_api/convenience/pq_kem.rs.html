@@ -32,7 +32,7 @@
 <a href=#32 id=32 data-nosnippet>32</a><span class="doccomment">/// Build the HKDF `info` string for `encrypt_pq_ml_kem` /
 <a href=#33 id=33 data-nosnippet>33</a>/// `decrypt_pq_ml_kem`.
 <a href=#34 id=34 data-nosnippet>34</a>///
-<a href=#35 id=35 data-nosnippet>35</a>/// Round-26 audit fix (H1): now binds both the recipient public key
+<a href=#35 id=35 data-nosnippet>35</a>/// now binds both the recipient public key
 <a href=#36 id=36 data-nosnippet>36</a>/// and the KEM ciphertext into the info string per RFC 9180 §5.1 (HPKE
 <a href=#37 id=37 data-nosnippet>37</a>/// channel binding). The previous label-only variant could not detect
 <a href=#38 id=38 data-nosnippet>38</a>/// an adversary swapping ciphertext halves if ML-KEM IND-CCA2 ever
@@ -92,7 +92,7 @@
 <a href=#92 id=92 data-nosnippet>92</a>        data_len = data.len()
 <a href=#93 id=93 data-nosnippet>93</a>    );
 <a href=#94 id=94 data-nosnippet>94</a>
-<a href=#95 id=95 data-nosnippet>95</a>    <span class="comment">// Round-26 audit fix (H7): opaque ResourceExceeded.
+<a href=#95 id=95 data-nosnippet>95</a>    <span class="comment">// opaque ResourceExceeded.
 <a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_encryption_size(data.len()) {
 <a href=#97 id=97 data-nosnippet>97</a>        <span class="macro">log_crypto_operation_error!</span>(op::ENCRYPT_PQ_ML_KEM, <span class="string">"resource limit exceeded"</span>);
 <a href=#98 id=98 data-nosnippet>98</a>        <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, data_len = data.len(), <span class="string">"pq_kem encrypt rejected: plaintext exceeds resource limit"</span>);
@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a>    // embedded `ek` per FIPS 203 §6.1) AND the KEM ciphertext. Must
 <a href=#200 id=200 data-nosnippet>200</a>    // match the encrypt path byte-for-byte; `pq_kem_aead_key_info` is
 <a href=#201 id=201 data-nosnippet>201</a>    // the single canonical helper to prevent encrypt / decrypt drift.
-<a href=#202 id=202 data-nosnippet>202</a>    // Round-29 L1: `embedded_public_key_bytes()` now returns Result;
+<a href=#202 id=202 data-nosnippet>202</a>    // `embedded_public_key_bytes()` now returns Result;
 <a href=#203 id=203 data-nosnippet>203</a>    // a malformed SK that bypassed validation surfaces as an opaque
 <a href=#204 id=204 data-nosnippet>204</a>    // decrypt failure rather than the previous silent-empty-slice
 <a href=#205 id=205 data-nosnippet>205</a>    // path that would silently corrupt the channel binding.

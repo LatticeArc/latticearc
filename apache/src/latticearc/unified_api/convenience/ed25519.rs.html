@@ -49,14 +49,14 @@
 <a href=#49 id=49 data-nosnippet>49</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>sign_ed25519_internal(data: <span class="kw-2">&amp;</span>[u8], ed25519_sk: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
 <a href=#50 id=50 data-nosnippet>50</a>    <span class="macro">log_crypto_operation_start!</span>(op::ED25519_SIGN, algorithm = <span class="string">"Ed25519"</span>, data_len = data.len());
 <a href=#51 id=51 data-nosnippet>51</a>
-<a href=#52 id=52 data-nosnippet>52</a>    <span class="comment">// Round-26 audit fix (H4 / H10): bound message length before
+<a href=#52 id=52 data-nosnippet>52</a>    <span class="comment">// bound message length before
 <a href=#53 id=53 data-nosnippet>53</a>    // SHA-512 hashes the entire payload, opaquely.
 <a href=#54 id=54 data-nosnippet>54</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(data.len()) {
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="macro">log_crypto_operation_error!</span>(op::ED25519_SIGN, e);
 <a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::ResourceExceeded(<span class="string">"message exceeds resource limit"</span>.to_string()));
 <a href=#57 id=57 data-nosnippet>57</a>    }
 <a href=#58 id=58 data-nosnippet>58</a>
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="comment">// Round-26 audit fix (H10): reject non-canonical SK lengths at the
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="comment">// reject non-canonical SK lengths at the
 <a href=#60 id=60 data-nosnippet>60</a>    // boundary. Previously we accepted any `len &gt;= 32` and silently
 <a href=#61 id=61 data-nosnippet>61</a>    // truncated to the leading 32 bytes via `sk.get(..32)`. libsodium-
 <a href=#62 id=62 data-nosnippet>62</a>    // style 64-byte expanded SKs (seed || derived PK) were misinterpreted
@@ -71,7 +71,7 @@
 <a href=#71 id=71 data-nosnippet>71</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(err);
 <a href=#72 id=72 data-nosnippet>72</a>    }
 <a href=#73 id=73 data-nosnippet>73</a>
-<a href=#74 id=74 data-nosnippet>74</a>    <span class="comment">// Round-26 audit fix (H9): opaque error mapping — upstream parse
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="comment">// opaque error mapping — upstream parse
 <a href=#75 id=75 data-nosnippet>75</a>    // wording is version-volatile and would leak which exact validity
 <a href=#76 id=76 data-nosnippet>76</a>    // check failed.
 <a href=#77 id=77 data-nosnippet>77</a>    </span><span class="kw">let </span>keypair = Ed25519KeyPair::from_secret_key(ed25519_sk).map_err(|e| {
@@ -103,14 +103,14 @@
 <a href=#103 id=103 data-nosnippet>103</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
 <a href=#104 id=104 data-nosnippet>104</a>    <span class="macro">log_crypto_operation_start!</span>(op::ED25519_VERIFY, algorithm = <span class="string">"Ed25519"</span>, data_len = data.len());
 <a href=#105 id=105 data-nosnippet>105</a>
-<a href=#106 id=106 data-nosnippet>106</a>    <span class="comment">// Round-26 audit fix (H4): bound message length before SHA-512
+<a href=#106 id=106 data-nosnippet>106</a>    <span class="comment">// bound message length before SHA-512
 <a href=#107 id=107 data-nosnippet>107</a>    // hashes the payload (RFC 8032 §5.1.7).
 <a href=#108 id=108 data-nosnippet>108</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(data.len()) {
 <a href=#109 id=109 data-nosnippet>109</a>        <span class="macro">log_crypto_operation_error!</span>(op::ED25519_VERIFY, e);
 <a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::ResourceExceeded(<span class="string">"message exceeds resource limit"</span>.to_string()));
 <a href=#111 id=111 data-nosnippet>111</a>    }
 <a href=#112 id=112 data-nosnippet>112</a>
-<a href=#113 id=113 data-nosnippet>113</a>    <span class="comment">// Round-26 audit fix (H10): reject non-canonical signature/PK
+<a href=#113 id=113 data-nosnippet>113</a>    <span class="comment">// reject non-canonical signature/PK
 <a href=#114 id=114 data-nosnippet>114</a>    // lengths at the boundary. Previously we accepted any `len &gt;=
 <a href=#115 id=115 data-nosnippet>115</a>    // expected` and silently truncated to the leading prefix, which let
 <a href=#116 id=116 data-nosnippet>116</a>    // relays append junk and still verify the signature — a
@@ -133,12 +133,12 @@
 <a href=#133 id=133 data-nosnippet>133</a>    <span class="comment">// Parse the signature via the primitives layer.
 <a href=#134 id=134 data-nosnippet>134</a>    </span><span class="kw">let </span>signature = Ed25519SignatureOps::signature_from_bytes(signature_bytes).map_err(|e| {
 <a href=#135 id=135 data-nosnippet>135</a>        <span class="macro">log_crypto_operation_error!</span>(op::ED25519_VERIFY, e);
-<a href=#136 id=136 data-nosnippet>136</a>        <span class="comment">// Round-26 audit fix (H10): opaque parse-failure mapping —
+<a href=#136 id=136 data-nosnippet>136</a>        <span class="comment">// opaque parse-failure mapping —
 <a href=#137 id=137 data-nosnippet>137</a>        // never relay upstream variant wording.
 <a href=#138 id=138 data-nosnippet>138</a>        </span>CoreError::InvalidInput(<span class="string">"invalid Ed25519 signature"</span>.to_string())
 <a href=#139 id=139 data-nosnippet>139</a>    })<span class="question-mark">?</span>;
 <a href=#140 id=140 data-nosnippet>140</a>
-<a href=#141 id=141 data-nosnippet>141</a>    <span class="comment">// Round-26 audit fix (H10): collapse all adversary-reachable verify
+<a href=#141 id=141 data-nosnippet>141</a>    <span class="comment">// collapse all adversary-reachable verify
 <a href=#142 id=142 data-nosnippet>142</a>    // errors (off-curve PK, tampered signature, MAC mismatch) to
 <a href=#143 id=143 data-nosnippet>143</a>    // `Ok(false)` so a probing attacker cannot distinguish reject
 <a href=#144 id=144 data-nosnippet>144</a>    // reasons from the Result shape. The underlying cause is logged
@@ -414,7 +414,7 @@
 <a href=#414 id=414 data-nosnippet>414</a>
 <a href=#415 id=415 data-nosnippet>415</a>    <span class="attr">#[test]
 <a href=#416 id=416 data-nosnippet>416</a>    </span><span class="kw">fn </span>test_verify_ed25519_wrong_message_returns_false() {
-<a href=#417 id=417 data-nosnippet>417</a>        <span class="comment">// Round-26 audit fix (H10): adversary-reachable verify failures
+<a href=#417 id=417 data-nosnippet>417</a>        <span class="comment">// adversary-reachable verify failures
 <a href=#418 id=418 data-nosnippet>418</a>        // now collapse to `Ok(false)` instead of `Err(VerificationFailed)`
 <a href=#419 id=419 data-nosnippet>419</a>        // so a probing attacker cannot distinguish reject reasons from
 <a href=#420 id=420 data-nosnippet>420</a>        // the Result shape. Test renamed to reflect the new contract.
@@ -430,7 +430,7 @@
 <a href=#430 id=430 data-nosnippet>430</a>
 <a href=#431 id=431 data-nosnippet>431</a>    <span class="attr">#[test]
 <a href=#432 id=432 data-nosnippet>432</a>    </span><span class="kw">fn </span>test_verify_ed25519_invalid_signature_returns_false() {
-<a href=#433 id=433 data-nosnippet>433</a>        <span class="comment">// Round-26 audit fix (H10): an all-zero 64-byte buffer is a
+<a href=#433 id=433 data-nosnippet>433</a>        <span class="comment">// an all-zero 64-byte buffer is a
 <a href=#434 id=434 data-nosnippet>434</a>        // valid Ed25519 signature *encoding* (no parse-time validity
 <a href=#435 id=435 data-nosnippet>435</a>        // check exists in RFC 8032), so it goes through the verify path
 <a href=#436 id=436 data-nosnippet>436</a>        // and is rejected with `Ok(false)`, not `Err`.
@@ -451,7 +451,7 @@
 <a href=#451 id=451 data-nosnippet>451</a>        <span class="kw">let </span>signature =
 <a href=#452 id=452 data-nosnippet>452</a>            sign_ed25519_unverified(message, sk.expose_secret()).expect(<span class="string">"signing should succeed"</span>);
 <a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">let </span>result = verify_ed25519_unverified(message, <span class="kw-2">&amp;</span>signature, wrong_pk.as_slice());
-<a href=#454 id=454 data-nosnippet>454</a>        <span class="comment">// Round-26 audit fix (H10): wrong PK is adversary-reachable, so
+<a href=#454 id=454 data-nosnippet>454</a>        <span class="comment">// wrong PK is adversary-reachable, so
 <a href=#455 id=455 data-nosnippet>455</a>        // it collapses to Ok(false).
 <a href=#456 id=456 data-nosnippet>456</a>        </span><span class="macro">assert_eq!</span>(result.ok(), <span class="prelude-val">Some</span>(<span class="bool-val">false</span>), <span class="string">"Wrong public key should yield Ok(false)"</span>);
 <a href=#457 id=457 data-nosnippet>457</a>    }
@@ -562,7 +562,7 @@
 <a href=#562 id=562 data-nosnippet>562</a>
 <a href=#563 id=563 data-nosnippet>563</a>    <span class="attr">#[test]
 <a href=#564 id=564 data-nosnippet>564</a>    </span><span class="kw">fn </span>test_ed25519_large_message_signs_and_verifies_succeeds() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#565 id=565 data-nosnippet>565</a>        <span class="comment">// Round-26 audit fix (H4): Ed25519 sign/verify now bound message
+<a href=#565 id=565 data-nosnippet>565</a>        <span class="comment">// Ed25519 sign/verify now bound message
 <a href=#566 id=566 data-nosnippet>566</a>        // length via `validate_signature_size` (default 64 KiB). The
 <a href=#567 id=567 data-nosnippet>567</a>        // previous 100,000-byte fixture exceeded the cap; use 50 KiB so
 <a href=#568 id=568 data-nosnippet>568</a>        // the test still exercises a "large" message under the new
@@ -678,7 +678,7 @@
 <a href=#678 id=678 data-nosnippet>678</a>
 <a href=#679 id=679 data-nosnippet>679</a>    <span class="attr">#[test]
 <a href=#680 id=680 data-nosnippet>680</a>    </span><span class="kw">fn </span>test_ed25519_verify_invalid_public_key_format_returns_false() {
-<a href=#681 id=681 data-nosnippet>681</a>        <span class="comment">// Round-26 audit fix (H10): an off-curve PK (correct length, but
+<a href=#681 id=681 data-nosnippet>681</a>        <span class="comment">// an off-curve PK (correct length, but
 <a href=#682 id=682 data-nosnippet>682</a>        // not a valid Ed25519 point) is adversary-reachable, so verify
 <a href=#683 id=683 data-nosnippet>683</a>        // collapses it to `Ok(false)` rather than `Err(InvalidKey)` —
 <a href=#684 id=684 data-nosnippet>684</a>        // otherwise the variant shape is itself a side-channel into

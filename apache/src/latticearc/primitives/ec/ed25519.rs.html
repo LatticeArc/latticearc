@@ -93,13 +93,13 @@
 <a href=#93 id=93 data-nosnippet>93</a>
 <a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">let </span>keypair = <span class="self">Self </span>{ public_key, secret_key };
 <a href=#95 id=95 data-nosnippet>95</a>
-<a href=#96 id=96 data-nosnippet>96</a>        <span class="comment">// Round-20 audit fix #3: FIPS 140-3 IG 10.3.A doesn't distinguish
+<a href=#96 id=96 data-nosnippet>96</a>        <span class="comment">// FIPS 140-3 IG 10.3.A doesn't distinguish
 <a href=#97 id=97 data-nosnippet>97</a>        // key-introduction paths — every keypair entering the module
 <a href=#98 id=98 data-nosnippet>98</a>        // (whether via fresh generation or import from external bytes)
 <a href=#99 id=99 data-nosnippet>99</a>        // must run a Pairwise Consistency Test before exposure. Importing
 <a href=#100 id=100 data-nosnippet>100</a>        // a corrupted secret key was previously possible without
 <a href=#101 id=101 data-nosnippet>101</a>        // detection.
-<a href=#102 id=102 data-nosnippet>102</a>        // Round-26 audit fix (H9): opaque error string.
+<a href=#102 id=102 data-nosnippet>102</a>        // opaque error string.
 <a href=#103 id=103 data-nosnippet>103</a>        </span><span class="kw">crate</span>::primitives::pct::pct_ed25519(<span class="kw-2">&amp;</span>keypair).map_err(|e| {
 <a href=#104 id=104 data-nosnippet>104</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"Ed25519 from_secret_key PCT failed"</span>);
 <a href=#105 id=105 data-nosnippet>105</a>            LatticeArcError::KeyGenerationError(<span class="string">"Ed25519 keypair PCT failed"</span>.to_string())
@@ -136,7 +136,7 @@
 <a href=#136 id=136 data-nosnippet>136</a>    /// `InvalidKey` if the public key is not on the Ed25519 curve, or
 <a href=#137 id=137 data-nosnippet>137</a>    /// `SignatureVerificationError` if the signature is invalid.
 <a href=#138 id=138 data-nosnippet>138</a>    </span><span class="kw">fn </span>verify(public_key_bytes: <span class="kw-2">&amp;</span>[u8], message: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span><span class="self">Self</span>::Signature) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#139 id=139 data-nosnippet>139</a>        <span class="comment">// Round-26 audit fix (H4): bound message length before SHA-512
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="comment">// bound message length before SHA-512
 <a href=#140 id=140 data-nosnippet>140</a>        // hashes the entire payload (RFC 8032 §5.1.7 inner hash). Without
 <a href=#141 id=141 data-nosnippet>141</a>        // this, an attacker forces unbounded hashing through any verify
 <a href=#142 id=142 data-nosnippet>142</a>        // entrypoint — same DoS shape round-24 closed for ML-DSA /
@@ -156,7 +156,7 @@
 <a href=#156 id=156 data-nosnippet>156</a>        }
 <a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">let </span><span class="kw-2">mut </span>pk_bytes = [<span class="number">0u8</span>; <span class="number">32</span>];
 <a href=#158 id=158 data-nosnippet>158</a>        pk_bytes.copy_from_slice(public_key_bytes);
-<a href=#159 id=159 data-nosnippet>159</a>        <span class="comment">// Round-26 audit fix (H9): opaque InvalidKey string. Upstream
+<a href=#159 id=159 data-nosnippet>159</a>        <span class="comment">// opaque InvalidKey string. Upstream
 <a href=#160 id=160 data-nosnippet>160</a>        // dalek error variants are version-volatile; relaying them
 <a href=#161 id=161 data-nosnippet>161</a>        // verbatim is a side-channel into which check failed (off-curve
 <a href=#162 id=162 data-nosnippet>162</a>        // vs malformed encoding vs small-subgroup).
