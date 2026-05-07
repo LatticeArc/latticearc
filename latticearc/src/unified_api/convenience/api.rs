@@ -32,7 +32,7 @@ use chrono::Utc;
 
 /// Validate a 256-bit AEAD key length (32 bytes).
 ///
-/// Centralises the `if k.len() != 32 { return Err(InvalidKeyLength { 32, ... }) }`
+/// Centralises the `if k.len() != 32 { return Err(InvalidKeyLength { 32... }) }`
 /// check that previously appeared at four call sites in this module
 /// (AES-256-GCM and ChaCha20-Poly1305, encrypt + decrypt). Returns
 /// `Ok(())` on the right length and the structured `InvalidKeyLength`
@@ -237,7 +237,7 @@ fn select_encryption_scheme_typed(options: &CryptoConfig) -> Result<EncryptionSc
 ///
 /// Use cases are routed through `UseCaseConfig`, which carries an explicit
 /// signature `CoreConfig` (with the right `SecurityLevel`) for every use case.
-/// We must NOT use `recommend_scheme(use_case, ...)` here — that helper returns
+/// We must NOT use `recommend_scheme(use_case...)` here — that helper returns
 /// the *encryption* scheme for many use cases (e.g. `IoTDevice` →
 /// `hybrid-ml-kem-512-aes-256-gcm`), which would be a fatal type error in a
 /// signature dispatcher.
@@ -287,12 +287,12 @@ fn encrypt_chacha20_internal(data: &[u8], key: &[u8], aad: &[u8]) -> Result<Vec<
         AeadError::InvalidKeyLength => {
             CoreError::InvalidKeyLength { expected: 32, actual: key.len() }
         }
-        // Round-36 H7: replaced the wildcard `_ =>
+        // H7: replaced the wildcard `_ =>
         // InvalidKeyLength { 32, 32 }` arm. With `AeadError` marked
         // `#[non_exhaustive]`, any future variant routed through
         // here produced the contradictory diagnostic "wrong key
         // length: expected 32, got 32" — exactly the
-        // self-contradictory shape that round-32 onwards has been
+        // self-contradictory shape that onwards has been
         // collapsing. Forward unknown variants as
         // `EncryptionFailed(e.to_string())`, matching the AES-GCM
         // sibling at `aes_gcm.rs:97`.
@@ -871,7 +871,7 @@ pub fn generate_signing_keypair(
         }
         // Accept both the canonical "fn-dsa-512" / "fn-dsa-1024" tags and
         // the legacy bare "fn-dsa" alias (treated as Level512 for backward
-        // compatibility with keys produced before round-21 added the
+        // compatibility with keys produced before added the
         // explicit suffix).
         "fn-dsa-512" | "fn-dsa" => {
             let (pk, sk) = generate_fn_dsa_keypair_with_level(FnDsaSecurityLevel::Level512)?;
@@ -3084,7 +3084,7 @@ mod tests {
         // Note: CNSA 2.0 config requires CryptoMode::PqOnly. The verifier
         // SecurityLevel must match (or be below) the signature's PQ
         // component — ml-dsa-65 is High, so we pin High here. Pinning
-        // Maximum would be rejected by the round-6 audit fix #10
+        // Maximum would be rejected by the
         // SecurityLevel-floor check (silent-downgrade prevention).
         if signed.scheme.contains("hybrid") {
             let cnsa_config = CryptoConfig::new()

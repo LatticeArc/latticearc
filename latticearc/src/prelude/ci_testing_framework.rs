@@ -227,11 +227,11 @@ impl PreludeCiTestSuite {
         }
 
         // Test they all contain the LatticeArc namespace prefix.
-        // (Round-34 L9: deleted `HYBRID_KEM` / `SIGNATURE_BIND` had
-        // `LatticeArc-v1-…`; live `HYBRID_KEM_SS_INFO` is
-        // `LatticeArc-Hybrid-KEM-SS-v1` so `LatticeArc-v` is no
+        // The deleted `HYBRID_KEM` / `SIGNATURE_BIND` constants used
+        // `LatticeArc-v1-…`; the live `HYBRID_KEM_SS_INFO` is
+        // `LatticeArc-Hybrid-KEM-SS-v1`, so `LatticeArc-v` is no
         // longer a contiguous substring across all live domains.
-        // Check for the namespace prefix instead.)
+        // Check for the namespace prefix instead.
         let domain_list =
             [domains::CASCADE_OUTER, domains::CASCADE_INNER, domains::HYBRID_KEM_SS_INFO];
         for domain in &domain_list {
@@ -556,10 +556,9 @@ mod tests {
             performance_results: PerformanceResults::default(),
         };
 
-        // High severity must block the gate (round-35 M6 — the
-        // function name says "critical" but the policy is
-        // "Critical OR High"; a CI gate that lets High through
-        // would be silently broken).
+        // High severity must block the gate. The function name says
+        // "critical" but the policy is "Critical OR High"; a CI gate
+        // that lets High through would be silently broken.
         assert!(!report.all_critical_tests_passed());
     }
 

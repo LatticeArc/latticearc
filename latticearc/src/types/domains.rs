@@ -111,10 +111,9 @@ impl HkdfKemLabel {
 /// `label || 0x00 || pk_len_be32 || recipient_pk || ct_len_be32 || kem_ciphertext`.
 /// Length-prefixing both fields prevents prefix-free ambiguity between
 /// adjacent variable-length values. The previous label-only
-/// `hkdf_kem_info` helper was removed in round-26 audit fix H1; every
-/// internal KEM-AEAD path now uses this PK-binding variant so
-/// encrypt/decrypt drift across parallel APIs is structurally
-/// impossible.
+/// `hkdf_kem_info` helper was removed; every internal KEM-AEAD path
+/// now uses this PK-binding variant so encrypt/decrypt drift across
+/// parallel APIs is structurally impossible.
 pub(crate) fn hkdf_kem_info_with_pk(
     label: HkdfKemLabel,
     recipient_pk: &[u8],

@@ -53,7 +53,7 @@ pub fn secure_zeroize(data: &mut [u8]) {
 // `SecretVec::zero(size)` directly at every call site — same semantics,
 // no lock contention.
 
-/// Allocate a zeroed `SecretVec` of `size` bytes. Round-26 audit fix
+/// Allocate a zeroed `SecretVec` of `size` bytes. audit fix
 /// (M26): replaces the `MemoryPool::allocate` API. This is a thin
 /// wrapper around `SecretVec::zero(size)` with the same per-call size
 /// validation the pool used to enforce.
@@ -282,7 +282,7 @@ pub fn initialize_global_secure_rng() -> Result<()> {
 /// 1 MiB cap (rejects `usize::MAX` before it can OOM the allocator).
 /// Returns an error if random generation fails.
 pub fn generate_secure_random_bytes(len: usize) -> Result<zeroize::Zeroizing<Vec<u8>>> {
-    // Round-36 M6: cap matches `allocate_secure_buffer` so both
+    // M6: cap matches `allocate_secure_buffer` so both
     // sibling helpers refuse the same `usize::MAX → 18 EiB
     // allocation` foot-gun. Any legitimate caller stays well under
     // 1 MiB (typical sizes: 16-byte salts, 32-byte keys, 96-byte
@@ -380,7 +380,7 @@ mod tests {
         assert!(data.iter().all(|&b| b == 0));
     }
 
-    // === allocate_secure_buffer tests (round-26 audit fix M26: replaces MemoryPool tests) ===
+    // === allocate_secure_buffer tests ===
 
     #[test]
     fn test_allocate_secure_buffer_basic_succeeds() {

@@ -27,7 +27,7 @@ use crate::keyfile::{KeyFile, KeyType};
 /// Used by both the use-case-driven path and the expert-mode inference
 /// to route pure-PQ keys away from the hybrid splitter (which would
 /// misinterpret the trailing bytes as X25519 and produce garbage
-/// ciphertext). Single source of truth — round-26 simplify pass.
+/// ciphertext). Single source of truth — simplify pass.
 fn is_pq_only_key(key_file: &KeyFile) -> bool {
     use latticearc::unified_api::key_format::KeyAlgorithm;
     matches!(
@@ -80,7 +80,7 @@ pub(crate) struct EncryptArgs {
     #[arg(short, long)]
     pub key: PathBuf,
     /// Overwrite the output file if it already exists. Default: false
-    /// (refuses to clobber). Round-26 audit fix (H12).
+    /// (refuses to clobber). audit fix (H12).
     #[arg(long)]
     pub force: bool,
 }
@@ -106,10 +106,10 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
 
     // Expert path (or default). When `--mode` is omitted, infer it from
     // the key file's type — a hybrid PK should default to hybrid, a
-    // symmetric key to AES-256-GCM. Without this inference (round-7
-    // audit fix #12), passing a hybrid PK without `--mode hybrid`
-    // produced "Expected symmetric key file, got Public" — accurate
-    // but surprising for the common case.
+    // symmetric key to AES-256-GCM. Without this inference, passing a
+    // hybrid PK without `--mode hybrid` produces "Expected symmetric
+    // key file, got Public" — accurate but surprising for the common
+    // case.
     //
     // branch on the key's algorithm so
     // pure-PQ ML-KEM PKs are routed to `PqOnly` and hybrid
@@ -307,7 +307,7 @@ fn write_output(path: &Option<PathBuf>, data: &str, force: bool) -> Result<()> {
         Some(p) => {
             // Atomic write — closes the partial-file confidentiality
             // window for decrypted material at rest. Same helper the
-            // keyfile writer uses (round-7 audit fix #18).
+            // keyfile writer uses.
             // only overwrite when --force is
             // passed; otherwise refuse to clobber, matching keygen's
             // default-safe behavior.
@@ -322,9 +322,9 @@ fn write_output(path: &Option<PathBuf>, data: &str, force: bool) -> Result<()> {
         }
         None => {
             // `print!` (not `println!`) — byte-exact stdout for
-            // pipelines that hash or chain into other tools (round-7
-            // audit fix #14). Callers that want a trailing newline can
-            // redirect through `cat` or append themselves.
+            // pipelines that hash or chain into other tools. Callers
+            // that want a trailing newline can redirect through `cat`
+            // or append themselves.
             print!("{data}");
         }
     }

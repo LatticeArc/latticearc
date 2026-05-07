@@ -638,7 +638,7 @@ impl KeyLifecycleRecord {
     /// is already in the list, or if the cap (`MAX_APPROVERS`) has
     /// been reached. Returns `false` on cap rejection so callers can
     /// surface a warning if needed — the `#[must_use]` here forces
-    /// every caller to acknowledge the bool, since round-34 M8
+    /// every caller to acknowledge the bool, since
     /// changed the return type from `()` precisely to expose this
     /// case and a caller that just `.;` it would silently lose the
     /// signal.

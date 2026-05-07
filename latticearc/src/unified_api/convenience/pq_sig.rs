@@ -47,7 +47,7 @@ use crate::unified_api::error::{CoreError, Result};
 /// the previous mapping returned distinguishable
 /// `Err(VerificationFailed)` and `Err(InvalidInput("{alg} ... {e}"))`
 /// variants on adversary-reachable input, leaking both the algorithm
-/// name and upstream parse failure detail. Round-27 H7 closed the same
+/// name and upstream parse failure detail. H7 closed the same
 /// re-opening at convenience-layer string sites but missed this central
 /// mapper. Now the only observable boolean to a verifier is `Ok(false)`
 /// for any rejection (correct shape *or* malformed bytes); diagnosis
@@ -1301,7 +1301,7 @@ mod tests {
         let signature =
             sign_pq_fn_dsa_unverified(message, sk.expose_secret(), FnDsaSecurityLevel::Level512)?;
         // verify path collapses Err to Ok(false) (Pattern 6).
-        // The pre-round-28 comment said "FN-DSA returns Err" — that
+        // The earlier comment said "FN-DSA returns Err" — that
         // was the leaky behaviour the H6 sweep closed.
         let result = verify_pq_fn_dsa_unverified(
             wrong_message,

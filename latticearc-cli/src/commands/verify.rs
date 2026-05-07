@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use crate::keyfile::{KeyFile, KeyType};
 
 /// Verification algorithm (legacy mode only).
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub(crate) enum VerifyAlgorithm {
     /// ML-DSA-65 (FIPS 204).
     MlDsa65,
@@ -123,8 +123,13 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
             match latticearc::unified_api::serialization::deserialize_signed_data(&sig_json) {
                 Ok(signed) => signed,
                 Err(e) => {
+                    // `%e` Display, not `?e` Debug — Display shows the
+                    // top-level deserialize error message (typed,
+                    // bounded), while Debug walks the source chain
+                    // which can contain attacker-controlled JSON
+                    // snippets via the underlying `serde_json::Error`.
                     tracing::debug!(
-                        error = ?e,
+                        error = %e,
                         "verify (SignedData shape detected, parse rejected)"
                     );
                     return Ok(print_invalid());
@@ -167,7 +172,9 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
         let valid = match latticearc::verify(&signed, config) {
             Ok(v) => v,
             Err(e) => {
-                tracing::debug!(error = ?e, "verify (SignedData path) rejected");
+                // `%e` Display — see deserialize_signed_data branch above
+                // for the rationale on attacker-content avoidance.
+                tracing::debug!(error = %e, "verify (SignedData path) rejected");
                 return Ok(print_invalid());
             }
         };
@@ -237,11 +244,51 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
 /// helpful error messages and surface as exit ≥2. See `verify_legacy`
 /// docs for the boundary.
 ///
-/// **When adding a new reject path:** if it can be triggered by the
-/// content of `--signature` (or, for SignedData, by the embedded
-/// `signed.data` / `signed.metadata`), it MUST route through
-/// `print_invalid()`; preserve any operator-facing detail in
-/// `tracing::debug` instead of `eprintln!` / `bail!` / `anyhow!`.
+/// # Tracing observability boundary
+///
+/// `tracing::debug!` calls used as the safe alternative below ARE
+/// observable on stderr when the operator (or a CI runner) sets
+/// `RUST_LOG=debug`. The default subscriber's filter ships at
+/// `INFO`/`WARN`, so production deployments don't expose this surface
+/// — but the contract isn't "this never reaches stderr", it's "this
+/// never reaches stderr at default log levels". Treat that as a
+/// reasonable trade-off: operator-side debugging is the legitimate
+/// reason debug logs exist, and an attacker who can flip the
+/// operator's `RUST_LOG` already has more powerful capabilities than
+/// reading verify error text.
+///
+/// **What's safe to put inside `tracing::debug!` calls:**
+/// - Errors via `error = %e` (Display) — fine. anyhow's Display
+///   shows ONLY the outermost `.context(...)` message, which is
+///   static text we author ourselves ("Failed to parse signature
+///   JSON", "Invalid base64 in signature", etc.). The attacker-
+///   controlled detail lives in the source chain, which Display
+///   does not walk.
+/// - The chosen algorithm name — fine; not secret, comes from a
+///   small fixed set, useful for debugging mismatches.
+/// - A short reject reason string (e.g. "alg mismatch", "data
+///   mismatch") — fine.
+///
+/// **What's NOT safe inside `tracing::debug!` calls:**
+/// - Raw signature bytes, key bytes, or any base64 thereof — even at
+///   `RUST_LOG=debug`, plaintext key material in logs is a separate
+///   incident class.
+/// - Errors via `error = ?e` (Debug) — Debug walks the full source
+///   chain. For wrapped `serde_json::Error` or `base64::DecodeError`,
+///   the chain includes attacker-controlled JSON snippets and byte
+///   offsets / values from the input. This re-introduces the echo-
+///   amplification distinguisher one log level down. Use `%e`
+///   instead.
+/// - Attacker-controlled fields verbatim (the `algorithm` JSON
+///   value, arbitrary error strings from the parsed signature).
+///
+/// # When adding a new reject path
+///
+/// If the path can be triggered by the content of `--signature` (or,
+/// for SignedData, by the embedded `signed.data` / `signed.metadata`),
+/// it MUST route through `print_invalid()`; preserve any operator-
+/// facing detail in `tracing::debug` instead of `eprintln!` / `bail!`
+/// / `anyhow!` — and follow the safe-content rules above.
 fn print_invalid() -> bool {
     eprintln!("Signature is INVALID.");
     false
@@ -265,6 +312,21 @@ fn input_label(args: &VerifyArgs) -> String {
         .unwrap_or_else(|| "<stdin>".to_string())
 }
 
+/// The six non-hybrid `VerifyAlgorithm` variants, lifted into their
+/// own enum so `verify_standard` can be type-enforced as never
+/// receiving `Hybrid` — without this, an unreachable `bail!("Internal
+/// error...")` arm sits in `verify_standard` waiting for a future
+/// variant addition to silently make it reachable.
+#[derive(Debug, Clone, Copy)]
+enum NonHybridAlgorithm {
+    MlDsa44,
+    MlDsa65,
+    MlDsa87,
+    SlhDsa,
+    FnDsa,
+    Ed25519,
+}
+
 /// Dispatch shape for the verify-side step in `verify_legacy`.
 ///
 /// The variant is chosen in Phase 1c (operator-side parsing) so that
@@ -272,10 +334,45 @@ fn input_label(args: &VerifyArgs) -> String {
 /// file, NOT a tampered signature — surface as helpful `Err` at exit
 /// ≥2 rather than collapsing into `print_invalid()`. By the time the
 /// Phase-2 closure dispatches, the type system guarantees the right
-/// pk shape for the chosen algorithm.
+/// pk shape for the chosen algorithm: `Standard` cannot carry
+/// `Hybrid` (rejected by `NonHybridAlgorithm`) and `Hybrid` carries
+/// the parsed pk directly.
+///
+/// # Field-name asymmetry: `pk_bytes` vs `pk`
+///
+/// The two variants intentionally name their pk field differently
+/// because they hold different things at different stages of parsing:
+/// `Standard` carries raw bytes that the per-algorithm crypto helper
+/// will pass straight to the verify primitive (no operator-side parse
+/// needed); `Hybrid` carries the already-parsed `HybridSigPublicKey`
+/// because the hybrid wire format requires an operator-trusted
+/// byte-layout parse that lives in Phase 1c — failure there must
+/// bubble as helpful `Err`, not collapse to INVALID.
 enum LegacyVerifier<'a> {
-    Standard { algorithm: VerifyAlgorithm, pk_bytes: &'a [u8] },
+    Standard { algorithm: NonHybridAlgorithm, pk_bytes: &'a [u8] },
     Hybrid { pk: latticearc::hybrid::sig_hybrid::HybridSigPublicKey },
+}
+
+/// Project a `VerifyAlgorithm` onto its non-hybrid sub-domain. The
+/// `Hybrid` variant has no representation in `NonHybridAlgorithm` and
+/// produces `Err(())`; the caller (`verify_legacy` Phase 1c) routes
+/// that case to `LegacyVerifier::Hybrid` after parsing the operator
+/// pk. Implemented as `TryFrom` rather than a hand-named constructor
+/// to align with the standard library projection-conversion idiom.
+impl TryFrom<VerifyAlgorithm> for NonHybridAlgorithm {
+    type Error = ();
+
+    fn try_from(alg: VerifyAlgorithm) -> Result<Self, Self::Error> {
+        match alg {
+            VerifyAlgorithm::MlDsa44 => Ok(Self::MlDsa44),
+            VerifyAlgorithm::MlDsa65 => Ok(Self::MlDsa65),
+            VerifyAlgorithm::MlDsa87 => Ok(Self::MlDsa87),
+            VerifyAlgorithm::SlhDsa => Ok(Self::SlhDsa),
+            VerifyAlgorithm::FnDsa => Ok(Self::FnDsa),
+            VerifyAlgorithm::Ed25519 => Ok(Self::Ed25519),
+            VerifyAlgorithm::Hybrid => Err(()),
+        }
+    }
 }
 
 /// Legacy verification path — custom JSON format + primitive-level API.
@@ -328,7 +425,7 @@ fn verify_legacy(
     let pk_bytes = key_file.key_bytes()?;
 
     // ── Phase 1b: operator-picked algorithm vs key (helpful err) ──
-    if let Some(cli_alg) = &args.algorithm {
+    if let Some(cli_alg) = args.algorithm {
         key_file.validate_algorithm(algorithm_name(cli_alg))?;
     }
 
@@ -346,7 +443,7 @@ fn verify_legacy(
     // (`pk_bytes` is the operator's key file). A malformed hybrid pk
     // is operator misuse, not an attacker action — surface it as a
     // helpful Err.
-    let algorithm = if let Some(alg) = args.algorithm.clone() {
+    let algorithm = if let Some(alg) = args.algorithm {
         alg
     } else {
         let Some(detected) = detect_algorithm(sig_json) else {
@@ -354,43 +451,45 @@ fn verify_legacy(
             return Ok(print_invalid());
         };
         tracing::debug!(
-            algorithm = %algorithm_name(&detected),
+            algorithm = %algorithm_name(detected),
             "auto-detected legacy verify algorithm"
         );
-        if let Err(e) = key_file.validate_algorithm(algorithm_name(&detected)) {
-            tracing::debug!(error = ?e, "verify (legacy auto-detect) rejected: alg mismatch");
+        if let Err(e) = key_file.validate_algorithm(algorithm_name(detected)) {
+            // `%e` Display, not `?e` Debug — see Phase 2 closure below
+            // for the full rationale on attacker-content avoidance in
+            // tracing output.
+            tracing::debug!(error = %e, "verify (legacy auto-detect) rejected: alg mismatch");
             return Ok(print_invalid());
         }
         detected
     };
 
-    let verifier = match algorithm {
-        VerifyAlgorithm::Hybrid => {
-            // pk parse failure here is operator-side (their key file
-            // is malformed) — bubble as helpful Err.
-            let pk = crate::keyfile::parse_hybrid_sign_pk_from_bytes(&pk_bytes)?;
-            LegacyVerifier::Hybrid { pk }
-        }
-        other => LegacyVerifier::Standard { algorithm: other, pk_bytes: &pk_bytes },
+    let verifier = if let Ok(non_hybrid) = NonHybridAlgorithm::try_from(algorithm) {
+        LegacyVerifier::Standard { algorithm: non_hybrid, pk_bytes: &pk_bytes }
+    } else {
+        // Algorithm was Hybrid (the only `Err`-returning case).
+        // pk parse failure here is operator-side (their key file is
+        // malformed) — bubble as helpful Err.
+        let pk = crate::keyfile::parse_hybrid_sign_pk_from_bytes(&pk_bytes)?;
+        LegacyVerifier::Hybrid { pk }
     };
 
-    // ── Phase 2: signature-side verify (collapses to print_invalid) ──
+    // ── Phase 2: signature-side verify (returns plain `bool`) ──
     //
-    // Any error here — JSON parse, missing field, base64 decode, or a
-    // crypto-library error from the verify_* helpers — collapses to
-    // `false` via `unwrap_or_else`, routing through `print_invalid()`.
-    // The original error is debug-logged so operators can recover
-    // detail at `RUST_LOG=debug`.
-    let valid = match verifier {
-        LegacyVerifier::Hybrid { ref pk } => verify_hybrid(&data, sig_json, pk),
+    // `verify_standard` and `verify_hybrid` both return `bool` directly
+    // (NOT `Result<bool>`): any error inside them — JSON parse, missing
+    // field, base64 decode, crypto reject — collapses internally to
+    // `false` with a `%e` Display debug-log. The `-> bool` return type
+    // is structural: a future maintainer who tries to bubble an
+    // operator-side error from these functions gets a compile error,
+    // which prevents accidentally widening the Phase-2 collapse to
+    // swallow operator state.
+    let valid = match &verifier {
+        LegacyVerifier::Hybrid { pk } => verify_hybrid(&data, sig_json, pk),
         LegacyVerifier::Standard { algorithm, pk_bytes } => {
-            verify_standard(&data, sig_json, pk_bytes, &algorithm)
+            verify_standard(&data, sig_json, pk_bytes, *algorithm)
         }
-    }
-    .unwrap_or_else(|e| {
-        tracing::debug!(error = ?e, "verify (legacy path) rejected");
-        false
-    });
+    };
 
     // Route both VALID and INVALID through their respective helpers
     // so the reject contract (see `print_invalid()`) cannot drift via
@@ -436,7 +535,7 @@ fn detect_algorithm(sig_json: &str) -> Option<VerifyAlgorithm> {
 }
 
 /// Map verify algorithm enum to canonical key file algorithm name.
-fn algorithm_name(alg: &VerifyAlgorithm) -> &'static str {
+fn algorithm_name(alg: VerifyAlgorithm) -> &'static str {
     match alg {
         VerifyAlgorithm::MlDsa65 => "ml-dsa-65",
         VerifyAlgorithm::MlDsa44 => "ml-dsa-44",
@@ -450,135 +549,159 @@ fn algorithm_name(alg: &VerifyAlgorithm) -> &'static str {
 
 /// Verify a non-hybrid legacy signature.
 ///
-/// Errors here — JSON parse, missing fields, base64 decode, crypto
-/// reject from a `latticearc::verify_*` helper — propagate as
-/// `Err(anyhow::Error)` and are caught by the closure in
-/// `verify_legacy`, which collapses them to `print_invalid()`. Do NOT
-/// re-flatten errors per arm with `.map_err(|_| anyhow!("..."))` — a
-/// per-arm message becomes its own Pattern-6 distinguisher. Let
-/// errors propagate raw; the closure-level collapse handles
-/// indistinguishability uniformly.
+/// Returns a plain `bool` — never `Err`. All signature-side errors
+/// (JSON parse, missing fields, base64 decode, crypto reject from a
+/// `latticearc::verify_*` helper) collapse internally to `false` with
+/// the underlying cause debug-logged via `%e` (Display only — see
+/// `print_invalid()` SECURITY contract).
+///
+/// The `-> bool` return type is structural enforcement of the
+/// Phase-2 contract: a future maintainer who tries to bubble an
+/// operator-side error (e.g. by adding a `?` on a non-signature-side
+/// fallible call) gets a compile error rather than silently widening
+/// the closure-collapse to swallow operator state.
+///
+/// Do NOT re-flatten errors per arm with `.map_err(|_| anyhow!("..."))`
+/// — a per-arm message becomes its own Pattern-6 distinguisher. Let
+/// errors propagate raw to the inner closure boundary; the function-
+/// level `unwrap_or_else` handles indistinguishability uniformly.
 fn verify_standard(
     data: &[u8],
     sig_json: &str,
     pk_bytes: &[u8],
-    algorithm: &VerifyAlgorithm,
-) -> Result<bool> {
-    let sig_obj: serde_json::Value =
-        serde_json::from_str(sig_json).context("Failed to parse signature JSON")?;
+    algorithm: NonHybridAlgorithm,
+) -> bool {
+    (|| -> Result<bool> {
+        let sig_obj: serde_json::Value =
+            serde_json::from_str(sig_json).context("Failed to parse signature JSON")?;
 
-    use base64::Engine;
-    let sig_b64 = sig_obj
-        .get("signature")
-        .and_then(|v| v.as_str())
-        .context("Missing 'signature' field in signature JSON")?;
-    let sig_bytes = base64::engine::general_purpose::STANDARD
-        .decode(sig_b64)
-        .context("Invalid base64 in signature")?;
+        use base64::Engine;
+        let sig_b64 = sig_obj
+            .get("signature")
+            .and_then(|v| v.as_str())
+            .context("Missing 'signature' field in signature JSON")?;
+        let sig_bytes = base64::engine::general_purpose::STANDARD
+            .decode(sig_b64)
+            .context("Invalid base64 in signature")?;
 
-    let valid = match algorithm {
-        VerifyAlgorithm::MlDsa65 => latticearc::verify_pq_ml_dsa(
-            data,
-            &sig_bytes,
-            pk_bytes,
-            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
-            latticearc::SecurityMode::Unverified,
-        )?,
-        VerifyAlgorithm::MlDsa44 => latticearc::verify_pq_ml_dsa(
-            data,
-            &sig_bytes,
-            pk_bytes,
-            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44,
-            latticearc::SecurityMode::Unverified,
-        )?,
-        VerifyAlgorithm::MlDsa87 => latticearc::verify_pq_ml_dsa(
-            data,
-            &sig_bytes,
-            pk_bytes,
-            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87,
-            latticearc::SecurityMode::Unverified,
-        )?,
-        VerifyAlgorithm::SlhDsa => latticearc::verify_pq_slh_dsa(
-            data,
-            &sig_bytes,
-            pk_bytes,
-            latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s,
-            latticearc::SecurityMode::Unverified,
-        )?,
-        VerifyAlgorithm::FnDsa => latticearc::verify_pq_fn_dsa(
-            data,
-            &sig_bytes,
-            pk_bytes,
-            latticearc::primitives::sig::fndsa::FnDsaSecurityLevel::Level512,
-            latticearc::SecurityMode::Unverified,
-        )?,
-        VerifyAlgorithm::Ed25519 => latticearc::verify_ed25519(
-            data,
-            &sig_bytes,
-            pk_bytes,
-            latticearc::SecurityMode::Unverified,
-        )?,
-        VerifyAlgorithm::Hybrid => bail!("Internal error: hybrid handled separately"),
-    };
-    Ok(valid)
+        // Exhaustive over `NonHybridAlgorithm`. If a new variant is
+        // added there, this match becomes a compile error rather than
+        // a hidden unreachable arm.
+        let valid = match algorithm {
+            NonHybridAlgorithm::MlDsa65 => latticearc::verify_pq_ml_dsa(
+                data,
+                &sig_bytes,
+                pk_bytes,
+                latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
+                latticearc::SecurityMode::Unverified,
+            )?,
+            NonHybridAlgorithm::MlDsa44 => latticearc::verify_pq_ml_dsa(
+                data,
+                &sig_bytes,
+                pk_bytes,
+                latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44,
+                latticearc::SecurityMode::Unverified,
+            )?,
+            NonHybridAlgorithm::MlDsa87 => latticearc::verify_pq_ml_dsa(
+                data,
+                &sig_bytes,
+                pk_bytes,
+                latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87,
+                latticearc::SecurityMode::Unverified,
+            )?,
+            NonHybridAlgorithm::SlhDsa => latticearc::verify_pq_slh_dsa(
+                data,
+                &sig_bytes,
+                pk_bytes,
+                latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s,
+                latticearc::SecurityMode::Unverified,
+            )?,
+            NonHybridAlgorithm::FnDsa => latticearc::verify_pq_fn_dsa(
+                data,
+                &sig_bytes,
+                pk_bytes,
+                latticearc::primitives::sig::fndsa::FnDsaSecurityLevel::Level512,
+                latticearc::SecurityMode::Unverified,
+            )?,
+            NonHybridAlgorithm::Ed25519 => latticearc::verify_ed25519(
+                data,
+                &sig_bytes,
+                pk_bytes,
+                latticearc::SecurityMode::Unverified,
+            )?,
+        };
+        Ok(valid)
+    })()
+    .unwrap_or_else(|e| {
+        tracing::debug!(error = %e, "verify (legacy standard path) rejected");
+        false
+    })
 }
 
 /// Verify a hybrid legacy signature against a parsed hybrid public key.
 ///
+/// Returns a plain `bool` — never `Err`. All signature-side errors
+/// (JSON parse, missing fields, base64 decode, crypto reject)
+/// collapse internally to `false` with a `%e` Display debug-log.
+/// Same `-> bool` structural enforcement as `verify_standard`: a
+/// future maintainer cannot bubble an operator-side error out of
+/// this function and accidentally widen the Phase-2 collapse.
+///
 /// The pk is parsed by the caller (`verify_legacy` Phase 1c) so that
 /// pk-parse failures — which indicate a malformed *operator* key file
-/// — surface as helpful Errs at exit ≥2, not collapse into INVALID.
-/// Errors from THIS function (signature JSON parse, base64 decode,
-/// missing fields, crypto reject) are signature-side and propagate
-/// for the closure in `verify_legacy` to collapse to `print_invalid()`.
+/// — surface as helpful `Err` at exit ≥2 there, not collapse into
+/// INVALID here.
 fn verify_hybrid(
     data: &[u8],
     sig_json: &str,
     pk: &latticearc::hybrid::sig_hybrid::HybridSigPublicKey,
-) -> Result<bool> {
-    let sig: serde_json::Value =
-        serde_json::from_str(sig_json).context("Failed to parse hybrid signature JSON")?;
+) -> bool {
+    (|| -> Result<bool> {
+        let sig: serde_json::Value =
+            serde_json::from_str(sig_json).context("Failed to parse hybrid signature JSON")?;
 
-    use base64::Engine;
-    let ml_dsa_b64 = sig
-        .get("ml_dsa_sig")
-        .and_then(|v| v.as_str())
-        .context("Missing 'ml_dsa_sig' field in hybrid signature")?;
-    let ml_dsa_sig = base64::engine::general_purpose::STANDARD
-        .decode(ml_dsa_b64)
-        .context("Invalid base64 in ml_dsa_sig")?;
+        use base64::Engine;
+        let ml_dsa_b64 = sig
+            .get("ml_dsa_sig")
+            .and_then(|v| v.as_str())
+            .context("Missing 'ml_dsa_sig' field in hybrid signature")?;
+        let ml_dsa_sig = base64::engine::general_purpose::STANDARD
+            .decode(ml_dsa_b64)
+            .context("Invalid base64 in ml_dsa_sig")?;
 
-    let ed25519_b64 = sig
-        .get("ed25519_sig")
-        .and_then(|v| v.as_str())
-        .context("Missing 'ed25519_sig' field in hybrid signature")?;
-    let ed25519_sig = base64::engine::general_purpose::STANDARD
-        .decode(ed25519_b64)
-        .context("Invalid base64 in ed25519_sig")?;
+        let ed25519_b64 = sig
+            .get("ed25519_sig")
+            .and_then(|v| v.as_str())
+            .context("Missing 'ed25519_sig' field in hybrid signature")?;
+        let ed25519_sig = base64::engine::general_purpose::STANDARD
+            .decode(ed25519_b64)
+            .context("Invalid base64 in ed25519_sig")?;
 
-    let hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature::new(ml_dsa_sig, ed25519_sig);
+        let hybrid_sig =
+            latticearc::hybrid::sig_hybrid::HybridSignature::new(ml_dsa_sig, ed25519_sig);
 
-    // Preserve the CLI 0/1/≥2 exit-code contract. The unified-API
-    // wrapper maps `HybridSignatureError::VerificationFailed` →
-    // `CoreError::VerificationFailed`; translating that variant to
-    // `Ok(false)` routes through `verify_legacy`'s `print_invalid()`
-    // arm (exit 1).
-    //
-    // Any other `Err` propagates via `anyhow::Error::new(e)` — the
-    // typed source survives for `tracing::debug`, but no upstream
-    // error string is interpolated into stderr. A structured upstream
-    // error like "ML-DSA component verify failed" vs "Ed25519
-    // component verify failed" would otherwise tell an attacker which
-    // half of the hybrid pair rejected.
-    use latticearc::CoreError;
-    match latticearc::verify_hybrid_signature(
-        data,
-        &hybrid_sig,
-        pk,
-        latticearc::SecurityMode::Unverified,
-    ) {
-        Ok(valid) => Ok(valid),
-        Err(CoreError::VerificationFailed) => Ok(false),
-        Err(e) => Err(anyhow::Error::new(e)),
-    }
+        // CoreError::VerificationFailed is a routine cryptographic
+        // reject (`Ok(false)`-equivalent). Any other CoreError variant
+        // is propagated as anyhow::Error::new(e) — the typed source
+        // survives for `%e` Display, which on CoreError gives a fixed
+        // variant message without attacker-controlled interpolation.
+        // A structured upstream error like "ML-DSA component verify
+        // failed" vs "Ed25519 component verify failed" would otherwise
+        // tell an attacker which half of the hybrid pair rejected.
+        use latticearc::CoreError;
+        match latticearc::verify_hybrid_signature(
+            data,
+            &hybrid_sig,
+            pk,
+            latticearc::SecurityMode::Unverified,
+        ) {
+            Ok(valid) => Ok(valid),
+            Err(CoreError::VerificationFailed) => Ok(false),
+            Err(e) => Err(anyhow::Error::new(e)),
+        }
+    })()
+    .unwrap_or_else(|e| {
+        tracing::debug!(error = %e, "verify (legacy hybrid path) rejected");
+        false
+    })
 }

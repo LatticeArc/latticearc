@@ -1,4 +1,4 @@
-//! Public-API surface snapshot — round-10 audit follow-up #13.
+//! Public-API surface snapshot — audit follow-up #13.
 //!
 //! ## What this file IS
 //!
@@ -18,7 +18,7 @@
 //! `cargo-semver-checks` in CI (which we run separately) or a vendored
 //! `latticearc-X.Y` crate to compile this file against — neither is
 //! present today. The earlier doc-comment overstated scope and was
-//! corrected as part of the round-10 audit response.
+//! corrected as part of the prior audit response.
 //!
 //! ## Coverage categories
 //!
@@ -571,7 +571,7 @@ fn test_core_error_implements_error_trait_correctly_fails() {
 
 /// Test 2.14: CoreError variants are stable.
 ///
-/// Round-40 L6: previously this was `let _ = CoreError::Foo(...)` per
+/// L6: previously this was `let _ = CoreError::Foo(...)` per
 /// variant — a compile-time exhaustiveness check dressed as a
 /// `#[test]`. The body was vacuous at runtime: every `let _ = ...`
 /// passes if the type-checker accepts it. Migrated to assertions

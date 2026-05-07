@@ -575,7 +575,7 @@ pub fn kat_aes_256_gcm() -> Result<()> {
     // (GCMVS), file `gcmEncryptExtIV256.rsp`, Count = 12. URL:
     //   https://csrc.nist.gov/Projects/Cryptographic-Algorithm-Validation-Program/CAVP-TESTING-BLOCK-CIPHER-MODES#GCMVS
     //
-    // Round-26 audit fix (C4) replaced the previous self-computed
+    // audit fix (C4) replaced the previous self-computed
     // vector with this CAVP entry to satisfy FIPS 140-3 §10.3.1's
     // requirement that power-up KATs use externally-attested vectors
     // — a self-roundtrip would pass even if encrypt and decrypt shared
@@ -1483,7 +1483,7 @@ pub fn get_module_error_state() -> ModuleErrorState {
 /// ```
 #[must_use]
 pub fn is_module_operational() -> bool {
-    // Round-36 M1: use SeqCst loads to match the SeqCst stores in
+    // M1: use SeqCst loads to match the SeqCst stores in
     // `set_module_error`. Acquire-only loads synchronize with each
     // location's own Release store but do NOT preserve a single
     // total order across MODULE_ERROR_CODE and SELF_TEST_PASSED;

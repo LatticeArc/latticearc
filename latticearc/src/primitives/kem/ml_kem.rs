@@ -435,7 +435,7 @@ pub struct MlKemSecretKey {
     /// custom `impl Zeroize for MlKemSecretKey` + `impl ZeroizeOnDrop`
     /// below only fire on the success path (the struct is never
     /// constructed when `new()` returns `Err`). Same defect class as
-    /// the round-13 fix on `MlDsaSecretKey`.
+    /// the prior fix on `MlDsaSecretKey`.
     data: Zeroizing<Vec<u8>>,
 }
 
@@ -461,17 +461,16 @@ impl MlKemSecretKey {
     ///
     /// Returns `MlKemError::InvalidKeyFormat` if the length is correct
     /// but aws-lc-rs `DecapsulationKey::new` rejects the bytes
-    /// structurally. Symmetric with `MlKemPublicKey::new` (round-32 L9
-    /// + round-33 M2).
+    /// structurally. Symmetric with `MlKemPublicKey::new`.
     pub fn new(security_level: MlKemSecurityLevel, data: Vec<u8>) -> Result<Self, MlKemError> {
         // wrap on entry so the
         // moved-in `Vec` is zeroized on the length-validation error
         // path too.
         let data = Zeroizing::new(data);
         let expected_size = security_level.secret_key_size();
-        // Round-35 L7: collapse the length-mismatch and structural-
+        // L7: collapse the length-mismatch and structural-
         // validation paths to the SAME error variant
-        // (`InvalidKeyFormat`). Round-34 M7 introduced a two-variant
+        // (`InvalidKeyFormat`). M7 introduced a two-variant
         // distinguisher (`InvalidKeyLength` vs `InvalidKeyFormat`)
         // — Pattern-6 shape on the construction path of a
         // *secret-bearing* type. Secret keys are not adversary-
@@ -525,8 +524,8 @@ impl MlKemSecretKey {
     /// an owned copy without giving up the original key.
     #[must_use]
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
-        // `self.data` is `Zeroizing<Vec<u8>>` post round-14; deref to
-        // slice and re-allocate into a fresh zeroizing copy.
+        // `self.data` is `Zeroizing<Vec<u8>>`; deref to the slice and
+        // re-allocate into a fresh zeroizing copy.
         Zeroizing::new(self.data.to_vec())
     }
 
@@ -552,7 +551,7 @@ impl MlKemSecretKey {
     /// This helper carves out the embedded `ek` slice so callers that need
     /// to bind the recipient public key into a KDF info string (RFC 9180
     /// §5.1 channel binding) can do so on the decrypt side without
-    /// requiring the public key as a separate parameter. Round-26 audit
+    /// requiring the public key as a separate parameter. audit
     /// fix (H1) — convenience `pq_kem` decrypt now uses this helper to
     /// match the encrypt-side `hkdf_kem_info_with_pk` binding.
     ///
@@ -581,7 +580,7 @@ impl MlKemSecretKey {
         // `sk_size − 64` per the FIPS 203 layout, so this never panics
         // for a well-formed SK (length validated in `Self::new`).
         // `debug_assert!` makes the
-        // well-formed-SK invariant visible at test time. Round-29 L1
+        // well-formed-SK invariant visible at test time. L1
         // turns the release-mode silent-empty path into an explicit
         // error.
         debug_assert!(
@@ -1242,7 +1241,7 @@ impl MlKem {
         // rejection, (b) parameter-set mismatch, (c) key-reconstruction
         // failure, or (d) the constant-time decap rejection itself. The
         // upstream cause is logged at `tracing::debug!` so operators with a
-        // debug subscriber retain the detail. Round-10 audit fix: the
+        // debug subscriber retain the detail. audit fix: the
         // pre-checks below were previously distinguishable error strings.
         if validate_decryption_size(ciphertext.as_bytes().len()).is_err()
             || secret_key.security_level() != ciphertext.security_level()
@@ -1611,7 +1610,7 @@ mod tests {
         // Try to decapsulate with MlKem768 secret key (should fail).
         // FIPS 203 §6.3 implicit-rejection contract: the failure path must
         // surface the same opaque error as constant-time decap rejection,
-        // so this test asserts only `is_err()` (round-10 audit fix #3).
+        // so this test asserts only `is_err()`.
         let result = MlKem::decapsulate(&sk768, &ct512);
         assert!(result.is_err(), "Decapsulation with mismatched security levels should fail");
 
@@ -1806,10 +1805,10 @@ mod tests {
 
     #[test]
     fn test_secret_key_new_wrong_length_fails() {
-        // Round-35 L7: SK::new now returns the SAME variant
+        // L7: SK::new now returns the SAME variant
         // (`InvalidKeyFormat`) for both length-mismatch and
         // structural-validation paths, removing the Pattern-6
-        // distinguisher round-34 M7 introduced.
+        // distinguisher introduced.
         let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0u8; 100]);
         assert!(result.is_err());
         assert!(

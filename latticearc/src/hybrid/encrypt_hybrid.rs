@@ -98,7 +98,7 @@ pub enum HybridEncryptionError {
 pub struct HybridCiphertext {
     /// ML-KEM ciphertext for key decapsulation (1088 bytes for ML-KEM-768).
     kem_ciphertext: Vec<u8>,
-    /// X25519 ephemeral public key for ECDH (exactly 32 bytes). Round-20
+    /// X25519 ephemeral public key for ECDH (exactly 32 bytes).
     /// audit fix #13: previously documented as "Empty for legacy ML-KEM-
     /// only ciphertexts." That contract was always dead — `decrypt_hybrid`
     /// rejects any `len() != 32` (see `decrypt_hybrid` validation block).
@@ -144,7 +144,7 @@ impl HybridCiphertext {
     /// The legacy "empty for ML-KEM-only ciphertexts" contract was
     /// always dead — `decrypt_hybrid` rejected anything other than 32
     /// bytes. See the field doc on
-    /// [`HybridCiphertext::ecdh_ephemeral_pk`] above for the round-20
+    /// [`HybridCiphertext::ecdh_ephemeral_pk`] above for the
     /// audit trail.
     #[must_use]
     pub fn ecdh_ephemeral_pk(&self) -> &[u8] {
@@ -316,7 +316,7 @@ pub struct DerivationBinding<'a> {
     /// hybrid PK).
     pub recipient_static_pk: &'a [u8],
     /// Recipient's static ML-KEM public key (the PQ leg of the hybrid
-    /// PK). Round-26 audit fix (M4 / M19): bound here so the AEAD KDF
+    /// PK). audit fix (M4 / M19): bound here so the AEAD KDF
     /// info channel-binds the FULL hybrid recipient identity, not just
     /// its X25519 half. The previous binding only bound X25519
     /// directly; the ML-KEM half was bound only transitively via the
@@ -417,7 +417,7 @@ pub fn derive_encryption_key(
     //   [info_len][info]
     //   [aad_len][aad]
     //   [recipient_x25519_pk_len][recipient_x25519_pk]   ── Pattern 7 / channel binding
-    //   [recipient_ml_kem_pk_len][recipient_ml_kem_pk]   ── round-26 fix M4/M19
+    //   [recipient_ml_kem_pk_len][recipient_ml_kem_pk]   ── fix M4/M19
     //   [ephemeral_pk_len][ephemeral_pk]                 ── ditto
     //   [kem_ct_len][kem_ct]                             ── ditto
     //
@@ -503,7 +503,7 @@ pub fn encrypt_hybrid(
 
     // DoS bound on AAD: rejected up-front before any KEM / KDF / AEAD
     // work runs, so an oversized AAD cannot consume cryptographic budget.
-    // See `HybridEncryptionContext::MAX_AAD_LEN`. Round-20 audit fix #4:
+    // See `HybridEncryptionContext::MAX_AAD_LEN`.
     // collapse to opaque InvalidInput (matching decrypt-side opacity at
     // `decrypt_hybrid:538`) so the encrypt path doesn't disclose the
     // observed AAD length and the cap as a probable-bound oracle. Source-

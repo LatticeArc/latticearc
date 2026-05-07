@@ -11,8 +11,8 @@
 //! 1. Prover picks random k, computes R = k*G
 //! 2. Challenge c = H("arc-zkp/schnorr-v2" || "secp256k1" || P || R || ctx || counter_be)
 //!    where the counter is incremented on rejection until the hash
-//!    output is < q (round-32 follow-up; eliminates the modular
-//!    bias of the prior `Reduce::reduce_bytes` form).
+//!    output is < q. Eliminates the modular bias of the prior
+//!    `Reduce::reduce_bytes` form.
 //! 3. Response s = k + c*x
 //! 4. Verifier checks: s*G == R + c*P
 //!
@@ -303,9 +303,9 @@ impl SchnorrProver {
             let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
             let candidate: Option<Scalar> =
                 Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
-            // Round-35 L1: use ct_eq instead of `!=`. `Scalar::PartialEq`
+            // L1: use ct_eq instead of `!=`. `Scalar::PartialEq`
             // is not documented constant-time, and the challenge-side
-            // (round-33 L1) already uses ct_eq — this restores symmetry.
+            // already uses ct_eq — this restores symmetry.
             if let Some(s) = candidate
                 && !bool::from(s.ct_eq(&Scalar::ZERO))
             {
@@ -389,7 +389,7 @@ impl SchnorrVerifier {
         Ok(bool::from(lhs.ct_eq(&rhs)))
     }
 
-    /// Parse a compressed point. Rejects the identity (round-35 L2):
+    /// Parse a compressed point. Rejects the identity:
     /// `secp256k1` has cofactor 1 so small-subgroup attacks aren't
     /// possible, but if `P = identity` then `R + c·P = R` for every
     /// `c`, collapsing soundness. Reject identity explicitly so the

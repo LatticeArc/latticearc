@@ -74,9 +74,9 @@ pub enum FnDsaError {
     /// kept for ABI compatibility but no longer returned from
     /// `sign_with_rng()` — the cap-rejection now collapses to
     /// `SigningFailed` so the sign path matches Pattern 6 opacity
-    /// (round-26 M1 closed the verify-side; this completes the sign-side
+    /// (verify-side already collapsed; this completes sign-side
     /// symmetry). Will be removed in a future major bump.
-    #[deprecated(note = "Round-28 H7: sign() now returns SigningFailed for cap rejection; \
+    #[deprecated(note = "sign() now returns SigningFailed for cap rejection; \
                 this variant is no longer reachable from production code.")]
     #[error("Message exceeds signature resource limit")]
     MessageTooLong,
@@ -565,7 +565,7 @@ impl SigningKey {
     ) -> Result<Signature> {
         // collapse the resource-cap rejection to
         // the new `SigningFailed` variant. Cap probing was the same leak
-        // round-26 M1 closed on the verify-side; this completes the
+        // closed on the verify-side; this completes the
         // sign-side symmetry. Trace captures the actual cause for
         // operator diagnostics.
         crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
@@ -1116,7 +1116,7 @@ mod tests {
     /// The `MessageTooLong` variant must be triggerable through the
     /// public sign path. Default global cap is
     /// 64 KiB; pass 64 KiB + 1 to exceed it before the upstream
-    /// `fn-dsa` signer runs. Round-28 H7 collapsed the variant to the
+    /// `fn-dsa` signer runs. H7 collapsed the variant to the
     /// opaque `SigningFailed`. FN-DSA uses a stack-heavy signer so the
     /// test runs on a worker thread (matching the rest of this file).
     #[test]

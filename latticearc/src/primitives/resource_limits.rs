@@ -14,7 +14,7 @@
 //! | `max_encryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | One-shot AEAD path; stream beyond this size |
 //! | `max_signature_size_bytes` | `64 KiB` (`64 * 1024`) | Pre-hash signature input cap |
 //! | `max_decryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | Symmetric to encryption cap |
-//! | `max_aad_size_bytes` | `1 MiB` (`1024 * 1024`) | AEAD additional-authenticated-data cap (round-26 audit fix H8) |
+//! | `max_aad_size_bytes` | `1 MiB` (`1024 * 1024`) | AEAD additional-authenticated-data cap |
 //!
 //! Override at runtime via [`ResourceLimitsManager::with_limits`] /
 //! [`ResourceLimitsManager::update_limits`]. The `100 MiB` AEAD cap is a
@@ -85,7 +85,7 @@ impl ResourceLimits {
 
     /// Creates a new `ResourceLimits` with all five fields specified
     /// explicitly. Use this when the caller cares about the AAD cap
-    /// (round-26 audit fix H8); use [`Self::new`] when the default
+    ///; use [`Self::new`] when the default
     /// 1 MiB AAD cap is acceptable.
     #[must_use]
     pub fn with_aad_limit(
@@ -269,7 +269,7 @@ pub enum ResourceError {
         limit: usize,
     },
 
-    /// AEAD AAD size exceeds configured limit. Round-26 audit fix (H8).
+    /// AEAD AAD size exceeds configured limit. audit fix (H8).
     #[error("AAD size limit exceeded: requested {requested}, limit {limit}")]
     AadSizeLimitExceeded {
         /// Size in bytes requested.
@@ -327,7 +327,7 @@ pub fn validate_decryption_size(size: usize) -> Result<()> {
     get_global_resource_limits().validate_decryption_size(size)
 }
 
-/// Validates AEAD AAD size against global resource limits. Round-26
+/// Validates AEAD AAD size against global resource limits.
 /// audit fix (H8): every AEAD encrypt/decrypt entrypoint must call this
 /// before passing AAD to the underlying primitive.
 ///

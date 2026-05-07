@@ -76,7 +76,7 @@ impl EcKeyPair for Secp256k1KeyPair {
 
         let keypair = Self { public_key, secret_bytes };
 
-        // Pairwise Consistency Test (PCT). Round-26 audit fix (H9):
+        // Pairwise Consistency Test (PCT). audit fix (H9):
         // opaque KeyGenerationError so PctError variant wording is not
         // relayed verbatim.
         crate::primitives::pct::pct_secp256k1(&keypair).map_err(|e| {
@@ -95,7 +95,7 @@ impl EcKeyPair for Secp256k1KeyPair {
             });
         }
 
-        // Validate that the bytes form a valid scalar. Round-26 audit
+        // Validate that the bytes form a valid scalar. audit
         // fix (H9): opaque error string for k256 validity failures.
         let sk = SigningKey::from_bytes(secret_key_bytes.into()).map_err(|e| {
             tracing::debug!(error = ?e, "secp256k1 from_secret_key parse failed");
@@ -148,7 +148,7 @@ impl EcSignature for Secp256k1Signature {
     fn verify(public_key_bytes: &[u8], message: &[u8], signature: &Self::Signature) -> Result<()> {
         // bound message length before SHA-256
         // hashes the entire payload (RFC 6979 / ECDSA pre-hash). Same
-        // DoS shape round-24 closed for ML-DSA / SLH-DSA / FN-DSA.
+        // DoS shape closed for ML-DSA / SLH-DSA / FN-DSA.
         if let Err(e) = validate_signature_size(message.len()) {
             tracing::debug!(error = ?e, msg_len = message.len(), "secp256k1 verify rejected: message exceeds resource limit");
             return Err(LatticeArcError::SignatureVerificationError(

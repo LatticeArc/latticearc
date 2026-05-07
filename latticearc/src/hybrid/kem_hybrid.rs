@@ -161,7 +161,7 @@ pub enum HybridKemError {
     /// collapsing to one variant keeps the surface stable across
     /// dependency upgrades and removes a class of accidental disclosure.
     /// Per-stage detail is preserved via internal trace events
-    /// (`log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, ...)`).
+    /// (`log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE...)`).
     #[error("Hybrid encapsulation failed")]
     EncapsulationFailed,
 }
@@ -236,7 +236,7 @@ impl HybridKemPublicKey {
     /// X25519 public keys are bounded well below this limit, so the
     /// error path is unreachable in practice — but `?`-propagation
     /// matches the symmetric posture of `append_lenp_field` in
-    /// `unified_api::audit` (post-round-21 audit fix L2).
+    /// `unified_api::audit`.
     pub fn to_bytes(&self) -> Result<Vec<u8>, HybridKemError> {
         let level_tag: u8 = match self.security_level {
             MlKemSecurityLevel::MlKem512 => 1,
@@ -899,12 +899,12 @@ pub struct HybridSharedSecretInputs<'a> {
     pub ecdh_ss: &'a [u8],
     /// Static recipient ECDH (X25519) public key. Binds the derivation
     /// to the intended ECDH peer identity. Renamed from `static_pk`
-    /// in round-29 M5 to disambiguate from the new `ml_kem_static_pk`
+    /// in to disambiguate from the new `ml_kem_static_pk`
     /// (HPKE §5.1 wants both legs bound at the combiner, not just one).
     pub ecdh_static_pk: &'a [u8],
-    /// Static recipient ML-KEM public key (round-29 M5). The previous
+    /// Static recipient ML-KEM public key. The previous
     /// combiner only bound the X25519 static PK; the AEAD-AAD layer
-    /// (round-26 `DerivationBinding`) bound the ML-KEM PK but the
+    /// bound the ML-KEM PK but the
     /// combiner did not. HPKE / X-Wing guidance is to bind both legs
     /// at the combiner, so a substituted ML-KEM PK cannot yield the
     /// same shared secret even if the AEAD layer is stripped.
@@ -988,15 +988,15 @@ pub fn derive_hybrid_shared_secret(
     // Context info for domain separation and public-key binding, using
     // length-prefixed encoding to prevent canonicalization collisions
     // between the variable-length fields (HPKE §5.1 / RFC 9180 "LabeledExtract").
-    // Round-29 M5 layout (BREAKING WIRE FORMAT — bumps the wire after
-    // round-19 M2's prior bump):
+    // Layout (BREAKING WIRE FORMAT — bump the domain separator on any
+    // change here):
     //   [domain]
     //   [ecdh_static_pk_len: u32 BE][ecdh_static_pk]
     //   [ml_kem_static_pk_len: u32 BE][ml_kem_static_pk]
     //   [ephemeral_pk_len: u32 BE][ephemeral_pk]
     //   [kem_ct_len: u32 BE][kem_ct]
     // The previous layout omitted ml_kem_static_pk; the AEAD-AAD layer
-    // (round-26 DerivationBinding) bound it but the combiner did not,
+    // bound it but the combiner did not,
     // so a peer-substituted ML-KEM PK with the same X25519 PK would
     // produce the same shared secret pre-AEAD. HPKE §5.1 wants both
     // legs bound at the combiner.

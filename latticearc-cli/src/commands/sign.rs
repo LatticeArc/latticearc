@@ -75,9 +75,9 @@ pub(crate) struct SignArgs {
 
 /// Execute the sign command.
 pub(crate) fn run(args: SignArgs) -> Result<()> {
-    // Stdin mode (round-7 audit fix #10) — `--output` becomes
+    // Stdin mode — `--output` becomes
     // mandatory because we can't derive it from a non-existent
-    // `<input>.sig.json`. Round-8 audit fix #13: shared helper.
+    // `<input>.sig.json`. shared helper.
     if args.input.is_none() && args.output.is_none() {
         bail!("--output is required when --input is omitted (stdin mode)");
     }
@@ -253,7 +253,7 @@ fn write_signature(args: &SignArgs, json: &str) -> Result<()> {
     };
 
     // Atomic write — sig files aren't secret but partial-file-at-rest
-    // is still a script-corruption hazard (round-7 audit fix #18).
+    // is still a script-corruption hazard.
     // only overwrite when --force is passed.
     // LINT-OK: public-write-signature (signatures are not secret)
     latticearc::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())

@@ -564,7 +564,7 @@ struct FileState {
     created_at: DateTime<Utc>,
 }
 
-/// Result of [`FileAuditStorage::verify_chain`]. Round-26 audit fix
+/// Result of [`FileAuditStorage::verify_chain`]. audit fix
 /// (M20).
 #[derive(Debug, Clone)]
 pub struct ChainVerificationReport {
@@ -785,7 +785,7 @@ impl FileAuditStorage {
                 }
                 #[cfg(not(unix))]
                 {
-                    // Round-36 M9: on Windows, use `OpenOptions` with
+                    // M9: on Windows, use `OpenOptions` with
                     // `share_mode(0)` (deny share) and explicit
                     // `create_new(true)` so the genesis file is
                     // exclusive to this process while the handle is
@@ -903,9 +903,8 @@ impl FileAuditStorage {
         // entries) propagates as `AuditError`, symmetric with the
         // length-prefix overflow path above. Length prefixes are
         // big-endian to match the transcript convention used by
-        // `zkp::sigma::compute_challenge` (round-12 audit fix L3 —
-        // unifies endianness across all transcript-style hashing in
-        // the crate).
+        // `zkp::sigma::compute_challenge` — unifies endianness across
+        // all transcript-style hashing in the crate.
         let mut metadata_keys: Vec<&String> = event.metadata.keys().collect();
         metadata_keys.sort();
         let count = u32::try_from(metadata_keys.len()).map_err(|_e| {
@@ -932,11 +931,10 @@ impl FileAuditStorage {
     ///
     /// Returns `Err(CoreError::AuditError)` if `field.len()` exceeds
     /// `u32::MAX` bytes (4 GiB) — symmetric with the overflow handling
-    /// in `zkp::sigma::compute_challenge` (round-21 audit fix #7). The
-    /// length is encoded big-endian to match the transcript convention
-    /// used by `zkp::sigma::compute_challenge` (round-12 audit fix L3 —
-    /// the previous LE encoding was an isolated outlier within the
-    /// crate's transcript-style hashing).
+    /// in `zkp::sigma::compute_challenge`. The length is encoded
+    /// big-endian to match the transcript convention used by
+    /// `zkp::sigma::compute_challenge` — LE encoding here would be an
+    /// isolated outlier within the crate's transcript-style hashing.
     /// The previous saturating-to-`u32::MAX` form was a silent collapse
     /// that would let two distinct field values share the same length
     /// prefix; while the SHA-256 backend's 1 GiB cap makes this
@@ -1250,7 +1248,7 @@ impl FileAuditStorage {
         for entry in entries.flatten() {
             let path = entry.path();
             let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
-            // Match `audit-*.jsonl` (case-insensitive on extension; round-26
+            // Match `audit-*.jsonl` (case-insensitive on extension;
             // audit fix L for case-sensitive .jsonl bug).
             let lower = name.to_ascii_lowercase();
             if lower.starts_with("audit-") && lower.ends_with(".jsonl") {
@@ -1311,17 +1309,17 @@ impl FileAuditStorage {
             // non-empty event of this file (used for the cross-file
             // anchor check below).
             let mut first_event_in_file = true;
-            // Bounded line-reader. `BufReader::lines()` (round-37 M2
-            // shape) and the obvious `read_until(b'\n', &mut buf)`
-            // BOTH allocate the whole line BEFORE returning, so a
-            // 1 GiB newline-free file would OOM the verifier before
-            // any post-decode `MAX_LINE_LEN` check could fire.
+            // Bounded line-reader. `BufReader::lines()` and the
+            // obvious `read_until(b'\n', &mut buf)` BOTH allocate the
+            // whole line BEFORE returning, so a 1 GiB newline-free
+            // file would OOM the verifier before any post-decode
+            // `MAX_LINE_LEN` check could fire.
             //
             // We use `BufRead::fill_buf` / `consume` to scan for
             // `b'\n'` in the buffered region and accumulate at most
             // `MAX_LINE_LEN + 1` bytes into `line_buf` per line.
             // The +1 byte lets us detect the over-cap case
-            // unambiguously (the cap is exclusive). Round-39's first
+            // unambiguously (the cap is exclusive).'s first
             // pass used per-byte `reader.read()` which was correct
             // but did one syscall per byte; this shape keeps the
             // bound while letting the kernel/buffer combine reads.
@@ -1489,9 +1487,9 @@ impl FileAuditStorage {
                         // `.into() -> bool`. A naïve `bool && bool &&
                         // bool` shape would short-circuit on the first
                         // false result, leaking via timing which of
-                        // the three checks failed (round-39 H3
-                        // regression). Combining `Choice<u8>` values
-                        // keeps the comparison data-independent.
+                        // the three checks failed. Combining
+                        // `Choice<u8>` values keeps the comparison
+                        // data-independent.
                         use subtle::ConstantTimeEq;
                         let action_eq =
                             event.action.as_bytes().ct_eq(CHAIN_ANCHOR_ACTION.as_bytes());
@@ -1578,9 +1576,8 @@ impl FileAuditStorage {
 
         // Update size tracking. `usize → u64` is widening on 64-bit and
         // equal on 32-bit, so the conversion is always lossless — but
-        // route via `try_from` for consistency with the rest of this file
-        // and to silence `clippy::cast_possible_truncation` (round-20
-        // audit fix #24).
+        // route via `try_from` for consistency with the rest of this
+        // file and to silence `clippy::cast_possible_truncation`.
         let line_len_u64 = u64::try_from(line_bytes.len()).unwrap_or(u64::MAX);
         state.current_size = state.current_size.saturating_add(line_len_u64);
 

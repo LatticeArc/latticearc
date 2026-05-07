@@ -223,13 +223,19 @@ impl<'a> AtomicWrite<'a> {
                 // Don't fall through to write_all + set_len(0) — that
                 // would propagate the secret without zeroing it. tmp's
                 // drop still unlinks, releasing the original clusters
-                // un-scrubbed; surface the seek failure so the operator
-                // can decide whether to wipe the volume's free-cluster
-                // pool.
+                // un-scrubbed; surface the seek failure with the
+                // *parent dir* (so the operator can decide whether to
+                // wipe the volume's free-cluster pool) but NOT the
+                // tempfile's full path — the per-file path is a
+                // forensic-recovery oracle for whatever consumes
+                // `CoreError::Internal` (tracing aggregators, error-
+                // reporting sinks). The path itself isn't secret, but
+                // it points to the file that just had plaintext
+                // secrets written into it.
                 return Err(CoreError::Internal(format!(
-                    "windows DACL hardening on tempfile {} failed: {e}; \
+                    "windows DACL hardening on tempfile in {} failed: {e}; \
                      plaintext-scrub aborted because seek-to-start failed: {seek_err}",
-                    tmp.path().display()
+                    parent.display()
                 )));
             }
             let mut remaining = self.bytes.len();
@@ -248,8 +254,8 @@ impl<'a> AtomicWrite<'a> {
             let _ = f.sync_all();
             let _ = f.set_len(0);
             return Err(CoreError::Internal(format!(
-                "windows DACL hardening on tempfile {} failed: {e}",
-                tmp.path().display()
+                "windows DACL hardening on tempfile in {} failed: {e}",
+                parent.display()
             )));
         }
 

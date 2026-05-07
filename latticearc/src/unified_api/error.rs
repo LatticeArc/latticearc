@@ -221,7 +221,7 @@ pub enum CoreError {
     /// is older than the receiver's configured `CryptoConfig::max_age` window.
     ///
     /// Returned exclusively by the convenience-API replay-protection guard
-    /// (round-6 audit fix). Distinct from `ResourceExceeded` (which signals
+    ///. Distinct from `ResourceExceeded` (which signals
     /// "the data itself is too big") so callers can pattern-match
     /// `CoreError::Replay { .. }` and react appropriately — e.g., prompt
     /// the sender to re-encrypt with a fresh timestamp, or alert on a
@@ -250,7 +250,7 @@ pub enum CoreError {
     ///    to the opaque `DecryptionError` would force them through
     ///    private logs for a routine operational signal.
     ///
-    /// Round-6 audit approved this carve-out; round-8 audit fix #6
+    /// audit approved this carve-out;
     /// requires the inline justification per `docs/DESIGN_PATTERNS.md`
     /// Pattern 12 ("inline `#[allow]` justification" convention).
     #[error(

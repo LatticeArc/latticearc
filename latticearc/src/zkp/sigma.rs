@@ -333,7 +333,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
                 .saturating_add(4)
                 .saturating_add(context.len()),
         );
-        // Round-35 L3: length-prefix the domain separator alongside
+        // L3: length-prefix the domain separator alongside
         // the other transcript components. Without a length prefix
         // on `domain_separator`, two distinct (DS, statement) pairs
         // can collide (e.g. DS="A" + stmt="\0\0\0\1B…" vs
@@ -709,7 +709,7 @@ impl DlogEqualityProof {
         let point: Option<k256::ProjectivePoint> =
             k256::ProjectivePoint::from_encoded_point(&encoded).into();
         let p = point.ok_or(ZkpError::InvalidPublicKey)?;
-        // Round-35 L2: reject identity. With `P = identity`,
+        // L2: reject identity. With `P = identity`,
         // `s·G == A + c·P` reduces to `s·G == A` for all `c`,
         // collapsing soundness on the dlog-equality verifier.
         if bool::from(p.is_identity()) {

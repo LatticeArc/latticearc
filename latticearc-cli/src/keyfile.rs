@@ -124,12 +124,12 @@ impl KeyFile {
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
 
-        // Round-36 H5: open with `O_NOFOLLOW` (Unix) so the
+        // H5: open with `O_NOFOLLOW` (Unix) so the
         // symlink check is atomic with the open. The previous form
         // did `symlink_metadata(path)` then a separate
         // `File::open(path)` — TOCTOU race window. This site reads
         // SECRET key material, so the impact is higher than the
-        // input-file path round-35 M10 already migrated. Constants
+        // input-file path already migrated. Constants
         // hardcoded per `target_os` because the workspace bans
         // direct `libc` / `nix` deps; values are ABI-stable.
         #[cfg(target_os = "linux")]
@@ -280,7 +280,7 @@ impl KeyFile {
         };
         if self.inner.algorithm() != expected_alg {
             // Use the pinned canonical name rather than the Debug
-            // representation; round-32 D1 fixed the same drift on
+            // representation; fixed the same drift on
             // line 189.
             bail!(
                 "Key algorithm mismatch: key file is '{}', expected '{expected}'",
@@ -326,11 +326,11 @@ pub(crate) fn parse_hybrid_sign_sk(
 /// Write a single-component key to a JSON file using `PortableKey`.
 ///
 /// `overwrite = false` refuses to clobber an existing file; `true` replaces.
-/// keygen now threads its `--force` flag through this surface
-/// so a re-run with `--force` no longer hits the partial-state bug
-/// (round-8 fix #4 wrote SK first to avoid orphan PKs; without `--force`,
-/// re-running orphans the SK retry on the existing-file refusal — symmetric
-/// failure mode in the inverse direction).
+/// keygen threads its `--force` flag through this surface so a re-run
+/// with `--force` doesn't hit the partial-state bug. The SK is written
+/// first to avoid orphan PKs; without `--force`, re-running orphans
+/// the SK retry on the existing-file refusal — symmetric failure mode
+/// in the inverse direction.
 pub(crate) fn write_key(
     path: &std::path::Path,
     algorithm: KeyAlgorithm,

@@ -116,12 +116,11 @@ macro_rules! impl_aes_gcm {
                 plaintext: &[u8],
                 aad: Option<&[u8]>,
             ) -> Result<(Vec<u8>, Tag), AeadError> {
-                // Pattern 6 opacity sweep on the encrypt
-                // path mirrors the decrypt-side sweep at round-27 H2.
-                // Every adversary-reachable failure (size caps, AEAD
-                // seal, post-seal buffer-shape checks) collapses to a
-                // single opaque ENCRYPTION_FAILED string. Per-stage
-                // cause is preserved via the higher-layer
+                // Pattern 6 opacity sweep on the encrypt path mirrors
+                // the decrypt-side sweep. Every adversary-reachable
+                // failure (size caps, AEAD seal, post-seal buffer-shape
+                // checks) collapses to a single opaque ENCRYPTION_FAILED
+                // string. Per-stage cause is preserved via the higher-layer
                 // `log_crypto_operation_error!` calls.
                 validate_encryption_size(plaintext.len()).map_err(
                     |_e: crate::primitives::resource_limits::ResourceError| {

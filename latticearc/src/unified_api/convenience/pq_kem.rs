@@ -37,7 +37,7 @@ use crate::unified_api::zero_trust::SecurityMode;
 /// channel binding). The previous label-only variant could not detect
 /// an adversary swapping ciphertext halves if ML-KEM IND-CCA2 ever
 /// degraded — `hybrid::pq_only::encrypt_pq_only` had been using PK-
-/// binding since round-12 L-2 and convenience `pq_kem` was the
+/// binding since L-2 and convenience `pq_kem` was the
 /// asymmetric outlier. BREAKING CHANGE: 0.7.x convenience pq_kem
 /// ciphertexts cannot be decrypted by 0.8.x and vice versa. See
 /// CHANGELOG.
@@ -111,7 +111,7 @@ fn encrypt_pq_ml_kem_internal(
         CoreError::EncryptionFailed(format!("ML-KEM encapsulation failed: {}", e))
     })?;
 
-    // Derive AES-256 key from ML-KEM shared secret via HKDF. Round-26
+    // Derive AES-256 key from ML-KEM shared secret via HKDF.
     // audit fix (H1): bind both the recipient PK and the KEM ciphertext
     // into the info string (RFC 9180 §5.1 channel binding). Encrypt has
     // the PK directly; decrypt extracts it from the SK's embedded `ek`
@@ -194,7 +194,7 @@ fn decrypt_pq_ml_kem_internal(
         opaque()
     })?;
 
-    // Derive AES-256 key from ML-KEM shared secret via HKDF. Round-26
+    // Derive AES-256 key from ML-KEM shared secret via HKDF.
     // audit fix (H1): bind the recipient PK (extracted from SK's
     // embedded `ek` per FIPS 203 §6.1) AND the KEM ciphertext. Must
     // match the encrypt path byte-for-byte; `pq_kem_aead_key_info` is

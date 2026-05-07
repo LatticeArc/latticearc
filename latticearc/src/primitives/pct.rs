@@ -204,7 +204,7 @@ pub fn pct_ml_kem(
     // testing a different keypair satisfies the wording but not the
     // intent. The other PCT helpers (`pct_ml_dsa`, `pct_slh_dsa`,
     // `pct_fn_dsa`) all already take the keypair; this brings ML-KEM
-    // into parity. Round-30 H1 wires this into
+    // into parity. H1 wires this into
     // `generate_decapsulation_keypair` (the missing call site).
 
     // Encapsulate
@@ -516,7 +516,7 @@ mod tests {
             .expect("keygen should succeed under test conditions");
         // PCT now takes the keypair, not the level.
         // `generate_decapsulation_keypair` ALSO runs PCT internally
-        // post-fix (round-30 H1), so this is technically redundant —
+        // post-fix, so this is technically redundant —
         // we re-run it to assert the externally-callable PCT passes
         // on a known-good keypair.
         let result = pct_ml_kem(&keypair);

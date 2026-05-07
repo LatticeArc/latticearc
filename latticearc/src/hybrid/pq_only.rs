@@ -217,7 +217,7 @@ impl PqOnlySecretKey {
         if embedded.ct_eq(pk_bytes).unwrap_u8() != 1 {
             return Err(PqOnlyError::InvalidInput(
                 "supplied ML-KEM PK does not match SK-embedded PK \
-                 (round-29 M2: SK is authoritative; reject mismatched metadata)"
+                 (SK is authoritative; mismatched metadata is rejected)"
                     .to_string(),
             ));
         }
@@ -290,7 +290,7 @@ impl PqOnlySecretKey {
 /// The shared helper is also used by
 /// [`crate::unified_api::convenience::pq_kem`] so encrypt/decrypt
 /// drift across the two parallel APIs is structurally impossible
-/// (round-12 audit fix L-2 generalized to a single canonical helper).
+///.
 fn pq_only_encryption_info(
     recipient_pk: &[u8],
     kem_ciphertext: &[u8],
@@ -400,7 +400,7 @@ impl PqOnlyCiphertext {
 /// 3. AES-256-GCM encrypt(plaintext) → (ciphertext, nonce, tag)
 ///
 /// The `info` string binds the KEM ciphertext into the AEAD-key
-/// derivation per RFC 9180 §5.1 (HPKE channel binding) — round-12
+/// derivation per RFC 9180 §5.1 (HPKE channel binding) —
 /// audit fix (L-2). The exact byte layout is `LABEL || 0x00 ||
 /// kem_ciphertext`, where `LABEL = "LatticeArc-PqOnly-Encryption-v1"`
 /// (see `crate::types::domains::PQ_ONLY_ENCRYPTION_INFO`). Encrypt and
@@ -497,8 +497,8 @@ pub fn encrypt_pq_only_with_aad(
 /// it via `pq_only_encryption_info(recipient_pk, kem_ciphertext)`.
 /// Substituting a different recipient PK or KEM ciphertext produces a
 /// different AEAD key, so the AEAD tag fails (HPKE-style channel
-/// binding, RFC 9180 §5.1). Round-26 audit fix (L25) updated this doc
-/// to reflect the round-12 PK-binding migration that the prose had
+/// binding, RFC 9180 §5.1). audit fix (L25) updated this doc
+/// to reflect the prior PK-binding migration that the prose had
 /// stayed silent about.
 ///
 /// # Security
@@ -506,7 +506,7 @@ pub fn encrypt_pq_only_with_aad(
 /// - Decrypt errors are opaque ("decryption failed") per SP 800-38D §5.2.2
 /// - ML-KEM shared secret is wrapped and not exposed to callers
 /// - HKDF info binds `PQ_ONLY_ENCRYPTION_INFO` domain separator + KEM
-///   ciphertext (HPKE-style channel binding; round-12 audit fix L-2)
+///   ciphertext (HPKE-style channel binding)
 /// - Plaintext is returned in `Zeroizing<Vec<u8>>` for automatic cleanup
 ///
 /// # Errors

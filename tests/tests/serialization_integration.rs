@@ -61,7 +61,7 @@ fn create_test_signed_data(
             public_key,
             key_id,
         },
-        // Round-38 S4: deserializer requires `scheme == signature_algorithm`,
+        // S4: deserializer requires `scheme == signature_algorithm`,
         // mirroring the production sign path (`signature_algorithm: scheme.clone()`).
         scheme: "ML-DSA-65".to_string(),
         timestamp: 1706745600,
@@ -486,7 +486,7 @@ fn test_signed_data_very_long_algorithm_name_roundtrip_succeeds() {
         b"pk".to_vec(),
         Some("key-402".to_string()),
     );
-    // Round-38 S4: `signature_algorithm == scheme` is enforced on
+    // S4: `signature_algorithm == scheme` is enforced on
     // deserialize. Update both halves so the roundtrip exercises a
     // long-but-consistent algorithm name.
     let long_name = "B".repeat(500);
@@ -521,7 +521,7 @@ fn test_signed_data_zero_timestamp_roundtrip_succeeds() {
 
 // ============================================================================
 // EncryptedOutput round-trip — `to_json` / `from_json` and `to_bytes` /
-// `from_bytes` ergonomic methods (audit-batch round-3 fix #11).
+// `from_bytes` ergonomic methods (audit-batch fix #11).
 //
 // The original free-function path (`serialize_encrypted_output` /
 // `deserialize_encrypted_output`) has its own roundtrip coverage in
@@ -604,7 +604,7 @@ mod encrypted_output_roundtrip {
         }
 
         /// Round-trip via the byte-string inherent methods (currently
-        /// JSON-as-bytes per the audit-batch round-3 doc) preserves
+        /// JSON-as-bytes per the audit-batch doc) preserves
         /// equality for any well-formed AES-GCM `EncryptedOutput`.
         #[test]
         fn aes_gcm_bytes_roundtrip_preserves_equality(out in arb_aes_gcm_output()) {

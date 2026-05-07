@@ -504,7 +504,7 @@ mod tests {
     fn make_signed_data() -> SignedData {
         // The production sign path (`api.rs:1019-1029`) sets
         // `metadata.signature_algorithm = scheme.clone()` — the two
-        // fields must agree on every produced record. Round-38's S4
+        // fields must agree on every produced record.'s S4
         // fix elevates that producer-side guarantee to a deserializer
         // invariant, so test fixtures must match the production
         // shape. The earlier test data here used a mismatched pair
@@ -664,7 +664,7 @@ mod tests {
     // --- EncryptedOutput serialization ---
 
     fn make_encrypted_output_symmetric() -> EncryptedOutput {
-        // Round-37 M5 (and round-39 L1+L2 tightening) require the
+        // M5 (and+L2 tightening) require the
         // top-level `nonce`/`tag` to match the embedded copies in
         // `ciphertext` for symmetric schemes — wire layout is
         // `nonce(12) || actual_ct || tag(16)`. Build the fixture
@@ -808,7 +808,7 @@ mod tests {
             EncryptionScheme::HybridMlKem1024Aes256Gcm,
         ];
         // Symmetric schemes require `nonce(12) || ct || tag(16)`
-        // packed in `ciphertext` (round-37 M5 + round-39 L1+L2). For
+        // packed in `ciphertext`. For
         // hybrid schemes the layout is different — `ciphertext` is
         // just the AEAD output and the deserializer accepts any
         // matching pair. We construct a single packed buffer and

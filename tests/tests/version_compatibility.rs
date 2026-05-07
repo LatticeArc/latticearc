@@ -361,7 +361,7 @@ fn test_cross_version_signature_verification_metadata_is_compatible_succeeds() -
 
 #[test]
 fn test_signature_algorithm_name_variations_is_compatible_succeeds() -> Result<()> {
-    // Round-38 S4: the deserializer now requires
+    // S4: the deserializer now requires
     // `metadata.signature_algorithm == scheme`. The earlier shape of
     // this test (varying naming conventions across the two fields)
     // exercised the pre-fix tolerance — which was a decorative-field
@@ -392,7 +392,7 @@ fn test_signature_algorithm_name_variations_is_compatible_succeeds() -> Result<(
 
 #[test]
 fn test_signature_algorithm_mismatch_with_scheme_rejected() -> Result<()> {
-    // Round-38 S4 regression guard: the deserializer must REJECT
+    // S4 regression guard: the deserializer must REJECT
     // records where `metadata.signature_algorithm != scheme`. The
     // production sign path sets them equal at construction; a
     // tampered persisted record could otherwise carry an
@@ -488,7 +488,7 @@ fn test_key_format_migration_from_raw_to_structured_succeeds() -> Result<()> {
 
 #[test]
 fn test_signature_format_migration_succeeds() -> Result<()> {
-    // Older signature format migration to current. Round-38 S4
+    // Older signature format migration to current. S4
     // tightened the deserializer to require `signature_algorithm
     // == scheme`; the legacy fixture therefore now sets both halves
     // to "RSA-SHA256" so the test continues to exercise migration of
@@ -520,7 +520,7 @@ fn test_signature_format_migration_succeeds() -> Result<()> {
 #[test]
 fn test_algorithm_deprecation_awareness_is_compatible_succeeds() -> Result<()> {
     // Deprecated algorithms should still deserialize for migration —
-    // round-38 S4 requires `signature_algorithm == scheme` so we use
+    // requires `signature_algorithm == scheme` so we use
     // the long-form name for both halves, which is the production
     // shape regardless of whether the algorithm is deprecated.
     let deprecated_algorithms = ["RSA-2048", "ECDSA-P256", "DSA-1024"];
@@ -587,7 +587,7 @@ fn test_patch_version_serialization_compatibility_is_compatible_succeeds() -> Re
 }
 
 // Type-export and ABI-shape checks belong in `static_assertions!`,
-// not `#[test]`. Round-40 M6/L6 migration: previous body was a
+// not `#[test]`. M6/L6 migration: previous body was a
 // compile-only `let _ = ...` chain dressed as a test, which left the
 // runner suite green even when the underlying constraint regressed.
 // `static_assertions::assert_impl_all!` / `assert_type_eq_all!` /

@@ -155,8 +155,8 @@ pub(crate) const CLI_MAX_HASH_INPUT_BYTES: u64 = 1024 * 1024 * 1024;
 /// in this round — it stat'd via `metadata().len()`, which returns 0
 /// for `/dev/zero`, FIFOs, `/proc/*`, etc., letting the subsequent
 /// read consume unbounded bytes from those special files. The
-/// stat-then-open pattern was also a TOCTOU surface (round-26 H15
-/// fixed the same shape in `keyfile.rs`). This open-once helper is
+/// stat-then-open pattern was also a TOCTOU surface (the same shape
+/// was fixed in `keyfile.rs` separately). This open-once helper is
 /// the single canonical entry point for capped CLI reads — used by
 /// every command that takes a file path (encrypt / sign / hash /
 /// verify / kdf).
@@ -182,9 +182,9 @@ pub(crate) fn read_file_with_cap(
     let allow_symlinks = std::env::var("LATTICEARC_ALLOW_SYMLINK_INPUT")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
-    // Round-35 M10: open with `O_NOFOLLOW` (when symlinks are
+    // M10: open with `O_NOFOLLOW` (when symlinks are
     // disallowed) so the symlink check happens atomically at open
-    // time. The previous round-34 L1 form did `symlink_metadata`
+    // time. The previous form did `symlink_metadata`
     // followed by a separate `File::open` — a swap on /tmp between
     // the two syscalls would defeat the guard. On Windows, the
     // `O_NOFOLLOW`-equivalent isn't standard; fall back to the stat
@@ -237,7 +237,7 @@ pub(crate) fn read_file_with_cap(
             if !allow_symlinks {
                 // O_NOFOLLOW: open() returns ELOOP if the final path
                 // component is a symlink. Atomic with the open;
-                // closes the round-34 L1 stat-then-open TOCTOU.
+                // closes the prior L1 stat-then-open TOCTOU.
                 opts.custom_flags(O_NOFOLLOW);
             }
             opts.open(path).map_err(|e| {
@@ -320,7 +320,7 @@ pub(crate) fn read_stdin_with_limit(limit_bytes: u64, operation: &str) -> anyhow
 ///
 /// Centralises the duplicated `if let Some(path) = … else stdin`
 /// pattern that previously lived in encrypt / decrypt / sign / verify /
-/// hash. Round-8 audit fix #13.
+/// hash.
 ///
 /// # Errors
 ///

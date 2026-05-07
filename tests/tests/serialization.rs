@@ -40,7 +40,7 @@ use latticearc::unified_api::types::{KeyPair, PrivateKey, SignedData, SignedMeta
 // ============================================================================
 
 fn create_test_signed_data() -> SignedData {
-    // Round-38 S4 fix elevated `signature_algorithm == scheme` from a
+    // S4 fix elevated `signature_algorithm == scheme` from a
     // sign-side guarantee to a deserializer invariant. The fields
     // must match in every fixture because the production sign path
     // sets them via `signature_algorithm: scheme.clone()`.

@@ -714,13 +714,13 @@ impl EcdhP256PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
-        // L18 (round-26): reject the all-zero coordinate form as defense
+        // L18: reject the all-zero coordinate form as defense
         // in depth. aws-lc-rs's `agree_ephemeral` would also reject it
         // during agreement, but failing here surfaces operator misuse
         // with a clearer, version-stable error.
         //
         // Length and `0x04` prefix are guaranteed by `Self::from_bytes`
-        // (the only public constructor) — round-28 follow-up removed
+        // (the only public constructor) — follow-up removed
         // the redundant rechecks here. The standalone
         // `validate_p256_public_key(&[u8])` route still covers them
         // because it goes through `from_bytes` first.

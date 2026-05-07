@@ -60,7 +60,7 @@ pub enum SlhDsaError {
 
     /// Pairwise Consistency Test (FIPS 140-3 §9.2 / IG 10.3.A) failed.
     /// Distinct from `RngError` because PCT failure indicates a
-    /// corrupted keypair, not transient entropy depletion. Round-20
+    /// corrupted keypair, not transient entropy depletion.
     /// audit fix #12: a FIPS error-state monitor must be able to
     /// distinguish "retry with fresh entropy" from "discard this
     /// keypair, generate a new one, and investigate."
@@ -96,10 +96,10 @@ pub enum SlhDsaError {
     ///
     /// kept for ABI compatibility but no longer returned from
     /// `sign()` — the cap-rejection now collapses to `SigningFailed` so
-    /// the sign path matches Pattern 6 opacity (round-26 M1 closed the
-    /// verify-side; this completes the sign-side symmetry). Will be
-    /// removed in a future major bump alongside `DeserializationError`.
-    #[deprecated(note = "Round-28 H7: sign() now returns SigningFailed for cap rejection; \
+    /// the sign path matches Pattern 6 opacity (verify-side already
+    /// collapsed; this completes sign-side symmetry). Will be removed
+    /// in a future major bump alongside `DeserializationError`.
+    #[deprecated(note = "sign() now returns SigningFailed for cap rejection; \
                 this variant is no longer reachable from production code.")]
     #[error("Message exceeds signature resource limit")]
     MessageTooLong,
@@ -241,7 +241,7 @@ impl VerifyingKey {
     /// incorrect or the key is malformed.
     ///
     /// # Why not collapsed to `VerificationFailed`?
-    /// Round-34 M6 collapsed the verify-side error variants for
+    /// M6 collapsed the verify-side error variants for
     /// Pattern-6 opacity, but kept this constructor returning
     /// `InvalidPublicKey`. Constructors run synchronously on caller-
     /// supplied bytes (key load, deserialize, CLI parse) — the
@@ -249,7 +249,7 @@ impl VerifyingKey {
     /// `VerifyingKey::new`. Returning a structured error here helps
     /// CLI error messages and KAT-replay scripts distinguish "wrong
     /// length" from "valid key, bad signature." Symmetric with
-    /// `MlDsaPublicKey::new` (round-32 M2 reasoning).
+    /// `MlDsaPublicKey::new`.
     pub fn new(security_level: SlhDsaSecurityLevel, bytes: &[u8]) -> Result<Self, SlhDsaError> {
         let expected_len = security_level.public_key_size();
         if bytes.len() != expected_len {
@@ -344,11 +344,11 @@ impl VerifyingKey {
 
         let ctx = context;
 
-        // Validate context length. Pattern-6 (matches ML-DSA verify
-        // collapse from round-33 H1): the FIPS 205 / 204 cap is
-        // structural, but a distinct `ContextTooLong` variant lets a
-        // probing attacker fingerprint the cap. Fold into the
-        // generic `VerificationFailed`.
+        // Validate context length. Pattern-6 (matches the ML-DSA
+        // verify-side collapse): the FIPS 205 / 204 cap is structural,
+        // but a distinct `ContextTooLong` variant would let a probing
+        // attacker fingerprint the cap. Fold into the generic
+        // `VerificationFailed`.
         if ctx.len() > 255 {
             tracing::debug!(
                 ctx_len = ctx.len(),
@@ -717,7 +717,7 @@ impl SigningKey {
         // DoS bound: SLH-DSA signing cost scales with message length.
         // collapse the resource-cap rejection
         // to the new `SigningFailed` variant. Cap probing was the same
-        // leak round-26 M1 closed on the verify-side; this completes
+        // leak closed on the verify-side; this completes
         // the sign-side symmetry. Trace captures the actual cause for
         // operator diagnostics.
         crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
@@ -975,7 +975,7 @@ mod tests {
         assert!(!is_valid, "Verification should fail with wrong context");
     }
 
-    // Test 8: Context string too long. Round-34 M6: collapsed to the
+    // Test 8: Context string too long. M6: collapsed to the
     // generic Pattern-6 sign-side error so the FIPS 205 cap can't be
     // probed via the variant.
     #[test]
@@ -1133,7 +1133,7 @@ mod tests {
     }
 
     /// The resource-cap gate at the top of `sign()` rejects oversized
-    /// messages before reaching the upstream slh-dsa crate. Round-28
+    /// messages before reaching the upstream slh-dsa crate.
     /// collapsed the variant to the opaque `SigningFailed` (was
     /// distinguishable `MessageTooLong`).
     #[test]

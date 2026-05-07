@@ -169,10 +169,10 @@ fn hkdf_sha256_expand_32bytes_stays_under_budget() {
     // macOS CI after aws-lc-rs 1.16.3 (runtime key-length validation
     // added extra internal buffers). 20 KiB byte budget = ~2× headroom.
     //
-    // Allocation count: round-31 set this to 50 with an observed ~25.
-    // Round-40 CI hit 55 (8902 bytes — well within byte budget; pure
+    // Allocation count: set this to 50 with an observed ~25.
+    // CI hit 55 (8902 bytes — well within byte budget; pure
     // count drift). Bumped to 100 = ~2× headroom over the new
-    // observation. HKDF code itself is unchanged since round-31; the
+    // observation. HKDF code itself is unchanged since; the
     // count drift comes from upstream `hmac` / `aws-lc-rs` internal
     // refactors that don't change behaviour but add small bookkeeping
     // allocations.

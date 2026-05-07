@@ -20,7 +20,7 @@ use crate::unified_api::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme}
 /// branch in [`CryptoPolicyEngine::select_encryption_scheme`] would
 /// have downgraded a caller-declared [`SecurityLevel::High`]
 /// (ML-KEM-768) to ML-KEM-512 under [`PerformancePreference::Memory`].
-/// Post-round-23 audit fix L3: that downgrade now **refuses** instead
+/// that downgrade now **refuses** instead
 /// of silently weakening the caller's contract.
 ///
 /// **What actually happens at runtime**:
@@ -254,7 +254,7 @@ impl CryptoPolicyEngine {
 
         // Data-aware adjustments when data is non-empty.
         //
-        // Previous behavior (round-19 M8 partial fix): under
+        // Previous behavior: under
         // `(Speed, Random)` or `(Memory, small)` and a caller-declared
         // `SecurityLevel::High` (NIST L3 / ML-KEM-768), the engine
         // would silently downgrade to ML-KEM-512 (NIST L1) and emit

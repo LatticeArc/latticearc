@@ -78,7 +78,7 @@ fn decrypt_symmetric(
         latticearc::DecryptKey::Symmetric(&key_bytes),
         latticearc::CryptoConfig::new(),
     )
-    // the round-26 M19 fix kept a `(symmetric)`
+    // the prior M19 fix kept a `(symmetric)`
     // parenthetical and `{e}` interpolation that re-introduced the
     // oracle the comment claimed to close — scripted callers could
     // distinguish symmetric vs hybrid vs PQ-only branches from stderr,

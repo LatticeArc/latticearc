@@ -645,7 +645,7 @@ fn test_security_mode_explicit_unverified_succeeds() {
     // Body-mirror of `latticearc/src/unified_api/zero_trust.rs::
     // test_security_mode_explicit_unverified_succeeds` — pinning the
     // explicit-construction shape after `impl Default for SecurityMode`
-    // was removed (round-6 audit fix #5). Asserts the variant directly.
+    // was removed. Asserts the variant directly.
     let mode = SecurityMode::Unverified;
     assert!(mode.is_unverified(), "Explicit SecurityMode::Unverified must report is_unverified()");
 }
@@ -851,7 +851,7 @@ fn test_session_with_different_proof_complexities_succeeds() {
         let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
         // Drive the manual path so the loop variable actually
-        // selects the proof complexity. Round-37 tests merely
+        // selects the proof complexity. tests merely
         // iterated over the enum without configuring it — every
         // iteration ran with the default complexity, making the
         // loop a vacuous repetition.

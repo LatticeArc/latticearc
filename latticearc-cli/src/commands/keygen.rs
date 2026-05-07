@@ -110,7 +110,7 @@ pub(crate) struct KeygenArgs {
     // keygen previously
     // had no escape hatch, so re-running over a stale keypair failed on
     // the first SK-write (SK is written first to avoid orphan PKs from
-    // round-8 fix #4); the inverse failure mode still bit users running
+    // fix #4); the inverse failure mode still bit users running
     // keygen twice. `--force` plumbs through to
     // `PortableKey::write_to_file_with_overwrite` at all 4 write sites.
     #[arg(long)]
@@ -600,7 +600,7 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("hybrid-sign.pub.json");
     let sk_path = args.output.join("hybrid-sign.sec.json");
 
-    // SK first — round-9 audit fix #1 (extending round-8 fix #4 to the
+    // SK first — (extending fix #4 to the
     // 4th keygen site that was missed). SK-write failure no longer
     // orphans a PK on disk that retry would refuse-to-overwrite.
     keyfile::write_composite_key_protected(

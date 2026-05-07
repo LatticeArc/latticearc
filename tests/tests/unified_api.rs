@@ -895,8 +895,8 @@ mod coverage {
         let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), config);
         let err = result.expect_err(
             "Decrypting an AES-256-GCM ciphertext under SecurityLevel::Maximum must be \
-             rejected as a ComplianceViolation; the substring-match bug that previously \
-             let it pass was closed in round-26 audit fix M15.",
+             rejected as a ComplianceViolation. A prior substring-match bug let this \
+             pass by checking compliance via name-prefix instead of canonical name.",
         );
         let msg = format!("{}", err);
         assert!(

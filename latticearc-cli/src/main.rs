@@ -136,7 +136,7 @@ fn main() -> Result<()> {
                 // documented INVALID-signature signal in our exit-code
                 // contract (0/1/≥2 — see QUICK_REFERENCE.md). Pattern
                 // 12 wants the rationale adjacent to the `#[allow]`;
-                // round-9 audit fix #5 moved it from 11 lines above.
+                // moved it from 11 lines above.
                 #[allow(clippy::exit)]
                 std::process::exit(1);
             }

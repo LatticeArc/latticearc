@@ -754,7 +754,7 @@ fn test_config_use_case_nested_validation_is_compatible_succeeds() {
 fn test_config_performance_metrics_adaptive_is_compatible_succeeds() {
     // Data must be ≥ ML_KEM_DOWNGRADE_REFUSAL_THRESHOLD (4096) so the
     // Memory + High branch in select_encryption_scheme does NOT
-    // refuse (post-round-23 L3 audit fix). Original 9-byte literal
+    // refuse. Original 9-byte literal
     // tripped the refusal contract — that's a correctness signal,
     // not a compatibility bug, so the test is updated to exercise
     // the API on inputs that don't violate the L3 contract.

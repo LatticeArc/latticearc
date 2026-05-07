@@ -34,7 +34,7 @@ pub(crate) enum KdfAlgorithm {
     Pbkdf2,
 }
 
-/// PBKDF2 PRF choice. Round-26 audit fix (H14).
+/// PBKDF2 PRF choice. audit fix (H14).
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub(crate) enum PbkdfPrf {
     /// HMAC-SHA256 (OWASP 2023 floor: 600,000 iterations).
@@ -86,7 +86,7 @@ pub(crate) struct KdfArgs {
     /// when the input is a secret (PBKDF2 password) and you don't
     /// want it in `ps` / shell history.
     ///
-    /// **Behaviour change in 0.8.x**: prior to round-34 M3 this
+    /// **Behaviour change in 0.8.x**: prior to this
     /// flag read only the first line via `read_line`; it now reads
     /// the whole stream up to 1 MiB. Multi-line piped input that
     /// silently produced a different KDF output before now produces
@@ -108,7 +108,7 @@ pub(crate) struct KdfArgs {
     /// Per-PRF floors: HMAC-SHA256 → 600,000; HMAC-SHA512 → 210,000.
     #[arg(long, default_value = "600000")]
     pub iterations: u32,
-    /// PRF for PBKDF2 (default: hmac-sha256). Round-26 audit fix (H14).
+    /// PRF for PBKDF2 (default: hmac-sha256). audit fix (H14).
     /// HMAC-SHA512 was reachable from the library API but unreachable
     /// from the CLI before this flag.
     #[arg(long, value_enum, default_value = "hmac-sha256")]
@@ -230,8 +230,6 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
 ///   take precedence over a stale env var that may have leaked in from
 ///   a parent shell. Otherwise `LATTICEARC_KDF_INPUT=foo
 ///   latticearc-cli kdf --input bar …` would silently use `foo`.
-///
-/// Round-8 audit fix #7 requires this justification be inline.
 fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
     if let Some(s) = args.input.as_deref() {
         return Ok(zeroize::Zeroizing::new(s.to_string()));

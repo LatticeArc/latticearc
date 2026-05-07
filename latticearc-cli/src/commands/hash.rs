@@ -98,7 +98,7 @@ pub(crate) fn run(args: HashArgs) -> Result<()> {
 
     if args.raw {
         // No prefix, no trailing newline — byte-exact for `sha256sum -c`
-        // and similar pipelines (round-7 audit fix #13).
+        // and similar pipelines.
         print!("{encoded}");
     } else {
         println!("{alg_label}: {encoded}");

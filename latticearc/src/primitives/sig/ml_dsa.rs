@@ -171,13 +171,13 @@ pub enum MlDsaError {
     /// Message length exceeds the configured resource limit.
     ///
     /// kept for ABI compatibility but no longer returned from
-    /// `sign()` — the cap-rejection now collapses to `SigningError` so the
-    /// sign path matches Pattern 6 opacity (round-26 M1 closed the verify
-    /// side; this completes the sign-side symmetry). Mirrors the
-    /// deprecation on `SlhDsaError::MessageTooLong` and
-    /// `FnDsaError::MessageTooLong`. Will be removed in a future major
-    /// bump alongside its siblings.
-    #[deprecated(note = "Round-28 H7: sign() now returns SigningError for cap rejection; \
+    /// `sign()` — the cap-rejection now collapses to `SigningError`
+    /// so the sign path matches Pattern 6 opacity (verify-side
+    /// already collapsed; this completes sign-side symmetry). Mirrors
+    /// the deprecation on `SlhDsaError::MessageTooLong` and
+    /// `FnDsaError::MessageTooLong`. Will be removed in a future
+    /// major bump alongside its siblings.
+    #[deprecated(note = "sign() now returns SigningError for cap rejection; \
                 this variant is no longer reachable from production code.")]
     #[error("Message exceeds signature resource limit")]
     MessageTooLong,
@@ -242,9 +242,9 @@ impl MlDsaPublicKey {
         // signature (sign-side rejects), but the audit's principle is
         // to fail explicitly here rather than rely on the verifier to
         // produce a Boolean false on mismatched canonicalization.
-        // Collapsed to the same opaque `VerificationError` (round-26
-        // M1 Pattern 6 posture — no distinguishable `ContextTooLong`
-        // variant on the verify path).
+        // Collapsed to the same opaque `VerificationError` (Pattern 6
+        // posture — no distinguishable `ContextTooLong` variant on the
+        // verify path).
         if context.len() > 255 {
             tracing::debug!(
                 ctx_len = context.len(),
@@ -406,9 +406,9 @@ impl MlDsaSecretKey {
     ///
     /// `context` is the FIPS 204 context string; pass `&[]` for domain-neutral
     /// signatures. Messages longer than the configured resource limit are
-    /// rejected with [`MlDsaError::SigningError`] (round-28 H7 collapsed
-    /// the previous `MessageTooLong` variant for Pattern 6 sign-side
-    /// opacity; the `MessageTooLong` variant is now `#[deprecated]`).
+    /// rejected with [`MlDsaError::SigningError`] — the previous
+    /// `MessageTooLong` variant collapsed for Pattern 6 sign-side
+    /// opacity and is now `#[deprecated]`.
     ///
     /// # Errors
     /// Returns `MlDsaError::SigningError` (Pattern-6 opaque) if:
@@ -422,7 +422,7 @@ impl MlDsaSecretKey {
         // `SIGN_ERR_MSG` and the cause is logged via tracing::debug!
         // only. Distinguishable variants would let an attacker probe
         // message length / context length / SK shape from error wording
-        // (round-26 M1, round-28 H7, round-29 H2, round-30 M3).
+        //.
         const SIGN_ERR_MSG: &str = "ML-DSA signing failed";
         let opaque_sign_err = || MlDsaError::SigningError(SIGN_ERR_MSG.to_string());
 
@@ -583,8 +583,8 @@ impl MlDsaSecretKey {
     /// need an owned, zeroize-on-drop copy (e.g. for serialization).
     #[must_use]
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
-        // `self.data` is `Zeroizing<Vec<u8>>` post round-13; deref to
-        // the slice and re-allocate into a fresh zeroizing copy.
+        // `self.data` is `Zeroizing<Vec<u8>>`; deref to the slice and
+        // re-allocate into a fresh zeroizing copy.
         Zeroizing::new(self.data.to_vec())
     }
 }
@@ -1371,7 +1371,7 @@ mod tests {
     }
 
     /// An oversized message must be rejected by `sign()` before
-    /// reaching the upstream crate. Round-28 collapsed the
+    /// reaching the upstream crate. collapsed the
     /// cap-rejection variant to the opaque
     /// `SigningError` (was distinguishable `MessageTooLong`) so a caller
     /// probing the cap cannot recover its configured value from the

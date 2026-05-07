@@ -9,6 +9,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-43 audit — Pattern-6 contract tightening + workspace marker hygiene (2026-05-07)
+
+External round-43 audit returned 8 findings (4 MED, 3 LOW, 1 DOC) on
+the round-42 commit's own work. All fixed in this commit; no defer.
+
+#### MED
+
+- **M1**: `cli_integration.rs` leak-list contained `"missing 'algorithm'
+  field"` (lowercase) — historically accurate but case-sensitive
+  `String::contains`. A fresh implementation re-introducing this leak
+  with canonical Rust capitalization (`"Missing 'algorithm' field"`)
+  would silently pass the substring check. Made the leak-substring
+  check case-insensitive via `stderr.to_lowercase().contains(&leak.to_lowercase())`.
+
+- **M2**: S99 cross-product had no test for `"Invalid base64 in
+  ml_dsa_sig"` — the leak-string was on the deny-list but no test
+  triggered the path. The `ed25519_sig` half was covered, leaving
+  the ML-DSA half untested. Added
+  `test_pattern6_hybrid_bad_base64_in_ml_dsa_collapses_invalid`.
+
+- **M3**: `verify.rs:521` had a dead `bail!()` for `VerifyAlgorithm::
+  Hybrid` in `verify_standard`. The round-42 enum dispatch made it
+  unreachable, but the type system gave no enforcement — adding a
+  new variant to `VerifyAlgorithm` would silently make the bail!
+  reachable via `LegacyVerifier::Standard { algorithm: NewVariant, ...}`.
+  Introduced `NonHybridAlgorithm` sub-enum with the 6 non-hybrid
+  variants; `LegacyVerifier::Standard` carries `NonHybridAlgorithm`;
+  `verify_standard` is exhaustive over `NonHybridAlgorithm`. Adding
+  a new variant becomes a compile error rather than a hidden
+  unreachable arm.
+
+- **M4**: `assert_verify_invalid_collapse` checked
+  `stderr.contains("Signature is INVALID")` plus a deny-list — a
+  regression emitting a NEW leak substring (not on the list) would
+  silently pass. Tightened to filter stderr lines containing
+  `"Signature is"` and assert the verdict line is exactly
+  `"Signature is INVALID."` — handles unrelated tracing INFO output
+  cleanly while pinning the verdict text exactly.
+
+#### LOW
+
+- **L1**: Workspace-wide audit-round-marker strip. Round-42 stripped
+  21 markers from the 5 files it touched; the audit observed 109+
+  remaining workspace-wide. Per CLAUDE.md "no audit-round markers in
+  source": labels live in CHANGELOG and commit messages only. Three-
+  pass strip via per-file perl helpers (`///` and `//!` lines first,
+  then `//` line-comments where the entire line is a comment, then
+  manual edits for multi-line doc parentheticals and string-literal
+  contexts). Workspace marker count: 109 → 0.
+
+- **L2**: `verify.rs` `tracing::debug!(error = ?e, ...)` calls inside
+  the Phase-2 closure ARE observable on stderr at `RUST_LOG=debug`.
+  Not attacker-reachable in normal deployments (default subscriber
+  filters at INFO/WARN), but the contract didn't acknowledge the
+  observability boundary. Updated `print_invalid()` SECURITY doc.
+
+- **L3**: `atomic_write.rs` scrub-path error messages embedded
+  `tmp.path().display()` — the per-file path of a tempfile that
+  contains plaintext secrets. Replaced with `parent.display()` so
+  operators get the volume info needed to wipe free clusters
+  without exposing the secret-bearing file's exact path to
+  consumers of `CoreError::Internal` (logs, tracing aggregators).
+
+#### DOC
+
+- **D1**: Extended `print_invalid()` SECURITY doc with two new
+  sub-sections: "Tracing observability boundary" (acknowledges
+  `RUST_LOG=debug` observability and the trade-off) and "What's safe
+  to put inside `tracing::debug!` calls" (typed errors via `?e`,
+  algorithm names, short reject-reason strings — yes; raw signature
+  bytes, attacker-controlled fields verbatim — no). Future
+  contributors adding new reject paths now have written contracts
+  for both stderr output AND debug logging.
+
 ### Round-42 audit — Pattern-6 sweep + scrub-path hardening + CI baseline (2026-05-07)
 
 External round-42 audit returned 7 findings (2 HIGH, 3 MED, 2 LOW,

@@ -66,7 +66,7 @@ impl EcKeyPair for Ed25519KeyPair {
 
         let keypair = Self { public_key, secret_key };
 
-        // Pairwise Consistency Test (PCT). Round-26 audit fix (H9):
+        // Pairwise Consistency Test (PCT). audit fix (H9):
         // upstream PctError -> opaque KeyGenerationError so that variant
         // wording from the `pct` module isn't relayed verbatim.
         crate::primitives::pct::pct_ed25519(&keypair).map_err(|e| {
@@ -139,7 +139,7 @@ impl EcSignature for Ed25519Signature {
         // bound message length before SHA-512
         // hashes the entire payload (RFC 8032 §5.1.7 inner hash). Without
         // this, an attacker forces unbounded hashing through any verify
-        // entrypoint — same DoS shape round-24 closed for ML-DSA /
+        // entrypoint — same DoS shape closed for ML-DSA /
         // SLH-DSA / FN-DSA.
         if let Err(e) = validate_signature_size(message.len()) {
             tracing::debug!(error = ?e, msg_len = message.len(), "Ed25519 verify rejected: message exceeds resource limit");
@@ -208,7 +208,7 @@ impl Ed25519KeyPair {
     /// this type guarantees by construction); the only failure path is
     /// the resource-limit gate that bounds the message length to
     /// `max_signature_size_bytes` (default 64 KiB) before SHA-512
-    /// hashes the payload (RFC 8032 §5.1.6). Round-26 audit fix (H4)
+    /// hashes the payload (RFC 8032 §5.1.6). audit fix (H4)
     /// added this gate to close the unbounded-hash DoS that previously
     /// existed on the sign path.
     ///

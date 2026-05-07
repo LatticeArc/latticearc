@@ -196,10 +196,12 @@ fn read_json_file(path: impl AsRef<std::path::Path>) -> serde_json::Value {
 ///
 /// A naïve "swap the first two characters" approach is fragile: when
 /// the underlying bytes encode to two consecutive identical base64
-/// chars (which happens for some signature byte patterns — observed
-/// in SLH-DSA-SHAKE-128s), swapping is a no-op and the test silently
-/// fails to actually tamper. Decode, flip the low bit of byte 0,
-/// re-encode — this always changes the binary content.
+/// chars (observed in SLH-DSA-SHAKE-128s), swapping is a no-op and
+/// the test silently fails to actually tamper. Decode, flip the low
+/// bit of the first byte AND the entire last byte, re-encode — this
+/// always changes the binary content at both ends so the test
+/// exercises a structurally meaningful corruption pattern (single-
+/// bit AND multi-bit, head AND tail) regardless of signature length.
 fn corrupt_base64(b64: &str) -> String {
     use base64::Engine;
     let mut bytes = base64::engine::general_purpose::STANDARD
@@ -207,6 +209,11 @@ fn corrupt_base64(b64: &str) -> String {
         .expect("input should be valid base64");
     if let Some(first) = bytes.first_mut() {
         *first ^= 0x01;
+    }
+    if bytes.len() > 1
+        && let Some(last) = bytes.last_mut()
+    {
+        *last ^= 0xFF;
     }
     base64::engine::general_purpose::STANDARD.encode(&bytes)
 }
@@ -2374,59 +2381,25 @@ fn test_truncated_ciphertext_detected_succeeds() {
 #[test]
 fn test_corrupted_signature_detected_ed25519_fails() {
     let dir = temp_dir();
-    let d = dir.path().to_str().unwrap();
+    let (msg_path, sig_path, pk_path) = legacy_sign_fixture(&dir, &ED25519_ALG);
 
-    run_ok(&["keygen", "--algorithm", "ed25519", "--output", d]);
-
-    let msg_path = dir.path().join("msg.txt");
-    std::fs::write(&msg_path, b"forgery detection test").unwrap();
-
-    let sig_path = dir.path().join("msg.sig.json");
-    run_ok(&[
-        "sign",
-        "--algorithm",
-        "ed25519",
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--output",
-        sig_path.to_str().unwrap(),
-        "--key",
-        dir.path().join("ed25519.sec.json").to_str().unwrap(),
-    ]);
-
-    // Corrupt the signature: flip a bit
-    let sig_content = std::fs::read_to_string(&sig_path).unwrap();
-    let mut sig_json: serde_json::Value = serde_json::from_str(&sig_content).unwrap();
-    let sig_b64 = sig_json["signature"].as_str().unwrap();
-    let mut sig_bytes =
-        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, sig_b64).unwrap();
-
-    if let Some(byte) = sig_bytes.get_mut(0) {
-        *byte ^= 0x01;
-    }
-
-    sig_json["signature"] = serde_json::Value::String(base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &sig_bytes,
-    ));
-
+    let mut sig_json = read_json_file(&sig_path);
+    let sig_b64 = sig_json["signature"].as_str().expect("signature str").to_string();
+    sig_json["signature"] = serde_json::Value::String(corrupt_base64(&sig_b64));
     let corrupted_sig = dir.path().join("corrupted.sig.json");
-    std::fs::write(&corrupted_sig, serde_json::to_string_pretty(&sig_json).unwrap()).unwrap();
+    write_json_file_pretty(&corrupted_sig, &sig_json);
 
-    let stderr = run_fail(&[
-        "verify",
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--signature",
-        corrupted_sig.to_str().unwrap(),
-        "--key",
-        dir.path().join("ed25519.pub.json").to_str().unwrap(),
-    ]);
-    assert!(
-        stderr.contains("INVALID")
-            || stderr.contains("Verification failed")
-            || stderr.contains("Signature is INVALID"),
-        "Corrupted Ed25519 signature must fail: {stderr}"
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg_path.to_str().unwrap(),
+            "--signature",
+            corrupted_sig.to_str().unwrap(),
+            "--key",
+            pk_path.to_str().unwrap(),
+        ],
+        "corrupted ed25519 signature",
     );
 
     println!(
@@ -2437,66 +2410,31 @@ fn test_corrupted_signature_detected_ed25519_fails() {
 #[test]
 fn test_corrupted_signature_detected_ml_dsa_fails() {
     let dir = temp_dir();
-    let d = dir.path().to_str().unwrap();
+    let ml_dsa65 =
+        LegacyAlg { cli_keygen: "ml-dsa65", cli_sign: "ml-dsa65", keyfile_stem: "ml-dsa-65" };
+    let (msg_path, sig_path, pk_path) = legacy_sign_fixture(&dir, &ml_dsa65);
 
-    run_ok(&["keygen", "--algorithm", "ml-dsa65", "--output", d]);
-
-    let msg_path = dir.path().join("msg.txt");
-    std::fs::write(&msg_path, b"PQC forgery detection test").unwrap();
-
-    let sig_path = dir.path().join("msg.sig.json");
-    run_ok(&[
-        "sign",
-        "--algorithm",
-        "ml-dsa65",
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--output",
-        sig_path.to_str().unwrap(),
-        "--key",
-        dir.path().join("ml-dsa-65.sec.json").to_str().unwrap(),
-    ]);
-
-    // Corrupt the PQC signature
-    let sig_content = std::fs::read_to_string(&sig_path).unwrap();
-    let mut sig_json: serde_json::Value = serde_json::from_str(&sig_content).unwrap();
-    let sig_b64 = sig_json["signature"].as_str().unwrap();
-    let mut sig_bytes =
-        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, sig_b64).unwrap();
-
-    // Flip multiple bits across the signature
-    for i in [0, sig_bytes.len() / 4, sig_bytes.len() / 2, sig_bytes.len() - 1] {
-        if let Some(byte) = sig_bytes.get_mut(i) {
-            *byte ^= 0xFF;
-        }
-    }
-
-    sig_json["signature"] = serde_json::Value::String(base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &sig_bytes,
-    ));
-
+    let mut sig_json = read_json_file(&sig_path);
+    let sig_b64 = sig_json["signature"].as_str().expect("signature str").to_string();
+    sig_json["signature"] = serde_json::Value::String(corrupt_base64(&sig_b64));
     let corrupted_sig = dir.path().join("corrupted.sig.json");
-    std::fs::write(&corrupted_sig, serde_json::to_string_pretty(&sig_json).unwrap()).unwrap();
+    write_json_file_pretty(&corrupted_sig, &sig_json);
 
-    let stderr = run_fail(&[
-        "verify",
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--signature",
-        corrupted_sig.to_str().unwrap(),
-        "--key",
-        dir.path().join("ml-dsa-65.pub.json").to_str().unwrap(),
-    ]);
-    assert!(
-        stderr.contains("INVALID")
-            || stderr.contains("Verification failed")
-            || stderr.contains("Signature is INVALID"),
-        "Corrupted ML-DSA-65 signature must fail: {stderr}"
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg_path.to_str().unwrap(),
+            "--signature",
+            corrupted_sig.to_str().unwrap(),
+            "--key",
+            pk_path.to_str().unwrap(),
+        ],
+        "corrupted ML-DSA-65 signature",
     );
 
     println!(
-        "[PROOF] {{\"test\": \"corrupted_signature_detected_ml_dsa\", \"category\": \"adversarial\", \"attack\": \"multi_bit_flip_signature\", \"algorithm\": \"ML-DSA-65\", \"bits_flipped\": 4, \"detected\": true}}"
+        "[PROOF] {{\"test\": \"corrupted_signature_detected_ml_dsa\", \"category\": \"adversarial\", \"attack\": \"signature_bit_flip\", \"algorithm\": \"ML-DSA-65\", \"detected\": true}}"
     );
 }
 
@@ -3638,66 +3576,34 @@ fn test_pqc_large_message_sign_verify_ml_dsa87_roundtrip() {
 #[test]
 fn test_corrupted_signature_detected_slh_dsa_fails() {
     let dir = temp_dir();
-    let d = dir.path().to_str().unwrap();
+    let slh_dsa = LegacyAlg {
+        cli_keygen: "slh-dsa128s",
+        cli_sign: "slh-dsa",
+        keyfile_stem: "slh-dsa-shake-128s",
+    };
+    let (msg_path, sig_path, pk_path) = legacy_sign_fixture(&dir, &slh_dsa);
 
-    run_ok(&["keygen", "--algorithm", "slh-dsa128s", "--output", d]);
-
-    let msg_path = dir.path().join("msg.txt");
-    std::fs::write(&msg_path, b"SLH-DSA forgery detection test").unwrap();
-
-    let sig_path = dir.path().join("msg.sig.json");
-    run_ok(&[
-        "sign",
-        "--algorithm",
-        "slh-dsa",
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--output",
-        sig_path.to_str().unwrap(),
-        "--key",
-        dir.path().join("slh-dsa-shake-128s.sec.json").to_str().unwrap(),
-    ]);
-
-    // Corrupt the hash-based signature
-    let sig_content = std::fs::read_to_string(&sig_path).unwrap();
-    let mut sig_json: serde_json::Value = serde_json::from_str(&sig_content).unwrap();
-    let sig_b64 = sig_json["signature"].as_str().unwrap();
-    let mut sig_bytes =
-        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, sig_b64).unwrap();
-
-    // Flip bits at multiple positions
-    for i in [0, sig_bytes.len() / 3, sig_bytes.len() / 2, sig_bytes.len() - 1] {
-        if let Some(byte) = sig_bytes.get_mut(i) {
-            *byte ^= 0xFF;
-        }
-    }
-
-    sig_json["signature"] = serde_json::Value::String(base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &sig_bytes,
-    ));
-
+    let mut sig_json = read_json_file(&sig_path);
+    let sig_b64 = sig_json["signature"].as_str().expect("signature str").to_string();
+    sig_json["signature"] = serde_json::Value::String(corrupt_base64(&sig_b64));
     let corrupted_sig = dir.path().join("corrupted_slh.sig.json");
-    std::fs::write(&corrupted_sig, serde_json::to_string_pretty(&sig_json).unwrap()).unwrap();
+    write_json_file_pretty(&corrupted_sig, &sig_json);
 
-    let stderr = run_fail(&[
-        "verify",
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--signature",
-        corrupted_sig.to_str().unwrap(),
-        "--key",
-        dir.path().join("slh-dsa-shake-128s.pub.json").to_str().unwrap(),
-    ]);
-    assert!(
-        stderr.contains("INVALID")
-            || stderr.contains("Verification failed")
-            || stderr.contains("Signature is INVALID"),
-        "Corrupted SLH-DSA signature must fail: {stderr}"
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg_path.to_str().unwrap(),
+            "--signature",
+            corrupted_sig.to_str().unwrap(),
+            "--key",
+            pk_path.to_str().unwrap(),
+        ],
+        "corrupted SLH-DSA-SHAKE-128s signature",
     );
 
     println!(
-        "[PROOF] {{\"test\": \"corrupted_signature_detected_slh_dsa\", \"category\": \"adversarial\", \"attack\": \"multi_bit_flip_signature\", \"algorithm\": \"SLH-DSA-SHAKE-128s\", \"standard\": \"FIPS 205\", \"detected\": true}}"
+        "[PROOF] {{\"test\": \"corrupted_signature_detected_slh_dsa\", \"category\": \"adversarial\", \"attack\": \"signature_bit_flip\", \"algorithm\": \"SLH-DSA-SHAKE-128s\", \"standard\": \"FIPS 205\", \"detected\": true}}"
     );
 }
 
@@ -4116,65 +4022,31 @@ fn test_e2e_derived_key_encrypt_decrypt_roundtrip() {
 #[test]
 fn test_corrupted_signature_detected_fn_dsa_fails() {
     let dir = temp_dir();
-    let d = dir.path().to_str().unwrap();
+    let fn_dsa =
+        LegacyAlg { cli_keygen: "fn-dsa512", cli_sign: "fn-dsa", keyfile_stem: "fn-dsa-512" };
+    let (msg_path, sig_path, pk_path) = legacy_sign_fixture(&dir, &fn_dsa);
 
-    run_ok(&["keygen", "--algorithm", "fn-dsa512", "--output", d]);
-
-    let msg_path = dir.path().join("msg.txt");
-    std::fs::write(&msg_path, b"FN-DSA forgery detection test").unwrap();
-
-    let sig_path = dir.path().join("msg.sig.json");
-    run_ok(&[
-        "sign",
-        "--algorithm",
-        "fn-dsa",
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--output",
-        sig_path.to_str().unwrap(),
-        "--key",
-        dir.path().join("fn-dsa-512.sec.json").to_str().unwrap(),
-    ]);
-
-    // Corrupt the signature
-    let sig_content = std::fs::read_to_string(&sig_path).unwrap();
-    let mut sig_json: serde_json::Value = serde_json::from_str(&sig_content).unwrap();
-    let sig_b64 = sig_json["signature"].as_str().unwrap();
-    let mut sig_bytes =
-        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, sig_b64).unwrap();
-
-    for i in [0, sig_bytes.len() / 2, sig_bytes.len() - 1] {
-        if let Some(byte) = sig_bytes.get_mut(i) {
-            *byte ^= 0xFF;
-        }
-    }
-
-    sig_json["signature"] = serde_json::Value::String(base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &sig_bytes,
-    ));
-
+    let mut sig_json = read_json_file(&sig_path);
+    let sig_b64 = sig_json["signature"].as_str().expect("signature str").to_string();
+    sig_json["signature"] = serde_json::Value::String(corrupt_base64(&sig_b64));
     let corrupted_sig = dir.path().join("corrupted_fn.sig.json");
-    std::fs::write(&corrupted_sig, serde_json::to_string_pretty(&sig_json).unwrap()).unwrap();
+    write_json_file_pretty(&corrupted_sig, &sig_json);
 
-    let stderr = run_fail(&[
-        "verify",
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--signature",
-        corrupted_sig.to_str().unwrap(),
-        "--key",
-        dir.path().join("fn-dsa-512.pub.json").to_str().unwrap(),
-    ]);
-    assert!(
-        stderr.contains("INVALID")
-            || stderr.contains("Verification failed")
-            || stderr.contains("Signature is INVALID"),
-        "Corrupted FN-DSA-512 signature must fail: {stderr}"
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg_path.to_str().unwrap(),
+            "--signature",
+            corrupted_sig.to_str().unwrap(),
+            "--key",
+            pk_path.to_str().unwrap(),
+        ],
+        "corrupted FN-DSA-512 signature",
     );
 
     println!(
-        "[PROOF] {{\"test\": \"corrupted_signature_detected_fn_dsa\", \"category\": \"adversarial\", \"attack\": \"multi_bit_flip_signature\", \"algorithm\": \"FN-DSA-512\", \"standard\": \"FIPS 206 (draft)\", \"detected\": true}}"
+        "[PROOF] {{\"test\": \"corrupted_signature_detected_fn_dsa\", \"category\": \"adversarial\", \"attack\": \"signature_bit_flip\", \"algorithm\": \"FN-DSA-512\", \"standard\": \"FIPS 206 (draft)\", \"detected\": true}}"
     );
 }
 
@@ -4902,6 +4774,32 @@ fn run_capture_fail(args: &[&str]) -> (i32, String) {
 /// stderr so callers can perform additional scenario-specific assertions
 /// (e.g., absence of an attacker-controlled marker) without re-spawning
 /// the CLI.
+/// Substrings that historically leaked reject detail. Each is the
+/// literal text from a `bail!` / `anyhow!` / `.context(...)` site a
+/// prior audit round found distinguishable. New leak shapes should
+/// be appended here, not silently dropped.
+///
+/// Stored lowercase so the per-test compare can match
+/// case-insensitively against `stderr.to_lowercase()` without a
+/// per-leak `to_lowercase()` allocation.
+const PATTERN6_LEAK_SUBSTRINGS_LOWER: &[&str] = &[
+    "verification failed",
+    "hybrid verification failed",
+    "signature was created over different data",
+    "failed to parse signature json",
+    "failed to parse hybrid signature json",
+    "missing 'signature' field",
+    "missing 'ml_dsa_sig'",
+    "missing 'ed25519_sig'",
+    "invalid base64 in signature",
+    "invalid base64 in ml_dsa_sig",
+    "invalid base64 in ed25519_sig",
+    "missing 'algorithm' field",
+    "unknown algorithm in signature file",
+    "invalid padding",
+    "could not detect signature algorithm",
+];
+
 fn assert_verify_invalid_collapse(args: &[&str], scenario: &str) -> String {
     let (code, stderr) = run_capture_fail(args);
     assert_eq!(
@@ -4909,35 +4807,30 @@ fn assert_verify_invalid_collapse(args: &[&str], scenario: &str) -> String {
         "verify ({scenario}) must exit 1 (INVALID class), not {code} (operational class). \
          A non-1 exit lets attackers distinguish reject paths via $? -- Pattern-6 leak.\nstderr: {stderr}"
     );
-    assert!(
-        stderr.contains("Signature is INVALID"),
-        "verify ({scenario}) must emit 'Signature is INVALID' on reject. stderr: {stderr}"
+
+    // Verdict-line contract: stderr may contain unrelated tracing INFO
+    // lines (logging-init banner, etc.), but exactly one line — taken
+    // as a whole — must equal "Signature is INVALID.". Whole-line
+    // match (not `contains`) catches both a regression that prepends
+    // / appends text to the verdict ("Signature is INVALID: <reason>")
+    // AND an unrelated log line that incidentally contains the substring
+    // "Signature is" without being the verdict itself.
+    let verdict_count = stderr.lines().filter(|line| *line == "Signature is INVALID.").count();
+    assert_eq!(
+        verdict_count, 1,
+        "verify ({scenario}) stderr must contain exactly one whole line equal to \
+         'Signature is INVALID.', found {verdict_count}.\nfull stderr: {stderr}"
     );
-    // Substrings that historically leaked reject detail. Each is the
-    // literal text from a `bail!` / `anyhow!` / `.context(...)` site
-    // a prior audit round found distinguishable. New leak shapes
-    // should be appended here, not silently dropped.
-    let leaks = [
-        "Verification failed",
-        "Hybrid verification failed",
-        "Signature was created over different data",
-        "Failed to parse signature JSON",
-        "Failed to parse hybrid signature JSON",
-        "Missing 'signature' field",
-        "Missing 'ml_dsa_sig'",
-        "Missing 'ed25519_sig'",
-        "Invalid base64 in signature",
-        "Invalid base64 in ml_dsa_sig",
-        "Invalid base64 in ed25519_sig",
-        "missing 'algorithm' field",
-        "Unknown algorithm in signature file",
-        "Invalid padding",
-        "could not detect signature algorithm",
-    ];
-    for leak in &leaks {
+
+    // Case-insensitive leak check. The stderr-side `to_lowercase()` is
+    // one allocation per test on a typically <1 KiB string; the leak
+    // side is statically lowercase via PATTERN6_LEAK_SUBSTRINGS_LOWER
+    // so the inner loop allocates nothing.
+    let stderr_lower = stderr.to_lowercase();
+    for leak in PATTERN6_LEAK_SUBSTRINGS_LOWER {
         assert!(
-            !stderr.contains(leak),
-            "verify ({scenario}) stderr leaked reject detail '{leak}': {stderr}"
+            !stderr_lower.contains(leak),
+            "verify ({scenario}) stderr leaked reject detail '{leak}' (case-insensitive): {stderr}"
         );
     }
     stderr
@@ -5315,6 +5208,35 @@ fn test_pattern6_hybrid_bad_base64_in_ed25519_collapses_invalid() {
             pk.to_str().unwrap(),
         ],
         "legacy hybrid bad-base64 ed25519",
+    );
+}
+
+#[test]
+fn test_pattern6_hybrid_bad_base64_in_ml_dsa_collapses_invalid() {
+    // Mirror of the ed25519 test for the ML-DSA half of the hybrid
+    // pair. Pre-fix path emitted "Invalid base64 in ml_dsa_sig". Both
+    // halves of the hybrid signature must collapse to the same shape;
+    // testing only one side leaves a Pattern-6 distinguisher between
+    // ML-DSA and Ed25519 reject paths.
+    let dir = temp_dir();
+    let (msg, sig, pk) = legacy_sign_fixture(&dir, &HYBRID_ALG);
+
+    let mut v = read_json_file(&sig);
+    v["ml_dsa_sig"] = serde_json::Value::String("AAA".to_string());
+    let tampered_path = dir.path().join("bad_b64_ml_dsa.sig.json");
+    write_json_file_pretty(&tampered_path, &v);
+
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg.to_str().unwrap(),
+            "--signature",
+            tampered_path.to_str().unwrap(),
+            "--key",
+            pk.to_str().unwrap(),
+        ],
+        "legacy hybrid bad-base64 ml_dsa",
     );
 }
 

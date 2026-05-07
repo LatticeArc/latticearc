@@ -70,7 +70,7 @@ const ML_KEM_PK_METADATA_KEY: &str = "ml_kem_pk";
 /// Current version of the encrypted-key envelope schema.
 ///
 /// bumped from `1` to `2` to mark the AAD
-/// label change introduced by round-24's metadata-binding fix
+/// label change introduced by's metadata-binding fix
 /// (`lpk-v1-enc` → `lpk-v2-enc`). Pre-fix v1 envelopes have the same
 /// `enc: 1` field but a different AEAD AAD; decrypting them with v2
 /// code surfaces as "wrong passphrase" because the AAD mismatch fails
@@ -433,7 +433,7 @@ impl KeyAlgorithm {
             "slh-dsa-shake-128s" => Some(Self::SlhDsaShake128s),
             "slh-dsa-shake-192s" => Some(Self::SlhDsaShake192s),
             "slh-dsa-shake-256s" => Some(Self::SlhDsaShake256s),
-            // Bare "fn-dsa" is a pre-round-21 legacy alias that the
+            // Bare "fn-dsa" is a earlier legacy alias that the
             // unified-API dispatch already accepts as Level512. Accept
             // it here too so round-tripping legacy keys through the
             // shared `from_canonical_name` path works at the keyfile
@@ -1934,8 +1934,8 @@ impl PortableKey {
         if enc == 1 {
             return Err(CoreError::InvalidKey(
                 "v1 envelope; re-protect with --upgrade. The AAD format \
-                 changed in 0.8.0 (round-24); v1 envelopes cannot be decrypted \
-                 by v2 code even with the correct passphrase."
+                 changed in 0.8.0; v1 envelopes cannot be decrypted by v2 code \
+                 even with the correct passphrase."
                     .to_string(),
             ));
         }
@@ -2398,12 +2398,12 @@ impl PortableKey {
         aad.extend_from_slice(kdf.as_bytes());
         aad.push(0);
         aad.extend_from_slice(&kdf_iterations.to_be_bytes());
-        // round-26 L1/L2 collapsed `unwrap_or(u32::MAX)`
-        // saturation at four other length-prefix sites; this one was
-        // missed. Saturation collapses every `>4 GiB` salt onto the same
-        // length prefix, leading to an AAD canonicalization collision.
-        // Refuse instead, with the same shape as the metadata-len
-        // overflow check above.
+        // The `unwrap_or(u32::MAX)` saturation that would have lived
+        // here was collapsed at four other length-prefix sites for
+        // good reason: saturation collapses every `>4 GiB` salt onto
+        // the same length prefix, leading to an AAD canonicalization
+        // collision. Refuse instead, with the same shape as the
+        // metadata-len overflow check above.
         let salt_len_u32 = u32::try_from(kdf_salt.len()).map_err(|_e| {
             CoreError::SerializationError(
                 "Encrypted-envelope kdf_salt exceeds u32::MAX bytes".to_string(),
@@ -2653,11 +2653,10 @@ impl PortableKey {
 
     /// Like [`write_cbor_to_file`] but with explicit overwrite control.
     ///
-    /// Same contract as [`write_to_file_with_overwrite`] (round-8 audit
-    /// fix #3 — the JSON path was migrated to `AtomicWrite` in round
-    /// 7 but this CBOR sibling was missed and still had the original
-    /// truncate-then-write pattern that destroys prior key material on
-    /// crash mid-write).
+    /// Same contract as [`write_to_file_with_overwrite`] — the JSON
+    /// and CBOR paths now both go through `AtomicWrite` instead of
+    /// the original truncate-then-write pattern that would destroy
+    /// prior key material on crash mid-write.
     ///
     /// # Errors
     ///

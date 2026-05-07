@@ -463,7 +463,7 @@ impl VerifiedSession {
         self.trust_level
     }
 
-    /// Downgrade the session's trust level. Round-29 M3: previously the
+    /// Downgrade the session's trust level. M3: previously the
     /// `trust_level` field was set once at construction (always to
     /// `Trusted`) and no public mutator existed, so the
     /// `Trusted -> Partial -> Untrusted` transitions described in the
@@ -594,7 +594,7 @@ pub struct ZeroTrustAuth {
     /// async tasks and multi-threaded callers; an `Arc<ZeroTrustAuth>`
     /// shared between Tokio workers must compile.
     last_verification: Mutex<Option<DateTime<Utc>>>,
-    /// Replay cache for proofs-of-possession (round-26 audit fix M16).
+    /// Replay cache for proofs-of-possession.
     /// Keyed on `pk || sig || ts_micros_be` (microsecond precision —
     /// see the M16 follow-up note in `generate_pop` for why second
     /// precision was insufficient under Ed25519's deterministic
@@ -784,7 +784,7 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
         // the verifier's Medium policy (or vice versa). Pin the field
         // by requiring it to match the verifier's expected complexity;
         // mismatch collapses to `Ok(false)` (Pattern 6 — no
-        // distinguishable error per round-26 audit posture).
+        // distinguishable error per audit posture).
         if proof.complexity() != &self.config.proof_complexity {
             tracing::debug!(
                 expected = ?self.config.proof_complexity,
@@ -878,12 +878,12 @@ impl ProofOfPossession for ZeroTrustAuth {
     /// OR the cryptographic check fails. **All rejection causes
     /// produce the same `Ok(false)`** so callers cannot distinguish
     /// "stale, refresh and retry" from "wrong PoP" by branching on
-    /// the Result. (Round-34 L7 changed the stale path from
-    /// `Err(InvalidInput)` to `Ok(false)` to remove a side-channel
-    /// that exposed server clock skew. Stale-vs-cryptographic-reject
-    /// is logged at `tracing::debug!` for operators only — callers
-    /// that need refresh logic should re-issue a fresh PoP and retry
-    /// rather than branching on the error variant.)
+    /// the Result. The stale path returns `Ok(false)` rather than
+    /// `Err(InvalidInput)` to avoid a side-channel that would expose
+    /// server clock skew. Stale-vs-cryptographic-reject is logged at
+    /// `tracing::debug!` for operators only — callers that need
+    /// refresh logic should re-issue a fresh PoP and retry rather
+    /// than branching on the error variant.
     ///
     /// # Errors
     ///
@@ -1388,7 +1388,7 @@ impl ZeroTrustAuth {
 
         // Append the timestamp to the proof bytes so the verifier can
         // recover it. All three complexity levels now carry a timestamp
-        // suffix (round-11 audit fix #16); older proofs without the
+        // suffix; older proofs without the
         // suffix will fail length check at verify time.
         let mut proof = signature;
         proof.extend_from_slice(&timestamp);
@@ -2162,7 +2162,7 @@ mod tests {
     #[test]
     fn test_security_mode_explicit_unverified_succeeds() {
         // Pinning the explicit-construction shape after `impl Default for
-        // SecurityMode` was removed (round-6 audit fix #5). Callers must
+        // SecurityMode` was removed. Callers must
         // now opt into `Unverified` by name; this test guards the variant's
         // behaviour, not the (deliberately-absent) `Default` impl.
         let mode = SecurityMode::Unverified;
@@ -2626,7 +2626,7 @@ mod tests {
     }
 
     // regression coverage for the
-    // round-12 L-3 fix that capped forward clock-skew tolerance at
+    // L-3 fix that capped forward clock-skew tolerance at
     // 30 s on `verify_proof`. Previously `now_ms.abs_diff(proof_ts_ms)
     // > 300_000` allowed proofs up to 5 min in the future; an
     // attacker with a forward-skewed clock got a 10-min replay

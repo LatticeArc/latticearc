@@ -473,8 +473,8 @@ pub fn generate_keypair_with_parameter_set(
     // into the HybridSigSecretKey so the wrapping Zeroizing is preserved.
     let ed25519_sk_zeroizing = ed25519_kp.secret_key_bytes();
 
-    // Round-35 H4: route construction through the validating
-    // `HybridSigPublicKey::new` (round-34 L4) instead of building
+    // H4: route construction through the validating
+    // `HybridSigPublicKey::new` instead of building
     // the struct literal directly. Direct construction here
     // bypassed the length-check L4 added — the production keygen
     // was the most-common construction path and the only one that
@@ -528,7 +528,7 @@ pub fn sign(
     // state; failures here indicate a programmer / storage bug, but keep the
     // public error uniform to avoid exposing upstream detail.
     //
-    // the round-12 attempt at this
+    // the prior attempt at this
     // wrapped the clone in `Zeroizing<Vec<u8>>` but then immediately
     // re-cloned to pass into `MlDsaSecretKey::new(... Vec<u8>)`,
     // creating a second bare copy that would leak on the `new()` error
@@ -699,7 +699,7 @@ pub fn verify(
             // below — its only purpose is to consume verify-time
             // wall-clock budget.
             Some(parsed) => parsed.pq_pk.verify(&parsed.pq_test_message, &parsed.pq_sig, &[]),
-            // Init keygen failed (extremely rare; round-29 L6 retries
+            // Init keygen failed (extremely rare; retries
             // on every call). Equalizer degraded; legacy fast-fail
             // behavior. Not a correctness regression because the bit
             // is computed below via AND with multiple guards.
@@ -772,7 +772,7 @@ pub fn verify(
             );
         }
         // If `ed_dummy_parsed` is None (RNG/PCT init failure —
-        // round-29 L6 retries on every call), fall through to the
+        // retries on every call), fall through to the
         // legacy fast-fail. Bit is computed below via AND with
         // `pq_shape_ok` and `parse_ok.is_ok()`, so a degraded
         // equalizer cannot affect correctness.
