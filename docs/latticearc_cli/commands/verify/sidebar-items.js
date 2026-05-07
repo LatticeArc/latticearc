@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["VerifyAlgorithm"],"fn":["algorithm_name","detect_algorithm","input_label","print_invalid","read_verify_input","run","verify_hybrid","verify_legacy","verify_standard"],"struct":["VerifyArgs"]};
+window.SIDEBAR_ITEMS = {"enum":["LegacyVerifier","VerifyAlgorithm"],"fn":["algorithm_name","detect_algorithm","input_label","print_invalid","read_verify_input","run","verify_hybrid","verify_legacy","verify_standard"],"struct":["VerifyArgs"]};
