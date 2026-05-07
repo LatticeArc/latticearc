@@ -583,11 +583,10 @@ fn test_core_error_implements_error_trait_correctly_fails() {
 fn test_core_error_variants_are_stable() {
     fn check_variant(err: CoreError, must_contain: &str) {
         let s = err.to_string();
-        assert!(
-            !s.is_empty(),
-            "CoreError::{:?} produced an empty Display string",
-            std::any::type_name::<CoreError>()
-        );
+        // Use `{err:?}` so a regression that returns an empty Display
+        // string identifies the specific variant (e.g.
+        // `VerificationFailed`) rather than the parent type name.
+        assert!(!s.is_empty(), "CoreError::{err:?} produced an empty Display string");
         assert!(
             s.contains(must_contain),
             "Display for {err:?} should mention {must_contain:?} for log/audit attribution; got {s:?}",
@@ -623,13 +622,13 @@ fn test_core_error_variants_are_stable() {
     check_variant(CoreError::ResourceExceeded("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::AuditError("probe-msg".to_string()), "probe-msg");
 
-    // Simple variants — assert Display is non-empty + Send/Sync.
-    {
-        let err = CoreError::VerificationFailed;
-        assert!(!err.to_string().is_empty());
-        let err = CoreError::SessionExpired;
-        assert!(!err.to_string().is_empty());
-    }
+    // Unit-struct variants must exercise the same Display +
+    // Error::source + Send/Sync surface as the data-carrying variants
+    // — `Send`/`source()` regressions on these two variants would
+    // otherwise go undetected (a bespoke `is_empty()`-only assertion
+    // doesn't cover the trait surface).
+    check_variant(CoreError::VerificationFailed, "verification");
+    check_variant(CoreError::SessionExpired, "expired");
 
     // Structured errors — Display must include the structural fields
     // so log/audit consumers can attribute the failure.

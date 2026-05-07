@@ -1104,35 +1104,35 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
     if exact_names.iter().any(|n| lower == *n) {
         return true;
     }
-    // Accept any cargo build profile under `target/<profile>/deps/`.
-    // The previous form hardcoded `"debug" || "release"` and rejected
-    // every custom profile (e.g. `[profile.valgrind]` used by the
-    // Memory Safety Checks CI job, `[profile.release-validation]`,
-    // any user-defined profile). Round-32 and round-35 chased the
-    // resulting `process::abort` symptom downstream — first by
-    // disabling a dependent test cleanup, then by `--skip`-ing
-    // affected tests in the Valgrind workflow. The actual root cause
-    // was this overly-narrow allowlist.
+    // Accept any cargo-test binary under a `…/target/**/deps/` path
+    // (no hardcoded profile name or nesting depth). An exact
+    // `target/<profile>/deps/` allowlist would reject:
+    //   * custom profiles (`[profile.valgrind]`, `[profile.release-validation]`)
+    //   * `cargo llvm-cov`'s nested `target/llvm-cov-target/release/deps/`
+    //   * any future tool that scopes its target dir under `target/`
+    // — and the resulting `path_looks_like` rejection would fail the
+    // integrity test, abort the FIPS POST, and SIGABRT the process.
     //
-    // Security note: relaxing to "any profile" is safe because the
+    // Security note: walking the parent chain for `target` (not
+    // requiring an exact ancestor depth) is safe because the
     // integrity-test threat model rejects adversary-injected binaries
-    // by HMAC mismatch, not by path. The profile-name is just the
-    // directory the build system chose to put the artifact in; an
-    // attacker who can write into `target/<arbitrary>/deps/` can
-    // already write into `target/release/deps/` too.
+    // by HMAC mismatch, not by path. The profile-name and any tool-
+    // specific nesting are just where the build system chose to put
+    // the artifact; an attacker who can write into
+    // `target/<arbitrary>/.../deps/` can already write into
+    // `target/release/deps/` too.
     let parent_ok = path.parent().and_then(|p| {
-        if p.file_name().and_then(|n| n.to_str()) == Some("deps")
-            && p.parent().and_then(|pp| pp.file_name()).is_some()
-            && p.parent()
-                .and_then(|pp| pp.parent())
-                .and_then(|ppp| ppp.file_name())
-                .and_then(|n| n.to_str())
-                == Some("target")
-        {
-            Some(())
-        } else {
-            None
+        if p.file_name().and_then(|n| n.to_str()) != Some("deps") {
+            return None;
         }
+        // Walk up from `deps`'s parent looking for any ancestor whose
+        // file_name is `target`. Bounded to 8 hops to avoid pathological
+        // climbs in unrelated filesystems.
+        p.ancestors()
+            .skip(1)
+            .take(8)
+            .any(|a| a.file_name().and_then(|n| n.to_str()) == Some("target"))
+            .then_some(())
     });
     if parent_ok.is_some() {
         // Strip `.exe` if present, then split on the LAST `-` to get
@@ -1651,7 +1651,23 @@ mod tests {
     /// concurrent reader the queue blocks on", which cascaded the
     /// failure into hundreds of unrelated tests. The guard pattern
     /// keeps the window scoped to the test body.
-    struct FipsStateGuard;
+    ///
+    /// `_not_send_or_sync: PhantomData<*mut ()>` makes the guard
+    /// neither `Send` nor `Sync` at compile time (raw pointers are
+    /// neither). Without it, a zero-size struct is implicitly
+    /// `Send + Sync`, so a test that accidentally moves the guard
+    /// into a `thread::spawn(...)` closure would restore the FIPS
+    /// state on the spawned thread's drop — racing with the main
+    /// test body and re-opening exactly the false-state-leak we are
+    /// guarding against. The marker raises that to a compile error.
+    struct FipsStateGuard {
+        _not_send_or_sync: core::marker::PhantomData<*mut ()>,
+    }
+    impl FipsStateGuard {
+        const fn new() -> Self {
+            Self { _not_send_or_sync: core::marker::PhantomData }
+        }
+    }
     impl Drop for FipsStateGuard {
         fn drop(&mut self) {
             // `restore_operational_state` is the canonical "bring
@@ -1701,6 +1717,71 @@ mod tests {
         }
     }
 
+    // Lock the accepted/rejected path shapes so a future refactor
+    // can't re-narrow the allowlist. Re-narrowing produces a
+    // `process::abort` at FIPS POST when run from a legitimate
+    // cargo-test artifact path that the allowlist no longer
+    // recognises (custom profile, nested tool target dir, etc.).
+    #[test]
+    fn test_path_looks_like_latticearc_module_accepts_known_shapes() {
+        use std::path::PathBuf;
+
+        // Exact-name binaries (CLI / dynamic library names).
+        for name in [
+            "liblatticearc.so",
+            "liblatticearc.dylib",
+            "latticearc.dll",
+            "latticearc-cli",
+            "latticearc-cli.exe",
+        ] {
+            assert!(
+                path_looks_like_latticearc_module(&PathBuf::from(name)),
+                "exact-name binary should be accepted: {name}"
+            );
+        }
+
+        // Standard cargo-test deps shapes (any profile, any tool nesting under target/).
+        for path in [
+            // Standard `target/release/deps/` shape.
+            "/work/repo/target/release/deps/latticearc-0123456789abcdef",
+            "/work/repo/target/debug/deps/audit_regression_signatures-fedcba9876543210",
+            // Custom profile (e.g. `[profile.valgrind]`).
+            "/work/repo/target/valgrind/deps/latticearc-0123456789abcdef",
+            // `cargo llvm-cov`'s nested target dir.
+            "/work/repo/target/llvm-cov-target/release/deps/latticearc-0123456789abcdef",
+            // Hypothetical deeper nesting; the walk is bounded but
+            // still climbs through several intermediate directories.
+            "/work/repo/target/some-tool/release/instrumented/deps/foo-0123456789abcdef",
+        ] {
+            assert!(
+                path_looks_like_latticearc_module(&PathBuf::from(path)),
+                "cargo-test deps shape should be accepted: {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_path_looks_like_latticearc_module_rejects_adversarial_shapes() {
+        use std::path::PathBuf;
+
+        for path in [
+            // Wrong hex-suffix length (15 vs required 16).
+            "/work/repo/target/release/deps/latticearc-0123456789abcde",
+            // Suffix is not hex.
+            "/work/repo/target/release/deps/latticearc-evil-not-hex-here",
+            // No `deps` parent.
+            "/work/repo/target/release/latticearc-0123456789abcdef",
+            // Not under any `target` ancestor — host interpreter case.
+            "/usr/bin/python3.12",
+            "/opt/node/bin/node",
+        ] {
+            assert!(
+                !path_looks_like_latticearc_module(&PathBuf::from(path)),
+                "non-LatticeArc path should be rejected: {path}"
+            );
+        }
+    }
+
     #[test]
     fn test_self_test_result_methods_return_correct_values_succeeds() {
         let pass = SelfTestResult::Pass;
@@ -1717,7 +1798,7 @@ mod tests {
 
     #[test]
     fn test_initialize_and_verify_sets_passed_flag_succeeds() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         // Reset state for test
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
 
@@ -1796,7 +1877,7 @@ mod tests {
 
     #[test]
     fn test_set_and_get_module_error_succeeds() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         // Clear any existing error state
         clear_error_state();
 
@@ -1822,7 +1903,7 @@ mod tests {
 
     #[test]
     fn test_is_module_operational_succeeds() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         // Clear any existing state
         clear_error_state();
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
@@ -1846,7 +1927,7 @@ mod tests {
 
     #[test]
     fn test_verify_operational_with_error_state_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         // Clear any existing state and initialize
         clear_error_state();
         let result = initialize_and_test();
@@ -1874,7 +1955,7 @@ mod tests {
 
     #[test]
     fn test_set_error_clears_self_test_passed_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         // Initialize and verify self-tests passed
         clear_error_state();
         let result = initialize_and_test();
@@ -1928,7 +2009,7 @@ mod tests {
 
     #[test]
     fn test_set_module_error_no_error_does_not_clear_self_test_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         // Setting NoError should not clear self_test_passed flag
         clear_error_state();
         let result = initialize_and_test();
@@ -2014,7 +2095,7 @@ mod tests {
 
     #[test]
     fn test_verify_operational_without_self_tests_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         // Reset state: no error, but self-tests not passed
         clear_error_state();
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
@@ -2031,7 +2112,7 @@ mod tests {
 
     #[test]
     fn test_multiple_error_states_in_sequence_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         clear_error_state();
 
         // Set different errors in sequence
@@ -2133,7 +2214,7 @@ mod tests {
 
     #[test]
     fn test_module_error_state_no_error_timestamp_zero_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         clear_error_state();
         let state = get_module_error_state();
         assert!(!state.is_error());
@@ -2142,7 +2223,7 @@ mod tests {
 
     #[test]
     fn test_module_error_state_error_has_nonzero_timestamp_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         clear_error_state();
         set_module_error(ModuleErrorCode::SelfTestFailure);
         let state = get_module_error_state();
@@ -2157,7 +2238,7 @@ mod tests {
 
     #[test]
     fn test_verify_operational_error_message_contains_description_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         clear_error_state();
         set_module_error(ModuleErrorCode::EntropyFailure);
 
@@ -2175,7 +2256,7 @@ mod tests {
 
     #[test]
     fn test_all_error_codes_block_operations_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         let error_codes = [
             ModuleErrorCode::SelfTestFailure,
             ModuleErrorCode::EntropyFailure,
@@ -2210,7 +2291,7 @@ mod tests {
 
     #[test]
     fn test_initialize_and_test_sets_flag_succeeds() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
         clear_error_state();
         assert!(!self_tests_passed());
@@ -2314,7 +2395,7 @@ mod tests {
 
     #[test]
     fn test_error_state_timestamp_ordering_fails() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         clear_error_state();
 
         // Set first error
@@ -2337,7 +2418,7 @@ mod tests {
 
     #[test]
     fn test_verify_operational_after_reset_succeeds() {
-        let _guard = FipsStateGuard;
+        let _guard = FipsStateGuard::new();
         // Set error state
         set_module_error(ModuleErrorCode::HsmError);
         assert!(verify_operational().is_err());

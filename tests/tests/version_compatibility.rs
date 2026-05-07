@@ -618,25 +618,31 @@ fn test_crypto_config_builder_api_stable_is_compatible_succeeds() {
     use latticearc::types::types::AlgorithmSelection;
     use latticearc::unified_api::{CryptoConfig, SecurityLevel, UseCase};
 
-    // Builder pattern: round-40 M6 added behavioural assertions so a
-    // regression that turned `security_level(_)` / `use_case(_)` into
-    // no-ops would fail this test. The setters update an internal
-    // `AlgorithmSelection` enum; the test pattern-matches on the
-    // expected variant. Without these matchers, the previous shape
-    // (`let _config = ...`) was a compile-only check.
-    let config = CryptoConfig::new().security_level(SecurityLevel::High);
+    // Builder pattern: setters update an internal `AlgorithmSelection`
+    // enum; the test pattern-matches on the expected variant. The
+    // builder MUST be called with a value that DIFFERS from
+    // `CryptoConfig::new()`'s initial state — the default selection
+    // is `SecurityLevel(High)`, so calling `.security_level(High)`
+    // and asserting `High` would also pass for a no-op
+    // `fn(self, _) { self }`. Use `Maximum` / `EmailEncryption` so
+    // the asserted post-state is strictly different from the
+    // constructor's initial state, which forces the builder to
+    // actually update internal storage.
+    let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     assert!(
-        matches!(config.get_selection(), AlgorithmSelection::SecurityLevel(SecurityLevel::High)),
-        "security_level builder must update AlgorithmSelection::SecurityLevel"
+        matches!(config.get_selection(), AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum)),
+        "security_level builder must update AlgorithmSelection::SecurityLevel \
+         (post-state must differ from default High to detect no-op regression)"
     );
 
-    let config_with_use_case = CryptoConfig::new().use_case(UseCase::FileStorage);
+    let config_with_use_case = CryptoConfig::new().use_case(UseCase::EmailEncryption);
     assert!(
         matches!(
             config_with_use_case.get_selection(),
-            AlgorithmSelection::UseCase(UseCase::FileStorage)
+            AlgorithmSelection::UseCase(UseCase::EmailEncryption)
         ),
-        "use_case builder must update AlgorithmSelection::UseCase"
+        "use_case builder must update AlgorithmSelection::UseCase \
+         (post-state must differ from default to detect no-op regression)"
     );
 }
 

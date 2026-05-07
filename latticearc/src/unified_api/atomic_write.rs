@@ -186,13 +186,51 @@ impl<'a> AtomicWrite<'a> {
         // tempfile here persists across `tmp.persist()` to the final
         // path. A failure here is fatal: silently leaving the secret-
         // key file world-readable is worse than failing the write.
-        if self.harden_windows_acl {
-            crate::unified_api::set_local_admin_dacl(tmp.path()).map_err(|e| {
-                CoreError::Internal(format!(
-                    "windows DACL hardening on tempfile {} failed: {e}",
-                    tmp.path().display()
-                ))
-            })?;
+        if self.harden_windows_acl
+            && let Err(e) = crate::unified_api::set_local_admin_dacl(tmp.path())
+        {
+            // Best-effort secret-bytes scrub before `tmp` drops and
+            // unlinks. The plaintext bytes were already written above;
+            // if we return the error directly, NamedTempFile's drop
+            // just unlinks — which on NTFS releases cluster runs
+            // without zeroizing them, leaving the secret recoverable
+            // from raw disk until those clusters get reallocated.
+            //
+            // Sequence:
+            //   1. seek-and-overwrite with zeros for the active
+            //      length (NTFS resident-data files <~700 B are
+            //      truly zeroed; for cluster-resident files the
+            //      currently-mapped clusters are zeroed before
+            //      release)
+            //   2. sync_all so the zeros hit disk before truncate
+            //   3. set_len(0) releases the now-zeroed clusters
+            // All operations are best-effort (`let _ =`) — we are
+            // already in the error-return path; secondary I/O
+            // failures here cannot improve the user-visible error
+            // and `tmp`'s drop will still unlink either way.
+            use std::io::{Seek, SeekFrom, Write};
+            const ZERO_CHUNK: [u8; 4096] = [0u8; 4096];
+            let f = tmp.as_file_mut();
+            let _ = f.seek(SeekFrom::Start(0));
+            let mut remaining = self.bytes.len();
+            while remaining > 0 {
+                let n = remaining.min(ZERO_CHUNK.len());
+                #[allow(clippy::indexing_slicing)]
+                // SAFETY: `n = remaining.min(ZERO_CHUNK.len())`
+                // ⇒ `n ≤ ZERO_CHUNK.len()` ⇒ `&ZERO_CHUNK[..n]` is
+                // in-bounds. (no possible panic)
+                let chunk = &ZERO_CHUNK[..n];
+                if f.write_all(chunk).is_err() {
+                    break;
+                }
+                remaining = remaining.saturating_sub(n);
+            }
+            let _ = f.sync_all();
+            let _ = f.set_len(0);
+            return Err(CoreError::Internal(format!(
+                "windows DACL hardening on tempfile {} failed: {e}",
+                tmp.path().display()
+            )));
         }
 
         // Atomic rename — the choice between `persist` and `persist_noclobber`

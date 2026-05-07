@@ -119,16 +119,23 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
             Some(())
         })
         .is_some();
-    let signed_data_parse =
-        latticearc::unified_api::serialization::deserialize_signed_data(&sig_json);
-    if looks_like_signed_data && signed_data_parse.is_err() {
-        tracing::debug!(
-            error = ?signed_data_parse.as_ref().err(),
-            "verify (SignedData shape detected, parse rejected)"
-        );
-        bail!("Verification failed");
-    }
-    if let Ok(signed) = signed_data_parse {
+    if looks_like_signed_data {
+        // Deserialize INSIDE the structural gate (not before it), so a
+        // hoist or reorder can't silently fall through to the legacy
+        // auto-detect branch and reopen the Pattern-6 distinguisher
+        // (legacy branch emitted "Signature file missing 'algorithm'
+        // field" — distinguishable from a crypto-reject error).
+        let signed =
+            match latticearc::unified_api::serialization::deserialize_signed_data(&sig_json) {
+                Ok(signed) => signed,
+                Err(e) => {
+                    tracing::debug!(
+                        error = ?e,
+                        "verify (SignedData shape detected, parse rejected)"
+                    );
+                    return Ok(print_invalid());
+                }
+            };
         // Verify the signed data matches the input file. `signed.data`
         // currently carries public message material, so the comparison
         // doesn't need to be CT in the threat-model sense — but the
@@ -150,14 +157,18 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
 
         let config =
             super::common::build_config(args.use_case, args.security_level, &args.compliance);
-        // opaque user-facing message; route the upstream
-        // `e` to tracing::debug! only. Mirrors round-28 H3's decrypt
-        // collapse — the inner library error wording is not part of
-        // the user contract and was leaking implementation detail.
-        let valid = latticearc::verify(&signed, config).map_err(|e| {
-            tracing::debug!(error = ?e, "verify (SignedData path) rejected");
-            anyhow::anyhow!("Verification failed")
-        })?;
+        // A `latticearc::verify(...)` Err (e.g. malformed public key)
+        // collapses to the same user-visible outcome as `Ok(false)` so
+        // an attacker can't distinguish the structural / crypto /
+        // library-error paths via stderr text or exit-code class. See
+        // `print_invalid()` for the centralised reject contract.
+        let valid = match latticearc::verify(&signed, config) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::debug!(error = ?e, "verify (SignedData path) rejected");
+                return Ok(print_invalid());
+            }
+        };
 
         // return the result; `main` does the
         // exit-code translation after destructors. The 0/1/≥2 contract
@@ -174,10 +185,9 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
         // should use `run_ok_combined`.
         if valid {
             println!("Signature is VALID. (scheme: {})", signed.scheme);
-        } else {
-            eprintln!("Signature is INVALID.");
+            return Ok(true);
         }
-        return Ok(valid);
+        return Ok(print_invalid());
     }
 
     // Fall back to legacy format (requires --key)
@@ -190,6 +200,20 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
     })?;
 
     verify_legacy(&args, &sig_json, key_path, input_data)
+}
+
+/// Centralised reject for any path that must be indistinguishable
+/// from a cryptographic-verification failure: emits the same INVALID
+/// stderr line and returns `false` (which `run`'s callers translate
+/// to exit code 1, the "invalid" class — distinct from the ≥2 "error"
+/// class). Used by the structural-reject, deserialize-fail, and
+/// crypto-fail branches so a future maintainer can't diverge them
+/// into a Pattern-6 distinguisher (an attacker telling apart
+/// "I broke the JSON envelope" from "I broke the signature" by
+/// stderr text or exit-code class).
+fn print_invalid() -> bool {
+    eprintln!("Signature is INVALID.");
+    false
 }
 
 /// Read the verify input from `--input <path>` or stdin (round-7 fix

@@ -9,6 +9,154 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-41 audit — fixes round-40's own bugs + CI hot-fix (2026-05-07)
+
+External round-41 audit returned 9 findings (1 CRIT, 0 HIGH, 4 MED,
+3 LOW, 1 DOC). C1 is critical (verifier livelock). Two MEDs are
+direct regressions in round-40's own fixes (M1 atomic-write
+zeroize, M3 Pattern-6 distinguisher); the remaining are architectural
+cleanups and lock-ins. All fixed in this commit; **no defer**.
+
+#### CRIT
+
+- **C1**: `latticearc/src/unified_api/audit.rs:1334–1378` — round-40
+  L2's `BufRead::fill_buf` rewrite has an infinite-livelock bug.
+  When `line_buf.len()` reaches `MAX_LINE_LEN + 1` and the kernel
+  buffer still has bytes, the cap-exceeded branch hits
+  `extend_from_slice(empty)` + `consume(0)` and never sets the
+  loop-exit flag, spinning forever. An attacker with audit-write
+  access can hang `verify_chain` permanently by writing a single
+  ≥1 MiB line with no early newline. Fixed by `break;` in the
+  cap-exceeded branch so the post-loop over-cap check converts
+  promptly to `AuditError`. Added regression test
+  `test_verify_chain_over_cap_line_returns_error_promptly_fails`
+  with a 5-second wall-clock budget; pre-fix the test would never
+  return.
+
+#### MED
+
+- **M1**: `latticearc/src/unified_api/atomic_write.rs:174–196` — round-40
+  H2's "DACL apply BEFORE persist" change made the DACL-failure path
+  more reachable, leaving plaintext secret bytes recoverable from
+  raw NTFS disk after `NamedTempFile`'s drop unlinks the tempfile.
+  The drop releases cluster runs without zeroizing them. Fixed by
+  best-effort scrub on the DACL-error path: seek+overwrite with
+  zeros for the active byte length, sync, then `set_len(0)`. NTFS
+  resident-data files (<~700 B) are truly zeroed; for cluster-
+  resident files, currently-mapped clusters are zeroed before
+  release. All ops are best-effort (`let _ =`) — secondary I/O
+  failures cannot improve the user-visible error.
+
+- **M2**: `latticearc-cli/src/commands/verify.rs:113–123` — `signed_data_parse`
+  was computed unconditionally **before** the structural gate. The
+  ordering was safe (gate `bail!()` fired on shape match + parse
+  fail) but architecturally fragile: a future maintainer who
+  reordered or hoisted the parse could silently reopen the round-39
+  M1 distinguisher. Plus every verify call did two full JSON parses.
+  Fixed by moving deserialization **inside** the
+  `if looks_like_signed_data { ... }` block — single parse, parse
+  comes after the gate, no fragile co-dependence.
+
+- **M3**: `verify.rs` error-message disparity between structural-reject
+  ("Error: Verification failed", anyhow `bail!`, exit ≥2) and
+  crypto-reject ("Signature is INVALID.", `eprintln!` + `Ok(false)`,
+  exit 1). Round-40 M1 collapsed two STRUCTURAL paths to one error
+  string but left the CRYPTOGRAPHIC path emitting different text and
+  a different exit-code class — Pattern-6 distinguisher. Fixed by
+  centralising all reject paths through a single `print_invalid()`
+  helper that emits "Signature is INVALID." to stderr and returns
+  `false` (translated to exit code 1 by `main`). Three call sites
+  use it (structural reject, deserialize fail, crypto fail) plus the
+  normal `valid == false` path; future divergence of the security-
+  invariant message would require divergent helpers, which lints
+  would flag. Inner error wording still goes to `tracing::debug!`.
+  Existing CLI integration tests already accept either text via OR.
+
+- **M4**: `tests/tests/version_compatibility.rs:627–631` — round-40 M6's
+  builder-API regression test was vacuous: `CryptoConfig::new()`
+  initializes selection to `AlgorithmSelection::SecurityLevel(High)`,
+  and the test called `.security_level(High)` then asserted `High`,
+  which is also the no-op default value. A regression that turned
+  `.security_level()` into `fn(self, _) { self }` would pass.
+  Fixed by asserting against `Maximum` / `EmailEncryption` (non-
+  default) so the post-state must differ from the constructor's
+  initial state.
+
+#### LOW
+
+- **L1**: `tests/tests/api_stability.rs:626–632` — `VerificationFailed` /
+  `SessionExpired` unit-struct variants used a bespoke
+  `assert!(!err.to_string().is_empty())` shape that **skipped**
+  `error::Error::source()` and `Send + Sync` checks the other 22
+  variants got via `check_variant`. A `Send` regression on those two
+  variants would have been undetected. Fixed by routing them
+  through `check_variant` with `"verification"` / `"expired"`
+  must-contain strings.
+
+- **L2**: `latticearc/src/primitives/self_test.rs` `FipsStateGuard`
+  was a zero-size unit struct with no `PhantomData<*mut ()>` marker,
+  so it was implicitly `Send + Sync`. A test that accidentally moved
+  the guard into a `thread::spawn` closure would restore FIPS state
+  on the spawned thread's drop, racing with the main test body —
+  exactly the false-state-leak the guard is supposed to prevent.
+  Fixed by `_not_send: PhantomData<*mut ()>` + a `::new()`
+  constructor; compile-time enforcement.
+
+- **L3**: `audit.rs:1348–1350, 1355–1357` `ok_or_else` branches were
+  provably-unreachable (`scan_end ≤ buf.len()` by `.min()`,
+  `rel < scan_slice.len()` from `iter().position()`). Replaced both
+  with direct slice indexing under `#[allow(clippy::indexing_slicing)]`
+  + SAFETY comment, instead of carrying a confusing fallible-but-
+  infallible shape. The workspace `indexing_slicing = "deny"` lint
+  exists to flag UNCHECKED indexing — these two are statically
+  bounded; the local allow is the documented escape hatch (lint
+  comment in `Cargo.toml` calls out validation paths as the
+  intended exception).
+
+#### DOC
+
+- **D1**: `api_stability.rs:586–590` failure diagnostic now uses
+  `{err:?}` instead of `std::any::type_name::<CoreError>()`. The
+  prior shape printed `latticearc::error::CoreError produced an
+  empty Display string` for ANY of 22 variants — gave no hint
+  which variant regressed. Now prints e.g.
+  `CoreError::VerificationFailed produced an empty Display string`.
+
+### Round-40b CI hot-fix — coverage path detection (2026-05-07)
+
+The round-40 push (`7a22f36da`) shipped a CI failure: `Tests (release,
+all-features)` SIGABRT'd at 1h48m under `cargo llvm-cov`, with no
+test-FAILED output. Root-caused (deterministic, not a race):
+
+`primitives::self_test::path_looks_like_latticearc_module` checked
+that the binary's path matched `<…>/target/<profile>/deps/<name-hex>`
+by walking exactly two levels up from the binary and asserting the
+grandparent's `file_name()` is `target`. `cargo llvm-cov` puts test
+binaries at `target/llvm-cov-target/<profile>/deps/<name-hex>`, so the
+grandparent is `llvm-cov-target`, not `target`. Path detection
+returned `false` → `integrity_test()` returned the
+"cannot locate module" error → `run_power_up_tests()` returned `Fail`
+→ `initialize_and_test()` called `set_module_error(SelfTestFailure)`
+followed by `std::process::abort()` per FIPS 140-3 §9.1. The earlier
+round-40b speculation (FIPS-state race under coverage instrumentation)
+was wrong — the FipsStateGuard pattern was preserved, but the abort
+fires in any test that calls `initialize_and_test()` under llvm-cov,
+race or no race.
+
+The fix walks the parent chain (bounded to 8 hops) looking for any
+ancestor named `target`, instead of requiring the grandparent to be
+`target` exactly. This handles any tool that nests its build dir
+under `target/` (llvm-cov today; whatever tomorrow). The threat
+model is unaffected: integrity is still HMAC-attested, the path
+allowlist exists only to refuse to HMAC the host interpreter when
+latticearc is dynamically loaded as a library (the `current_exe()`
+returns-the-host edge case).
+
+Round-32 / round-35 already chased this same shape downstream
+(disabling cleanup, `--skip`-ing Valgrind tests). The path check is
+now permissive enough to subsume those workarounds; the surrounding
+test ignores can be revisited in a follow-up sweep.
+
 ### Round-40 audit — fixes round-39's own bugs (2026-05-07)
 
 External round-40 audit returned 10 findings (3 HIGH, 4 MED, 2 LOW,

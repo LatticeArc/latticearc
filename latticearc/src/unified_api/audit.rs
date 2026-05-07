@@ -1345,30 +1345,38 @@ impl FileAuditStorage {
                     let remaining_room =
                         MAX_LINE_LEN.saturating_add(1).saturating_sub(line_buf.len());
                     let scan_end = buf.len().min(remaining_room);
-                    let scan_slice = buf.get(..scan_end).ok_or_else(|| {
-                        CoreError::AuditError("buffer slice index OOB".to_string())
-                    })?;
+                    #[allow(clippy::indexing_slicing)]
+                    // SAFETY: `scan_end = buf.len().min(remaining_room)`
+                    // ⇒ `scan_end ≤ buf.len()` ⇒ `&buf[..scan_end]` is
+                    // in-bounds. (no possible panic)
+                    let scan_slice = &buf[..scan_end];
                     if let Some(rel) = scan_slice.iter().position(|&b| b == b'\n') {
                         // Found the newline within the room budget —
                         // append up to (but excluding) it, consume
                         // the newline.
-                        let prefix = scan_slice
-                            .get(..rel)
-                            .ok_or_else(|| CoreError::AuditError("prefix slice OOB".to_string()))?;
+                        #[allow(clippy::indexing_slicing)]
+                        // SAFETY: `rel` came from `scan_slice.iter().position()`
+                        // ⇒ `rel < scan_slice.len()` ⇒ `&scan_slice[..rel]`
+                        // is in-bounds. (no possible panic)
+                        let prefix = &scan_slice[..rel];
                         line_buf.extend_from_slice(prefix);
                         let consume_n = rel.saturating_add(1);
                         reader.consume(consume_n);
                         hit_newline = true;
                     } else if scan_end < buf.len() {
                         // No newline within room budget AND there's
-                        // more data in the kernel buffer — that
-                        // means this line exceeds the cap. Append
-                        // the room budget so the over-cap check
-                        // below trips deterministically, and consume
-                        // those bytes so the next iteration doesn't
-                        // see them again.
+                        // more data in the kernel buffer — that means
+                        // this line exceeds the cap. Append whatever
+                        // fits in the room budget (may be zero), then
+                        // BREAK so the over-cap check below converts
+                        // to Err. Without `break`, the next iteration
+                        // sees `remaining_room == 0` ⇒ `scan_end == 0`
+                        // ⇒ no append + no consume ⇒ infinite livelock,
+                        // giving an attacker with audit-write access
+                        // a DoS on `verify_chain`.
                         line_buf.extend_from_slice(scan_slice);
                         reader.consume(scan_end);
+                        break;
                     } else {
                         // No newline yet, but the entire buffered
                         // chunk fits within room — append, consume,
@@ -2434,5 +2442,59 @@ mod tests {
                 "Files in different storage paths must have different absolute paths"
             );
         }
+    }
+
+    /// A single audit JSONL line longer than `MAX_LINE_LEN` bytes with
+    /// no early newline must return `AuditError` promptly rather than
+    /// livelocking the inner `BufRead::fill_buf` loop in `verify_chain`.
+    /// Asserts both correctness AND a wall-clock budget — a previous
+    /// implementation hit `extend_from_slice(empty)` + `consume(0)`
+    /// indefinitely on cap exceedance, so a regression that re-opens
+    /// the same shape would never return without the budget check.
+    #[test]
+    fn test_verify_chain_over_cap_line_returns_error_promptly_fails() {
+        use std::io::Write;
+        use std::time::{Duration, Instant};
+
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().join("audit");
+        std::fs::create_dir_all(&storage_dir).unwrap();
+
+        // Write a synthetic JSONL with one line of `MAX_LINE_LEN + 1024`
+        // bytes (no newline before that point) followed by a newline.
+        // `1 MiB + 1 KiB` is comfortably over the cap (1 MiB) and small
+        // enough not to balloon test memory.
+        let line_len = (1024 * 1024) + 1024;
+        let file_path = storage_dir.join("audit-test.jsonl");
+        {
+            let mut f = std::fs::File::create(&file_path).unwrap();
+            f.write_all(&vec![b'A'; line_len]).unwrap();
+            f.write_all(b"\n").unwrap();
+            f.flush().unwrap();
+        }
+
+        let config = AuditConfig::new(storage_dir.clone());
+        let storage = FileAuditStorage::new(config).unwrap();
+        let started = Instant::now();
+        let result = storage.verify_chain();
+        let elapsed = started.elapsed();
+
+        match result {
+            Err(CoreError::AuditError(msg)) => {
+                assert!(
+                    msg.contains("exceeds maximum length"),
+                    "expected 'exceeds maximum length' error, got: {msg}"
+                );
+            }
+            other => panic!("expected over-cap AuditError, got {other:?}"),
+        }
+        // Pre-fix this test would never return; cap the budget so a
+        // future regression that re-introduces the livelock fails the
+        // suite instead of hanging it. 5s is generous for a 1 MiB file
+        // even on the slowest CI runner.
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "verify_chain on over-cap line took {elapsed:?} (>5s — possible livelock)"
+        );
     }
 }
