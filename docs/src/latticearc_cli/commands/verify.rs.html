@@ -119,308 +119,332 @@
 <a href=#119 id=119 data-nosnippet>119</a>            <span class="prelude-val">Some</span>(())
 <a href=#120 id=120 data-nosnippet>120</a>        })
 <a href=#121 id=121 data-nosnippet>121</a>        .is_some();
-<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">let </span>signed_data_parse =
-<a href=#123 id=123 data-nosnippet>123</a>        latticearc::unified_api::serialization::deserialize_signed_data(<span class="kw-2">&amp;</span>sig_json);
-<a href=#124 id=124 data-nosnippet>124</a>    <span class="kw">if </span>looks_like_signed_data &amp;&amp; signed_data_parse.is_err() {
-<a href=#125 id=125 data-nosnippet>125</a>        <span class="macro">tracing::debug!</span>(
-<a href=#126 id=126 data-nosnippet>126</a>            error = <span class="question-mark">?</span>signed_data_parse.as_ref().err(),
-<a href=#127 id=127 data-nosnippet>127</a>            <span class="string">"verify (SignedData shape detected, parse rejected)"
-<a href=#128 id=128 data-nosnippet>128</a>        </span>);
-<a href=#129 id=129 data-nosnippet>129</a>        <span class="macro">bail!</span>(<span class="string">"Verification failed"</span>);
-<a href=#130 id=130 data-nosnippet>130</a>    }
-<a href=#131 id=131 data-nosnippet>131</a>    <span class="kw">if let </span><span class="prelude-val">Ok</span>(signed) = signed_data_parse {
-<a href=#132 id=132 data-nosnippet>132</a>        <span class="comment">// Verify the signed data matches the input file. `signed.data`
-<a href=#133 id=133 data-nosnippet>133</a>        // currently carries public message material, so the comparison
-<a href=#134 id=134 data-nosnippet>134</a>        // doesn't need to be CT in the threat-model sense — but the
-<a href=#135 id=135 data-nosnippet>135</a>        // round-34 L11 attempt to use `ct_eq` was self-defeating
-<a href=#136 id=136 data-nosnippet>136</a>        // (the outer `if signed.data.len() == input_data.len()`
-<a href=#137 id=137 data-nosnippet>137</a>        // length-branch made the ct_eq dead). Drop the cargo-cult CT
-<a href=#138 id=138 data-nosnippet>138</a>        // wrapper and use straightforward `==`. If a future caller
-<a href=#139 id=139 data-nosnippet>139</a>        // routes secret bytes through this path, the responsibility
-<a href=#140 id=140 data-nosnippet>140</a>        // is to handle CT at THAT site, not to pretend this site is
-<a href=#141 id=141 data-nosnippet>141</a>        // CT when it can't be.
-<a href=#142 id=142 data-nosnippet>142</a>        </span><span class="kw">if </span>signed.<span class="macro">data !</span>= input_data {
-<a href=#143 id=143 data-nosnippet>143</a>            <span class="macro">bail!</span>(
-<a href=#144 id=144 data-nosnippet>144</a>                <span class="string">"Signature was created over different data than the input.\n\
-<a href=#145 id=145 data-nosnippet>145</a>                 The SignedData envelope contains the original data — it does not match \
-<a href=#146 id=146 data-nosnippet>146</a>                 the data at {}."</span>,
-<a href=#147 id=147 data-nosnippet>147</a>                input_label(<span class="kw-2">&amp;</span>args)
-<a href=#148 id=148 data-nosnippet>148</a>            );
-<a href=#149 id=149 data-nosnippet>149</a>        }
-<a href=#150 id=150 data-nosnippet>150</a>
-<a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">let </span>config =
-<a href=#152 id=152 data-nosnippet>152</a>            <span class="kw">super</span>::common::build_config(args.use_case, args.security_level, <span class="kw-2">&amp;</span>args.compliance);
-<a href=#153 id=153 data-nosnippet>153</a>        <span class="comment">// opaque user-facing message; route the upstream
-<a href=#154 id=154 data-nosnippet>154</a>        // `e` to tracing::debug! only. Mirrors round-28 H3's decrypt
-<a href=#155 id=155 data-nosnippet>155</a>        // collapse — the inner library error wording is not part of
-<a href=#156 id=156 data-nosnippet>156</a>        // the user contract and was leaking implementation detail.
-<a href=#157 id=157 data-nosnippet>157</a>        </span><span class="kw">let </span>valid = latticearc::verify(<span class="kw-2">&amp;</span>signed, config).map_err(|e| {
-<a href=#158 id=158 data-nosnippet>158</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (SignedData path) rejected"</span>);
-<a href=#159 id=159 data-nosnippet>159</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
-<a href=#160 id=160 data-nosnippet>160</a>        })<span class="question-mark">?</span>;
-<a href=#161 id=161 data-nosnippet>161</a>
-<a href=#162 id=162 data-nosnippet>162</a>        <span class="comment">// return the result; `main` does the
-<a href=#163 id=163 data-nosnippet>163</a>        // exit-code translation after destructors. The 0/1/≥2 contract
-<a href=#164 id=164 data-nosnippet>164</a>        // (round-7 fix #8 + #11) is preserved at the boundary, not
-<a href=#165 id=165 data-nosnippet>165</a>        // here.
-<a href=#166 id=166 data-nosnippet>166</a>        // Stream choice: VALID on stdout, INVALID on stderr. The
-<a href=#167 id=167 data-nosnippet>167</a>        // round-20 audit (#17) flagged this asymmetry — stdout-only
-<a href=#168 id=168 data-nosnippet>168</a>        // test capture (`run_ok`) wouldn't catch a swap regression.
-<a href=#169 id=169 data-nosnippet>169</a>        // We keep the asymmetry because (a) ~16 existing integration
-<a href=#170 id=170 data-nosnippet>170</a>        // tests assert VALID via stdout capture, and (b) the
-<a href=#171 id=171 data-nosnippet>171</a>        // machine-readable verdict is the exit code (Ok(true)/false),
-<a href=#172 id=172 data-nosnippet>172</a>        // which IS symmetric — verdict text on either stream is
-<a href=#173 id=173 data-nosnippet>173</a>        // operator status only. Tests that need stream-swap protection
-<a href=#174 id=174 data-nosnippet>174</a>        // should use `run_ok_combined`.
-<a href=#175 id=175 data-nosnippet>175</a>        </span><span class="kw">if </span>valid {
-<a href=#176 id=176 data-nosnippet>176</a>            <span class="macro">println!</span>(<span class="string">"Signature is VALID. (scheme: {})"</span>, signed.scheme);
-<a href=#177 id=177 data-nosnippet>177</a>        } <span class="kw">else </span>{
-<a href=#178 id=178 data-nosnippet>178</a>            <span class="macro">eprintln!</span>(<span class="string">"Signature is INVALID."</span>);
-<a href=#179 id=179 data-nosnippet>179</a>        }
-<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(valid);
-<a href=#181 id=181 data-nosnippet>181</a>    }
-<a href=#182 id=182 data-nosnippet>182</a>
-<a href=#183 id=183 data-nosnippet>183</a>    <span class="comment">// Fall back to legacy format (requires --key)
-<a href=#184 id=184 data-nosnippet>184</a>    </span><span class="kw">let </span>key_path = args.key.as_ref().ok_or_else(|| {
-<a href=#185 id=185 data-nosnippet>185</a>        <span class="macro">anyhow::anyhow!</span>(
-<a href=#186 id=186 data-nosnippet>186</a>            <span class="string">"Public key file (--key) is required for legacy signature format.\n\
-<a href=#187 id=187 data-nosnippet>187</a>             Signatures created with 'sign --public-key' embed the public key \
-<a href=#188 id=188 data-nosnippet>188</a>             and don't need --key."
-<a href=#189 id=189 data-nosnippet>189</a>        </span>)
-<a href=#190 id=190 data-nosnippet>190</a>    })<span class="question-mark">?</span>;
-<a href=#191 id=191 data-nosnippet>191</a>
-<a href=#192 id=192 data-nosnippet>192</a>    verify_legacy(<span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>sig_json, key_path, input_data)
-<a href=#193 id=193 data-nosnippet>193</a>}
-<a href=#194 id=194 data-nosnippet>194</a>
-<a href=#195 id=195 data-nosnippet>195</a><span class="doccomment">/// Read the verify input from `--input &lt;path&gt;` or stdin (round-7 fix
-<a href=#196 id=196 data-nosnippet>196</a>/// #10). Round-8 fix #13: routes through the shared helper.
-<a href=#197 id=197 data-nosnippet>197</a></span><span class="kw">fn </span>read_verify_input(args: <span class="kw-2">&amp;</span>VerifyArgs) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">super</span>::common::read_file_or_stdin(
-<a href=#199 id=199 data-nosnippet>199</a>        args.input.as_deref(),
-<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">super</span>::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
-<a href=#201 id=201 data-nosnippet>201</a>        <span class="string">"verify"</span>,
-<a href=#202 id=202 data-nosnippet>202</a>    )
+<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">if </span>looks_like_signed_data {
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="comment">// Deserialize INSIDE the structural gate (not before it), so a
+<a href=#124 id=124 data-nosnippet>124</a>        // hoist or reorder can't silently fall through to the legacy
+<a href=#125 id=125 data-nosnippet>125</a>        // auto-detect branch and reopen the Pattern-6 distinguisher
+<a href=#126 id=126 data-nosnippet>126</a>        // (legacy branch emitted "Signature file missing 'algorithm'
+<a href=#127 id=127 data-nosnippet>127</a>        // field" — distinguishable from a crypto-reject error).
+<a href=#128 id=128 data-nosnippet>128</a>        </span><span class="kw">let </span>signed =
+<a href=#129 id=129 data-nosnippet>129</a>            <span class="kw">match </span>latticearc::unified_api::serialization::deserialize_signed_data(<span class="kw-2">&amp;</span>sig_json) {
+<a href=#130 id=130 data-nosnippet>130</a>                <span class="prelude-val">Ok</span>(signed) =&gt; signed,
+<a href=#131 id=131 data-nosnippet>131</a>                <span class="prelude-val">Err</span>(e) =&gt; {
+<a href=#132 id=132 data-nosnippet>132</a>                    <span class="macro">tracing::debug!</span>(
+<a href=#133 id=133 data-nosnippet>133</a>                        error = <span class="question-mark">?</span>e,
+<a href=#134 id=134 data-nosnippet>134</a>                        <span class="string">"verify (SignedData shape detected, parse rejected)"
+<a href=#135 id=135 data-nosnippet>135</a>                    </span>);
+<a href=#136 id=136 data-nosnippet>136</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(print_invalid());
+<a href=#137 id=137 data-nosnippet>137</a>                }
+<a href=#138 id=138 data-nosnippet>138</a>            };
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="comment">// Verify the signed data matches the input file. `signed.data`
+<a href=#140 id=140 data-nosnippet>140</a>        // currently carries public message material, so the comparison
+<a href=#141 id=141 data-nosnippet>141</a>        // doesn't need to be CT in the threat-model sense — but the
+<a href=#142 id=142 data-nosnippet>142</a>        // round-34 L11 attempt to use `ct_eq` was self-defeating
+<a href=#143 id=143 data-nosnippet>143</a>        // (the outer `if signed.data.len() == input_data.len()`
+<a href=#144 id=144 data-nosnippet>144</a>        // length-branch made the ct_eq dead). Drop the cargo-cult CT
+<a href=#145 id=145 data-nosnippet>145</a>        // wrapper and use straightforward `==`. If a future caller
+<a href=#146 id=146 data-nosnippet>146</a>        // routes secret bytes through this path, the responsibility
+<a href=#147 id=147 data-nosnippet>147</a>        // is to handle CT at THAT site, not to pretend this site is
+<a href=#148 id=148 data-nosnippet>148</a>        // CT when it can't be.
+<a href=#149 id=149 data-nosnippet>149</a>        </span><span class="kw">if </span>signed.<span class="macro">data !</span>= input_data {
+<a href=#150 id=150 data-nosnippet>150</a>            <span class="macro">bail!</span>(
+<a href=#151 id=151 data-nosnippet>151</a>                <span class="string">"Signature was created over different data than the input.\n\
+<a href=#152 id=152 data-nosnippet>152</a>                 The SignedData envelope contains the original data — it does not match \
+<a href=#153 id=153 data-nosnippet>153</a>                 the data at {}."</span>,
+<a href=#154 id=154 data-nosnippet>154</a>                input_label(<span class="kw-2">&amp;</span>args)
+<a href=#155 id=155 data-nosnippet>155</a>            );
+<a href=#156 id=156 data-nosnippet>156</a>        }
+<a href=#157 id=157 data-nosnippet>157</a>
+<a href=#158 id=158 data-nosnippet>158</a>        <span class="kw">let </span>config =
+<a href=#159 id=159 data-nosnippet>159</a>            <span class="kw">super</span>::common::build_config(args.use_case, args.security_level, <span class="kw-2">&amp;</span>args.compliance);
+<a href=#160 id=160 data-nosnippet>160</a>        <span class="comment">// A `latticearc::verify(...)` Err (e.g. malformed public key)
+<a href=#161 id=161 data-nosnippet>161</a>        // collapses to the same user-visible outcome as `Ok(false)` so
+<a href=#162 id=162 data-nosnippet>162</a>        // an attacker can't distinguish the structural / crypto /
+<a href=#163 id=163 data-nosnippet>163</a>        // library-error paths via stderr text or exit-code class. See
+<a href=#164 id=164 data-nosnippet>164</a>        // `print_invalid()` for the centralised reject contract.
+<a href=#165 id=165 data-nosnippet>165</a>        </span><span class="kw">let </span>valid = <span class="kw">match </span>latticearc::verify(<span class="kw-2">&amp;</span>signed, config) {
+<a href=#166 id=166 data-nosnippet>166</a>            <span class="prelude-val">Ok</span>(v) =&gt; v,
+<a href=#167 id=167 data-nosnippet>167</a>            <span class="prelude-val">Err</span>(e) =&gt; {
+<a href=#168 id=168 data-nosnippet>168</a>                <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (SignedData path) rejected"</span>);
+<a href=#169 id=169 data-nosnippet>169</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(print_invalid());
+<a href=#170 id=170 data-nosnippet>170</a>            }
+<a href=#171 id=171 data-nosnippet>171</a>        };
+<a href=#172 id=172 data-nosnippet>172</a>
+<a href=#173 id=173 data-nosnippet>173</a>        <span class="comment">// return the result; `main` does the
+<a href=#174 id=174 data-nosnippet>174</a>        // exit-code translation after destructors. The 0/1/≥2 contract
+<a href=#175 id=175 data-nosnippet>175</a>        // (round-7 fix #8 + #11) is preserved at the boundary, not
+<a href=#176 id=176 data-nosnippet>176</a>        // here.
+<a href=#177 id=177 data-nosnippet>177</a>        // Stream choice: VALID on stdout, INVALID on stderr. The
+<a href=#178 id=178 data-nosnippet>178</a>        // round-20 audit (#17) flagged this asymmetry — stdout-only
+<a href=#179 id=179 data-nosnippet>179</a>        // test capture (`run_ok`) wouldn't catch a swap regression.
+<a href=#180 id=180 data-nosnippet>180</a>        // We keep the asymmetry because (a) ~16 existing integration
+<a href=#181 id=181 data-nosnippet>181</a>        // tests assert VALID via stdout capture, and (b) the
+<a href=#182 id=182 data-nosnippet>182</a>        // machine-readable verdict is the exit code (Ok(true)/false),
+<a href=#183 id=183 data-nosnippet>183</a>        // which IS symmetric — verdict text on either stream is
+<a href=#184 id=184 data-nosnippet>184</a>        // operator status only. Tests that need stream-swap protection
+<a href=#185 id=185 data-nosnippet>185</a>        // should use `run_ok_combined`.
+<a href=#186 id=186 data-nosnippet>186</a>        </span><span class="kw">if </span>valid {
+<a href=#187 id=187 data-nosnippet>187</a>            <span class="macro">println!</span>(<span class="string">"Signature is VALID. (scheme: {})"</span>, signed.scheme);
+<a href=#188 id=188 data-nosnippet>188</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">true</span>);
+<a href=#189 id=189 data-nosnippet>189</a>        }
+<a href=#190 id=190 data-nosnippet>190</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(print_invalid());
+<a href=#191 id=191 data-nosnippet>191</a>    }
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a>    <span class="comment">// Fall back to legacy format (requires --key)
+<a href=#194 id=194 data-nosnippet>194</a>    </span><span class="kw">let </span>key_path = args.key.as_ref().ok_or_else(|| {
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="macro">anyhow::anyhow!</span>(
+<a href=#196 id=196 data-nosnippet>196</a>            <span class="string">"Public key file (--key) is required for legacy signature format.\n\
+<a href=#197 id=197 data-nosnippet>197</a>             Signatures created with 'sign --public-key' embed the public key \
+<a href=#198 id=198 data-nosnippet>198</a>             and don't need --key."
+<a href=#199 id=199 data-nosnippet>199</a>        </span>)
+<a href=#200 id=200 data-nosnippet>200</a>    })<span class="question-mark">?</span>;
+<a href=#201 id=201 data-nosnippet>201</a>
+<a href=#202 id=202 data-nosnippet>202</a>    verify_legacy(<span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>sig_json, key_path, input_data)
 <a href=#203 id=203 data-nosnippet>203</a>}
 <a href=#204 id=204 data-nosnippet>204</a>
-<a href=#205 id=205 data-nosnippet>205</a><span class="doccomment">/// Human-readable label for the input source — used in error messages.
-<a href=#206 id=206 data-nosnippet>206</a></span><span class="kw">fn </span>input_label(args: <span class="kw-2">&amp;</span>VerifyArgs) -&gt; String {
-<a href=#207 id=207 data-nosnippet>207</a>    args.input
-<a href=#208 id=208 data-nosnippet>208</a>        .as_ref()
-<a href=#209 id=209 data-nosnippet>209</a>        .map(|p| <span class="macro">format!</span>(<span class="string">"'{}'"</span>, p.display()))
-<a href=#210 id=210 data-nosnippet>210</a>        .unwrap_or_else(|| <span class="string">"&lt;stdin&gt;"</span>.to_string())
-<a href=#211 id=211 data-nosnippet>211</a>}
-<a href=#212 id=212 data-nosnippet>212</a>
-<a href=#213 id=213 data-nosnippet>213</a><span class="doccomment">/// Legacy verification path — custom JSON format + primitive-level API.
-<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">fn </span>verify_legacy(
-<a href=#215 id=215 data-nosnippet>215</a>    args: <span class="kw-2">&amp;</span>VerifyArgs,
-<a href=#216 id=216 data-nosnippet>216</a>    sig_json: <span class="kw-2">&amp;</span>str,
-<a href=#217 id=217 data-nosnippet>217</a>    key_path: <span class="kw-2">&amp;</span>std::path::Path,
-<a href=#218 id=218 data-nosnippet>218</a>    data: Vec&lt;u8&gt;,
-<a href=#219 id=219 data-nosnippet>219</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
-<a href=#220 id=220 data-nosnippet>220</a>    <span class="comment">// `data` is threaded in from `run` — round-8 audit fix #2. Reading
-<a href=#221 id=221 data-nosnippet>221</a>    // input again here would drain stdin a second time in pipe mode,
-<a href=#222 id=222 data-nosnippet>222</a>    // returning empty bytes and silently producing INVALID for any
-<a href=#223 id=223 data-nosnippet>223</a>    // legacy-format signature piped on stdin.
-<a href=#224 id=224 data-nosnippet>224</a>
-<a href=#225 id=225 data-nosnippet>225</a>    </span><span class="kw">let </span>key_file = KeyFile::read_from(key_path)<span class="question-mark">?</span>;
-<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">if </span>key_file.<span class="macro">key_type !</span>= KeyType::Public {
-<a href=#227 id=227 data-nosnippet>227</a>        <span class="macro">bail!</span>(<span class="string">"Expected public key file for verification, got {:?}"</span>, key_file.key_type);
-<a href=#228 id=228 data-nosnippet>228</a>    }
-<a href=#229 id=229 data-nosnippet>229</a>
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">let </span>algorithm = <span class="kw">if let </span><span class="prelude-val">Some</span>(alg) = <span class="kw-2">&amp;</span>args.algorithm {
-<a href=#231 id=231 data-nosnippet>231</a>        alg.clone()
-<a href=#232 id=232 data-nosnippet>232</a>    } <span class="kw">else </span>{
-<a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span>detected = detect_algorithm(sig_json)<span class="question-mark">?</span>;
-<a href=#234 id=234 data-nosnippet>234</a>        <span class="comment">// algorithm name isn't secret but is
-<a href=#235 id=235 data-nosnippet>235</a>        // enumerable across log aggregation targets. Demote to debug.
-<a href=#236 id=236 data-nosnippet>236</a>        </span><span class="macro">tracing::debug!</span>(algorithm = %algorithm_name(<span class="kw-2">&amp;</span>detected), <span class="string">"auto-detected legacy verify algorithm"</span>);
-<a href=#237 id=237 data-nosnippet>237</a>        detected
-<a href=#238 id=238 data-nosnippet>238</a>    };
-<a href=#239 id=239 data-nosnippet>239</a>
-<a href=#240 id=240 data-nosnippet>240</a>    <span class="kw">let </span>expected_alg = algorithm_name(<span class="kw-2">&amp;</span>algorithm);
-<a href=#241 id=241 data-nosnippet>241</a>    key_file.validate_algorithm(expected_alg)<span class="question-mark">?</span>;
-<a href=#242 id=242 data-nosnippet>242</a>
-<a href=#243 id=243 data-nosnippet>243</a>    <span class="kw">let </span>pk_bytes = key_file.key_bytes()<span class="question-mark">?</span>;
-<a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a>    <span class="kw">let </span>valid = <span class="kw">match </span>algorithm {
-<a href=#246 id=246 data-nosnippet>246</a>        VerifyAlgorithm::Hybrid =&gt; verify_hybrid(<span class="kw-2">&amp;</span>data, sig_json, <span class="kw-2">&amp;</span>pk_bytes)<span class="question-mark">?</span>,
-<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">_ </span>=&gt; verify_standard(<span class="kw-2">&amp;</span>data, sig_json, <span class="kw-2">&amp;</span>pk_bytes, <span class="kw-2">&amp;</span>algorithm)<span class="question-mark">?</span>,
-<a href=#248 id=248 data-nosnippet>248</a>    };
-<a href=#249 id=249 data-nosnippet>249</a>
-<a href=#250 id=250 data-nosnippet>250</a>    <span class="comment">// return the verdict; `main` translates
-<a href=#251 id=251 data-nosnippet>251</a>    // `Ok(false)` into exit 1 after destructors.
-<a href=#252 id=252 data-nosnippet>252</a>    // See SignedData branch above for the stream-asymmetry rationale.
-<a href=#253 id=253 data-nosnippet>253</a>    </span><span class="kw">if </span>valid {
-<a href=#254 id=254 data-nosnippet>254</a>        <span class="macro">println!</span>(<span class="string">"Signature is VALID."</span>);
-<a href=#255 id=255 data-nosnippet>255</a>    } <span class="kw">else </span>{
-<a href=#256 id=256 data-nosnippet>256</a>        <span class="macro">eprintln!</span>(<span class="string">"Signature is INVALID."</span>);
-<a href=#257 id=257 data-nosnippet>257</a>    }
-<a href=#258 id=258 data-nosnippet>258</a>    <span class="prelude-val">Ok</span>(valid)
-<a href=#259 id=259 data-nosnippet>259</a>}
-<a href=#260 id=260 data-nosnippet>260</a>
-<a href=#261 id=261 data-nosnippet>261</a><span class="doccomment">/// Detect algorithm from the "algorithm" field in a legacy .sig.json file.
-<a href=#262 id=262 data-nosnippet>262</a></span><span class="kw">fn </span>detect_algorithm(sig_json: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;VerifyAlgorithm&gt; {
-<a href=#263 id=263 data-nosnippet>263</a>    <span class="kw">let </span>sig: serde_json::Value =
-<a href=#264 id=264 data-nosnippet>264</a>        serde_json::from_str(sig_json).context(<span class="string">"Failed to parse signature JSON"</span>)<span class="question-mark">?</span>;
-<a href=#265 id=265 data-nosnippet>265</a>    <span class="kw">let </span>alg_str = sig
-<a href=#266 id=266 data-nosnippet>266</a>        .get(<span class="string">"algorithm"</span>)
-<a href=#267 id=267 data-nosnippet>267</a>        .and_then(|v| v.as_str())
-<a href=#268 id=268 data-nosnippet>268</a>        .context(<span class="string">"Signature file missing 'algorithm' field — cannot auto-detect"</span>)<span class="question-mark">?</span>;
-<a href=#269 id=269 data-nosnippet>269</a>    <span class="kw">match </span>alg_str {
-<a href=#270 id=270 data-nosnippet>270</a>        <span class="string">"ml-dsa-65" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::MlDsa65),
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="string">"ml-dsa-44" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::MlDsa44),
-<a href=#272 id=272 data-nosnippet>272</a>        <span class="string">"ml-dsa-87" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::MlDsa87),
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="string">"slh-dsa-shake-128s" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::SlhDsa),
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="string">"fn-dsa-512" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::FnDsa),
-<a href=#275 id=275 data-nosnippet>275</a>        <span class="string">"ed25519" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::Ed25519),
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="string">"hybrid-ml-dsa-65-ed25519" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::Hybrid),
-<a href=#277 id=277 data-nosnippet>277</a>        other =&gt; <span class="macro">bail!</span>(<span class="string">"Unknown algorithm in signature file: '{other}'"</span>),
-<a href=#278 id=278 data-nosnippet>278</a>    }
-<a href=#279 id=279 data-nosnippet>279</a>}
-<a href=#280 id=280 data-nosnippet>280</a>
-<a href=#281 id=281 data-nosnippet>281</a><span class="doccomment">/// Map verify algorithm enum to canonical key file algorithm name.
-<a href=#282 id=282 data-nosnippet>282</a></span><span class="kw">fn </span>algorithm_name(alg: <span class="kw-2">&amp;</span>VerifyAlgorithm) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">match </span>alg {
-<a href=#284 id=284 data-nosnippet>284</a>        VerifyAlgorithm::MlDsa65 =&gt; <span class="string">"ml-dsa-65"</span>,
-<a href=#285 id=285 data-nosnippet>285</a>        VerifyAlgorithm::MlDsa44 =&gt; <span class="string">"ml-dsa-44"</span>,
-<a href=#286 id=286 data-nosnippet>286</a>        VerifyAlgorithm::MlDsa87 =&gt; <span class="string">"ml-dsa-87"</span>,
-<a href=#287 id=287 data-nosnippet>287</a>        VerifyAlgorithm::SlhDsa =&gt; <span class="string">"slh-dsa-shake-128s"</span>,
-<a href=#288 id=288 data-nosnippet>288</a>        VerifyAlgorithm::FnDsa =&gt; <span class="string">"fn-dsa-512"</span>,
-<a href=#289 id=289 data-nosnippet>289</a>        VerifyAlgorithm::Ed25519 =&gt; <span class="string">"ed25519"</span>,
-<a href=#290 id=290 data-nosnippet>290</a>        VerifyAlgorithm::Hybrid =&gt; <span class="string">"hybrid-ml-dsa-65-ed25519"</span>,
-<a href=#291 id=291 data-nosnippet>291</a>    }
-<a href=#292 id=292 data-nosnippet>292</a>}
-<a href=#293 id=293 data-nosnippet>293</a>
-<a href=#294 id=294 data-nosnippet>294</a><span class="kw">fn </span>verify_standard(
-<a href=#295 id=295 data-nosnippet>295</a>    data: <span class="kw-2">&amp;</span>[u8],
-<a href=#296 id=296 data-nosnippet>296</a>    sig_json: <span class="kw-2">&amp;</span>str,
-<a href=#297 id=297 data-nosnippet>297</a>    pk_bytes: <span class="kw-2">&amp;</span>[u8],
-<a href=#298 id=298 data-nosnippet>298</a>    algorithm: <span class="kw-2">&amp;</span>VerifyAlgorithm,
-<a href=#299 id=299 data-nosnippet>299</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
-<a href=#300 id=300 data-nosnippet>300</a>    <span class="kw">let </span>sig_obj: serde_json::Value =
-<a href=#301 id=301 data-nosnippet>301</a>        serde_json::from_str(sig_json).context(<span class="string">"Failed to parse signature JSON"</span>)<span class="question-mark">?</span>;
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">use </span>base64::Engine;
-<a href=#304 id=304 data-nosnippet>304</a>    <span class="kw">let </span>sig_b64 = sig_obj
-<a href=#305 id=305 data-nosnippet>305</a>        .get(<span class="string">"signature"</span>)
-<a href=#306 id=306 data-nosnippet>306</a>        .and_then(|v| v.as_str())
-<a href=#307 id=307 data-nosnippet>307</a>        .context(<span class="string">"Missing 'signature' field in signature JSON"</span>)<span class="question-mark">?</span>;
-<a href=#308 id=308 data-nosnippet>308</a>    <span class="kw">let </span>sig_bytes = base64::engine::general_purpose::STANDARD
-<a href=#309 id=309 data-nosnippet>309</a>        .decode(sig_b64)
-<a href=#310 id=310 data-nosnippet>310</a>        .context(<span class="string">"Invalid base64 in signature"</span>)<span class="question-mark">?</span>;
-<a href=#311 id=311 data-nosnippet>311</a>
-<a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">match </span>algorithm {
-<a href=#313 id=313 data-nosnippet>313</a>        VerifyAlgorithm::MlDsa65 =&gt; latticearc::verify_pq_ml_dsa(
-<a href=#314 id=314 data-nosnippet>314</a>            data,
-<a href=#315 id=315 data-nosnippet>315</a>            <span class="kw-2">&amp;</span>sig_bytes,
-<a href=#316 id=316 data-nosnippet>316</a>            pk_bytes,
-<a href=#317 id=317 data-nosnippet>317</a>            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
-<a href=#318 id=318 data-nosnippet>318</a>            latticearc::SecurityMode::Unverified,
-<a href=#319 id=319 data-nosnippet>319</a>        )
-<a href=#320 id=320 data-nosnippet>320</a>        .map_err(|e| {
-<a href=#321 id=321 data-nosnippet>321</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
-<a href=#322 id=322 data-nosnippet>322</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
-<a href=#323 id=323 data-nosnippet>323</a>        }),
-<a href=#324 id=324 data-nosnippet>324</a>        VerifyAlgorithm::MlDsa44 =&gt; latticearc::verify_pq_ml_dsa(
-<a href=#325 id=325 data-nosnippet>325</a>            data,
-<a href=#326 id=326 data-nosnippet>326</a>            <span class="kw-2">&amp;</span>sig_bytes,
-<a href=#327 id=327 data-nosnippet>327</a>            pk_bytes,
-<a href=#328 id=328 data-nosnippet>328</a>            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44,
-<a href=#329 id=329 data-nosnippet>329</a>            latticearc::SecurityMode::Unverified,
-<a href=#330 id=330 data-nosnippet>330</a>        )
-<a href=#331 id=331 data-nosnippet>331</a>        .map_err(|e| {
-<a href=#332 id=332 data-nosnippet>332</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
-<a href=#333 id=333 data-nosnippet>333</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
-<a href=#334 id=334 data-nosnippet>334</a>        }),
-<a href=#335 id=335 data-nosnippet>335</a>        VerifyAlgorithm::MlDsa87 =&gt; latticearc::verify_pq_ml_dsa(
-<a href=#336 id=336 data-nosnippet>336</a>            data,
-<a href=#337 id=337 data-nosnippet>337</a>            <span class="kw-2">&amp;</span>sig_bytes,
-<a href=#338 id=338 data-nosnippet>338</a>            pk_bytes,
-<a href=#339 id=339 data-nosnippet>339</a>            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87,
-<a href=#340 id=340 data-nosnippet>340</a>            latticearc::SecurityMode::Unverified,
-<a href=#341 id=341 data-nosnippet>341</a>        )
-<a href=#342 id=342 data-nosnippet>342</a>        .map_err(|e| {
-<a href=#343 id=343 data-nosnippet>343</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
-<a href=#344 id=344 data-nosnippet>344</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
-<a href=#345 id=345 data-nosnippet>345</a>        }),
-<a href=#346 id=346 data-nosnippet>346</a>        VerifyAlgorithm::SlhDsa =&gt; latticearc::verify_pq_slh_dsa(
-<a href=#347 id=347 data-nosnippet>347</a>            data,
-<a href=#348 id=348 data-nosnippet>348</a>            <span class="kw-2">&amp;</span>sig_bytes,
-<a href=#349 id=349 data-nosnippet>349</a>            pk_bytes,
-<a href=#350 id=350 data-nosnippet>350</a>            latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s,
-<a href=#351 id=351 data-nosnippet>351</a>            latticearc::SecurityMode::Unverified,
-<a href=#352 id=352 data-nosnippet>352</a>        )
-<a href=#353 id=353 data-nosnippet>353</a>        .map_err(|e| {
-<a href=#354 id=354 data-nosnippet>354</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
-<a href=#355 id=355 data-nosnippet>355</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
-<a href=#356 id=356 data-nosnippet>356</a>        }),
-<a href=#357 id=357 data-nosnippet>357</a>        VerifyAlgorithm::FnDsa =&gt; latticearc::verify_pq_fn_dsa(
-<a href=#358 id=358 data-nosnippet>358</a>            data,
-<a href=#359 id=359 data-nosnippet>359</a>            <span class="kw-2">&amp;</span>sig_bytes,
-<a href=#360 id=360 data-nosnippet>360</a>            pk_bytes,
-<a href=#361 id=361 data-nosnippet>361</a>            latticearc::primitives::sig::fndsa::FnDsaSecurityLevel::Level512,
-<a href=#362 id=362 data-nosnippet>362</a>            latticearc::SecurityMode::Unverified,
-<a href=#363 id=363 data-nosnippet>363</a>        )
-<a href=#364 id=364 data-nosnippet>364</a>        .map_err(|e| {
-<a href=#365 id=365 data-nosnippet>365</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
-<a href=#366 id=366 data-nosnippet>366</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
-<a href=#367 id=367 data-nosnippet>367</a>        }),
-<a href=#368 id=368 data-nosnippet>368</a>        VerifyAlgorithm::Ed25519 =&gt; latticearc::verify_ed25519(
-<a href=#369 id=369 data-nosnippet>369</a>            data,
-<a href=#370 id=370 data-nosnippet>370</a>            <span class="kw-2">&amp;</span>sig_bytes,
-<a href=#371 id=371 data-nosnippet>371</a>            pk_bytes,
-<a href=#372 id=372 data-nosnippet>372</a>            latticearc::SecurityMode::Unverified,
-<a href=#373 id=373 data-nosnippet>373</a>        )
-<a href=#374 id=374 data-nosnippet>374</a>        .map_err(|e| {
-<a href=#375 id=375 data-nosnippet>375</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
-<a href=#376 id=376 data-nosnippet>376</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
-<a href=#377 id=377 data-nosnippet>377</a>        }),
-<a href=#378 id=378 data-nosnippet>378</a>        VerifyAlgorithm::Hybrid =&gt; <span class="macro">bail!</span>(<span class="string">"Internal error: hybrid handled separately"</span>),
-<a href=#379 id=379 data-nosnippet>379</a>    }
-<a href=#380 id=380 data-nosnippet>380</a>}
-<a href=#381 id=381 data-nosnippet>381</a>
-<a href=#382 id=382 data-nosnippet>382</a><span class="kw">fn </span>verify_hybrid(data: <span class="kw-2">&amp;</span>[u8], sig_json: <span class="kw-2">&amp;</span>str, pk_bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
-<a href=#383 id=383 data-nosnippet>383</a>    <span class="kw">let </span>sig: serde_json::Value =
-<a href=#384 id=384 data-nosnippet>384</a>        serde_json::from_str(sig_json).context(<span class="string">"Failed to parse hybrid signature JSON"</span>)<span class="question-mark">?</span>;
-<a href=#385 id=385 data-nosnippet>385</a>
-<a href=#386 id=386 data-nosnippet>386</a>    <span class="kw">use </span>base64::Engine;
-<a href=#387 id=387 data-nosnippet>387</a>    <span class="kw">let </span>ml_dsa_b64 = sig
-<a href=#388 id=388 data-nosnippet>388</a>        .get(<span class="string">"ml_dsa_sig"</span>)
-<a href=#389 id=389 data-nosnippet>389</a>        .and_then(|v| v.as_str())
-<a href=#390 id=390 data-nosnippet>390</a>        .context(<span class="string">"Missing 'ml_dsa_sig' field in hybrid signature"</span>)<span class="question-mark">?</span>;
-<a href=#391 id=391 data-nosnippet>391</a>    <span class="kw">let </span>ml_dsa_sig = base64::engine::general_purpose::STANDARD
-<a href=#392 id=392 data-nosnippet>392</a>        .decode(ml_dsa_b64)
-<a href=#393 id=393 data-nosnippet>393</a>        .context(<span class="string">"Invalid base64 in ml_dsa_sig"</span>)<span class="question-mark">?</span>;
-<a href=#394 id=394 data-nosnippet>394</a>
-<a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">let </span>ed25519_b64 = sig
-<a href=#396 id=396 data-nosnippet>396</a>        .get(<span class="string">"ed25519_sig"</span>)
-<a href=#397 id=397 data-nosnippet>397</a>        .and_then(|v| v.as_str())
-<a href=#398 id=398 data-nosnippet>398</a>        .context(<span class="string">"Missing 'ed25519_sig' field in hybrid signature"</span>)<span class="question-mark">?</span>;
-<a href=#399 id=399 data-nosnippet>399</a>    <span class="kw">let </span>ed25519_sig = base64::engine::general_purpose::STANDARD
-<a href=#400 id=400 data-nosnippet>400</a>        .decode(ed25519_b64)
-<a href=#401 id=401 data-nosnippet>401</a>        .context(<span class="string">"Invalid base64 in ed25519_sig"</span>)<span class="question-mark">?</span>;
-<a href=#402 id=402 data-nosnippet>402</a>
-<a href=#403 id=403 data-nosnippet>403</a>    <span class="kw">let </span>pk = <span class="kw">crate</span>::keyfile::parse_hybrid_sign_pk_from_bytes(pk_bytes)<span class="question-mark">?</span>;
-<a href=#404 id=404 data-nosnippet>404</a>    <span class="kw">let </span>hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature::new(ml_dsa_sig, ed25519_sig);
+<a href=#205 id=205 data-nosnippet>205</a><span class="doccomment">/// Centralised reject for any path that must be indistinguishable
+<a href=#206 id=206 data-nosnippet>206</a>/// from a cryptographic-verification failure: emits the same INVALID
+<a href=#207 id=207 data-nosnippet>207</a>/// stderr line and returns `false` (which `run`'s callers translate
+<a href=#208 id=208 data-nosnippet>208</a>/// to exit code 1, the "invalid" class — distinct from the ≥2 "error"
+<a href=#209 id=209 data-nosnippet>209</a>/// class). Used by the structural-reject, deserialize-fail, and
+<a href=#210 id=210 data-nosnippet>210</a>/// crypto-fail branches so a future maintainer can't diverge them
+<a href=#211 id=211 data-nosnippet>211</a>/// into a Pattern-6 distinguisher (an attacker telling apart
+<a href=#212 id=212 data-nosnippet>212</a>/// "I broke the JSON envelope" from "I broke the signature" by
+<a href=#213 id=213 data-nosnippet>213</a>/// stderr text or exit-code class).
+<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">fn </span>print_invalid() -&gt; bool {
+<a href=#215 id=215 data-nosnippet>215</a>    <span class="macro">eprintln!</span>(<span class="string">"Signature is INVALID."</span>);
+<a href=#216 id=216 data-nosnippet>216</a>    <span class="bool-val">false
+<a href=#217 id=217 data-nosnippet>217</a></span>}
+<a href=#218 id=218 data-nosnippet>218</a>
+<a href=#219 id=219 data-nosnippet>219</a><span class="doccomment">/// Read the verify input from `--input &lt;path&gt;` or stdin (round-7 fix
+<a href=#220 id=220 data-nosnippet>220</a>/// #10). Round-8 fix #13: routes through the shared helper.
+<a href=#221 id=221 data-nosnippet>221</a></span><span class="kw">fn </span>read_verify_input(args: <span class="kw-2">&amp;</span>VerifyArgs) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
+<a href=#222 id=222 data-nosnippet>222</a>    <span class="kw">super</span>::common::read_file_or_stdin(
+<a href=#223 id=223 data-nosnippet>223</a>        args.input.as_deref(),
+<a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">super</span>::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
+<a href=#225 id=225 data-nosnippet>225</a>        <span class="string">"verify"</span>,
+<a href=#226 id=226 data-nosnippet>226</a>    )
+<a href=#227 id=227 data-nosnippet>227</a>}
+<a href=#228 id=228 data-nosnippet>228</a>
+<a href=#229 id=229 data-nosnippet>229</a><span class="doccomment">/// Human-readable label for the input source — used in error messages.
+<a href=#230 id=230 data-nosnippet>230</a></span><span class="kw">fn </span>input_label(args: <span class="kw-2">&amp;</span>VerifyArgs) -&gt; String {
+<a href=#231 id=231 data-nosnippet>231</a>    args.input
+<a href=#232 id=232 data-nosnippet>232</a>        .as_ref()
+<a href=#233 id=233 data-nosnippet>233</a>        .map(|p| <span class="macro">format!</span>(<span class="string">"'{}'"</span>, p.display()))
+<a href=#234 id=234 data-nosnippet>234</a>        .unwrap_or_else(|| <span class="string">"&lt;stdin&gt;"</span>.to_string())
+<a href=#235 id=235 data-nosnippet>235</a>}
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a><span class="doccomment">/// Legacy verification path — custom JSON format + primitive-level API.
+<a href=#238 id=238 data-nosnippet>238</a></span><span class="kw">fn </span>verify_legacy(
+<a href=#239 id=239 data-nosnippet>239</a>    args: <span class="kw-2">&amp;</span>VerifyArgs,
+<a href=#240 id=240 data-nosnippet>240</a>    sig_json: <span class="kw-2">&amp;</span>str,
+<a href=#241 id=241 data-nosnippet>241</a>    key_path: <span class="kw-2">&amp;</span>std::path::Path,
+<a href=#242 id=242 data-nosnippet>242</a>    data: Vec&lt;u8&gt;,
+<a href=#243 id=243 data-nosnippet>243</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
+<a href=#244 id=244 data-nosnippet>244</a>    <span class="comment">// `data` is threaded in from `run` — round-8 audit fix #2. Reading
+<a href=#245 id=245 data-nosnippet>245</a>    // input again here would drain stdin a second time in pipe mode,
+<a href=#246 id=246 data-nosnippet>246</a>    // returning empty bytes and silently producing INVALID for any
+<a href=#247 id=247 data-nosnippet>247</a>    // legacy-format signature piped on stdin.
+<a href=#248 id=248 data-nosnippet>248</a>
+<a href=#249 id=249 data-nosnippet>249</a>    </span><span class="kw">let </span>key_file = KeyFile::read_from(key_path)<span class="question-mark">?</span>;
+<a href=#250 id=250 data-nosnippet>250</a>    <span class="kw">if </span>key_file.<span class="macro">key_type !</span>= KeyType::Public {
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="macro">bail!</span>(<span class="string">"Expected public key file for verification, got {:?}"</span>, key_file.key_type);
+<a href=#252 id=252 data-nosnippet>252</a>    }
+<a href=#253 id=253 data-nosnippet>253</a>
+<a href=#254 id=254 data-nosnippet>254</a>    <span class="kw">let </span>algorithm = <span class="kw">if let </span><span class="prelude-val">Some</span>(alg) = <span class="kw-2">&amp;</span>args.algorithm {
+<a href=#255 id=255 data-nosnippet>255</a>        alg.clone()
+<a href=#256 id=256 data-nosnippet>256</a>    } <span class="kw">else </span>{
+<a href=#257 id=257 data-nosnippet>257</a>        <span class="kw">let </span>detected = detect_algorithm(sig_json)<span class="question-mark">?</span>;
+<a href=#258 id=258 data-nosnippet>258</a>        <span class="comment">// algorithm name isn't secret but is
+<a href=#259 id=259 data-nosnippet>259</a>        // enumerable across log aggregation targets. Demote to debug.
+<a href=#260 id=260 data-nosnippet>260</a>        </span><span class="macro">tracing::debug!</span>(algorithm = %algorithm_name(<span class="kw-2">&amp;</span>detected), <span class="string">"auto-detected legacy verify algorithm"</span>);
+<a href=#261 id=261 data-nosnippet>261</a>        detected
+<a href=#262 id=262 data-nosnippet>262</a>    };
+<a href=#263 id=263 data-nosnippet>263</a>
+<a href=#264 id=264 data-nosnippet>264</a>    <span class="kw">let </span>expected_alg = algorithm_name(<span class="kw-2">&amp;</span>algorithm);
+<a href=#265 id=265 data-nosnippet>265</a>    key_file.validate_algorithm(expected_alg)<span class="question-mark">?</span>;
+<a href=#266 id=266 data-nosnippet>266</a>
+<a href=#267 id=267 data-nosnippet>267</a>    <span class="kw">let </span>pk_bytes = key_file.key_bytes()<span class="question-mark">?</span>;
+<a href=#268 id=268 data-nosnippet>268</a>
+<a href=#269 id=269 data-nosnippet>269</a>    <span class="kw">let </span>valid = <span class="kw">match </span>algorithm {
+<a href=#270 id=270 data-nosnippet>270</a>        VerifyAlgorithm::Hybrid =&gt; verify_hybrid(<span class="kw-2">&amp;</span>data, sig_json, <span class="kw-2">&amp;</span>pk_bytes)<span class="question-mark">?</span>,
+<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">_ </span>=&gt; verify_standard(<span class="kw-2">&amp;</span>data, sig_json, <span class="kw-2">&amp;</span>pk_bytes, <span class="kw-2">&amp;</span>algorithm)<span class="question-mark">?</span>,
+<a href=#272 id=272 data-nosnippet>272</a>    };
+<a href=#273 id=273 data-nosnippet>273</a>
+<a href=#274 id=274 data-nosnippet>274</a>    <span class="comment">// return the verdict; `main` translates
+<a href=#275 id=275 data-nosnippet>275</a>    // `Ok(false)` into exit 1 after destructors.
+<a href=#276 id=276 data-nosnippet>276</a>    // See SignedData branch above for the stream-asymmetry rationale.
+<a href=#277 id=277 data-nosnippet>277</a>    </span><span class="kw">if </span>valid {
+<a href=#278 id=278 data-nosnippet>278</a>        <span class="macro">println!</span>(<span class="string">"Signature is VALID."</span>);
+<a href=#279 id=279 data-nosnippet>279</a>    } <span class="kw">else </span>{
+<a href=#280 id=280 data-nosnippet>280</a>        <span class="macro">eprintln!</span>(<span class="string">"Signature is INVALID."</span>);
+<a href=#281 id=281 data-nosnippet>281</a>    }
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="prelude-val">Ok</span>(valid)
+<a href=#283 id=283 data-nosnippet>283</a>}
+<a href=#284 id=284 data-nosnippet>284</a>
+<a href=#285 id=285 data-nosnippet>285</a><span class="doccomment">/// Detect algorithm from the "algorithm" field in a legacy .sig.json file.
+<a href=#286 id=286 data-nosnippet>286</a></span><span class="kw">fn </span>detect_algorithm(sig_json: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;VerifyAlgorithm&gt; {
+<a href=#287 id=287 data-nosnippet>287</a>    <span class="kw">let </span>sig: serde_json::Value =
+<a href=#288 id=288 data-nosnippet>288</a>        serde_json::from_str(sig_json).context(<span class="string">"Failed to parse signature JSON"</span>)<span class="question-mark">?</span>;
+<a href=#289 id=289 data-nosnippet>289</a>    <span class="kw">let </span>alg_str = sig
+<a href=#290 id=290 data-nosnippet>290</a>        .get(<span class="string">"algorithm"</span>)
+<a href=#291 id=291 data-nosnippet>291</a>        .and_then(|v| v.as_str())
+<a href=#292 id=292 data-nosnippet>292</a>        .context(<span class="string">"Signature file missing 'algorithm' field — cannot auto-detect"</span>)<span class="question-mark">?</span>;
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="kw">match </span>alg_str {
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="string">"ml-dsa-65" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::MlDsa65),
+<a href=#295 id=295 data-nosnippet>295</a>        <span class="string">"ml-dsa-44" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::MlDsa44),
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="string">"ml-dsa-87" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::MlDsa87),
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="string">"slh-dsa-shake-128s" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::SlhDsa),
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="string">"fn-dsa-512" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::FnDsa),
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="string">"ed25519" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::Ed25519),
+<a href=#300 id=300 data-nosnippet>300</a>        <span class="string">"hybrid-ml-dsa-65-ed25519" </span>=&gt; <span class="prelude-val">Ok</span>(VerifyAlgorithm::Hybrid),
+<a href=#301 id=301 data-nosnippet>301</a>        other =&gt; <span class="macro">bail!</span>(<span class="string">"Unknown algorithm in signature file: '{other}'"</span>),
+<a href=#302 id=302 data-nosnippet>302</a>    }
+<a href=#303 id=303 data-nosnippet>303</a>}
+<a href=#304 id=304 data-nosnippet>304</a>
+<a href=#305 id=305 data-nosnippet>305</a><span class="doccomment">/// Map verify algorithm enum to canonical key file algorithm name.
+<a href=#306 id=306 data-nosnippet>306</a></span><span class="kw">fn </span>algorithm_name(alg: <span class="kw-2">&amp;</span>VerifyAlgorithm) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#307 id=307 data-nosnippet>307</a>    <span class="kw">match </span>alg {
+<a href=#308 id=308 data-nosnippet>308</a>        VerifyAlgorithm::MlDsa65 =&gt; <span class="string">"ml-dsa-65"</span>,
+<a href=#309 id=309 data-nosnippet>309</a>        VerifyAlgorithm::MlDsa44 =&gt; <span class="string">"ml-dsa-44"</span>,
+<a href=#310 id=310 data-nosnippet>310</a>        VerifyAlgorithm::MlDsa87 =&gt; <span class="string">"ml-dsa-87"</span>,
+<a href=#311 id=311 data-nosnippet>311</a>        VerifyAlgorithm::SlhDsa =&gt; <span class="string">"slh-dsa-shake-128s"</span>,
+<a href=#312 id=312 data-nosnippet>312</a>        VerifyAlgorithm::FnDsa =&gt; <span class="string">"fn-dsa-512"</span>,
+<a href=#313 id=313 data-nosnippet>313</a>        VerifyAlgorithm::Ed25519 =&gt; <span class="string">"ed25519"</span>,
+<a href=#314 id=314 data-nosnippet>314</a>        VerifyAlgorithm::Hybrid =&gt; <span class="string">"hybrid-ml-dsa-65-ed25519"</span>,
+<a href=#315 id=315 data-nosnippet>315</a>    }
+<a href=#316 id=316 data-nosnippet>316</a>}
+<a href=#317 id=317 data-nosnippet>317</a>
+<a href=#318 id=318 data-nosnippet>318</a><span class="kw">fn </span>verify_standard(
+<a href=#319 id=319 data-nosnippet>319</a>    data: <span class="kw-2">&amp;</span>[u8],
+<a href=#320 id=320 data-nosnippet>320</a>    sig_json: <span class="kw-2">&amp;</span>str,
+<a href=#321 id=321 data-nosnippet>321</a>    pk_bytes: <span class="kw-2">&amp;</span>[u8],
+<a href=#322 id=322 data-nosnippet>322</a>    algorithm: <span class="kw-2">&amp;</span>VerifyAlgorithm,
+<a href=#323 id=323 data-nosnippet>323</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
+<a href=#324 id=324 data-nosnippet>324</a>    <span class="kw">let </span>sig_obj: serde_json::Value =
+<a href=#325 id=325 data-nosnippet>325</a>        serde_json::from_str(sig_json).context(<span class="string">"Failed to parse signature JSON"</span>)<span class="question-mark">?</span>;
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a>    <span class="kw">use </span>base64::Engine;
+<a href=#328 id=328 data-nosnippet>328</a>    <span class="kw">let </span>sig_b64 = sig_obj
+<a href=#329 id=329 data-nosnippet>329</a>        .get(<span class="string">"signature"</span>)
+<a href=#330 id=330 data-nosnippet>330</a>        .and_then(|v| v.as_str())
+<a href=#331 id=331 data-nosnippet>331</a>        .context(<span class="string">"Missing 'signature' field in signature JSON"</span>)<span class="question-mark">?</span>;
+<a href=#332 id=332 data-nosnippet>332</a>    <span class="kw">let </span>sig_bytes = base64::engine::general_purpose::STANDARD
+<a href=#333 id=333 data-nosnippet>333</a>        .decode(sig_b64)
+<a href=#334 id=334 data-nosnippet>334</a>        .context(<span class="string">"Invalid base64 in signature"</span>)<span class="question-mark">?</span>;
+<a href=#335 id=335 data-nosnippet>335</a>
+<a href=#336 id=336 data-nosnippet>336</a>    <span class="kw">match </span>algorithm {
+<a href=#337 id=337 data-nosnippet>337</a>        VerifyAlgorithm::MlDsa65 =&gt; latticearc::verify_pq_ml_dsa(
+<a href=#338 id=338 data-nosnippet>338</a>            data,
+<a href=#339 id=339 data-nosnippet>339</a>            <span class="kw-2">&amp;</span>sig_bytes,
+<a href=#340 id=340 data-nosnippet>340</a>            pk_bytes,
+<a href=#341 id=341 data-nosnippet>341</a>            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
+<a href=#342 id=342 data-nosnippet>342</a>            latticearc::SecurityMode::Unverified,
+<a href=#343 id=343 data-nosnippet>343</a>        )
+<a href=#344 id=344 data-nosnippet>344</a>        .map_err(|e| {
+<a href=#345 id=345 data-nosnippet>345</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
+<a href=#346 id=346 data-nosnippet>346</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
+<a href=#347 id=347 data-nosnippet>347</a>        }),
+<a href=#348 id=348 data-nosnippet>348</a>        VerifyAlgorithm::MlDsa44 =&gt; latticearc::verify_pq_ml_dsa(
+<a href=#349 id=349 data-nosnippet>349</a>            data,
+<a href=#350 id=350 data-nosnippet>350</a>            <span class="kw-2">&amp;</span>sig_bytes,
+<a href=#351 id=351 data-nosnippet>351</a>            pk_bytes,
+<a href=#352 id=352 data-nosnippet>352</a>            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44,
+<a href=#353 id=353 data-nosnippet>353</a>            latticearc::SecurityMode::Unverified,
+<a href=#354 id=354 data-nosnippet>354</a>        )
+<a href=#355 id=355 data-nosnippet>355</a>        .map_err(|e| {
+<a href=#356 id=356 data-nosnippet>356</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
+<a href=#357 id=357 data-nosnippet>357</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
+<a href=#358 id=358 data-nosnippet>358</a>        }),
+<a href=#359 id=359 data-nosnippet>359</a>        VerifyAlgorithm::MlDsa87 =&gt; latticearc::verify_pq_ml_dsa(
+<a href=#360 id=360 data-nosnippet>360</a>            data,
+<a href=#361 id=361 data-nosnippet>361</a>            <span class="kw-2">&amp;</span>sig_bytes,
+<a href=#362 id=362 data-nosnippet>362</a>            pk_bytes,
+<a href=#363 id=363 data-nosnippet>363</a>            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87,
+<a href=#364 id=364 data-nosnippet>364</a>            latticearc::SecurityMode::Unverified,
+<a href=#365 id=365 data-nosnippet>365</a>        )
+<a href=#366 id=366 data-nosnippet>366</a>        .map_err(|e| {
+<a href=#367 id=367 data-nosnippet>367</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
+<a href=#368 id=368 data-nosnippet>368</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
+<a href=#369 id=369 data-nosnippet>369</a>        }),
+<a href=#370 id=370 data-nosnippet>370</a>        VerifyAlgorithm::SlhDsa =&gt; latticearc::verify_pq_slh_dsa(
+<a href=#371 id=371 data-nosnippet>371</a>            data,
+<a href=#372 id=372 data-nosnippet>372</a>            <span class="kw-2">&amp;</span>sig_bytes,
+<a href=#373 id=373 data-nosnippet>373</a>            pk_bytes,
+<a href=#374 id=374 data-nosnippet>374</a>            latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s,
+<a href=#375 id=375 data-nosnippet>375</a>            latticearc::SecurityMode::Unverified,
+<a href=#376 id=376 data-nosnippet>376</a>        )
+<a href=#377 id=377 data-nosnippet>377</a>        .map_err(|e| {
+<a href=#378 id=378 data-nosnippet>378</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
+<a href=#379 id=379 data-nosnippet>379</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
+<a href=#380 id=380 data-nosnippet>380</a>        }),
+<a href=#381 id=381 data-nosnippet>381</a>        VerifyAlgorithm::FnDsa =&gt; latticearc::verify_pq_fn_dsa(
+<a href=#382 id=382 data-nosnippet>382</a>            data,
+<a href=#383 id=383 data-nosnippet>383</a>            <span class="kw-2">&amp;</span>sig_bytes,
+<a href=#384 id=384 data-nosnippet>384</a>            pk_bytes,
+<a href=#385 id=385 data-nosnippet>385</a>            latticearc::primitives::sig::fndsa::FnDsaSecurityLevel::Level512,
+<a href=#386 id=386 data-nosnippet>386</a>            latticearc::SecurityMode::Unverified,
+<a href=#387 id=387 data-nosnippet>387</a>        )
+<a href=#388 id=388 data-nosnippet>388</a>        .map_err(|e| {
+<a href=#389 id=389 data-nosnippet>389</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
+<a href=#390 id=390 data-nosnippet>390</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
+<a href=#391 id=391 data-nosnippet>391</a>        }),
+<a href=#392 id=392 data-nosnippet>392</a>        VerifyAlgorithm::Ed25519 =&gt; latticearc::verify_ed25519(
+<a href=#393 id=393 data-nosnippet>393</a>            data,
+<a href=#394 id=394 data-nosnippet>394</a>            <span class="kw-2">&amp;</span>sig_bytes,
+<a href=#395 id=395 data-nosnippet>395</a>            pk_bytes,
+<a href=#396 id=396 data-nosnippet>396</a>            latticearc::SecurityMode::Unverified,
+<a href=#397 id=397 data-nosnippet>397</a>        )
+<a href=#398 id=398 data-nosnippet>398</a>        .map_err(|e| {
+<a href=#399 id=399 data-nosnippet>399</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"verify (legacy path) rejected"</span>);
+<a href=#400 id=400 data-nosnippet>400</a>            <span class="macro">anyhow::anyhow!</span>(<span class="string">"Verification failed"</span>)
+<a href=#401 id=401 data-nosnippet>401</a>        }),
+<a href=#402 id=402 data-nosnippet>402</a>        VerifyAlgorithm::Hybrid =&gt; <span class="macro">bail!</span>(<span class="string">"Internal error: hybrid handled separately"</span>),
+<a href=#403 id=403 data-nosnippet>403</a>    }
+<a href=#404 id=404 data-nosnippet>404</a>}
 <a href=#405 id=405 data-nosnippet>405</a>
-<a href=#406 id=406 data-nosnippet>406</a>    <span class="comment">// preserve the CLI 0/1/≥2 exit-code
-<a href=#407 id=407 data-nosnippet>407</a>    // contract. The unified-API wrapper maps the underlying
-<a href=#408 id=408 data-nosnippet>408</a>    // `HybridSignatureError::VerificationFailed` → `CoreError::
-<a href=#409 id=409 data-nosnippet>409</a>    // VerificationFailed`; if we surface that as `anyhow::Error` the
-<a href=#410 id=410 data-nosnippet>410</a>    // caller sees exit ≥2 (operational failure) instead of exit 1
-<a href=#411 id=411 data-nosnippet>411</a>    // (forged signature). Translate `CoreError::VerificationFailed` to
-<a href=#412 id=412 data-nosnippet>412</a>    // `Ok(false)` so the outer dispatch returns exit 1 — same shape as
-<a href=#413 id=413 data-nosnippet>413</a>    // the ML-DSA / SLH-DSA / FN-DSA paths.
-<a href=#414 id=414 data-nosnippet>414</a>    </span><span class="kw">use </span>latticearc::CoreError;
-<a href=#415 id=415 data-nosnippet>415</a>    <span class="kw">match </span>latticearc::verify_hybrid_signature(
-<a href=#416 id=416 data-nosnippet>416</a>        data,
-<a href=#417 id=417 data-nosnippet>417</a>        <span class="kw-2">&amp;</span>hybrid_sig,
-<a href=#418 id=418 data-nosnippet>418</a>        <span class="kw-2">&amp;</span>pk,
-<a href=#419 id=419 data-nosnippet>419</a>        latticearc::SecurityMode::Unverified,
-<a href=#420 id=420 data-nosnippet>420</a>    ) {
-<a href=#421 id=421 data-nosnippet>421</a>        <span class="prelude-val">Ok</span>(valid) =&gt; <span class="prelude-val">Ok</span>(valid),
-<a href=#422 id=422 data-nosnippet>422</a>        <span class="prelude-val">Err</span>(CoreError::VerificationFailed) =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>),
-<a href=#423 id=423 data-nosnippet>423</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(<span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid verification failed: {e}"</span>)),
-<a href=#424 id=424 data-nosnippet>424</a>    }
-<a href=#425 id=425 data-nosnippet>425</a>}
+<a href=#406 id=406 data-nosnippet>406</a><span class="kw">fn </span>verify_hybrid(data: <span class="kw-2">&amp;</span>[u8], sig_json: <span class="kw-2">&amp;</span>str, pk_bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
+<a href=#407 id=407 data-nosnippet>407</a>    <span class="kw">let </span>sig: serde_json::Value =
+<a href=#408 id=408 data-nosnippet>408</a>        serde_json::from_str(sig_json).context(<span class="string">"Failed to parse hybrid signature JSON"</span>)<span class="question-mark">?</span>;
+<a href=#409 id=409 data-nosnippet>409</a>
+<a href=#410 id=410 data-nosnippet>410</a>    <span class="kw">use </span>base64::Engine;
+<a href=#411 id=411 data-nosnippet>411</a>    <span class="kw">let </span>ml_dsa_b64 = sig
+<a href=#412 id=412 data-nosnippet>412</a>        .get(<span class="string">"ml_dsa_sig"</span>)
+<a href=#413 id=413 data-nosnippet>413</a>        .and_then(|v| v.as_str())
+<a href=#414 id=414 data-nosnippet>414</a>        .context(<span class="string">"Missing 'ml_dsa_sig' field in hybrid signature"</span>)<span class="question-mark">?</span>;
+<a href=#415 id=415 data-nosnippet>415</a>    <span class="kw">let </span>ml_dsa_sig = base64::engine::general_purpose::STANDARD
+<a href=#416 id=416 data-nosnippet>416</a>        .decode(ml_dsa_b64)
+<a href=#417 id=417 data-nosnippet>417</a>        .context(<span class="string">"Invalid base64 in ml_dsa_sig"</span>)<span class="question-mark">?</span>;
+<a href=#418 id=418 data-nosnippet>418</a>
+<a href=#419 id=419 data-nosnippet>419</a>    <span class="kw">let </span>ed25519_b64 = sig
+<a href=#420 id=420 data-nosnippet>420</a>        .get(<span class="string">"ed25519_sig"</span>)
+<a href=#421 id=421 data-nosnippet>421</a>        .and_then(|v| v.as_str())
+<a href=#422 id=422 data-nosnippet>422</a>        .context(<span class="string">"Missing 'ed25519_sig' field in hybrid signature"</span>)<span class="question-mark">?</span>;
+<a href=#423 id=423 data-nosnippet>423</a>    <span class="kw">let </span>ed25519_sig = base64::engine::general_purpose::STANDARD
+<a href=#424 id=424 data-nosnippet>424</a>        .decode(ed25519_b64)
+<a href=#425 id=425 data-nosnippet>425</a>        .context(<span class="string">"Invalid base64 in ed25519_sig"</span>)<span class="question-mark">?</span>;
+<a href=#426 id=426 data-nosnippet>426</a>
+<a href=#427 id=427 data-nosnippet>427</a>    <span class="kw">let </span>pk = <span class="kw">crate</span>::keyfile::parse_hybrid_sign_pk_from_bytes(pk_bytes)<span class="question-mark">?</span>;
+<a href=#428 id=428 data-nosnippet>428</a>    <span class="kw">let </span>hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature::new(ml_dsa_sig, ed25519_sig);
+<a href=#429 id=429 data-nosnippet>429</a>
+<a href=#430 id=430 data-nosnippet>430</a>    <span class="comment">// preserve the CLI 0/1/≥2 exit-code
+<a href=#431 id=431 data-nosnippet>431</a>    // contract. The unified-API wrapper maps the underlying
+<a href=#432 id=432 data-nosnippet>432</a>    // `HybridSignatureError::VerificationFailed` → `CoreError::
+<a href=#433 id=433 data-nosnippet>433</a>    // VerificationFailed`; if we surface that as `anyhow::Error` the
+<a href=#434 id=434 data-nosnippet>434</a>    // caller sees exit ≥2 (operational failure) instead of exit 1
+<a href=#435 id=435 data-nosnippet>435</a>    // (forged signature). Translate `CoreError::VerificationFailed` to
+<a href=#436 id=436 data-nosnippet>436</a>    // `Ok(false)` so the outer dispatch returns exit 1 — same shape as
+<a href=#437 id=437 data-nosnippet>437</a>    // the ML-DSA / SLH-DSA / FN-DSA paths.
+<a href=#438 id=438 data-nosnippet>438</a>    </span><span class="kw">use </span>latticearc::CoreError;
+<a href=#439 id=439 data-nosnippet>439</a>    <span class="kw">match </span>latticearc::verify_hybrid_signature(
+<a href=#440 id=440 data-nosnippet>440</a>        data,
+<a href=#441 id=441 data-nosnippet>441</a>        <span class="kw-2">&amp;</span>hybrid_sig,
+<a href=#442 id=442 data-nosnippet>442</a>        <span class="kw-2">&amp;</span>pk,
+<a href=#443 id=443 data-nosnippet>443</a>        latticearc::SecurityMode::Unverified,
+<a href=#444 id=444 data-nosnippet>444</a>    ) {
+<a href=#445 id=445 data-nosnippet>445</a>        <span class="prelude-val">Ok</span>(valid) =&gt; <span class="prelude-val">Ok</span>(valid),
+<a href=#446 id=446 data-nosnippet>446</a>        <span class="prelude-val">Err</span>(CoreError::VerificationFailed) =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>),
+<a href=#447 id=447 data-nosnippet>447</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(<span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid verification failed: {e}"</span>)),
+<a href=#448 id=448 data-nosnippet>448</a>    }
+<a href=#449 id=449 data-nosnippet>449</a>}
 </code></pre></div></section></main></body></html>
