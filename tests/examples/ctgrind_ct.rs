@@ -23,6 +23,13 @@
 //!   that stay on the `subtle` side of the stack.
 
 #![allow(clippy::print_stdout)]
+// Linux-only `mod harness` calls `.expect()` on infallible test-setup steps
+// (keypair generation, byte serialization round-trip). The harness is invoked
+// only inside Valgrind under tests/examples; panicking on setup failure is the
+// correct behavior — a leaked test would be worse than a bail. Mirrors the
+// sibling `dudect_ct.rs` allow. macOS clippy gates `mod harness` out via
+// `cfg(target_os = "linux")`, so this only matters on the Linux CI runner.
+#![allow(clippy::expect_used)]
 
 #[cfg(target_os = "linux")]
 mod harness {

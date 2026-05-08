@@ -83,6 +83,17 @@ re-checked each named pattern against current code:
   `debug-assertions = true` pinned; all `#[ignore]` carry rationale
   strings).
 
+#### CI follow-up
+
+- **`tests/examples/ctgrind_ct.rs` — Linux-gated `expect()` lint**:
+  Round-46 push tripped Enhanced Clippy on Linux CI with 8 ×
+  `clippy::expect_used` errors inside `mod harness`. The module is
+  `#[cfg(target_os = "linux")]`, so macOS pre-push clippy never sees
+  it. Added a file-level `#![allow(clippy::expect_used)]` mirroring the
+  sibling `dudect_ct.rs` allow — `.expect()` on infallible test-setup
+  steps is the correct behavior (a leaked test would be worse than a
+  bail). No runtime change.
+
 ### Round-44 audit — CRITICAL signature-bypass fix + workspace ?e→%e sweep (2026-05-08)
 
 External round-44 audit returned 9 findings (1 CRIT, 2 HIGH, 3 MED,
