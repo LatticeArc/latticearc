@@ -61,7 +61,7 @@ scheme selection for the data’s entropy and size patterns.</p>
 <ul>
 <li><code>hardware_acceleration = false</code> and <code>security_level != Standard</code>
 (refusal of silent post-quantum strip), or</li>
-<li>the caller declared <code>SecurityLevel::High</code> and the data-aware
+<li>the caller declared <code>SecurityLevel::High</code> and the size-conditioned
 branch would otherwise downgrade ML-KEM-768 to ML-KEM-512.</li>
 </ul>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.select_signature_scheme" class="method"><a class="src rightside" href="../../../src/latticearc/unified_api/selector.rs.html#333-339">Source</a><h4 class="code-header">pub fn <a href="#method.select_signature_scheme" class="fn">select_signature_scheme</a>(config: &amp;<a class="struct" href="../../types/config/struct.CoreConfig.html" title="struct latticearc::types::config::CoreConfig">CoreConfig</a>) -&gt; <a class="type" href="../../types/error/type.Result.html" title="type latticearc::types::error::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.93.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Selects a signature scheme based on the configuration’s security level.</p>

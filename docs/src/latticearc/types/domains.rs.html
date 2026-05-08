@@ -180,37 +180,40 @@
 <a href=#180 id=180 data-nosnippet>180</a>
 <a href=#181 id=181 data-nosnippet>181</a><span class="comment">// Formal verification with Kani
 <a href=#182 id=182 data-nosnippet>182</a></span><span class="attr">#[cfg(kani)]
-<a href=#183 id=183 data-nosnippet>183</a>#[allow(clippy::indexing_slicing)]
-<a href=#184 id=184 data-nosnippet>184</a></span><span class="kw">mod </span>kani_proofs {
-<a href=#185 id=185 data-nosnippet>185</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#186 id=186 data-nosnippet>186</a>
-<a href=#187 id=187 data-nosnippet>187</a>    <span class="doccomment">/// Proves all 8 HKDF domain constants are pairwise distinct (C(8,2)=28 pairs).
-<a href=#188 id=188 data-nosnippet>188</a>    /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
-<a href=#189 id=189 data-nosnippet>189</a>    </span><span class="attr">#[kani::proof]
-<a href=#190 id=190 data-nosnippet>190</a>    </span><span class="kw">fn </span>domain_constants_pairwise_distinct() {
-<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span>constants: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]] = <span class="kw-2">&amp;</span>[
-<a href=#192 id=192 data-nosnippet>192</a>            CASCADE_OUTER,
-<a href=#193 id=193 data-nosnippet>193</a>            CASCADE_INNER,
-<a href=#194 id=194 data-nosnippet>194</a>            HYBRID_ENCRYPTION_INFO,
-<a href=#195 id=195 data-nosnippet>195</a>            HYBRID_KEM_SS_INFO,
-<a href=#196 id=196 data-nosnippet>196</a>            DERIVE_KEY_INFO,
-<a href=#197 id=197 data-nosnippet>197</a>            MODULE_INTEGRITY_HMAC_KEY,
-<a href=#198 id=198 data-nosnippet>198</a>            PQ_KEM_AEAD_KEY_INFO,
-<a href=#199 id=199 data-nosnippet>199</a>            PQ_ONLY_ENCRYPTION_INFO,
-<a href=#200 id=200 data-nosnippet>200</a>        ];
-<a href=#201 id=201 data-nosnippet>201</a>        <span class="kw">let </span>n = constants.len();
-<a href=#202 id=202 data-nosnippet>202</a>        <span class="kw">let </span><span class="kw-2">mut </span>i = <span class="number">0</span>;
-<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">while </span>i &lt; n {
-<a href=#204 id=204 data-nosnippet>204</a>            <span class="kw">let </span><span class="kw-2">mut </span>j = i + <span class="number">1</span>;
-<a href=#205 id=205 data-nosnippet>205</a>            <span class="kw">while </span>j &lt; n {
-<a href=#206 id=206 data-nosnippet>206</a>                kani::assert(
-<a href=#207 id=207 data-nosnippet>207</a>                    constants[i] != constants[j],
-<a href=#208 id=208 data-nosnippet>208</a>                    <span class="string">"All HKDF domain constants must be pairwise distinct"</span>,
-<a href=#209 id=209 data-nosnippet>209</a>                );
-<a href=#210 id=210 data-nosnippet>210</a>                j += <span class="number">1</span>;
-<a href=#211 id=211 data-nosnippet>211</a>            }
-<a href=#212 id=212 data-nosnippet>212</a>            i += <span class="number">1</span>;
-<a href=#213 id=213 data-nosnippet>213</a>        }
-<a href=#214 id=214 data-nosnippet>214</a>    }
-<a href=#215 id=215 data-nosnippet>215</a>}
+<a href=#183 id=183 data-nosnippet>183</a>#[expect(
+<a href=#184 id=184 data-nosnippet>184</a>    clippy::indexing_slicing,
+<a href=#185 id=185 data-nosnippet>185</a>    reason = <span class="string">"indexing into a slice whose length is known at this site"
+<a href=#186 id=186 data-nosnippet>186</a></span>)]
+<a href=#187 id=187 data-nosnippet>187</a></span><span class="kw">mod </span>kani_proofs {
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#189 id=189 data-nosnippet>189</a>
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="doccomment">/// Proves all 8 HKDF domain constants are pairwise distinct (C(8,2)=28 pairs).
+<a href=#191 id=191 data-nosnippet>191</a>    /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
+<a href=#192 id=192 data-nosnippet>192</a>    </span><span class="attr">#[kani::proof]
+<a href=#193 id=193 data-nosnippet>193</a>    </span><span class="kw">fn </span>domain_constants_pairwise_distinct() {
+<a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">let </span>constants: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]] = <span class="kw-2">&amp;</span>[
+<a href=#195 id=195 data-nosnippet>195</a>            CASCADE_OUTER,
+<a href=#196 id=196 data-nosnippet>196</a>            CASCADE_INNER,
+<a href=#197 id=197 data-nosnippet>197</a>            HYBRID_ENCRYPTION_INFO,
+<a href=#198 id=198 data-nosnippet>198</a>            HYBRID_KEM_SS_INFO,
+<a href=#199 id=199 data-nosnippet>199</a>            DERIVE_KEY_INFO,
+<a href=#200 id=200 data-nosnippet>200</a>            MODULE_INTEGRITY_HMAC_KEY,
+<a href=#201 id=201 data-nosnippet>201</a>            PQ_KEM_AEAD_KEY_INFO,
+<a href=#202 id=202 data-nosnippet>202</a>            PQ_ONLY_ENCRYPTION_INFO,
+<a href=#203 id=203 data-nosnippet>203</a>        ];
+<a href=#204 id=204 data-nosnippet>204</a>        <span class="kw">let </span>n = constants.len();
+<a href=#205 id=205 data-nosnippet>205</a>        <span class="kw">let </span><span class="kw-2">mut </span>i = <span class="number">0</span>;
+<a href=#206 id=206 data-nosnippet>206</a>        <span class="kw">while </span>i &lt; n {
+<a href=#207 id=207 data-nosnippet>207</a>            <span class="kw">let </span><span class="kw-2">mut </span>j = i + <span class="number">1</span>;
+<a href=#208 id=208 data-nosnippet>208</a>            <span class="kw">while </span>j &lt; n {
+<a href=#209 id=209 data-nosnippet>209</a>                kani::assert(
+<a href=#210 id=210 data-nosnippet>210</a>                    constants[i] != constants[j],
+<a href=#211 id=211 data-nosnippet>211</a>                    <span class="string">"All HKDF domain constants must be pairwise distinct"</span>,
+<a href=#212 id=212 data-nosnippet>212</a>                );
+<a href=#213 id=213 data-nosnippet>213</a>                j += <span class="number">1</span>;
+<a href=#214 id=214 data-nosnippet>214</a>            }
+<a href=#215 id=215 data-nosnippet>215</a>            i += <span class="number">1</span>;
+<a href=#216 id=216 data-nosnippet>216</a>        }
+<a href=#217 id=217 data-nosnippet>217</a>    }
+<a href=#218 id=218 data-nosnippet>218</a>}
 </code></pre></div></section></main></body></html>
