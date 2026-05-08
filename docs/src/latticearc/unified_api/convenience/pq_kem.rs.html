@@ -112,7 +112,7 @@
 <a href=#112 id=112 data-nosnippet>112</a>    })<span class="question-mark">?</span>;
 <a href=#113 id=113 data-nosnippet>113</a>
 <a href=#114 id=114 data-nosnippet>114</a>    <span class="comment">// Derive AES-256 key from ML-KEM shared secret via HKDF.
-<a href=#115 id=115 data-nosnippet>115</a>    // audit fix (H1): bind both the recipient PK and the KEM ciphertext
+<a href=#115 id=115 data-nosnippet>115</a>    // bind both the recipient PK and the KEM ciphertext
 <a href=#116 id=116 data-nosnippet>116</a>    // into the info string (RFC 9180 §5.1 channel binding). Encrypt has
 <a href=#117 id=117 data-nosnippet>117</a>    // the PK directly; decrypt extracts it from the SK's embedded `ek`
 <a href=#118 id=118 data-nosnippet>118</a>    // slice (FIPS 203 §6.1 layout) via `embedded_public_key_bytes()`.
@@ -195,7 +195,7 @@
 <a href=#195 id=195 data-nosnippet>195</a>    })<span class="question-mark">?</span>;
 <a href=#196 id=196 data-nosnippet>196</a>
 <a href=#197 id=197 data-nosnippet>197</a>    <span class="comment">// Derive AES-256 key from ML-KEM shared secret via HKDF.
-<a href=#198 id=198 data-nosnippet>198</a>    // audit fix (H1): bind the recipient PK (extracted from SK's
+<a href=#198 id=198 data-nosnippet>198</a>    // bind the recipient PK (extracted from SK's
 <a href=#199 id=199 data-nosnippet>199</a>    // embedded `ek` per FIPS 203 §6.1) AND the KEM ciphertext. Must
 <a href=#200 id=200 data-nosnippet>200</a>    // match the encrypt path byte-for-byte; `pq_kem_aead_key_info` is
 <a href=#201 id=201 data-nosnippet>201</a>    // the single canonical helper to prevent encrypt / decrypt drift.

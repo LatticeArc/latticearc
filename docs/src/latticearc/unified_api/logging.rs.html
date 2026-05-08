@@ -1971,14 +1971,14 @@
 <a href=#1971 id=1971 data-nosnippet>1971</a>    </span><span class="kw">fn </span>test_sanitize_data_small_has_correct_format() {
 <a href=#1972 id=1972 data-nosnippet>1972</a>        <span class="kw">let </span>data = <span class="string">b"short"</span>;
 <a href=#1973 id=1973 data-nosnippet>1973</a>        <span class="kw">let </span>sanitized = sanitize_data(data);
-<a href=#1974 id=1974 data-nosnippet>1974</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, sanitized), <span class="string">"[5 bytes]"</span>);
+<a href=#1974 id=1974 data-nosnippet>1974</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{sanitized}"</span>), <span class="string">"[5 bytes]"</span>);
 <a href=#1975 id=1975 data-nosnippet>1975</a>    }
 <a href=#1976 id=1976 data-nosnippet>1976</a>
 <a href=#1977 id=1977 data-nosnippet>1977</a>    <span class="attr">#[test]
 <a href=#1978 id=1978 data-nosnippet>1978</a>    </span><span class="kw">fn </span>test_sanitize_data_large_has_correct_format() {
 <a href=#1979 id=1979 data-nosnippet>1979</a>        <span class="kw">let </span>data = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">100</span>];
 <a href=#1980 id=1980 data-nosnippet>1980</a>        <span class="kw">let </span>sanitized = sanitize_data(<span class="kw-2">&amp;</span>data);
-<a href=#1981 id=1981 data-nosnippet>1981</a>        <span class="kw">let </span>output = <span class="macro">format!</span>(<span class="string">"{}"</span>, sanitized);
+<a href=#1981 id=1981 data-nosnippet>1981</a>        <span class="kw">let </span>output = <span class="macro">format!</span>(<span class="string">"{sanitized}"</span>);
 <a href=#1982 id=1982 data-nosnippet>1982</a>        <span class="macro">assert!</span>(output.contains(<span class="string">"[100 bytes"</span>));
 <a href=#1983 id=1983 data-nosnippet>1983</a>        <span class="macro">assert!</span>(output.contains(<span class="string">"hash:"</span>));
 <a href=#1984 id=1984 data-nosnippet>1984</a>    }

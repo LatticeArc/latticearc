@@ -1081,7 +1081,7 @@
 <a href=#1081 id=1081 data-nosnippet>1081</a>        <span class="comment">// The variant constructs cleanly and has the expected Display.
 <a href=#1082 id=1082 data-nosnippet>1082</a>        </span><span class="kw">let </span>err = CmacError::ComputationError(<span class="string">"AES key init failed"</span>.to_string());
 <a href=#1083 id=1083 data-nosnippet>1083</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, CmacError::ComputationError(<span class="kw">_</span>)));
-<a href=#1084 id=1084 data-nosnippet>1084</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, err);
+<a href=#1084 id=1084 data-nosnippet>1084</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{err}"</span>);
 <a href=#1085 id=1085 data-nosnippet>1085</a>        <span class="macro">assert!</span>(
 <a href=#1086 id=1086 data-nosnippet>1086</a>            msg.contains(<span class="string">"AES key init failed"</span>),
 <a href=#1087 id=1087 data-nosnippet>1087</a>            <span class="string">"Display must surface the inner detail for developer diagnosis"

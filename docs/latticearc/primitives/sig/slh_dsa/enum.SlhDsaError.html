@@ -12,7 +12,7 @@
 </div><section id="variant.PctFailed" class="variant"><a href="#variant.PctFailed" class="anchor">§</a><h3 class="code-header">PctFailed</h3></section><div class="docblock"><p>Pairwise Consistency Test (FIPS 140-3 §9.2 / IG 10.3.A) failed.
 Distinct from <code>RngError</code> because PCT failure indicates a
 corrupted keypair, not transient entropy depletion.
-audit fix #12: a FIPS error-state monitor must be able to
+a FIPS error-state monitor must be able to
 distinguish “retry with fresh entropy” from “discard this
 keypair, generate a new one, and investigate.”</p>
 </div><section id="variant.InvalidPublicKey" class="variant"><a href="#variant.InvalidPublicKey" class="anchor">§</a><h3 class="code-header">InvalidPublicKey</h3></section><div class="docblock"><p>Invalid public key (malformed or corrupted)</p>

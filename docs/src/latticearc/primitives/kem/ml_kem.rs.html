@@ -1241,7 +1241,7 @@
 <a href=#1241 id=1241 data-nosnippet>1241</a>        // rejection, (b) parameter-set mismatch, (c) key-reconstruction
 <a href=#1242 id=1242 data-nosnippet>1242</a>        // failure, or (d) the constant-time decap rejection itself. The
 <a href=#1243 id=1243 data-nosnippet>1243</a>        // upstream cause is logged at `tracing::debug!` so operators with a
-<a href=#1244 id=1244 data-nosnippet>1244</a>        // debug subscriber retain the detail. audit fix: the
+<a href=#1244 id=1244 data-nosnippet>1244</a>        // debug subscriber retain the detail. the
 <a href=#1245 id=1245 data-nosnippet>1245</a>        // pre-checks below were previously distinguishable error strings.
 <a href=#1246 id=1246 data-nosnippet>1246</a>        </span><span class="kw">if </span>validate_decryption_size(ciphertext.as_bytes().len()).is_err()
 <a href=#1247 id=1247 data-nosnippet>1247</a>            || secret_key.security_level() != ciphertext.security_level()
@@ -1863,7 +1863,7 @@
 <a href=#1863 id=1863 data-nosnippet>1863</a>            MlKemError::CryptoError(<span class="string">"crypto fail"</span>.into()),
 <a href=#1864 id=1864 data-nosnippet>1864</a>        ];
 <a href=#1865 id=1865 data-nosnippet>1865</a>        <span class="kw">for </span>err <span class="kw">in </span><span class="kw-2">&amp;</span>errors {
-<a href=#1866 id=1866 data-nosnippet>1866</a>            <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, err);
+<a href=#1866 id=1866 data-nosnippet>1866</a>            <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{err}"</span>);
 <a href=#1867 id=1867 data-nosnippet>1867</a>            <span class="macro">assert!</span>(!msg.is_empty(), <span class="string">"Display should not be empty for {:?}"</span>, err);
 <a href=#1868 id=1868 data-nosnippet>1868</a>        }
 <a href=#1869 id=1869 data-nosnippet>1869</a>    }

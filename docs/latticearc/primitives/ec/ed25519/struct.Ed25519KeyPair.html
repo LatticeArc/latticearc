@@ -6,7 +6,7 @@ own <code>ZeroizeOnDrop</code> impl (enabled by the <code>zeroize</code> feature
 this type guarantees by construction); the only failure path is
 the resource-limit gate that bounds the message length to
 <code>max_signature_size_bytes</code> (default 64 KiB) before SHA-512
-hashes the payload (RFC 8032 §5.1.6). audit fix (H4)
+hashes the payload (RFC 8032 §5.1.6).
 added this gate to close the unbounded-hash DoS that previously
 existed on the sign path.</p>
 <h5 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h5>

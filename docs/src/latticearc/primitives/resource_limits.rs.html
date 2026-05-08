@@ -327,7 +327,7 @@
 <a href=#327 id=327 data-nosnippet>327</a>}
 <a href=#328 id=328 data-nosnippet>328</a>
 <a href=#329 id=329 data-nosnippet>329</a><span class="doccomment">/// Validates AEAD AAD size against global resource limits.
-<a href=#330 id=330 data-nosnippet>330</a>/// audit fix (H8): every AEAD encrypt/decrypt entrypoint must call this
+<a href=#330 id=330 data-nosnippet>330</a>/// every AEAD encrypt/decrypt entrypoint must call this
 <a href=#331 id=331 data-nosnippet>331</a>/// before passing AAD to the underlying primitive.
 <a href=#332 id=332 data-nosnippet>332</a>///
 <a href=#333 id=333 data-nosnippet>333</a>/// # Errors
@@ -340,7 +340,7 @@
 <a href=#340 id=340 data-nosnippet>340</a></span><span class="kw">mod </span>kani_proofs {
 <a href=#341 id=341 data-nosnippet>341</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#342 id=342 data-nosnippet>342</a>
-<a href=#343 id=343 data-nosnippet>343</a>    <span class="comment">// These proofs work on `ResourceLimitsManager::with_limits(...)` rather
+<a href=#343 id=343 data-nosnippet>343</a>    <span class="comment">// These proofs work on `ResourceLimitsManager::with_limits(..)` rather
 <a href=#344 id=344 data-nosnippet>344</a>    // than the global manager so Kani can fully model the underlying state.
 <a href=#345 id=345 data-nosnippet>345</a>    // The biconditional check (size &gt; limit ⇔ Err) is the DoS property we
 <a href=#346 id=346 data-nosnippet>346</a>    // care about: no caller-supplied size can bypass the cap without hitting
@@ -491,7 +491,7 @@
 <a href=#491 id=491 data-nosnippet>491</a>    <span class="attr">#[test]
 <a href=#492 id=492 data-nosnippet>492</a>    </span><span class="kw">fn </span>test_resource_error_display_fails() {
 <a href=#493 id=493 data-nosnippet>493</a>        <span class="kw">let </span>err = ResourceError::KeyDerivationLimitExceeded { requested: <span class="number">2000</span>, limit: <span class="number">1000 </span>};
-<a href=#494 id=494 data-nosnippet>494</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, err);
+<a href=#494 id=494 data-nosnippet>494</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{err}"</span>);
 <a href=#495 id=495 data-nosnippet>495</a>        <span class="macro">assert!</span>(msg.contains(<span class="string">"2000"</span>));
 <a href=#496 id=496 data-nosnippet>496</a>        <span class="macro">assert!</span>(msg.contains(<span class="string">"1000"</span>));
 <a href=#497 id=497 data-nosnippet>497</a>    }

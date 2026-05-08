@@ -346,23 +346,23 @@
 <a href=#346 id=346 data-nosnippet>346</a>    <span class="attr">#[test]
 <a href=#347 id=347 data-nosnippet>347</a>    </span><span class="kw">fn </span>test_aead_error_display_fails() {
 <a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>err = AeadError::InvalidKeyLength;
-<a href=#349 id=349 data-nosnippet>349</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, err), <span class="string">"Invalid key length"</span>);
+<a href=#349 id=349 data-nosnippet>349</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{err}"</span>), <span class="string">"Invalid key length"</span>);
 <a href=#350 id=350 data-nosnippet>350</a>
 <a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">let </span>err = AeadError::InvalidNonceLength;
-<a href=#352 id=352 data-nosnippet>352</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, err), <span class="string">"Invalid nonce length"</span>);
+<a href=#352 id=352 data-nosnippet>352</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{err}"</span>), <span class="string">"Invalid nonce length"</span>);
 <a href=#353 id=353 data-nosnippet>353</a>
 <a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span>err = AeadError::EncryptionFailed(<span class="string">"test"</span>.to_string());
-<a href=#355 id=355 data-nosnippet>355</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, err), <span class="string">"Encryption failed: test"</span>);
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{err}"</span>), <span class="string">"Encryption failed: test"</span>);
 <a href=#356 id=356 data-nosnippet>356</a>
 <a href=#357 id=357 data-nosnippet>357</a>        <span class="kw">let </span>err = AeadError::DecryptionFailed(<span class="string">"oops"</span>.to_string());
-<a href=#358 id=358 data-nosnippet>358</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, err), <span class="string">"Decryption failed: oops"</span>);
+<a href=#358 id=358 data-nosnippet>358</a>        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{err}"</span>), <span class="string">"Decryption failed: oops"</span>);
 <a href=#359 id=359 data-nosnippet>359</a>
 <a href=#360 id=360 data-nosnippet>360</a>        <span class="comment">// `AeadError::WeakKey` Display — message includes both the diagnosis
 <a href=#361 id=361 data-nosnippet>361</a>        // ("likely uninitialised memory") and a remediation hint pointing
 <a href=#362 id=362 data-nosnippet>362</a>        // at `generate_secure_random_bytes` and the `kat-test-vectors`
 <a href=#363 id=363 data-nosnippet>363</a>        // escape hatch.
 <a href=#364 id=364 data-nosnippet>364</a>        </span><span class="kw">let </span>err = AeadError::WeakKey;
-<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, err);
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{err}"</span>);
 <a href=#366 id=366 data-nosnippet>366</a>        <span class="macro">assert!</span>(
 <a href=#367 id=367 data-nosnippet>367</a>            msg.contains(<span class="string">"Weak key rejected by AEAD constructor"</span>),
 <a href=#368 id=368 data-nosnippet>368</a>            <span class="string">"WeakKey Display must lead with the diagnosis"

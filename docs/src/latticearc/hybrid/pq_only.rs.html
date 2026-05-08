@@ -400,9 +400,9 @@
 <a href=#400 id=400 data-nosnippet>400</a>/// 3. AES-256-GCM encrypt(plaintext) → (ciphertext, nonce, tag)
 <a href=#401 id=401 data-nosnippet>401</a>///
 <a href=#402 id=402 data-nosnippet>402</a>/// The `info` string binds the KEM ciphertext into the AEAD-key
-<a href=#403 id=403 data-nosnippet>403</a>/// derivation per RFC 9180 §5.1 (HPKE channel binding) —
-<a href=#404 id=404 data-nosnippet>404</a>/// audit fix (L-2). The exact byte layout is `LABEL || 0x00 ||
-<a href=#405 id=405 data-nosnippet>405</a>/// kem_ciphertext`, where `LABEL = "LatticeArc-PqOnly-Encryption-v1"`
+<a href=#403 id=403 data-nosnippet>403</a>/// derivation per RFC 9180 §5.1 (HPKE channel binding). The exact
+<a href=#404 id=404 data-nosnippet>404</a>/// byte layout is `LABEL || 0x00 || kem_ciphertext`, where
+<a href=#405 id=405 data-nosnippet>405</a>/// `LABEL = "LatticeArc-PqOnly-Encryption-v1"`
 <a href=#406 id=406 data-nosnippet>406</a>/// (see `crate::types::domains::PQ_ONLY_ENCRYPTION_INFO`). Encrypt and
 <a href=#407 id=407 data-nosnippet>407</a>/// decrypt MUST construct `info` identically; both go through
 <a href=#408 id=408 data-nosnippet>408</a>/// `pq_only_encryption_info()` (private to this module) to keep the
@@ -497,7 +497,7 @@
 <a href=#497 id=497 data-nosnippet>497</a>/// it via `pq_only_encryption_info(recipient_pk, kem_ciphertext)`.
 <a href=#498 id=498 data-nosnippet>498</a>/// Substituting a different recipient PK or KEM ciphertext produces a
 <a href=#499 id=499 data-nosnippet>499</a>/// different AEAD key, so the AEAD tag fails (HPKE-style channel
-<a href=#500 id=500 data-nosnippet>500</a>/// binding, RFC 9180 §5.1). audit fix (L25) updated this doc
+<a href=#500 id=500 data-nosnippet>500</a>/// binding, RFC 9180 §5.1). updated this doc
 <a href=#501 id=501 data-nosnippet>501</a>/// to reflect the prior PK-binding migration that the prose had
 <a href=#502 id=502 data-nosnippet>502</a>/// stayed silent about.
 <a href=#503 id=503 data-nosnippet>503</a>///

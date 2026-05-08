@@ -13,7 +13,7 @@
 <a href=#13 id=13 data-nosnippet>13</a>//! - **Raw bytes** (`pq_pk`, `pq_sig`, `ed_pk`, `ed_sig`): zero-filled
 <a href=#14 id=14 data-nosnippet>14</a>//!   length-correct buffers. Used by the unified-API path's raw-byte
 <a href=#15 id=15 data-nosnippet>15</a>//!   interface; the consumer there re-parses internally via
-<a href=#16 id=16 data-nosnippet>16</a>//!   `verify_pq_ml_dsa_unverified(...).unwrap_or(false)` so a parse
+<a href=#16 id=16 data-nosnippet>16</a>//!   `verify_pq_ml_dsa_unverified(..).unwrap_or(false)` so a parse
 <a href=#17 id=17 data-nosnippet>17</a>//!   failure on the dummy collapses to `false` (today the parser is
 <a href=#18 id=18 data-nosnippet>18</a>//!   length-only so this is unreachable, but the `unwrap_or(false)`
 <a href=#19 id=19 data-nosnippet>19</a>//!   shape preserves verify-pipeline execution).
@@ -24,7 +24,7 @@
 <a href=#24 id=24 data-nosnippet>24</a>//!   when caller bytes fail the shape check OR fail to parse. Ensures
 <a href=#25 id=25 data-nosnippet>25</a>//!   `MlDsaPublicKey::verify` runs against guaranteed-valid material
 <a href=#26 id=26 data-nosnippet>26</a>//!   regardless of whether `from_bytes` ever adds content validation
-<a href=#27 id=27 data-nosnippet>27</a>//!   in a future `fips204` release. Post-85e2bd79e M1 audit fix —
+<a href=#27 id=27 data-nosnippet>27</a>//!   in a future `fips204` release. Post-85e2bd79e M1 —
 <a href=#28 id=28 data-nosnippet>28</a>//!   the previous design held raw bytes only and re-parsed at verify
 <a href=#29 id=29 data-nosnippet>29</a>//!   time, which would silently lose its equalizer property if
 <a href=#30 id=30 data-nosnippet>30</a>//!   `from_bytes` started rejecting zero-byte buffers.
