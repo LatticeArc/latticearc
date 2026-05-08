@@ -110,7 +110,7 @@
 <a href=#110 id=110 data-nosnippet>110</a>    </span><span class="comment">// keygen previously
 <a href=#111 id=111 data-nosnippet>111</a>    // had no escape hatch, so re-running over a stale keypair failed on
 <a href=#112 id=112 data-nosnippet>112</a>    // the first SK-write (SK is written first to avoid orphan PKs from
-<a href=#113 id=113 data-nosnippet>113</a>    // round-8 fix #4); the inverse failure mode still bit users running
+<a href=#113 id=113 data-nosnippet>113</a>    // fix #4); the inverse failure mode still bit users running
 <a href=#114 id=114 data-nosnippet>114</a>    // keygen twice. `--force` plumbs through to
 <a href=#115 id=115 data-nosnippet>115</a>    // `PortableKey::write_to_file_with_overwrite` at all 4 write sites.
 <a href=#116 id=116 data-nosnippet>116</a>    </span><span class="attr">#[arg(long)]
@@ -600,7 +600,7 @@
 <a href=#600 id=600 data-nosnippet>600</a>    </span><span class="kw">let </span>pk_path = args.output.join(<span class="string">"hybrid-sign.pub.json"</span>);
 <a href=#601 id=601 data-nosnippet>601</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"hybrid-sign.sec.json"</span>);
 <a href=#602 id=602 data-nosnippet>602</a>
-<a href=#603 id=603 data-nosnippet>603</a>    <span class="comment">// SK first — round-9 audit fix #1 (extending round-8 fix #4 to the
+<a href=#603 id=603 data-nosnippet>603</a>    <span class="comment">// SK first — (extending fix #4 to the
 <a href=#604 id=604 data-nosnippet>604</a>    // 4th keygen site that was missed). SK-write failure no longer
 <a href=#605 id=605 data-nosnippet>605</a>    // orphans a PK on disk that retry would refuse-to-overwrite.
 <a href=#606 id=606 data-nosnippet>606</a>    </span>keyfile::write_composite_key_protected(

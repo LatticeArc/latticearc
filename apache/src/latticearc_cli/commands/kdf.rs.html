@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>    </span>Pbkdf2,
 <a href=#35 id=35 data-nosnippet>35</a>}
 <a href=#36 id=36 data-nosnippet>36</a>
-<a href=#37 id=37 data-nosnippet>37</a><span class="doccomment">/// PBKDF2 PRF choice. Round-26 audit fix (H14).
+<a href=#37 id=37 data-nosnippet>37</a><span class="doccomment">/// PBKDF2 PRF choice. audit fix (H14).
 <a href=#38 id=38 data-nosnippet>38</a></span><span class="attr">#[derive(Debug, Clone, Copy, ValueEnum)]
 <a href=#39 id=39 data-nosnippet>39</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>PbkdfPrf {
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="doccomment">/// HMAC-SHA256 (OWASP 2023 floor: 600,000 iterations).
@@ -86,7 +86,7 @@
 <a href=#86 id=86 data-nosnippet>86</a>    /// when the input is a secret (PBKDF2 password) and you don't
 <a href=#87 id=87 data-nosnippet>87</a>    /// want it in `ps` / shell history.
 <a href=#88 id=88 data-nosnippet>88</a>    ///
-<a href=#89 id=89 data-nosnippet>89</a>    /// **Behaviour change in 0.8.x**: prior to round-34 M3 this
+<a href=#89 id=89 data-nosnippet>89</a>    /// **Behaviour change in 0.8.x**: prior to this
 <a href=#90 id=90 data-nosnippet>90</a>    /// flag read only the first line via `read_line`; it now reads
 <a href=#91 id=91 data-nosnippet>91</a>    /// the whole stream up to 1 MiB. Multi-line piped input that
 <a href=#92 id=92 data-nosnippet>92</a>    /// silently produced a different KDF output before now produces
@@ -108,7 +108,7 @@
 <a href=#108 id=108 data-nosnippet>108</a>    /// Per-PRF floors: HMAC-SHA256 → 600,000; HMAC-SHA512 → 210,000.
 <a href=#109 id=109 data-nosnippet>109</a>    </span><span class="attr">#[arg(long, default_value = <span class="string">"600000"</span>)]
 <a href=#110 id=110 data-nosnippet>110</a>    </span><span class="kw">pub </span>iterations: u32,
-<a href=#111 id=111 data-nosnippet>111</a>    <span class="doccomment">/// PRF for PBKDF2 (default: hmac-sha256). Round-26 audit fix (H14).
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="doccomment">/// PRF for PBKDF2 (default: hmac-sha256). audit fix (H14).
 <a href=#112 id=112 data-nosnippet>112</a>    /// HMAC-SHA512 was reachable from the library API but unreachable
 <a href=#113 id=113 data-nosnippet>113</a>    /// from the CLI before this flag.
 <a href=#114 id=114 data-nosnippet>114</a>    </span><span class="attr">#[arg(long, value_enum, default_value = <span class="string">"hmac-sha256"</span>)]
@@ -230,210 +230,208 @@
 <a href=#230 id=230 data-nosnippet>230</a>///   take precedence over a stale env var that may have leaked in from
 <a href=#231 id=231 data-nosnippet>231</a>///   a parent shell. Otherwise `LATTICEARC_KDF_INPUT=foo
 <a href=#232 id=232 data-nosnippet>232</a>///   latticearc-cli kdf --input bar …` would silently use `foo`.
-<a href=#233 id=233 data-nosnippet>233</a>///
-<a href=#234 id=234 data-nosnippet>234</a>/// Round-8 audit fix #7 requires this justification be inline.
-<a href=#235 id=235 data-nosnippet>235</a></span><span class="kw">fn </span>resolve_input(args: <span class="kw-2">&amp;</span>KdfArgs) -&gt; <span class="prelude-ty">Result</span>&lt;zeroize::Zeroizing&lt;String&gt;&gt; {
-<a href=#236 id=236 data-nosnippet>236</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = args.input.as_deref() {
-<a href=#237 id=237 data-nosnippet>237</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(zeroize::Zeroizing::new(s.to_string()));
-<a href=#238 id=238 data-nosnippet>238</a>    }
-<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">if </span>args.input_stdin {
-<a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">use </span>std::io::Read;
-<a href=#241 id=241 data-nosnippet>241</a>        <span class="comment">// Cap the read at 1 MiB. `read_line` is unbounded by default —
-<a href=#242 id=242 data-nosnippet>242</a>        // piping `/dev/urandom` would OOM the process. Other CLI input
-<a href=#243 id=243 data-nosnippet>243</a>        // paths route through `read_file_with_cap` /
-<a href=#244 id=244 data-nosnippet>244</a>        // `read_stdin_with_limit`; mirror that discipline here.
-<a href=#245 id=245 data-nosnippet>245</a>        </span><span class="kw">const </span>KDF_INPUT_MAX: u64 = <span class="number">1024 </span>* <span class="number">1024</span>;
-<a href=#246 id=246 data-nosnippet>246</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf_bytes = Vec::new();
-<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span><span class="kw-2">mut </span>limited = std::io::stdin().take(KDF_INPUT_MAX.saturating_add(<span class="number">1</span>));
-<a href=#248 id=248 data-nosnippet>248</a>        limited.read_to_end(<span class="kw-2">&amp;mut </span>buf_bytes).context(<span class="string">"Failed to read --input-stdin"</span>)<span class="question-mark">?</span>;
-<a href=#249 id=249 data-nosnippet>249</a>        <span class="kw">if </span>buf_bytes.len() <span class="kw">as </span>u64 &gt; KDF_INPUT_MAX {
-<a href=#250 id=250 data-nosnippet>250</a>            <span class="macro">bail!</span>(
-<a href=#251 id=251 data-nosnippet>251</a>                <span class="string">"--input-stdin exceeded {} bytes; refusing to derive a KDF input from an unbounded stream"</span>,
-<a href=#252 id=252 data-nosnippet>252</a>                KDF_INPUT_MAX
-<a href=#253 id=253 data-nosnippet>253</a>            );
-<a href=#254 id=254 data-nosnippet>254</a>        }
-<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf =
-<a href=#256 id=256 data-nosnippet>256</a>            String::from_utf8(buf_bytes).context(<span class="string">"--input-stdin contains invalid UTF-8"</span>)<span class="question-mark">?</span>;
-<a href=#257 id=257 data-nosnippet>257</a>        <span class="comment">// Strip a single trailing newline (LF or CRLF) — common when
-<a href=#258 id=258 data-nosnippet>258</a>        // the user does `echo password | latticearc-cli kdf …`.
-<a href=#259 id=259 data-nosnippet>259</a>        </span><span class="kw">if </span>buf.ends_with(<span class="string">'\n'</span>) {
-<a href=#260 id=260 data-nosnippet>260</a>            buf.pop();
-<a href=#261 id=261 data-nosnippet>261</a>            <span class="kw">if </span>buf.ends_with(<span class="string">'\r'</span>) {
-<a href=#262 id=262 data-nosnippet>262</a>                buf.pop();
-<a href=#263 id=263 data-nosnippet>263</a>            }
-<a href=#264 id=264 data-nosnippet>264</a>        }
-<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">if </span>buf.is_empty() {
-<a href=#266 id=266 data-nosnippet>266</a>            <span class="macro">bail!</span>(<span class="string">"--input-stdin received an empty line"</span>);
-<a href=#267 id=267 data-nosnippet>267</a>        }
-<a href=#268 id=268 data-nosnippet>268</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(zeroize::Zeroizing::new(buf));
-<a href=#269 id=269 data-nosnippet>269</a>    }
-<a href=#270 id=270 data-nosnippet>270</a>    <span class="kw">if let </span><span class="prelude-val">Ok</span>(env_val) = std::env::var(<span class="string">"LATTICEARC_KDF_INPUT"</span>) {
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">if </span>env_val.is_empty() {
-<a href=#272 id=272 data-nosnippet>272</a>            <span class="macro">bail!</span>(<span class="string">"LATTICEARC_KDF_INPUT is set but empty"</span>);
-<a href=#273 id=273 data-nosnippet>273</a>        }
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="comment">// emit a TTY warning when the env-var
-<a href=#275 id=275 data-nosnippet>275</a>        // path is used. Env vars are visible via `/proc/&lt;pid&gt;/environ`
-<a href=#276 id=276 data-nosnippet>276</a>        // for any process the user can read (typically the same UID).
-<a href=#277 id=277 data-nosnippet>277</a>        // `keyfile.rs::resolve_passphrase` already warns for the
-<a href=#278 id=278 data-nosnippet>278</a>        // analogous LATTICEARC_PASSPHRASE; the kdf path was missing
-<a href=#279 id=279 data-nosnippet>279</a>        // the parallel warning.
-<a href=#280 id=280 data-nosnippet>280</a>        // Mirrors `keyfile.rs::resolve_passphrase`: emit a tracing
-<a href=#281 id=281 data-nosnippet>281</a>        // warning on EVERY env-var read (so audit pipelines that
-<a href=#282 id=282 data-nosnippet>282</a>        // scrape `warn` events see every use), and additionally
-<a href=#283 id=283 data-nosnippet>283</a>        // print to stderr on a TTY so an interactive operator gets
-<a href=#284 id=284 data-nosnippet>284</a>        // immediate visible feedback even with no tracing
-<a href=#285 id=285 data-nosnippet>285</a>        // subscriber wired up.
-<a href=#286 id=286 data-nosnippet>286</a>        </span><span class="kw">use </span>std::io::IsTerminal;
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span>is_tty = std::io::stdin().is_terminal();
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="kw">if </span>is_tty {
-<a href=#289 id=289 data-nosnippet>289</a>            <span class="macro">eprintln!</span>(
-<a href=#290 id=290 data-nosnippet>290</a>                <span class="string">"warning: reading KDF input from LATTICEARC_KDF_INPUT. \
-<a href=#291 id=291 data-nosnippet>291</a>                 Env vars are readable via /proc/&lt;pid&gt;/environ by processes \
-<a href=#292 id=292 data-nosnippet>292</a>                 owned by the same user. Prefer --input-stdin for genuinely \
-<a href=#293 id=293 data-nosnippet>293</a>                 secret input, and `unset LATTICEARC_KDF_INPUT` immediately \
-<a href=#294 id=294 data-nosnippet>294</a>                 after this invocation."
-<a href=#295 id=295 data-nosnippet>295</a>            </span>);
-<a href=#296 id=296 data-nosnippet>296</a>            <span class="macro">tracing::warn!</span>(
-<a href=#297 id=297 data-nosnippet>297</a>                tty = <span class="bool-val">true</span>,
-<a href=#298 id=298 data-nosnippet>298</a>                <span class="string">"LATTICEARC_KDF_INPUT used on interactive TTY (likely accidental)"
-<a href=#299 id=299 data-nosnippet>299</a>            </span>);
-<a href=#300 id=300 data-nosnippet>300</a>        } <span class="kw">else </span>{
-<a href=#301 id=301 data-nosnippet>301</a>            <span class="macro">tracing::warn!</span>(
-<a href=#302 id=302 data-nosnippet>302</a>                tty = <span class="bool-val">false</span>,
-<a href=#303 id=303 data-nosnippet>303</a>                <span class="string">"LATTICEARC_KDF_INPUT used non-interactively; ensure the \
-<a href=#304 id=304 data-nosnippet>304</a>                 wrapping script unsets it immediately after the command \
-<a href=#305 id=305 data-nosnippet>305</a>                 exits"
-<a href=#306 id=306 data-nosnippet>306</a>            </span>);
-<a href=#307 id=307 data-nosnippet>307</a>        }
-<a href=#308 id=308 data-nosnippet>308</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(zeroize::Zeroizing::new(env_val));
-<a href=#309 id=309 data-nosnippet>309</a>    }
-<a href=#310 id=310 data-nosnippet>310</a>    <span class="macro">bail!</span>(
-<a href=#311 id=311 data-nosnippet>311</a>        <span class="string">"kdf requires one of: --input &lt;value&gt;, --input-stdin, or \
-<a href=#312 id=312 data-nosnippet>312</a>         LATTICEARC_KDF_INPUT in the environment. For PBKDF2 passwords, \
-<a href=#313 id=313 data-nosnippet>313</a>         prefer --input-stdin so the password is not visible in `ps` / \
-<a href=#314 id=314 data-nosnippet>314</a>         `/proc/&lt;pid&gt;/cmdline` / shell history. Recommended pattern:\n\
+<a href=#233 id=233 data-nosnippet>233</a></span><span class="kw">fn </span>resolve_input(args: <span class="kw-2">&amp;</span>KdfArgs) -&gt; <span class="prelude-ty">Result</span>&lt;zeroize::Zeroizing&lt;String&gt;&gt; {
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = args.input.as_deref() {
+<a href=#235 id=235 data-nosnippet>235</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(zeroize::Zeroizing::new(s.to_string()));
+<a href=#236 id=236 data-nosnippet>236</a>    }
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">if </span>args.input_stdin {
+<a href=#238 id=238 data-nosnippet>238</a>        <span class="kw">use </span>std::io::Read;
+<a href=#239 id=239 data-nosnippet>239</a>        <span class="comment">// Cap the read at 1 MiB. `read_line` is unbounded by default —
+<a href=#240 id=240 data-nosnippet>240</a>        // piping `/dev/urandom` would OOM the process. Other CLI input
+<a href=#241 id=241 data-nosnippet>241</a>        // paths route through `read_file_with_cap` /
+<a href=#242 id=242 data-nosnippet>242</a>        // `read_stdin_with_limit`; mirror that discipline here.
+<a href=#243 id=243 data-nosnippet>243</a>        </span><span class="kw">const </span>KDF_INPUT_MAX: u64 = <span class="number">1024 </span>* <span class="number">1024</span>;
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf_bytes = Vec::new();
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">let </span><span class="kw-2">mut </span>limited = std::io::stdin().take(KDF_INPUT_MAX.saturating_add(<span class="number">1</span>));
+<a href=#246 id=246 data-nosnippet>246</a>        limited.read_to_end(<span class="kw-2">&amp;mut </span>buf_bytes).context(<span class="string">"Failed to read --input-stdin"</span>)<span class="question-mark">?</span>;
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">if </span>buf_bytes.len() <span class="kw">as </span>u64 &gt; KDF_INPUT_MAX {
+<a href=#248 id=248 data-nosnippet>248</a>            <span class="macro">bail!</span>(
+<a href=#249 id=249 data-nosnippet>249</a>                <span class="string">"--input-stdin exceeded {} bytes; refusing to derive a KDF input from an unbounded stream"</span>,
+<a href=#250 id=250 data-nosnippet>250</a>                KDF_INPUT_MAX
+<a href=#251 id=251 data-nosnippet>251</a>            );
+<a href=#252 id=252 data-nosnippet>252</a>        }
+<a href=#253 id=253 data-nosnippet>253</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf =
+<a href=#254 id=254 data-nosnippet>254</a>            String::from_utf8(buf_bytes).context(<span class="string">"--input-stdin contains invalid UTF-8"</span>)<span class="question-mark">?</span>;
+<a href=#255 id=255 data-nosnippet>255</a>        <span class="comment">// Strip a single trailing newline (LF or CRLF) — common when
+<a href=#256 id=256 data-nosnippet>256</a>        // the user does `echo password | latticearc-cli kdf …`.
+<a href=#257 id=257 data-nosnippet>257</a>        </span><span class="kw">if </span>buf.ends_with(<span class="string">'\n'</span>) {
+<a href=#258 id=258 data-nosnippet>258</a>            buf.pop();
+<a href=#259 id=259 data-nosnippet>259</a>            <span class="kw">if </span>buf.ends_with(<span class="string">'\r'</span>) {
+<a href=#260 id=260 data-nosnippet>260</a>                buf.pop();
+<a href=#261 id=261 data-nosnippet>261</a>            }
+<a href=#262 id=262 data-nosnippet>262</a>        }
+<a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">if </span>buf.is_empty() {
+<a href=#264 id=264 data-nosnippet>264</a>            <span class="macro">bail!</span>(<span class="string">"--input-stdin received an empty line"</span>);
+<a href=#265 id=265 data-nosnippet>265</a>        }
+<a href=#266 id=266 data-nosnippet>266</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(zeroize::Zeroizing::new(buf));
+<a href=#267 id=267 data-nosnippet>267</a>    }
+<a href=#268 id=268 data-nosnippet>268</a>    <span class="kw">if let </span><span class="prelude-val">Ok</span>(env_val) = std::env::var(<span class="string">"LATTICEARC_KDF_INPUT"</span>) {
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="kw">if </span>env_val.is_empty() {
+<a href=#270 id=270 data-nosnippet>270</a>            <span class="macro">bail!</span>(<span class="string">"LATTICEARC_KDF_INPUT is set but empty"</span>);
+<a href=#271 id=271 data-nosnippet>271</a>        }
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="comment">// emit a TTY warning when the env-var
+<a href=#273 id=273 data-nosnippet>273</a>        // path is used. Env vars are visible via `/proc/&lt;pid&gt;/environ`
+<a href=#274 id=274 data-nosnippet>274</a>        // for any process the user can read (typically the same UID).
+<a href=#275 id=275 data-nosnippet>275</a>        // `keyfile.rs::resolve_passphrase` already warns for the
+<a href=#276 id=276 data-nosnippet>276</a>        // analogous LATTICEARC_PASSPHRASE; the kdf path was missing
+<a href=#277 id=277 data-nosnippet>277</a>        // the parallel warning.
+<a href=#278 id=278 data-nosnippet>278</a>        // Mirrors `keyfile.rs::resolve_passphrase`: emit a tracing
+<a href=#279 id=279 data-nosnippet>279</a>        // warning on EVERY env-var read (so audit pipelines that
+<a href=#280 id=280 data-nosnippet>280</a>        // scrape `warn` events see every use), and additionally
+<a href=#281 id=281 data-nosnippet>281</a>        // print to stderr on a TTY so an interactive operator gets
+<a href=#282 id=282 data-nosnippet>282</a>        // immediate visible feedback even with no tracing
+<a href=#283 id=283 data-nosnippet>283</a>        // subscriber wired up.
+<a href=#284 id=284 data-nosnippet>284</a>        </span><span class="kw">use </span>std::io::IsTerminal;
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="kw">let </span>is_tty = std::io::stdin().is_terminal();
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">if </span>is_tty {
+<a href=#287 id=287 data-nosnippet>287</a>            <span class="macro">eprintln!</span>(
+<a href=#288 id=288 data-nosnippet>288</a>                <span class="string">"warning: reading KDF input from LATTICEARC_KDF_INPUT. \
+<a href=#289 id=289 data-nosnippet>289</a>                 Env vars are readable via /proc/&lt;pid&gt;/environ by processes \
+<a href=#290 id=290 data-nosnippet>290</a>                 owned by the same user. Prefer --input-stdin for genuinely \
+<a href=#291 id=291 data-nosnippet>291</a>                 secret input, and `unset LATTICEARC_KDF_INPUT` immediately \
+<a href=#292 id=292 data-nosnippet>292</a>                 after this invocation."
+<a href=#293 id=293 data-nosnippet>293</a>            </span>);
+<a href=#294 id=294 data-nosnippet>294</a>            <span class="macro">tracing::warn!</span>(
+<a href=#295 id=295 data-nosnippet>295</a>                tty = <span class="bool-val">true</span>,
+<a href=#296 id=296 data-nosnippet>296</a>                <span class="string">"LATTICEARC_KDF_INPUT used on interactive TTY (likely accidental)"
+<a href=#297 id=297 data-nosnippet>297</a>            </span>);
+<a href=#298 id=298 data-nosnippet>298</a>        } <span class="kw">else </span>{
+<a href=#299 id=299 data-nosnippet>299</a>            <span class="macro">tracing::warn!</span>(
+<a href=#300 id=300 data-nosnippet>300</a>                tty = <span class="bool-val">false</span>,
+<a href=#301 id=301 data-nosnippet>301</a>                <span class="string">"LATTICEARC_KDF_INPUT used non-interactively; ensure the \
+<a href=#302 id=302 data-nosnippet>302</a>                 wrapping script unsets it immediately after the command \
+<a href=#303 id=303 data-nosnippet>303</a>                 exits"
+<a href=#304 id=304 data-nosnippet>304</a>            </span>);
+<a href=#305 id=305 data-nosnippet>305</a>        }
+<a href=#306 id=306 data-nosnippet>306</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(zeroize::Zeroizing::new(env_val));
+<a href=#307 id=307 data-nosnippet>307</a>    }
+<a href=#308 id=308 data-nosnippet>308</a>    <span class="macro">bail!</span>(
+<a href=#309 id=309 data-nosnippet>309</a>        <span class="string">"kdf requires one of: --input &lt;value&gt;, --input-stdin, or \
+<a href=#310 id=310 data-nosnippet>310</a>         LATTICEARC_KDF_INPUT in the environment. For PBKDF2 passwords, \
+<a href=#311 id=311 data-nosnippet>311</a>         prefer --input-stdin so the password is not visible in `ps` / \
+<a href=#312 id=312 data-nosnippet>312</a>         `/proc/&lt;pid&gt;/cmdline` / shell history. Recommended pattern:\n\
+<a href=#313 id=313 data-nosnippet>313</a>         \n\
+<a href=#314 id=314 data-nosnippet>314</a>            read -rs PASS &amp;&amp; printf '%s' \"$PASS\" | latticearc-cli kdf --input-stdin …\n\
 <a href=#315 id=315 data-nosnippet>315</a>         \n\
-<a href=#316 id=316 data-nosnippet>316</a>            read -rs PASS &amp;&amp; printf '%s' \"$PASS\" | latticearc-cli kdf --input-stdin …\n\
-<a href=#317 id=317 data-nosnippet>317</a>         \n\
-<a href=#318 id=318 data-nosnippet>318</a>         `read -rs` reads silently into a shell variable, and `printf '%s'` \
-<a href=#319 id=319 data-nosnippet>319</a>         pipes the value without writing it to the shell history."
-<a href=#320 id=320 data-nosnippet>320</a>    </span>)
-<a href=#321 id=321 data-nosnippet>321</a>}
-<a href=#322 id=322 data-nosnippet>322</a>
-<a href=#323 id=323 data-nosnippet>323</a><span class="doccomment">/// Upper bound on KDF output length applied by the CLI to both HKDF and
-<a href=#324 id=324 data-nosnippet>324</a>/// PBKDF2. Set to HKDF-SHA256's algorithmic maximum (255 × 32 = 8160
-<a href=#325 id=325 data-nosnippet>325</a>/// bytes) so the same constant is correct for both algorithms — PBKDF2
-<a href=#326 id=326 data-nosnippet>326</a>/// has no algorithmic ceiling but allowing arbitrary `--length` is a
-<a href=#327 id=327 data-nosnippet>327</a>/// trivial self-DoS (e.g. `--length 1073741824` allocates 1 GiB and
-<a href=#328 id=328 data-nosnippet>328</a>/// then runs 600k iterations per block).
-<a href=#329 id=329 data-nosnippet>329</a>///
-<a href=#330 id=330 data-nosnippet>330</a>/// previously this constant was 8192 and used
-<a href=#331 id=331 data-nosnippet>331</a>/// only by the PBKDF2 path; HKDF independently hardcoded 8160 in its
-<a href=#332 id=332 data-nosnippet>332</a>/// `bail!` check. The constants silently desynced. Both paths now
-<a href=#333 id=333 data-nosnippet>333</a>/// reference this single source of truth.
-<a href=#334 id=334 data-nosnippet>334</a></span><span class="kw">const </span>CLI_MAX_KDF_OUTPUT_LEN: usize = <span class="number">8160</span>;
-<a href=#335 id=335 data-nosnippet>335</a>
-<a href=#336 id=336 data-nosnippet>336</a><span class="kw">fn </span>derive_hkdf_with_input(
-<a href=#337 id=337 data-nosnippet>337</a>    args: <span class="kw-2">&amp;</span>KdfArgs,
-<a href=#338 id=338 data-nosnippet>338</a>    salt: <span class="kw-2">&amp;</span>[u8],
-<a href=#339 id=339 data-nosnippet>339</a>    input: <span class="kw-2">&amp;</span>str,
-<a href=#340 id=340 data-nosnippet>340</a>) -&gt; <span class="prelude-ty">Result</span>&lt;zeroize::Zeroizing&lt;Vec&lt;u8&gt;&gt;&gt; {
-<a href=#341 id=341 data-nosnippet>341</a>    <span class="kw">let </span>ikm =
-<a href=#342 id=342 data-nosnippet>342</a>        zeroize::Zeroizing::new(hex::decode(input).context(<span class="string">"Invalid hex in --input for HKDF"</span>)<span class="question-mark">?</span>);
-<a href=#343 id=343 data-nosnippet>343</a>    <span class="kw">let </span>info = args.info.as_deref().unwrap_or(<span class="string">""</span>);
-<a href=#344 id=344 data-nosnippet>344</a>
-<a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">if </span>args.length == <span class="number">0 </span>|| args.length &gt; CLI_MAX_KDF_OUTPUT_LEN {
-<a href=#346 id=346 data-nosnippet>346</a>        <span class="macro">bail!</span>(<span class="string">"Output length must be 1..={CLI_MAX_KDF_OUTPUT_LEN} bytes"</span>);
-<a href=#347 id=347 data-nosnippet>347</a>    }
-<a href=#348 id=348 data-nosnippet>348</a>
-<a href=#349 id=349 data-nosnippet>349</a>    <span class="kw">let </span>derived = latticearc::derive_key_with_info(
-<a href=#350 id=350 data-nosnippet>350</a>        <span class="kw-2">&amp;</span>ikm,
-<a href=#351 id=351 data-nosnippet>351</a>        salt,
-<a href=#352 id=352 data-nosnippet>352</a>        args.length,
-<a href=#353 id=353 data-nosnippet>353</a>        info.as_bytes(),
-<a href=#354 id=354 data-nosnippet>354</a>        latticearc::SecurityMode::Unverified,
-<a href=#355 id=355 data-nosnippet>355</a>    )
-<a href=#356 id=356 data-nosnippet>356</a>    .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"HKDF derivation failed: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#357 id=357 data-nosnippet>357</a>    <span class="comment">// `derive_key_with_info` now returns Zeroizing&lt;Vec&lt;u8&gt;&gt; directly.
-<a href=#358 id=358 data-nosnippet>358</a>    </span><span class="prelude-val">Ok</span>(derived)
-<a href=#359 id=359 data-nosnippet>359</a>}
-<a href=#360 id=360 data-nosnippet>360</a>
-<a href=#361 id=361 data-nosnippet>361</a><span class="comment">// the previous hardcoded
-<a href=#362 id=362 data-nosnippet>362</a>// `OWASP_PBKDF2_MIN_ITERATIONS = 600_000` was the floor for HMAC-SHA256
-<a href=#363 id=363 data-nosnippet>363</a>// only, regardless of the PRF actually selected. The CLI now looks up
-<a href=#364 id=364 data-nosnippet>364</a>// the per-PRF floor via `PbkdfPrf::min_iterations()` so HMAC-SHA512
-<a href=#365 id=365 data-nosnippet>365</a>// callers get the correct 210,000 floor.
-<a href=#366 id=366 data-nosnippet>366</a>
-<a href=#367 id=367 data-nosnippet>367</a></span><span class="kw">fn </span>derive_pbkdf2_with_input(
-<a href=#368 id=368 data-nosnippet>368</a>    args: <span class="kw-2">&amp;</span>KdfArgs,
-<a href=#369 id=369 data-nosnippet>369</a>    salt: <span class="kw-2">&amp;</span>[u8],
-<a href=#370 id=370 data-nosnippet>370</a>    input: <span class="kw-2">&amp;</span>str,
-<a href=#371 id=371 data-nosnippet>371</a>) -&gt; <span class="prelude-ty">Result</span>&lt;zeroize::Zeroizing&lt;Vec&lt;u8&gt;&gt;&gt; {
-<a href=#372 id=372 data-nosnippet>372</a>    <span class="kw">let </span>password = zeroize::Zeroizing::new(input.as_bytes().to_vec());
-<a href=#373 id=373 data-nosnippet>373</a>
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="kw">if </span>args.length == <span class="number">0 </span>|| args.length &gt; CLI_MAX_KDF_OUTPUT_LEN {
-<a href=#375 id=375 data-nosnippet>375</a>        <span class="macro">bail!</span>(
-<a href=#376 id=376 data-nosnippet>376</a>            <span class="string">"Output length must be 1..={CLI_MAX_KDF_OUTPUT_LEN} bytes (PBKDF2 has no \
-<a href=#377 id=377 data-nosnippet>377</a>             algorithmic ceiling but the CLI caps to prevent self-DoS)."
-<a href=#378 id=378 data-nosnippet>378</a>        </span>);
-<a href=#379 id=379 data-nosnippet>379</a>    }
-<a href=#380 id=380 data-nosnippet>380</a>
-<a href=#381 id=381 data-nosnippet>381</a>    <span class="kw">let </span>owasp_min = args.prf.min_iterations();
-<a href=#382 id=382 data-nosnippet>382</a>    <span class="kw">if </span>args.iterations &lt; owasp_min &amp;&amp; !args.allow_weak_iterations {
-<a href=#383 id=383 data-nosnippet>383</a>        <span class="macro">bail!</span>(
-<a href=#384 id=384 data-nosnippet>384</a>            <span class="string">"PBKDF2 iteration count {iters} is below the OWASP 2023 minimum of {min} \
-<a href=#385 id=385 data-nosnippet>385</a>             for the selected PRF ({prf:?}). Pass --allow-weak-iterations to bypass \
-<a href=#386 id=386 data-nosnippet>386</a>             (KAT replay only — not for production)."</span>,
-<a href=#387 id=387 data-nosnippet>387</a>            iters = args.iterations,
-<a href=#388 id=388 data-nosnippet>388</a>            min = owasp_min,
-<a href=#389 id=389 data-nosnippet>389</a>            prf = args.prf,
-<a href=#390 id=390 data-nosnippet>390</a>        );
-<a href=#391 id=391 data-nosnippet>391</a>    }
-<a href=#392 id=392 data-nosnippet>392</a>    <span class="kw">if </span>args.iterations &lt; owasp_min {
-<a href=#393 id=393 data-nosnippet>393</a>        <span class="comment">// emit BOTH eprintln! (so an interactive operator
-<a href=#394 id=394 data-nosnippet>394</a>        // sees the warning even with no tracing subscriber configured)
-<a href=#395 id=395 data-nosnippet>395</a>        // AND tracing::warn! (so audit-log pipelines that scrape `warn`
-<a href=#396 id=396 data-nosnippet>396</a>        // events from JSON-formatted tracing output capture it). Stderr
-<a href=#397 id=397 data-nosnippet>397</a>        // alone is lost when the CLI is invoked from a script that
-<a href=#398 id=398 data-nosnippet>398</a>        // redirects 2&gt;/dev/null; tracing alone is silent on a default
-<a href=#399 id=399 data-nosnippet>399</a>        // CLI install with no subscriber. Both is the safe default.
-<a href=#400 id=400 data-nosnippet>400</a>        </span><span class="macro">eprintln!</span>(
-<a href=#401 id=401 data-nosnippet>401</a>            <span class="string">"warning: PBKDF2 iteration count {iters} is below the OWASP 2023 \
-<a href=#402 id=402 data-nosnippet>402</a>             minimum ({min}) for {prf:?}; --allow-weak-iterations was passed."</span>,
-<a href=#403 id=403 data-nosnippet>403</a>            iters = args.iterations,
-<a href=#404 id=404 data-nosnippet>404</a>            min = owasp_min,
-<a href=#405 id=405 data-nosnippet>405</a>            prf = args.prf,
-<a href=#406 id=406 data-nosnippet>406</a>        );
-<a href=#407 id=407 data-nosnippet>407</a>        <span class="macro">tracing::warn!</span>(
-<a href=#408 id=408 data-nosnippet>408</a>            iterations = args.iterations,
-<a href=#409 id=409 data-nosnippet>409</a>            owasp_minimum = owasp_min,
-<a href=#410 id=410 data-nosnippet>410</a>            prf = <span class="question-mark">?</span>args.prf,
-<a href=#411 id=411 data-nosnippet>411</a>            <span class="string">"PBKDF2 iteration count below OWASP 2023 minimum; --allow-weak-iterations bypassed"
-<a href=#412 id=412 data-nosnippet>412</a>        </span>);
-<a href=#413 id=413 data-nosnippet>413</a>    }
-<a href=#414 id=414 data-nosnippet>414</a>
-<a href=#415 id=415 data-nosnippet>415</a>    <span class="kw">let </span>params = latticearc::primitives::kdf::Pbkdf2Params::with_salt(salt)
-<a href=#416 id=416 data-nosnippet>416</a>        .iterations(args.iterations)
-<a href=#417 id=417 data-nosnippet>417</a>        .key_length(args.length)
-<a href=#418 id=418 data-nosnippet>418</a>        .prf(args.prf.to_lib());
-<a href=#419 id=419 data-nosnippet>419</a>
-<a href=#420 id=420 data-nosnippet>420</a>    <span class="comment">// The library `pbkdf2()` rejects iteration counts below the per-PRF
-<a href=#421 id=421 data-nosnippet>421</a>    // OWASP 2023 floor (600 k for HMAC-SHA256, 210 k for HMAC-SHA512)
-<a href=#422 id=422 data-nosnippet>422</a>    // — that's the right policy for typical callers. The CLI's
-<a href=#423 id=423 data-nosnippet>423</a>    // `--allow-weak-iterations` flag exists specifically for KAT
-<a href=#424 id=424 data-nosnippet>424</a>    // replay, where lower counts are required to match published test
-<a href=#425 id=425 data-nosnippet>425</a>    // vectors (RFC 6070 uses iterations as low as 1). When the flag
-<a href=#426 id=426 data-nosnippet>426</a>    // is set, we route through `pbkdf2_kat` so the legitimate KAT
-<a href=#427 id=427 data-nosnippet>427</a>    // path actually works; the operator already saw the
-<a href=#428 id=428 data-nosnippet>428</a>    // "KAT replay only — not for production" warning above.
-<a href=#429 id=429 data-nosnippet>429</a>    </span><span class="kw">let </span>result = <span class="kw">if </span>args.allow_weak_iterations &amp;&amp; args.iterations &lt; owasp_min {
-<a href=#430 id=430 data-nosnippet>430</a>        latticearc::primitives::kdf::pbkdf2_kat(<span class="kw-2">&amp;</span>password, <span class="kw-2">&amp;</span>params)
-<a href=#431 id=431 data-nosnippet>431</a>            .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"PBKDF2 derivation failed: {e}"</span>))<span class="question-mark">?
-<a href=#432 id=432 data-nosnippet>432</a>    </span>} <span class="kw">else </span>{
-<a href=#433 id=433 data-nosnippet>433</a>        latticearc::primitives::kdf::pbkdf2(<span class="kw-2">&amp;</span>password, <span class="kw-2">&amp;</span>params)
-<a href=#434 id=434 data-nosnippet>434</a>            .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"PBKDF2 derivation failed: {e}"</span>))<span class="question-mark">?
-<a href=#435 id=435 data-nosnippet>435</a>    </span>};
-<a href=#436 id=436 data-nosnippet>436</a>
-<a href=#437 id=437 data-nosnippet>437</a>    <span class="prelude-val">Ok</span>(zeroize::Zeroizing::new(result.expose_secret().to_vec()))
-<a href=#438 id=438 data-nosnippet>438</a>}
+<a href=#316 id=316 data-nosnippet>316</a>         `read -rs` reads silently into a shell variable, and `printf '%s'` \
+<a href=#317 id=317 data-nosnippet>317</a>         pipes the value without writing it to the shell history."
+<a href=#318 id=318 data-nosnippet>318</a>    </span>)
+<a href=#319 id=319 data-nosnippet>319</a>}
+<a href=#320 id=320 data-nosnippet>320</a>
+<a href=#321 id=321 data-nosnippet>321</a><span class="doccomment">/// Upper bound on KDF output length applied by the CLI to both HKDF and
+<a href=#322 id=322 data-nosnippet>322</a>/// PBKDF2. Set to HKDF-SHA256's algorithmic maximum (255 × 32 = 8160
+<a href=#323 id=323 data-nosnippet>323</a>/// bytes) so the same constant is correct for both algorithms — PBKDF2
+<a href=#324 id=324 data-nosnippet>324</a>/// has no algorithmic ceiling but allowing arbitrary `--length` is a
+<a href=#325 id=325 data-nosnippet>325</a>/// trivial self-DoS (e.g. `--length 1073741824` allocates 1 GiB and
+<a href=#326 id=326 data-nosnippet>326</a>/// then runs 600k iterations per block).
+<a href=#327 id=327 data-nosnippet>327</a>///
+<a href=#328 id=328 data-nosnippet>328</a>/// previously this constant was 8192 and used
+<a href=#329 id=329 data-nosnippet>329</a>/// only by the PBKDF2 path; HKDF independently hardcoded 8160 in its
+<a href=#330 id=330 data-nosnippet>330</a>/// `bail!` check. The constants silently desynced. Both paths now
+<a href=#331 id=331 data-nosnippet>331</a>/// reference this single source of truth.
+<a href=#332 id=332 data-nosnippet>332</a></span><span class="kw">const </span>CLI_MAX_KDF_OUTPUT_LEN: usize = <span class="number">8160</span>;
+<a href=#333 id=333 data-nosnippet>333</a>
+<a href=#334 id=334 data-nosnippet>334</a><span class="kw">fn </span>derive_hkdf_with_input(
+<a href=#335 id=335 data-nosnippet>335</a>    args: <span class="kw-2">&amp;</span>KdfArgs,
+<a href=#336 id=336 data-nosnippet>336</a>    salt: <span class="kw-2">&amp;</span>[u8],
+<a href=#337 id=337 data-nosnippet>337</a>    input: <span class="kw-2">&amp;</span>str,
+<a href=#338 id=338 data-nosnippet>338</a>) -&gt; <span class="prelude-ty">Result</span>&lt;zeroize::Zeroizing&lt;Vec&lt;u8&gt;&gt;&gt; {
+<a href=#339 id=339 data-nosnippet>339</a>    <span class="kw">let </span>ikm =
+<a href=#340 id=340 data-nosnippet>340</a>        zeroize::Zeroizing::new(hex::decode(input).context(<span class="string">"Invalid hex in --input for HKDF"</span>)<span class="question-mark">?</span>);
+<a href=#341 id=341 data-nosnippet>341</a>    <span class="kw">let </span>info = args.info.as_deref().unwrap_or(<span class="string">""</span>);
+<a href=#342 id=342 data-nosnippet>342</a>
+<a href=#343 id=343 data-nosnippet>343</a>    <span class="kw">if </span>args.length == <span class="number">0 </span>|| args.length &gt; CLI_MAX_KDF_OUTPUT_LEN {
+<a href=#344 id=344 data-nosnippet>344</a>        <span class="macro">bail!</span>(<span class="string">"Output length must be 1..={CLI_MAX_KDF_OUTPUT_LEN} bytes"</span>);
+<a href=#345 id=345 data-nosnippet>345</a>    }
+<a href=#346 id=346 data-nosnippet>346</a>
+<a href=#347 id=347 data-nosnippet>347</a>    <span class="kw">let </span>derived = latticearc::derive_key_with_info(
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw-2">&amp;</span>ikm,
+<a href=#349 id=349 data-nosnippet>349</a>        salt,
+<a href=#350 id=350 data-nosnippet>350</a>        args.length,
+<a href=#351 id=351 data-nosnippet>351</a>        info.as_bytes(),
+<a href=#352 id=352 data-nosnippet>352</a>        latticearc::SecurityMode::Unverified,
+<a href=#353 id=353 data-nosnippet>353</a>    )
+<a href=#354 id=354 data-nosnippet>354</a>    .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"HKDF derivation failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#355 id=355 data-nosnippet>355</a>    <span class="comment">// `derive_key_with_info` now returns Zeroizing&lt;Vec&lt;u8&gt;&gt; directly.
+<a href=#356 id=356 data-nosnippet>356</a>    </span><span class="prelude-val">Ok</span>(derived)
+<a href=#357 id=357 data-nosnippet>357</a>}
+<a href=#358 id=358 data-nosnippet>358</a>
+<a href=#359 id=359 data-nosnippet>359</a><span class="comment">// the previous hardcoded
+<a href=#360 id=360 data-nosnippet>360</a>// `OWASP_PBKDF2_MIN_ITERATIONS = 600_000` was the floor for HMAC-SHA256
+<a href=#361 id=361 data-nosnippet>361</a>// only, regardless of the PRF actually selected. The CLI now looks up
+<a href=#362 id=362 data-nosnippet>362</a>// the per-PRF floor via `PbkdfPrf::min_iterations()` so HMAC-SHA512
+<a href=#363 id=363 data-nosnippet>363</a>// callers get the correct 210,000 floor.
+<a href=#364 id=364 data-nosnippet>364</a>
+<a href=#365 id=365 data-nosnippet>365</a></span><span class="kw">fn </span>derive_pbkdf2_with_input(
+<a href=#366 id=366 data-nosnippet>366</a>    args: <span class="kw-2">&amp;</span>KdfArgs,
+<a href=#367 id=367 data-nosnippet>367</a>    salt: <span class="kw-2">&amp;</span>[u8],
+<a href=#368 id=368 data-nosnippet>368</a>    input: <span class="kw-2">&amp;</span>str,
+<a href=#369 id=369 data-nosnippet>369</a>) -&gt; <span class="prelude-ty">Result</span>&lt;zeroize::Zeroizing&lt;Vec&lt;u8&gt;&gt;&gt; {
+<a href=#370 id=370 data-nosnippet>370</a>    <span class="kw">let </span>password = zeroize::Zeroizing::new(input.as_bytes().to_vec());
+<a href=#371 id=371 data-nosnippet>371</a>
+<a href=#372 id=372 data-nosnippet>372</a>    <span class="kw">if </span>args.length == <span class="number">0 </span>|| args.length &gt; CLI_MAX_KDF_OUTPUT_LEN {
+<a href=#373 id=373 data-nosnippet>373</a>        <span class="macro">bail!</span>(
+<a href=#374 id=374 data-nosnippet>374</a>            <span class="string">"Output length must be 1..={CLI_MAX_KDF_OUTPUT_LEN} bytes (PBKDF2 has no \
+<a href=#375 id=375 data-nosnippet>375</a>             algorithmic ceiling but the CLI caps to prevent self-DoS)."
+<a href=#376 id=376 data-nosnippet>376</a>        </span>);
+<a href=#377 id=377 data-nosnippet>377</a>    }
+<a href=#378 id=378 data-nosnippet>378</a>
+<a href=#379 id=379 data-nosnippet>379</a>    <span class="kw">let </span>owasp_min = args.prf.min_iterations();
+<a href=#380 id=380 data-nosnippet>380</a>    <span class="kw">if </span>args.iterations &lt; owasp_min &amp;&amp; !args.allow_weak_iterations {
+<a href=#381 id=381 data-nosnippet>381</a>        <span class="macro">bail!</span>(
+<a href=#382 id=382 data-nosnippet>382</a>            <span class="string">"PBKDF2 iteration count {iters} is below the OWASP 2023 minimum of {min} \
+<a href=#383 id=383 data-nosnippet>383</a>             for the selected PRF ({prf:?}). Pass --allow-weak-iterations to bypass \
+<a href=#384 id=384 data-nosnippet>384</a>             (KAT replay only — not for production)."</span>,
+<a href=#385 id=385 data-nosnippet>385</a>            iters = args.iterations,
+<a href=#386 id=386 data-nosnippet>386</a>            min = owasp_min,
+<a href=#387 id=387 data-nosnippet>387</a>            prf = args.prf,
+<a href=#388 id=388 data-nosnippet>388</a>        );
+<a href=#389 id=389 data-nosnippet>389</a>    }
+<a href=#390 id=390 data-nosnippet>390</a>    <span class="kw">if </span>args.iterations &lt; owasp_min {
+<a href=#391 id=391 data-nosnippet>391</a>        <span class="comment">// emit BOTH eprintln! (so an interactive operator
+<a href=#392 id=392 data-nosnippet>392</a>        // sees the warning even with no tracing subscriber configured)
+<a href=#393 id=393 data-nosnippet>393</a>        // AND tracing::warn! (so audit-log pipelines that scrape `warn`
+<a href=#394 id=394 data-nosnippet>394</a>        // events from JSON-formatted tracing output capture it). Stderr
+<a href=#395 id=395 data-nosnippet>395</a>        // alone is lost when the CLI is invoked from a script that
+<a href=#396 id=396 data-nosnippet>396</a>        // redirects 2&gt;/dev/null; tracing alone is silent on a default
+<a href=#397 id=397 data-nosnippet>397</a>        // CLI install with no subscriber. Both is the safe default.
+<a href=#398 id=398 data-nosnippet>398</a>        </span><span class="macro">eprintln!</span>(
+<a href=#399 id=399 data-nosnippet>399</a>            <span class="string">"warning: PBKDF2 iteration count {iters} is below the OWASP 2023 \
+<a href=#400 id=400 data-nosnippet>400</a>             minimum ({min}) for {prf:?}; --allow-weak-iterations was passed."</span>,
+<a href=#401 id=401 data-nosnippet>401</a>            iters = args.iterations,
+<a href=#402 id=402 data-nosnippet>402</a>            min = owasp_min,
+<a href=#403 id=403 data-nosnippet>403</a>            prf = args.prf,
+<a href=#404 id=404 data-nosnippet>404</a>        );
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="macro">tracing::warn!</span>(
+<a href=#406 id=406 data-nosnippet>406</a>            iterations = args.iterations,
+<a href=#407 id=407 data-nosnippet>407</a>            owasp_minimum = owasp_min,
+<a href=#408 id=408 data-nosnippet>408</a>            prf = <span class="question-mark">?</span>args.prf,
+<a href=#409 id=409 data-nosnippet>409</a>            <span class="string">"PBKDF2 iteration count below OWASP 2023 minimum; --allow-weak-iterations bypassed"
+<a href=#410 id=410 data-nosnippet>410</a>        </span>);
+<a href=#411 id=411 data-nosnippet>411</a>    }
+<a href=#412 id=412 data-nosnippet>412</a>
+<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">let </span>params = latticearc::primitives::kdf::Pbkdf2Params::with_salt(salt)
+<a href=#414 id=414 data-nosnippet>414</a>        .iterations(args.iterations)
+<a href=#415 id=415 data-nosnippet>415</a>        .key_length(args.length)
+<a href=#416 id=416 data-nosnippet>416</a>        .prf(args.prf.to_lib());
+<a href=#417 id=417 data-nosnippet>417</a>
+<a href=#418 id=418 data-nosnippet>418</a>    <span class="comment">// The library `pbkdf2()` rejects iteration counts below the per-PRF
+<a href=#419 id=419 data-nosnippet>419</a>    // OWASP 2023 floor (600 k for HMAC-SHA256, 210 k for HMAC-SHA512)
+<a href=#420 id=420 data-nosnippet>420</a>    // — that's the right policy for typical callers. The CLI's
+<a href=#421 id=421 data-nosnippet>421</a>    // `--allow-weak-iterations` flag exists specifically for KAT
+<a href=#422 id=422 data-nosnippet>422</a>    // replay, where lower counts are required to match published test
+<a href=#423 id=423 data-nosnippet>423</a>    // vectors (RFC 6070 uses iterations as low as 1). When the flag
+<a href=#424 id=424 data-nosnippet>424</a>    // is set, we route through `pbkdf2_kat` so the legitimate KAT
+<a href=#425 id=425 data-nosnippet>425</a>    // path actually works; the operator already saw the
+<a href=#426 id=426 data-nosnippet>426</a>    // "KAT replay only — not for production" warning above.
+<a href=#427 id=427 data-nosnippet>427</a>    </span><span class="kw">let </span>result = <span class="kw">if </span>args.allow_weak_iterations &amp;&amp; args.iterations &lt; owasp_min {
+<a href=#428 id=428 data-nosnippet>428</a>        latticearc::primitives::kdf::pbkdf2_kat(<span class="kw-2">&amp;</span>password, <span class="kw-2">&amp;</span>params)
+<a href=#429 id=429 data-nosnippet>429</a>            .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"PBKDF2 derivation failed: {e}"</span>))<span class="question-mark">?
+<a href=#430 id=430 data-nosnippet>430</a>    </span>} <span class="kw">else </span>{
+<a href=#431 id=431 data-nosnippet>431</a>        latticearc::primitives::kdf::pbkdf2(<span class="kw-2">&amp;</span>password, <span class="kw-2">&amp;</span>params)
+<a href=#432 id=432 data-nosnippet>432</a>            .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"PBKDF2 derivation failed: {e}"</span>))<span class="question-mark">?
+<a href=#433 id=433 data-nosnippet>433</a>    </span>};
+<a href=#434 id=434 data-nosnippet>434</a>
+<a href=#435 id=435 data-nosnippet>435</a>    <span class="prelude-val">Ok</span>(zeroize::Zeroizing::new(result.expose_secret().to_vec()))
+<a href=#436 id=436 data-nosnippet>436</a>}
 </code></pre></div></section></main></body></html>

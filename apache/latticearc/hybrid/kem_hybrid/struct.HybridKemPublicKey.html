@@ -33,7 +33,7 @@ public key exceeds <code>u32::MAX</code> bytes (4 GiB). Real ML-KEM and
 X25519 public keys are bounded well below this limit, so the
 error path is unreachable in practice — but <code>?</code>-propagation
 matches the symmetric posture of <code>append_lenp_field</code> in
-<code>unified_api::audit</code> (post-round-21 audit fix L2).</p>
+<code>unified_api::audit</code>.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.from_bytes" class="method"><a class="src rightside" href="../../../src/latticearc/hybrid/kem_hybrid.rs.html#283-342">Source</a><h4 class="code-header">pub fn <a href="#method.from_bytes" class="fn">from_bytes</a>(bytes: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>]) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.93.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self, <a class="enum" href="enum.HybridKemError.html" title="enum latticearc::hybrid::kem_hybrid::HybridKemError">HybridKemError</a>&gt;</h4></section></summary><div class="docblock"><p>Parse a <code>HybridKemPublicKey</code> previously produced by [<code>to_bytes</code>].</p>
 <h5 id="errors-1"><a class="doc-anchor" href="#errors-1">§</a>Errors</h5>
 <p>Returns <code>HybridKemError::InvalidKeyMaterial</code> on any structural failure

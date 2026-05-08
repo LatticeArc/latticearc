@@ -53,7 +53,7 @@
 <a href=#53 id=53 data-nosnippet>53</a>// `SecretVec::zero(size)` directly at every call site — same semantics,
 <a href=#54 id=54 data-nosnippet>54</a>// no lock contention.
 <a href=#55 id=55 data-nosnippet>55</a>
-<a href=#56 id=56 data-nosnippet>56</a></span><span class="doccomment">/// Allocate a zeroed `SecretVec` of `size` bytes. Round-26 audit fix
+<a href=#56 id=56 data-nosnippet>56</a></span><span class="doccomment">/// Allocate a zeroed `SecretVec` of `size` bytes. audit fix
 <a href=#57 id=57 data-nosnippet>57</a>/// (M26): replaces the `MemoryPool::allocate` API. This is a thin
 <a href=#58 id=58 data-nosnippet>58</a>/// wrapper around `SecretVec::zero(size)` with the same per-call size
 <a href=#59 id=59 data-nosnippet>59</a>/// validation the pool used to enforce.
@@ -282,7 +282,7 @@
 <a href=#282 id=282 data-nosnippet>282</a>/// 1 MiB cap (rejects `usize::MAX` before it can OOM the allocator).
 <a href=#283 id=283 data-nosnippet>283</a>/// Returns an error if random generation fails.
 <a href=#284 id=284 data-nosnippet>284</a></span><span class="kw">pub fn </span>generate_secure_random_bytes(len: usize) -&gt; <span class="prelude-ty">Result</span>&lt;zeroize::Zeroizing&lt;Vec&lt;u8&gt;&gt;&gt; {
-<a href=#285 id=285 data-nosnippet>285</a>    <span class="comment">// Round-36 M6: cap matches `allocate_secure_buffer` so both
+<a href=#285 id=285 data-nosnippet>285</a>    <span class="comment">// M6: cap matches `allocate_secure_buffer` so both
 <a href=#286 id=286 data-nosnippet>286</a>    // sibling helpers refuse the same `usize::MAX → 18 EiB
 <a href=#287 id=287 data-nosnippet>287</a>    // allocation` foot-gun. Any legitimate caller stays well under
 <a href=#288 id=288 data-nosnippet>288</a>    // 1 MiB (typical sizes: 16-byte salts, 32-byte keys, 96-byte
@@ -380,7 +380,7 @@
 <a href=#380 id=380 data-nosnippet>380</a>        <span class="macro">assert!</span>(data.iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>));
 <a href=#381 id=381 data-nosnippet>381</a>    }
 <a href=#382 id=382 data-nosnippet>382</a>
-<a href=#383 id=383 data-nosnippet>383</a>    <span class="comment">// === allocate_secure_buffer tests (round-26 audit fix M26: replaces MemoryPool tests) ===
+<a href=#383 id=383 data-nosnippet>383</a>    <span class="comment">// === allocate_secure_buffer tests ===
 <a href=#384 id=384 data-nosnippet>384</a>
 <a href=#385 id=385 data-nosnippet>385</a>    </span><span class="attr">#[test]
 <a href=#386 id=386 data-nosnippet>386</a>    </span><span class="kw">fn </span>test_allocate_secure_buffer_basic_succeeds() {

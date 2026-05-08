@@ -74,9 +74,9 @@
 <a href=#74 id=74 data-nosnippet>74</a>    /// kept for ABI compatibility but no longer returned from
 <a href=#75 id=75 data-nosnippet>75</a>    /// `sign_with_rng()` — the cap-rejection now collapses to
 <a href=#76 id=76 data-nosnippet>76</a>    /// `SigningFailed` so the sign path matches Pattern 6 opacity
-<a href=#77 id=77 data-nosnippet>77</a>    /// (round-26 M1 closed the verify-side; this completes the sign-side
+<a href=#77 id=77 data-nosnippet>77</a>    /// (verify-side already collapsed; this completes sign-side
 <a href=#78 id=78 data-nosnippet>78</a>    /// symmetry). Will be removed in a future major bump.
-<a href=#79 id=79 data-nosnippet>79</a>    </span><span class="attr">#[deprecated(note = <span class="string">"Round-28 H7: sign() now returns SigningFailed for cap rejection; \
+<a href=#79 id=79 data-nosnippet>79</a>    </span><span class="attr">#[deprecated(note = <span class="string">"sign() now returns SigningFailed for cap rejection; \
 <a href=#80 id=80 data-nosnippet>80</a>                this variant is no longer reachable from production code."</span>)]
 <a href=#81 id=81 data-nosnippet>81</a>    #[error(<span class="string">"Message exceeds signature resource limit"</span>)]
 <a href=#82 id=82 data-nosnippet>82</a>    </span>MessageTooLong,
@@ -565,7 +565,7 @@
 <a href=#565 id=565 data-nosnippet>565</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Signature&gt; {
 <a href=#566 id=566 data-nosnippet>566</a>        <span class="comment">// collapse the resource-cap rejection to
 <a href=#567 id=567 data-nosnippet>567</a>        // the new `SigningFailed` variant. Cap probing was the same leak
-<a href=#568 id=568 data-nosnippet>568</a>        // round-26 M1 closed on the verify-side; this completes the
+<a href=#568 id=568 data-nosnippet>568</a>        // closed on the verify-side; this completes the
 <a href=#569 id=569 data-nosnippet>569</a>        // sign-side symmetry. Trace captures the actual cause for
 <a href=#570 id=570 data-nosnippet>570</a>        // operator diagnostics.
 <a href=#571 id=571 data-nosnippet>571</a>        </span><span class="kw">crate</span>::primitives::resource_limits::validate_signature_size(message.len()).map_err(
@@ -1116,7 +1116,7 @@
 <a href=#1116 id=1116 data-nosnippet>1116</a>    <span class="doccomment">/// The `MessageTooLong` variant must be triggerable through the
 <a href=#1117 id=1117 data-nosnippet>1117</a>    /// public sign path. Default global cap is
 <a href=#1118 id=1118 data-nosnippet>1118</a>    /// 64 KiB; pass 64 KiB + 1 to exceed it before the upstream
-<a href=#1119 id=1119 data-nosnippet>1119</a>    /// `fn-dsa` signer runs. Round-28 H7 collapsed the variant to the
+<a href=#1119 id=1119 data-nosnippet>1119</a>    /// `fn-dsa` signer runs. H7 collapsed the variant to the
 <a href=#1120 id=1120 data-nosnippet>1120</a>    /// opaque `SigningFailed`. FN-DSA uses a stack-heavy signer so the
 <a href=#1121 id=1121 data-nosnippet>1121</a>    /// test runs on a worker thread (matching the rest of this file).
 <a href=#1122 id=1122 data-nosnippet>1122</a>    </span><span class="attr">#[test]

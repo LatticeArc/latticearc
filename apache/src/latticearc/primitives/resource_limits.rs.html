@@ -14,7 +14,7 @@
 <a href=#14 id=14 data-nosnippet>14</a>//! | `max_encryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | One-shot AEAD path; stream beyond this size |
 <a href=#15 id=15 data-nosnippet>15</a>//! | `max_signature_size_bytes` | `64 KiB` (`64 * 1024`) | Pre-hash signature input cap |
 <a href=#16 id=16 data-nosnippet>16</a>//! | `max_decryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | Symmetric to encryption cap |
-<a href=#17 id=17 data-nosnippet>17</a>//! | `max_aad_size_bytes` | `1 MiB` (`1024 * 1024`) | AEAD additional-authenticated-data cap (round-26 audit fix H8) |
+<a href=#17 id=17 data-nosnippet>17</a>//! | `max_aad_size_bytes` | `1 MiB` (`1024 * 1024`) | AEAD additional-authenticated-data cap |
 <a href=#18 id=18 data-nosnippet>18</a>//!
 <a href=#19 id=19 data-nosnippet>19</a>//! Override at runtime via [`ResourceLimitsManager::with_limits`] /
 <a href=#20 id=20 data-nosnippet>20</a>//! [`ResourceLimitsManager::update_limits`]. The `100 MiB` AEAD cap is a
@@ -85,7 +85,7 @@
 <a href=#85 id=85 data-nosnippet>85</a>
 <a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// Creates a new `ResourceLimits` with all five fields specified
 <a href=#87 id=87 data-nosnippet>87</a>    /// explicitly. Use this when the caller cares about the AAD cap
-<a href=#88 id=88 data-nosnippet>88</a>    /// (round-26 audit fix H8); use [`Self::new`] when the default
+<a href=#88 id=88 data-nosnippet>88</a>    ///; use [`Self::new`] when the default
 <a href=#89 id=89 data-nosnippet>89</a>    /// 1 MiB AAD cap is acceptable.
 <a href=#90 id=90 data-nosnippet>90</a>    </span><span class="attr">#[must_use]
 <a href=#91 id=91 data-nosnippet>91</a>    </span><span class="kw">pub fn </span>with_aad_limit(
@@ -269,7 +269,7 @@
 <a href=#269 id=269 data-nosnippet>269</a>        </span>limit: usize,
 <a href=#270 id=270 data-nosnippet>270</a>    },
 <a href=#271 id=271 data-nosnippet>271</a>
-<a href=#272 id=272 data-nosnippet>272</a>    <span class="doccomment">/// AEAD AAD size exceeds configured limit. Round-26 audit fix (H8).
+<a href=#272 id=272 data-nosnippet>272</a>    <span class="doccomment">/// AEAD AAD size exceeds configured limit. audit fix (H8).
 <a href=#273 id=273 data-nosnippet>273</a>    </span><span class="attr">#[error(<span class="string">"AAD size limit exceeded: requested {requested}, limit {limit}"</span>)]
 <a href=#274 id=274 data-nosnippet>274</a>    </span>AadSizeLimitExceeded {
 <a href=#275 id=275 data-nosnippet>275</a>        <span class="doccomment">/// Size in bytes requested.
@@ -327,7 +327,7 @@
 <a href=#327 id=327 data-nosnippet>327</a>    get_global_resource_limits().validate_decryption_size(size)
 <a href=#328 id=328 data-nosnippet>328</a>}
 <a href=#329 id=329 data-nosnippet>329</a>
-<a href=#330 id=330 data-nosnippet>330</a><span class="doccomment">/// Validates AEAD AAD size against global resource limits. Round-26
+<a href=#330 id=330 data-nosnippet>330</a><span class="doccomment">/// Validates AEAD AAD size against global resource limits.
 <a href=#331 id=331 data-nosnippet>331</a>/// audit fix (H8): every AEAD encrypt/decrypt entrypoint must call this
 <a href=#332 id=332 data-nosnippet>332</a>/// before passing AAD to the underlying primitive.
 <a href=#333 id=333 data-nosnippet>333</a>///

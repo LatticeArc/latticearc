@@ -29,7 +29,7 @@ variant per security level still uses <code>max(variant sizes)</code> of stack
 <p>Returns <code>SlhDsaError::InvalidPublicKey</code> if the key length is
 incorrect or the key is malformed.</p>
 <h5 id="why-not-collapsed-to-verificationfailed"><a class="doc-anchor" href="#why-not-collapsed-to-verificationfailed">§</a>Why not collapsed to <code>VerificationFailed</code>?</h5>
-<p>Round-34 M6 collapsed the verify-side error variants for
+<p>M6 collapsed the verify-side error variants for
 Pattern-6 opacity, but kept this constructor returning
 <code>InvalidPublicKey</code>. Constructors run synchronously on caller-
 supplied bytes (key load, deserialize, CLI parse) — the
@@ -37,7 +37,7 @@ adversary in the verify-side threat model can’t reach
 <code>VerifyingKey::new</code>. Returning a structured error here helps
 CLI error messages and KAT-replay scripts distinguish “wrong
 length” from “valid key, bad signature.” Symmetric with
-<code>MlDsaPublicKey::new</code> (round-32 M2 reasoning).</p>
+<code>MlDsaPublicKey::new</code>.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.security_level" class="method"><a class="src rightside" href="../../../../src/latticearc/primitives/sig/slh_dsa.rs.html#281-283">Source</a><h4 class="code-header">pub fn <a href="#method.security_level" class="fn">security_level</a>(&amp;self) -&gt; <a class="enum" href="enum.SlhDsaSecurityLevel.html" title="enum latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel">SlhDsaSecurityLevel</a></h4></section></summary><div class="docblock"><p>Returns the security level</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.as_bytes" class="method"><a class="src rightside" href="../../../../src/latticearc/primitives/sig/slh_dsa.rs.html#287-289">Source</a><h4 class="code-header">pub fn <a href="#method.as_bytes" class="fn">as_bytes</a>(&amp;self) -&gt; &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>] <a href="#" class="tooltip" data-notable-ty="&amp;[u8]">ⓘ</a></h4></section></summary><div class="docblock"><p>Returns the verifying key as bytes</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.to_bytes" class="method"><a class="src rightside" href="../../../../src/latticearc/primitives/sig/slh_dsa.rs.html#293-295">Source</a><h4 class="code-header">pub fn <a href="#method.to_bytes" class="fn">to_bytes</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.93.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>&gt; <a href="#" class="tooltip" data-notable-ty="Vec&lt;u8&gt;">ⓘ</a></h4></section></summary><div class="docblock"><p>Serializes the verifying key to bytes</p>

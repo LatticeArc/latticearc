@@ -66,7 +66,7 @@
 <a href=#66 id=66 data-nosnippet>66</a>
 <a href=#67 id=67 data-nosnippet>67</a>        <span class="kw">let </span>keypair = <span class="self">Self </span>{ public_key, secret_key };
 <a href=#68 id=68 data-nosnippet>68</a>
-<a href=#69 id=69 data-nosnippet>69</a>        <span class="comment">// Pairwise Consistency Test (PCT). Round-26 audit fix (H9):
+<a href=#69 id=69 data-nosnippet>69</a>        <span class="comment">// Pairwise Consistency Test (PCT). audit fix (H9):
 <a href=#70 id=70 data-nosnippet>70</a>        // upstream PctError -&gt; opaque KeyGenerationError so that variant
 <a href=#71 id=71 data-nosnippet>71</a>        // wording from the `pct` module isn't relayed verbatim.
 <a href=#72 id=72 data-nosnippet>72</a>        </span><span class="kw">crate</span>::primitives::pct::pct_ed25519(<span class="kw-2">&amp;</span>keypair).map_err(|e| {
@@ -139,7 +139,7 @@
 <a href=#139 id=139 data-nosnippet>139</a>        <span class="comment">// bound message length before SHA-512
 <a href=#140 id=140 data-nosnippet>140</a>        // hashes the entire payload (RFC 8032 §5.1.7 inner hash). Without
 <a href=#141 id=141 data-nosnippet>141</a>        // this, an attacker forces unbounded hashing through any verify
-<a href=#142 id=142 data-nosnippet>142</a>        // entrypoint — same DoS shape round-24 closed for ML-DSA /
+<a href=#142 id=142 data-nosnippet>142</a>        // entrypoint — same DoS shape closed for ML-DSA /
 <a href=#143 id=143 data-nosnippet>143</a>        // SLH-DSA / FN-DSA.
 <a href=#144 id=144 data-nosnippet>144</a>        </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(message.len()) {
 <a href=#145 id=145 data-nosnippet>145</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"Ed25519 verify rejected: message exceeds resource limit"</span>);
@@ -208,7 +208,7 @@
 <a href=#208 id=208 data-nosnippet>208</a>    /// this type guarantees by construction); the only failure path is
 <a href=#209 id=209 data-nosnippet>209</a>    /// the resource-limit gate that bounds the message length to
 <a href=#210 id=210 data-nosnippet>210</a>    /// `max_signature_size_bytes` (default 64 KiB) before SHA-512
-<a href=#211 id=211 data-nosnippet>211</a>    /// hashes the payload (RFC 8032 §5.1.6). Round-26 audit fix (H4)
+<a href=#211 id=211 data-nosnippet>211</a>    /// hashes the payload (RFC 8032 §5.1.6). audit fix (H4)
 <a href=#212 id=212 data-nosnippet>212</a>    /// added this gate to close the unbounded-hash DoS that previously
 <a href=#213 id=213 data-nosnippet>213</a>    /// existed on the sign path.
 <a href=#214 id=214 data-nosnippet>214</a>    ///

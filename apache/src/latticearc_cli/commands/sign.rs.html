@@ -75,9 +75,9 @@
 <a href=#75 id=75 data-nosnippet>75</a>
 <a href=#76 id=76 data-nosnippet>76</a><span class="doccomment">/// Execute the sign command.
 <a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run(args: SignArgs) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#78 id=78 data-nosnippet>78</a>    <span class="comment">// Stdin mode (round-7 audit fix #10) — `--output` becomes
+<a href=#78 id=78 data-nosnippet>78</a>    <span class="comment">// Stdin mode — `--output` becomes
 <a href=#79 id=79 data-nosnippet>79</a>    // mandatory because we can't derive it from a non-existent
-<a href=#80 id=80 data-nosnippet>80</a>    // `&lt;input&gt;.sig.json`. Round-8 audit fix #13: shared helper.
+<a href=#80 id=80 data-nosnippet>80</a>    // `&lt;input&gt;.sig.json`. shared helper.
 <a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">if </span>args.input.is_none() &amp;&amp; args.output.is_none() {
 <a href=#82 id=82 data-nosnippet>82</a>        <span class="macro">bail!</span>(<span class="string">"--output is required when --input is omitted (stdin mode)"</span>);
 <a href=#83 id=83 data-nosnippet>83</a>    }
@@ -253,7 +253,7 @@
 <a href=#253 id=253 data-nosnippet>253</a>    };
 <a href=#254 id=254 data-nosnippet>254</a>
 <a href=#255 id=255 data-nosnippet>255</a>    <span class="comment">// Atomic write — sig files aren't secret but partial-file-at-rest
-<a href=#256 id=256 data-nosnippet>256</a>    // is still a script-corruption hazard (round-7 audit fix #18).
+<a href=#256 id=256 data-nosnippet>256</a>    // is still a script-corruption hazard.
 <a href=#257 id=257 data-nosnippet>257</a>    // only overwrite when --force is passed.
 <a href=#258 id=258 data-nosnippet>258</a>    // LINT-OK: public-write-signature (signatures are not secret)
 <a href=#259 id=259 data-nosnippet>259</a>    </span>latticearc::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())

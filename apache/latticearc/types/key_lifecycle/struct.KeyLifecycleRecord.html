@@ -58,7 +58,7 @@ are set in <a href="struct.KeyLifecycleRecord.html#method.new" title="associated
 is already in the list, or if the cap (<code>MAX_APPROVERS</code>) has
 been reached. Returns <code>false</code> on cap rejection so callers can
 surface a warning if needed — the <code>#[must_use]</code> here forces
-every caller to acknowledge the bool, since round-34 M8
+every caller to acknowledge the bool, since
 changed the return type from <code>()</code> precisely to expose this
 case and a caller that just <code>.;</code> it would silently lose the
 signal.</p>

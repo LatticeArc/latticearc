@@ -6,7 +6,7 @@
 applying the same <code>limit_bytes</code> cap to both sources.</p>
 <p>Centralises the duplicated <code>if let Some(path) = … else stdin</code>
 pattern that previously lived in encrypt / decrypt / sign / verify /
-hash. Round-8 audit fix #13.</p>
+hash.</p>
 <h2 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h2>
 <p>Returns the underlying I/O error or the size-cap rejection from
 [<code>enforce_input_size_limit</code>] / <a href="fn.read_stdin_with_limit.html" title="fn latticearc_cli::commands::common::read_stdin_with_limit"><code>read_stdin_with_limit</code></a>.</p>

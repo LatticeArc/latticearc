@@ -22,7 +22,7 @@ populate all three.</p>
 </div></details><h2 id="fields" class="fields section-header">Fields<a href="#fields" class="anchor">§</a></h2><span id="structfield.recipient_static_pk" class="structfield section-header"><a href="#structfield.recipient_static_pk" class="anchor field">§</a><code>recipient_static_pk: &amp;'a [<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>]</code></span><div class="docblock"><p>Recipient’s static X25519 public key (the classical leg of the
 hybrid PK).</p>
 </div><span id="structfield.recipient_ml_kem_pk" class="structfield section-header"><a href="#structfield.recipient_ml_kem_pk" class="anchor field">§</a><code>recipient_ml_kem_pk: &amp;'a [<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>]</code></span><div class="docblock"><p>Recipient’s static ML-KEM public key (the PQ leg of the hybrid
-PK). Round-26 audit fix (M4 / M19): bound here so the AEAD KDF
+PK). audit fix (M4 / M19): bound here so the AEAD KDF
 info channel-binds the FULL hybrid recipient identity, not just
 its X25519 half. The previous binding only bound X25519
 directly; the ML-KEM half was bound only transitively via the

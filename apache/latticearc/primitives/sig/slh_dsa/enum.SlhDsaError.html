@@ -11,7 +11,7 @@
 </div></details><h2 id="variants" class="variants section-header">Variants (Non-exhaustive)<a href="#variants" class="anchor">§</a></h2><details class="toggle non-exhaustive"><summary class="hideme"><span>This enum is marked as non-exhaustive</span></summary><div class="docblock">Non-exhaustive enums could have additional variants added in future. Therefore, when matching against variants of non-exhaustive enums, an extra wildcard arm must be added to account for any future variants.</div></details><div class="variants"><section id="variant.RngError" class="variant"><a href="#variant.RngError" class="anchor">§</a><h3 class="code-header">RngError</h3></section><div class="docblock"><p>Random number generation failed</p>
 </div><section id="variant.PctFailed" class="variant"><a href="#variant.PctFailed" class="anchor">§</a><h3 class="code-header">PctFailed</h3></section><div class="docblock"><p>Pairwise Consistency Test (FIPS 140-3 §9.2 / IG 10.3.A) failed.
 Distinct from <code>RngError</code> because PCT failure indicates a
-corrupted keypair, not transient entropy depletion. Round-20
+corrupted keypair, not transient entropy depletion.
 audit fix #12: a FIPS error-state monitor must be able to
 distinguish “retry with fresh entropy” from “discard this
 keypair, generate a new one, and investigate.”</p>
@@ -19,15 +19,15 @@ keypair, generate a new one, and investigate.”</p>
 </div><section id="variant.InvalidSecretKey" class="variant"><a href="#variant.InvalidSecretKey" class="anchor">§</a><h3 class="code-header">InvalidSecretKey</h3></section><div class="docblock"><p>Invalid secret key (malformed or corrupted)</p>
 </div><section id="variant.VerificationFailed" class="variant"><a href="#variant.VerificationFailed" class="anchor">§</a><h3 class="code-header">VerificationFailed</h3></section><div class="docblock"><p>Signature verification failed</p>
 </div><section id="variant.ContextTooLong" class="variant"><a href="#variant.ContextTooLong" class="anchor">§</a><h3 class="code-header">ContextTooLong</h3></section><div class="docblock"><p>Context string too long (max 255 bytes)</p>
-</div><section id="variant.MessageTooLong" class="variant"><a href="#variant.MessageTooLong" class="anchor">§</a><h3 class="code-header">MessageTooLong</h3></section><span class="item-info"><div class="stab deprecated"><span class="emoji">👎</span><span>Deprecated: Round-28 H7: sign() now returns SigningFailed for cap rejection; this variant is no longer reachable from production code.</span></div></span><div class="docblock"><p>Message length exceeds the configured resource limit.</p>
+</div><section id="variant.MessageTooLong" class="variant"><a href="#variant.MessageTooLong" class="anchor">§</a><h3 class="code-header">MessageTooLong</h3></section><span class="item-info"><div class="stab deprecated"><span class="emoji">👎</span><span>Deprecated: sign() now returns SigningFailed for cap rejection; this variant is no longer reachable from production code.</span></div></span><div class="docblock"><p>Message length exceeds the configured resource limit.</p>
 <p>SLH-DSA signing cost scales with message length; this guard prevents
 unbounded-message DoS when callers bypass the unified-api resource
 checks.</p>
 <p>kept for ABI compatibility but no longer returned from
 <code>sign()</code> — the cap-rejection now collapses to <code>SigningFailed</code> so
-the sign path matches Pattern 6 opacity (round-26 M1 closed the
-verify-side; this completes the sign-side symmetry). Will be
-removed in a future major bump alongside <code>DeserializationError</code>.</p>
+the sign path matches Pattern 6 opacity (verify-side already
+collapsed; this completes sign-side symmetry). Will be removed
+in a future major bump alongside <code>DeserializationError</code>.</p>
 </div><section id="variant.SigningFailed" class="variant"><a href="#variant.SigningFailed" class="anchor">§</a><h3 class="code-header">SigningFailed</h3></section><div class="docblock"><p>Signing failed for an internal reason (resource cap, upstream
 error, etc.). Opaque per Pattern 6 — the specific cause is
 preserved via <code>tracing::debug!</code> for operator diagnostics.</p>

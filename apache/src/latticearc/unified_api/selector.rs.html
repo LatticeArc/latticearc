@@ -20,7 +20,7 @@
 <a href=#20 id=20 data-nosnippet>20</a>/// branch in [`CryptoPolicyEngine::select_encryption_scheme`] would
 <a href=#21 id=21 data-nosnippet>21</a>/// have downgraded a caller-declared [`SecurityLevel::High`]
 <a href=#22 id=22 data-nosnippet>22</a>/// (ML-KEM-768) to ML-KEM-512 under [`PerformancePreference::Memory`].
-<a href=#23 id=23 data-nosnippet>23</a>/// Post-round-23 audit fix L3: that downgrade now **refuses** instead
+<a href=#23 id=23 data-nosnippet>23</a>/// that downgrade now **refuses** instead
 <a href=#24 id=24 data-nosnippet>24</a>/// of silently weakening the caller's contract.
 <a href=#25 id=25 data-nosnippet>25</a>///
 <a href=#26 id=26 data-nosnippet>26</a>/// **What actually happens at runtime**:
@@ -254,7 +254,7 @@
 <a href=#254 id=254 data-nosnippet>254</a>
 <a href=#255 id=255 data-nosnippet>255</a>        <span class="comment">// Data-aware adjustments when data is non-empty.
 <a href=#256 id=256 data-nosnippet>256</a>        //
-<a href=#257 id=257 data-nosnippet>257</a>        // Previous behavior (round-19 M8 partial fix): under
+<a href=#257 id=257 data-nosnippet>257</a>        // Previous behavior: under
 <a href=#258 id=258 data-nosnippet>258</a>        // `(Speed, Random)` or `(Memory, small)` and a caller-declared
 <a href=#259 id=259 data-nosnippet>259</a>        // `SecurityLevel::High` (NIST L3 / ML-KEM-768), the engine
 <a href=#260 id=260 data-nosnippet>260</a>        // would silently downgrade to ML-KEM-512 (NIST L1) and emit
