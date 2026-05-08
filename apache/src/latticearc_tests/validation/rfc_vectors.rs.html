@@ -672,7 +672,7 @@
 <a href=#672 id=672 data-nosnippet>672</a>            message: <span class="string">"shared secret mismatch"</span>.to_string(),
 <a href=#673 id=673 data-nosnippet>673</a>        };
 <a href=#674 id=674 data-nosnippet>674</a>
-<a href=#675 id=675 data-nosnippet>675</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, error);
+<a href=#675 id=675 data-nosnippet>675</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{error}"</span>);
 <a href=#676 id=676 data-nosnippet>676</a>        <span class="macro">assert!</span>(display.contains(<span class="string">"RFC 7748"</span>));
 <a href=#677 id=677 data-nosnippet>677</a>        <span class="macro">assert!</span>(display.contains(<span class="string">"X25519 DH"</span>));
 <a href=#678 id=678 data-nosnippet>678</a>        <span class="macro">assert!</span>(display.contains(<span class="string">"shared secret mismatch"</span>));
@@ -683,7 +683,7 @@
 <a href=#683 id=683 data-nosnippet>683</a>    </span><span class="kw">fn </span>test_rfc_test_error_display_hex_error_is_correct() {
 <a href=#684 id=684 data-nosnippet>684</a>        <span class="kw">let </span>error = RfcTestError::HexError(<span class="string">"odd length input"</span>.to_string());
 <a href=#685 id=685 data-nosnippet>685</a>
-<a href=#686 id=686 data-nosnippet>686</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, error);
+<a href=#686 id=686 data-nosnippet>686</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{error}"</span>);
 <a href=#687 id=687 data-nosnippet>687</a>        <span class="macro">assert!</span>(display.contains(<span class="string">"Hex decode error"</span>));
 <a href=#688 id=688 data-nosnippet>688</a>        <span class="macro">assert!</span>(display.contains(<span class="string">"odd length input"</span>));
 <a href=#689 id=689 data-nosnippet>689</a>    }

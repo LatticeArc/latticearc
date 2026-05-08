@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>    </span>Pbkdf2,
 <a href=#35 id=35 data-nosnippet>35</a>}
 <a href=#36 id=36 data-nosnippet>36</a>
-<a href=#37 id=37 data-nosnippet>37</a><span class="doccomment">/// PBKDF2 PRF choice. audit fix (H14).
+<a href=#37 id=37 data-nosnippet>37</a><span class="doccomment">/// PBKDF2 PRF choice.
 <a href=#38 id=38 data-nosnippet>38</a></span><span class="attr">#[derive(Debug, Clone, Copy, ValueEnum)]
 <a href=#39 id=39 data-nosnippet>39</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>PbkdfPrf {
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="doccomment">/// HMAC-SHA256 (OWASP 2023 floor: 600,000 iterations).
@@ -108,7 +108,7 @@
 <a href=#108 id=108 data-nosnippet>108</a>    /// Per-PRF floors: HMAC-SHA256 → 600,000; HMAC-SHA512 → 210,000.
 <a href=#109 id=109 data-nosnippet>109</a>    </span><span class="attr">#[arg(long, default_value = <span class="string">"600000"</span>)]
 <a href=#110 id=110 data-nosnippet>110</a>    </span><span class="kw">pub </span>iterations: u32,
-<a href=#111 id=111 data-nosnippet>111</a>    <span class="doccomment">/// PRF for PBKDF2 (default: hmac-sha256). audit fix (H14).
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="doccomment">/// PRF for PBKDF2 (default: hmac-sha256).
 <a href=#112 id=112 data-nosnippet>112</a>    /// HMAC-SHA512 was reachable from the library API but unreachable
 <a href=#113 id=113 data-nosnippet>113</a>    /// from the CLI before this flag.
 <a href=#114 id=114 data-nosnippet>114</a>    </span><span class="attr">#[arg(long, value_enum, default_value = <span class="string">"hmac-sha256"</span>)]

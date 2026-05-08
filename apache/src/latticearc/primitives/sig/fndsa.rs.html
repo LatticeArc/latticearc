@@ -392,7 +392,7 @@
 <a href=#392 id=392 data-nosnippet>392</a>        // failure on verify so a probing attacker cannot binary-search
 <a href=#393 id=393 data-nosnippet>393</a>        // the configured cap from the Result shape.
 <a href=#394 id=394 data-nosnippet>394</a>        </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="kw">crate</span>::primitives::resource_limits::validate_signature_size(message.len()) {
-<a href=#395 id=395 data-nosnippet>395</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"FN-DSA verify rejected: message exceeds resource limit"</span>);
+<a href=#395 id=395 data-nosnippet>395</a>            <span class="macro">tracing::debug!</span>(error = %e, msg_len = message.len(), <span class="string">"FN-DSA verify rejected: message exceeds resource limit"</span>);
 <a href=#396 id=396 data-nosnippet>396</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
 <a href=#397 id=397 data-nosnippet>397</a>        }
 <a href=#398 id=398 data-nosnippet>398</a>
@@ -570,7 +570,7 @@
 <a href=#570 id=570 data-nosnippet>570</a>        // operator diagnostics.
 <a href=#571 id=571 data-nosnippet>571</a>        </span><span class="kw">crate</span>::primitives::resource_limits::validate_signature_size(message.len()).map_err(
 <a href=#572 id=572 data-nosnippet>572</a>            |e| {
-<a href=#573 id=573 data-nosnippet>573</a>                <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"FN-DSA sign rejected: message exceeds resource limit"</span>);
+<a href=#573 id=573 data-nosnippet>573</a>                <span class="macro">tracing::debug!</span>(error = %e, msg_len = message.len(), <span class="string">"FN-DSA sign rejected: message exceeds resource limit"</span>);
 <a href=#574 id=574 data-nosnippet>574</a>                FnDsaError::SigningFailed
 <a href=#575 id=575 data-nosnippet>575</a>            },
 <a href=#576 id=576 data-nosnippet>576</a>        )<span class="question-mark">?</span>;

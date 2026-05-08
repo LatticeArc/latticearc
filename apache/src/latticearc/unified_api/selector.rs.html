@@ -20,8 +20,8 @@
 <a href=#20 id=20 data-nosnippet>20</a>/// branch in [`CryptoPolicyEngine::select_encryption_scheme`] would
 <a href=#21 id=21 data-nosnippet>21</a>/// have downgraded a caller-declared [`SecurityLevel::High`]
 <a href=#22 id=22 data-nosnippet>22</a>/// (ML-KEM-768) to ML-KEM-512 under [`PerformancePreference::Memory`].
-<a href=#23 id=23 data-nosnippet>23</a>/// that downgrade now **refuses** instead
-<a href=#24 id=24 data-nosnippet>24</a>/// of silently weakening the caller's contract.
+<a href=#23 id=23 data-nosnippet>23</a>/// That downgrade now **refuses** instead of silently weakening the
+<a href=#24 id=24 data-nosnippet>24</a>/// caller's contract.
 <a href=#25 id=25 data-nosnippet>25</a>///
 <a href=#26 id=26 data-nosnippet>26</a>/// **What actually happens at runtime**:
 <a href=#27 id=27 data-nosnippet>27</a>///
@@ -1073,7 +1073,7 @@
 <a href=#1073 id=1073 data-nosnippet>1073</a>
 <a href=#1074 id=1074 data-nosnippet>1074</a>    <span class="attr">#[test]
 <a href=#1075 id=1075 data-nosnippet>1075</a>    </span><span class="kw">fn </span>test_data_aware_random_data_speed_high_refuses_silent_downgrade() {
-<a href=#1076 id=1076 data-nosnippet>1076</a>        <span class="comment">// Post-85e2bd79e L3 audit fix: caller-declared `SecurityLevel::High`
+<a href=#1076 id=1076 data-nosnippet>1076</a>        <span class="comment">// Post-85e2bd79e L3 caller-declared `SecurityLevel::High`
 <a href=#1077 id=1077 data-nosnippet>1077</a>        // (ML-KEM-768 / NIST L3) under `(Speed, Random)` MUST refuse rather
 <a href=#1078 id=1078 data-nosnippet>1078</a>        // than silently downgrade to ML-KEM-512 (NIST L1). Previously this
 <a href=#1079 id=1079 data-nosnippet>1079</a>        // returned `Ok(HYBRID_ENCRYPTION_512)` with a `tracing::warn!`,
@@ -1459,7 +1459,7 @@
 <a href=#1459 id=1459 data-nosnippet>1459</a>    </span><span class="kw">fn </span>test_performance_preference_influences_adaptive_selection_succeeds() {
 <a href=#1460 id=1460 data-nosnippet>1460</a>        <span class="comment">// adaptive_selection uses performance_preference to choose between
 <a href=#1461 id=1461 data-nosnippet>1461</a>        // schemes when performance metrics cross thresholds. Post-L3
-<a href=#1462 id=1462 data-nosnippet>1462</a>        // audit fix: caller-declared High + Speed + Repetitive +
+<a href=#1462 id=1462 data-nosnippet>1462</a>        // caller-declared High + Speed + Repetitive +
 <a href=#1463 id=1463 data-nosnippet>1463</a>        // slow-encryption now REFUSES (was: silent downgrade to L1).
 <a href=#1464 id=1464 data-nosnippet>1464</a>        // We still prove influence by comparing Result variants:
 <a href=#1465 id=1465 data-nosnippet>1465</a>        // Speed → Err, Memory → Ok (memory branch passes through to

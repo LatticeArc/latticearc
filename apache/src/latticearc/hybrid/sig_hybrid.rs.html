@@ -263,7 +263,7 @@
 <a href=#263 id=263 data-nosnippet>263</a>/// // Generate keypair
 <a href=#264 id=264 data-nosnippet>264</a>/// let (pk, sk) = generate_keypair().expect("keypair generation failed");
 <a href=#265 id=265 data-nosnippet>265</a>///
-<a href=#266 id=266 data-nosnippet>266</a>/// // ... use sk for cryptographic operations ...
+<a href=#266 id=266 data-nosnippet>266</a>/// //.. use sk for cryptographic operations..
 <a href=#267 id=267 data-nosnippet>267</a>///
 <a href=#268 id=268 data-nosnippet>268</a>/// // Drop secret key - automatically zeroized
 <a href=#269 id=269 data-nosnippet>269</a>/// drop(sk);  // Secret material automatically zeroized
@@ -530,7 +530,7 @@
 <a href=#530 id=530 data-nosnippet>530</a>    //
 <a href=#531 id=531 data-nosnippet>531</a>    // the prior attempt at this
 <a href=#532 id=532 data-nosnippet>532</a>    // wrapped the clone in `Zeroizing&lt;Vec&lt;u8&gt;&gt;` but then immediately
-<a href=#533 id=533 data-nosnippet>533</a>    // re-cloned to pass into `MlDsaSecretKey::new(... Vec&lt;u8&gt;)`,
+<a href=#533 id=533 data-nosnippet>533</a>    // re-cloned to pass into `MlDsaSecretKey::new(.. Vec&lt;u8&gt;)`,
 <a href=#534 id=534 data-nosnippet>534</a>    // creating a second bare copy that would leak on the `new()` error
 <a href=#535 id=535 data-nosnippet>535</a>    // path. The proper fix is structural: `MlDsaSecretKey::new()` now
 <a href=#536 id=536 data-nosnippet>536</a>    // wraps its `Vec&lt;u8&gt;` argument in `Zeroizing` on entry, so a single
@@ -636,7 +636,7 @@
 <a href=#636 id=636 data-nosnippet>636</a>    //
 <a href=#637 id=637 data-nosnippet>637</a>    // When parse fails on the substituted bytes, we DO still run a
 <a href=#638 id=638 data-nosnippet>638</a>    // real verify against the equalizer's pre-parsed valid material
-<a href=#639 id=639 data-nosnippet>639</a>    // (`dummy.parsed`, post-85e2bd79e M1 audit fix). This guarantees
+<a href=#639 id=639 data-nosnippet>639</a>    // (`dummy.parsed`, post-85e2bd79e M1). This guarantees
 <a href=#640 id=640 data-nosnippet>640</a>    // verify-pipeline execution regardless of whether `from_bytes`
 <a href=#641 id=641 data-nosnippet>641</a>    // adds content validation downstream. The pre-parsed PK + sig
 <a href=#642 id=642 data-nosnippet>642</a>    // verify against an internal test message — content-dependent
@@ -655,8 +655,8 @@
 <a href=#655 id=655 data-nosnippet>655</a>                .map(|parsed_sig| (parsed_pk, parsed_sig))
 <a href=#656 id=656 data-nosnippet>656</a>        });
 <a href=#657 id=657 data-nosnippet>657</a>    <span class="comment">// the previous shape was
-<a href=#658 id=658 data-nosnippet>658</a>    //   `Ok(parsed) =&gt; parsed.verify(...)`,
-<a href=#659 id=659 data-nosnippet>659</a>    //   `Err(_) =&gt; dummy.verify(...)`.
+<a href=#658 id=658 data-nosnippet>658</a>    //   `Ok(parsed) =&gt; parsed.verify(..)`,
+<a href=#659 id=659 data-nosnippet>659</a>    //   `Err(_) =&gt; dummy.verify(..)`.
 <a href=#660 id=660 data-nosnippet>660</a>    // But `MlDsaPublicKey::verify` internally calls
 <a href=#661 id=661 data-nosnippet>661</a>    // `ml_dsa_NN::PublicKey::try_from_bytes`, which short-circuits with
 <a href=#662 id=662 data-nosnippet>662</a>    // `Err(VerificationError)` on structurally-invalid PKs (e.g.
@@ -683,7 +683,7 @@
 <a href=#683 id=683 data-nosnippet>683</a>                </span><span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">match </span><span class="kw-2">&amp;</span>dummy_parsed {
 <a href=#684 id=684 data-nosnippet>684</a>                    <span class="prelude-val">Some</span>(parsed) =&gt; {
 <a href=#685 id=685 data-nosnippet>685</a>                        <span class="kw">let _ </span>= parsed.pq_pk.verify(<span class="kw-2">&amp;</span>parsed.pq_test_message, <span class="kw-2">&amp;</span>parsed.pq_sig, <span class="kw-2">&amp;</span>[]);
-<a href=#686 id=686 data-nosnippet>686</a>                        <span class="comment">// Bubble the original Err so `matches!(.., Ok(true))`
+<a href=#686 id=686 data-nosnippet>686</a>                        <span class="comment">// Bubble the original Err so `matches!(., Ok(true))`
 <a href=#687 id=687 data-nosnippet>687</a>                        // below still rejects the substituted input.
 <a href=#688 id=688 data-nosnippet>688</a>                        </span>inner
 <a href=#689 id=689 data-nosnippet>689</a>                    }

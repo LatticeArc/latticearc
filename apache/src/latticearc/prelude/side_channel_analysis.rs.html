@@ -259,9 +259,9 @@
 <a href=#259 id=259 data-nosnippet>259</a>    // leftover from a seconds→ns conversion that doesn't apply here
 <a href=#260 id=260 data-nosnippet>260</a>    // — it inflated every std_dev by 10⁹×, blew CV past every
 <a href=#261 id=261 data-nosnippet>261</a>    // threshold, and made every side-channel report spurious noise.
-<a href=#262 id=262 data-nosnippet>262</a>    // Same class as (`f64::to_bits` vs `as u64` for
-<a href=#263 id=263 data-nosnippet>263</a>    // perf-mod std_dev); the symbol-class sweep at the time should
-<a href=#264 id=264 data-nosnippet>264</a>    // have caught this site too.
+<a href=#262 id=262 data-nosnippet>262</a>    // Same class of bug as `f64::to_bits` vs `as u64` for perf-mod
+<a href=#263 id=263 data-nosnippet>263</a>    // std_dev; the symbol-class sweep at the time should have caught
+<a href=#264 id=264 data-nosnippet>264</a>    // this site too.
 <a href=#265 id=265 data-nosnippet>265</a>    </span>Duration::from_nanos(variance.sqrt() <span class="kw">as </span>u64)
 <a href=#266 id=266 data-nosnippet>266</a>}
 <a href=#267 id=267 data-nosnippet>267</a>
@@ -383,61 +383,64 @@
 <a href=#383 id=383 data-nosnippet>383</a>}
 <a href=#384 id=384 data-nosnippet>384</a>
 <a href=#385 id=385 data-nosnippet>385</a><span class="attr">#[cfg(test)]
-<a href=#386 id=386 data-nosnippet>386</a>#[allow(clippy::panic_in_result_fn)] </span><span class="comment">// Test functions use assert! which can panic
-<a href=#387 id=387 data-nosnippet>387</a></span><span class="kw">mod </span>tests {
-<a href=#388 id=388 data-nosnippet>388</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#389 id=389 data-nosnippet>389</a>
-<a href=#390 id=390 data-nosnippet>390</a>    <span class="attr">#[test]
-<a href=#391 id=391 data-nosnippet>391</a>    </span><span class="kw">fn </span>test_timing_analyzer_produces_valid_statistics_succeeds()
-<a href=#392 id=392 data-nosnippet>392</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#393 id=393 data-nosnippet>393</a>        <span class="kw">let </span>analyzer = UtilityTimingAnalyzer::new(<span class="number">10</span>, <span class="number">5</span>);
-<a href=#394 id=394 data-nosnippet>394</a>
-<a href=#395 id=395 data-nosnippet>395</a>        <span class="comment">// Test with a simple operation
-<a href=#396 id=396 data-nosnippet>396</a>        </span><span class="kw">let </span>analysis = analyzer.analyze_utility_timing(|| {
-<a href=#397 id=397 data-nosnippet>397</a>            <span class="kw">let </span>_encoded = hex::encode(<span class="string">b"test"</span>);
-<a href=#398 id=398 data-nosnippet>398</a>            <span class="prelude-val">Ok</span>(())
-<a href=#399 id=399 data-nosnippet>399</a>        })<span class="question-mark">?</span>;
-<a href=#400 id=400 data-nosnippet>400</a>
-<a href=#401 id=401 data-nosnippet>401</a>        <span class="macro">assert!</span>(analysis.samples.len() == <span class="number">10</span>);
-<a href=#402 id=402 data-nosnippet>402</a>        <span class="macro">assert!</span>(analysis.mean &gt; Duration::from_nanos(<span class="number">0</span>));
-<a href=#403 id=403 data-nosnippet>403</a>        <span class="macro">assert!</span>(analysis.min &lt;= analysis.mean);
-<a href=#404 id=404 data-nosnippet>404</a>        <span class="macro">assert!</span>(analysis.max &gt;= analysis.mean);
-<a href=#405 id=405 data-nosnippet>405</a>        <span class="prelude-val">Ok</span>(())
-<a href=#406 id=406 data-nosnippet>406</a>    }
-<a href=#407 id=407 data-nosnippet>407</a>
-<a href=#408 id=408 data-nosnippet>408</a>    <span class="attr">#[test]
-<a href=#409 id=409 data-nosnippet>409</a>    </span><span class="kw">fn </span>test_hex_timing_analysis_has_no_critical_issues_succeeds()
-<a href=#410 id=410 data-nosnippet>410</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#411 id=411 data-nosnippet>411</a>        <span class="kw">let </span>analyzer = UtilityTimingAnalyzer::new(<span class="number">10</span>, <span class="number">5</span>);
-<a href=#412 id=412 data-nosnippet>412</a>        <span class="kw">let </span>assessments = analyzer.test_hex_timing_succeeds()<span class="question-mark">?</span>;
-<a href=#413 id=413 data-nosnippet>413</a>        <span class="comment">// Should not have critical issues
-<a href=#414 id=414 data-nosnippet>414</a>        </span><span class="macro">assert!</span>(assessments.iter().all(|a| a.<span class="macro">severity !</span>= Severity::Critical));
-<a href=#415 id=415 data-nosnippet>415</a>        <span class="prelude-val">Ok</span>(())
-<a href=#416 id=416 data-nosnippet>416</a>    }
-<a href=#417 id=417 data-nosnippet>417</a>
-<a href=#418 id=418 data-nosnippet>418</a>    <span class="attr">#[test]
-<a href=#419 id=419 data-nosnippet>419</a>    </span><span class="kw">fn </span>test_uuid_timing_analysis_has_no_critical_issues_succeeds()
-<a href=#420 id=420 data-nosnippet>420</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#421 id=421 data-nosnippet>421</a>        <span class="kw">let </span>analyzer = UtilityTimingAnalyzer::new(<span class="number">10</span>, <span class="number">5</span>);
-<a href=#422 id=422 data-nosnippet>422</a>        <span class="kw">let </span>assessments = analyzer.test_uuid_timing_succeeds()<span class="question-mark">?</span>;
-<a href=#423 id=423 data-nosnippet>423</a>        <span class="comment">// Should not have critical issues
-<a href=#424 id=424 data-nosnippet>424</a>        </span><span class="macro">assert!</span>(assessments.iter().all(|a| a.<span class="macro">severity !</span>= Severity::Critical));
-<a href=#425 id=425 data-nosnippet>425</a>        <span class="prelude-val">Ok</span>(())
-<a href=#426 id=426 data-nosnippet>426</a>    }
-<a href=#427 id=427 data-nosnippet>427</a>
-<a href=#428 id=428 data-nosnippet>428</a>    <span class="attr">#[test]
-<a href=#429 id=429 data-nosnippet>429</a>    </span><span class="kw">fn </span>test_side_channel_tester_has_no_critical_vulnerabilities_succeeds()
-<a href=#430 id=430 data-nosnippet>430</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#431 id=431 data-nosnippet>431</a>        <span class="kw">let </span>tester = UtilitySideChannelTester::new();
-<a href=#432 id=432 data-nosnippet>432</a>        <span class="kw">let </span>assessments = tester.run_analysis()<span class="question-mark">?</span>;
-<a href=#433 id=433 data-nosnippet>433</a>
-<a href=#434 id=434 data-nosnippet>434</a>        <span class="comment">// Generate report
-<a href=#435 id=435 data-nosnippet>435</a>        </span><span class="kw">let </span>report = tester.generate_security_report(<span class="kw-2">&amp;</span>assessments);
-<a href=#436 id=436 data-nosnippet>436</a>        <span class="macro">assert!</span>(report.contains(<span class="string">"Utility Side-Channel Security Assessment Report"</span>));
-<a href=#437 id=437 data-nosnippet>437</a>
-<a href=#438 id=438 data-nosnippet>438</a>        <span class="comment">// Should not have critical vulnerabilities in utilities
-<a href=#439 id=439 data-nosnippet>439</a>        </span><span class="macro">assert!</span>(assessments.iter().all(|a| a.<span class="macro">severity !</span>= Severity::Critical));
-<a href=#440 id=440 data-nosnippet>440</a>        <span class="prelude-val">Ok</span>(())
-<a href=#441 id=441 data-nosnippet>441</a>    }
-<a href=#442 id=442 data-nosnippet>442</a>}
+<a href=#386 id=386 data-nosnippet>386</a>#[expect(
+<a href=#387 id=387 data-nosnippet>387</a>    clippy::panic_in_result_fn,
+<a href=#388 id=388 data-nosnippet>388</a>    reason = <span class="string">"Test functions use `assert!` macros which expand to panic; if assertions are removed, the suppress will be cleaned automatically"
+<a href=#389 id=389 data-nosnippet>389</a></span>)]
+<a href=#390 id=390 data-nosnippet>390</a></span><span class="kw">mod </span>tests {
+<a href=#391 id=391 data-nosnippet>391</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#392 id=392 data-nosnippet>392</a>
+<a href=#393 id=393 data-nosnippet>393</a>    <span class="attr">#[test]
+<a href=#394 id=394 data-nosnippet>394</a>    </span><span class="kw">fn </span>test_timing_analyzer_produces_valid_statistics_succeeds()
+<a href=#395 id=395 data-nosnippet>395</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">let </span>analyzer = UtilityTimingAnalyzer::new(<span class="number">10</span>, <span class="number">5</span>);
+<a href=#397 id=397 data-nosnippet>397</a>
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="comment">// Test with a simple operation
+<a href=#399 id=399 data-nosnippet>399</a>        </span><span class="kw">let </span>analysis = analyzer.analyze_utility_timing(|| {
+<a href=#400 id=400 data-nosnippet>400</a>            <span class="kw">let </span>_encoded = hex::encode(<span class="string">b"test"</span>);
+<a href=#401 id=401 data-nosnippet>401</a>            <span class="prelude-val">Ok</span>(())
+<a href=#402 id=402 data-nosnippet>402</a>        })<span class="question-mark">?</span>;
+<a href=#403 id=403 data-nosnippet>403</a>
+<a href=#404 id=404 data-nosnippet>404</a>        <span class="macro">assert!</span>(analysis.samples.len() == <span class="number">10</span>);
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="macro">assert!</span>(analysis.mean &gt; Duration::from_nanos(<span class="number">0</span>));
+<a href=#406 id=406 data-nosnippet>406</a>        <span class="macro">assert!</span>(analysis.min &lt;= analysis.mean);
+<a href=#407 id=407 data-nosnippet>407</a>        <span class="macro">assert!</span>(analysis.max &gt;= analysis.mean);
+<a href=#408 id=408 data-nosnippet>408</a>        <span class="prelude-val">Ok</span>(())
+<a href=#409 id=409 data-nosnippet>409</a>    }
+<a href=#410 id=410 data-nosnippet>410</a>
+<a href=#411 id=411 data-nosnippet>411</a>    <span class="attr">#[test]
+<a href=#412 id=412 data-nosnippet>412</a>    </span><span class="kw">fn </span>test_hex_timing_analysis_has_no_critical_issues_succeeds()
+<a href=#413 id=413 data-nosnippet>413</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#414 id=414 data-nosnippet>414</a>        <span class="kw">let </span>analyzer = UtilityTimingAnalyzer::new(<span class="number">10</span>, <span class="number">5</span>);
+<a href=#415 id=415 data-nosnippet>415</a>        <span class="kw">let </span>assessments = analyzer.test_hex_timing_succeeds()<span class="question-mark">?</span>;
+<a href=#416 id=416 data-nosnippet>416</a>        <span class="comment">// Should not have critical issues
+<a href=#417 id=417 data-nosnippet>417</a>        </span><span class="macro">assert!</span>(assessments.iter().all(|a| a.<span class="macro">severity !</span>= Severity::Critical));
+<a href=#418 id=418 data-nosnippet>418</a>        <span class="prelude-val">Ok</span>(())
+<a href=#419 id=419 data-nosnippet>419</a>    }
+<a href=#420 id=420 data-nosnippet>420</a>
+<a href=#421 id=421 data-nosnippet>421</a>    <span class="attr">#[test]
+<a href=#422 id=422 data-nosnippet>422</a>    </span><span class="kw">fn </span>test_uuid_timing_analysis_has_no_critical_issues_succeeds()
+<a href=#423 id=423 data-nosnippet>423</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#424 id=424 data-nosnippet>424</a>        <span class="kw">let </span>analyzer = UtilityTimingAnalyzer::new(<span class="number">10</span>, <span class="number">5</span>);
+<a href=#425 id=425 data-nosnippet>425</a>        <span class="kw">let </span>assessments = analyzer.test_uuid_timing_succeeds()<span class="question-mark">?</span>;
+<a href=#426 id=426 data-nosnippet>426</a>        <span class="comment">// Should not have critical issues
+<a href=#427 id=427 data-nosnippet>427</a>        </span><span class="macro">assert!</span>(assessments.iter().all(|a| a.<span class="macro">severity !</span>= Severity::Critical));
+<a href=#428 id=428 data-nosnippet>428</a>        <span class="prelude-val">Ok</span>(())
+<a href=#429 id=429 data-nosnippet>429</a>    }
+<a href=#430 id=430 data-nosnippet>430</a>
+<a href=#431 id=431 data-nosnippet>431</a>    <span class="attr">#[test]
+<a href=#432 id=432 data-nosnippet>432</a>    </span><span class="kw">fn </span>test_side_channel_tester_has_no_critical_vulnerabilities_succeeds()
+<a href=#433 id=433 data-nosnippet>433</a>    -&gt; std::result::Result&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">let </span>tester = UtilitySideChannelTester::new();
+<a href=#435 id=435 data-nosnippet>435</a>        <span class="kw">let </span>assessments = tester.run_analysis()<span class="question-mark">?</span>;
+<a href=#436 id=436 data-nosnippet>436</a>
+<a href=#437 id=437 data-nosnippet>437</a>        <span class="comment">// Generate report
+<a href=#438 id=438 data-nosnippet>438</a>        </span><span class="kw">let </span>report = tester.generate_security_report(<span class="kw-2">&amp;</span>assessments);
+<a href=#439 id=439 data-nosnippet>439</a>        <span class="macro">assert!</span>(report.contains(<span class="string">"Utility Side-Channel Security Assessment Report"</span>));
+<a href=#440 id=440 data-nosnippet>440</a>
+<a href=#441 id=441 data-nosnippet>441</a>        <span class="comment">// Should not have critical vulnerabilities in utilities
+<a href=#442 id=442 data-nosnippet>442</a>        </span><span class="macro">assert!</span>(assessments.iter().all(|a| a.<span class="macro">severity !</span>= Severity::Critical));
+<a href=#443 id=443 data-nosnippet>443</a>        <span class="prelude-val">Ok</span>(())
+<a href=#444 id=444 data-nosnippet>444</a>    }
+<a href=#445 id=445 data-nosnippet>445</a>}
 </code></pre></div></section></main></body></html>

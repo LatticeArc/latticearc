@@ -61,7 +61,7 @@
 <a href=#61 id=61 data-nosnippet>61</a>    <span class="doccomment">/// Pairwise Consistency Test (FIPS 140-3 §9.2 / IG 10.3.A) failed.
 <a href=#62 id=62 data-nosnippet>62</a>    /// Distinct from `RngError` because PCT failure indicates a
 <a href=#63 id=63 data-nosnippet>63</a>    /// corrupted keypair, not transient entropy depletion.
-<a href=#64 id=64 data-nosnippet>64</a>    /// audit fix #12: a FIPS error-state monitor must be able to
+<a href=#64 id=64 data-nosnippet>64</a>    /// a FIPS error-state monitor must be able to
 <a href=#65 id=65 data-nosnippet>65</a>    /// distinguish "retry with fresh entropy" from "discard this
 <a href=#66 id=66 data-nosnippet>66</a>    /// keypair, generate a new one, and investigate."
 <a href=#67 id=67 data-nosnippet>67</a>    </span><span class="attr">#[error(<span class="string">"Pairwise Consistency Test failed (FIPS 140-3 §9.2)"</span>)]
@@ -338,7 +338,7 @@
 <a href=#338 id=338 data-nosnippet>338</a>        // verification-failure variant. `MessageTooLong` on verify
 <a href=#339 id=339 data-nosnippet>339</a>        // leaked the configured cap to a probing attacker.
 <a href=#340 id=340 data-nosnippet>340</a>        </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="kw">crate</span>::primitives::resource_limits::validate_signature_size(message.len()) {
-<a href=#341 id=341 data-nosnippet>341</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"SLH-DSA verify rejected: message exceeds resource limit"</span>);
+<a href=#341 id=341 data-nosnippet>341</a>            <span class="macro">tracing::debug!</span>(error = %e, msg_len = message.len(), <span class="string">"SLH-DSA verify rejected: message exceeds resource limit"</span>);
 <a href=#342 id=342 data-nosnippet>342</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(SlhDsaError::VerificationFailed);
 <a href=#343 id=343 data-nosnippet>343</a>        }
 <a href=#344 id=344 data-nosnippet>344</a>
@@ -722,7 +722,7 @@
 <a href=#722 id=722 data-nosnippet>722</a>        // operator diagnostics.
 <a href=#723 id=723 data-nosnippet>723</a>        </span><span class="kw">crate</span>::primitives::resource_limits::validate_signature_size(message.len()).map_err(
 <a href=#724 id=724 data-nosnippet>724</a>            |e| {
-<a href=#725 id=725 data-nosnippet>725</a>                <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"SLH-DSA sign rejected: message exceeds resource limit"</span>);
+<a href=#725 id=725 data-nosnippet>725</a>                <span class="macro">tracing::debug!</span>(error = %e, msg_len = message.len(), <span class="string">"SLH-DSA sign rejected: message exceeds resource limit"</span>);
 <a href=#726 id=726 data-nosnippet>726</a>                SlhDsaError::SigningFailed
 <a href=#727 id=727 data-nosnippet>727</a>            },
 <a href=#728 id=728 data-nosnippet>728</a>        )<span class="question-mark">?</span>;

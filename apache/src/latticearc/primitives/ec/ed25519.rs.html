@@ -66,11 +66,11 @@
 <a href=#66 id=66 data-nosnippet>66</a>
 <a href=#67 id=67 data-nosnippet>67</a>        <span class="kw">let </span>keypair = <span class="self">Self </span>{ public_key, secret_key };
 <a href=#68 id=68 data-nosnippet>68</a>
-<a href=#69 id=69 data-nosnippet>69</a>        <span class="comment">// Pairwise Consistency Test (PCT). audit fix (H9):
+<a href=#69 id=69 data-nosnippet>69</a>        <span class="comment">// Pairwise Consistency Test (PCT).
 <a href=#70 id=70 data-nosnippet>70</a>        // upstream PctError -&gt; opaque KeyGenerationError so that variant
 <a href=#71 id=71 data-nosnippet>71</a>        // wording from the `pct` module isn't relayed verbatim.
 <a href=#72 id=72 data-nosnippet>72</a>        </span><span class="kw">crate</span>::primitives::pct::pct_ed25519(<span class="kw-2">&amp;</span>keypair).map_err(|e| {
-<a href=#73 id=73 data-nosnippet>73</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"Ed25519 keygen PCT failed"</span>);
+<a href=#73 id=73 data-nosnippet>73</a>            <span class="macro">tracing::debug!</span>(error = %e, <span class="string">"Ed25519 keygen PCT failed"</span>);
 <a href=#74 id=74 data-nosnippet>74</a>            LatticeArcError::KeyGenerationError(<span class="string">"Ed25519 keypair PCT failed"</span>.to_string())
 <a href=#75 id=75 data-nosnippet>75</a>        })<span class="question-mark">?</span>;
 <a href=#76 id=76 data-nosnippet>76</a>
@@ -101,7 +101,7 @@
 <a href=#101 id=101 data-nosnippet>101</a>        // detection.
 <a href=#102 id=102 data-nosnippet>102</a>        // opaque error string.
 <a href=#103 id=103 data-nosnippet>103</a>        </span><span class="kw">crate</span>::primitives::pct::pct_ed25519(<span class="kw-2">&amp;</span>keypair).map_err(|e| {
-<a href=#104 id=104 data-nosnippet>104</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"Ed25519 from_secret_key PCT failed"</span>);
+<a href=#104 id=104 data-nosnippet>104</a>            <span class="macro">tracing::debug!</span>(error = %e, <span class="string">"Ed25519 from_secret_key PCT failed"</span>);
 <a href=#105 id=105 data-nosnippet>105</a>            LatticeArcError::KeyGenerationError(<span class="string">"Ed25519 keypair PCT failed"</span>.to_string())
 <a href=#106 id=106 data-nosnippet>106</a>        })<span class="question-mark">?</span>;
 <a href=#107 id=107 data-nosnippet>107</a>
@@ -142,7 +142,7 @@
 <a href=#142 id=142 data-nosnippet>142</a>        // entrypoint — same DoS shape closed for ML-DSA /
 <a href=#143 id=143 data-nosnippet>143</a>        // SLH-DSA / FN-DSA.
 <a href=#144 id=144 data-nosnippet>144</a>        </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(message.len()) {
-<a href=#145 id=145 data-nosnippet>145</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"Ed25519 verify rejected: message exceeds resource limit"</span>);
+<a href=#145 id=145 data-nosnippet>145</a>            <span class="macro">tracing::debug!</span>(error = %e, msg_len = message.len(), <span class="string">"Ed25519 verify rejected: message exceeds resource limit"</span>);
 <a href=#146 id=146 data-nosnippet>146</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::SignatureVerificationError(
 <a href=#147 id=147 data-nosnippet>147</a>                <span class="string">"Ed25519 verification failed"</span>.to_string(),
 <a href=#148 id=148 data-nosnippet>148</a>            ));
@@ -161,7 +161,7 @@
 <a href=#161 id=161 data-nosnippet>161</a>        // verbatim is a side-channel into which check failed (off-curve
 <a href=#162 id=162 data-nosnippet>162</a>        // vs malformed encoding vs small-subgroup).
 <a href=#163 id=163 data-nosnippet>163</a>        </span><span class="kw">let </span>public_key = VerifyingKey::from_bytes(<span class="kw-2">&amp;</span>pk_bytes).map_err(|e| {
-<a href=#164 id=164 data-nosnippet>164</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"Ed25519 verify rejected: PK parse"</span>);
+<a href=#164 id=164 data-nosnippet>164</a>            <span class="macro">tracing::debug!</span>(error = %e, <span class="string">"Ed25519 verify rejected: PK parse"</span>);
 <a href=#165 id=165 data-nosnippet>165</a>            LatticeArcError::InvalidKey(<span class="string">"invalid public key"</span>.to_string())
 <a href=#166 id=166 data-nosnippet>166</a>        })<span class="question-mark">?</span>;
 <a href=#167 id=167 data-nosnippet>167</a>
@@ -193,7 +193,7 @@
 <a href=#193 id=193 data-nosnippet>193</a>        // infallible (RFC 8032 defines no parse-time validity rule for the
 <a href=#194 id=194 data-nosnippet>194</a>        // 64-byte signature representation; validity is checked only at
 <a href=#195 id=195 data-nosnippet>195</a>        // verify time). The length check above is the only failure path; the
-<a href=#196 id=196 data-nosnippet>196</a>        // `Ok(...)` wrapper here exists for trait-shape parity with other
+<a href=#196 id=196 data-nosnippet>196</a>        // `Ok(..)` wrapper here exists for trait-shape parity with other
 <a href=#197 id=197 data-nosnippet>197</a>        // signature schemes (ML-DSA, SLH-DSA, FN-DSA) whose `from_bytes`
 <a href=#198 id=198 data-nosnippet>198</a>        // can fail at parse time. Removing the wrapper breaks the trait's
 <a href=#199 id=199 data-nosnippet>199</a>        // `Result` return type — leave it.
@@ -208,7 +208,7 @@
 <a href=#208 id=208 data-nosnippet>208</a>    /// this type guarantees by construction); the only failure path is
 <a href=#209 id=209 data-nosnippet>209</a>    /// the resource-limit gate that bounds the message length to
 <a href=#210 id=210 data-nosnippet>210</a>    /// `max_signature_size_bytes` (default 64 KiB) before SHA-512
-<a href=#211 id=211 data-nosnippet>211</a>    /// hashes the payload (RFC 8032 §5.1.6). audit fix (H4)
+<a href=#211 id=211 data-nosnippet>211</a>    /// hashes the payload (RFC 8032 §5.1.6).
 <a href=#212 id=212 data-nosnippet>212</a>    /// added this gate to close the unbounded-hash DoS that previously
 <a href=#213 id=213 data-nosnippet>213</a>    /// existed on the sign path.
 <a href=#214 id=214 data-nosnippet>214</a>    ///
@@ -217,7 +217,7 @@
 <a href=#217 id=217 data-nosnippet>217</a>    /// the configured signature size limit.
 <a href=#218 id=218 data-nosnippet>218</a>    </span><span class="kw">pub fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, message: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Signature&gt; {
 <a href=#219 id=219 data-nosnippet>219</a>        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(message.len()) {
-<a href=#220 id=220 data-nosnippet>220</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"Ed25519 sign rejected: message exceeds resource limit"</span>);
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="macro">tracing::debug!</span>(error = %e, msg_len = message.len(), <span class="string">"Ed25519 sign rejected: message exceeds resource limit"</span>);
 <a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::MessageTooLong);
 <a href=#222 id=222 data-nosnippet>222</a>        }
 <a href=#223 id=223 data-nosnippet>223</a>        <span class="prelude-val">Ok</span>(<span class="self">self</span>.secret_key.sign(message))

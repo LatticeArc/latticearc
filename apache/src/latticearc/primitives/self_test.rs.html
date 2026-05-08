@@ -575,7 +575,7 @@
 <a href=#575 id=575 data-nosnippet>575</a>    // (GCMVS), file `gcmEncryptExtIV256.rsp`, Count = 12. URL:
 <a href=#576 id=576 data-nosnippet>576</a>    //   https://csrc.nist.gov/Projects/Cryptographic-Algorithm-Validation-Program/CAVP-TESTING-BLOCK-CIPHER-MODES#GCMVS
 <a href=#577 id=577 data-nosnippet>577</a>    //
-<a href=#578 id=578 data-nosnippet>578</a>    // audit fix (C4) replaced the previous self-computed
+<a href=#578 id=578 data-nosnippet>578</a>    // replaced the previous self-computed
 <a href=#579 id=579 data-nosnippet>579</a>    // vector with this CAVP entry to satisfy FIPS 140-3 §10.3.1's
 <a href=#580 id=580 data-nosnippet>580</a>    // requirement that power-up KATs use externally-attested vectors
 <a href=#581 id=581 data-nosnippet>581</a>    // — a self-roundtrip would pass even if encrypt and decrypt shared
@@ -1118,7 +1118,7 @@
 <a href=#1118 id=1118 data-nosnippet>1118</a>    // model rejects adversary-injected binaries by HMAC mismatch, not
 <a href=#1119 id=1119 data-nosnippet>1119</a>    // by path. The profile-name and any tool-specific nesting are
 <a href=#1120 id=1120 data-nosnippet>1120</a>    // just where the build system chose to put the artifact; an
-<a href=#1121 id=1121 data-nosnippet>1121</a>    // attacker who can write into `target/&lt;arbitrary&gt;/.../deps/` can
+<a href=#1121 id=1121 data-nosnippet>1121</a>    // attacker who can write into `target/&lt;arbitrary&gt;/../deps/` can
 <a href=#1122 id=1122 data-nosnippet>1122</a>    // already write into `target/release/deps/` too.
 <a href=#1123 id=1123 data-nosnippet>1123</a>    //
 <a href=#1124 id=1124 data-nosnippet>1124</a>    // Hop bound: the deepest known cargo-tooling layout is
@@ -1659,7 +1659,7 @@
 <a href=#1659 id=1659 data-nosnippet>1659</a>    /// neither `Send` nor `Sync` at compile time (raw pointers are
 <a href=#1660 id=1660 data-nosnippet>1660</a>    /// neither). Without it, a zero-size struct is implicitly
 <a href=#1661 id=1661 data-nosnippet>1661</a>    /// `Send + Sync`, so a test that accidentally moves the guard
-<a href=#1662 id=1662 data-nosnippet>1662</a>    /// into a `thread::spawn(...)` closure would restore the FIPS
+<a href=#1662 id=1662 data-nosnippet>1662</a>    /// into a `thread::spawn(..)` closure would restore the FIPS
 <a href=#1663 id=1663 data-nosnippet>1663</a>    /// state on the spawned thread's drop — racing with the main
 <a href=#1664 id=1664 data-nosnippet>1664</a>    /// test body and re-opening exactly the false-state-leak we are
 <a href=#1665 id=1665 data-nosnippet>1665</a>    /// guarding against. The marker raises that to a compile error.
@@ -1744,7 +1744,7 @@
 <a href=#1744 id=1744 data-nosnippet>1744</a>        }
 <a href=#1745 id=1745 data-nosnippet>1745</a>
 <a href=#1746 id=1746 data-nosnippet>1746</a>        <span class="comment">// Cargo-test deps shapes within the bounded ancestor walk.
-<a href=#1747 id=1747 data-nosnippet>1747</a>        // Layouts at depth &gt;3 (more than `target/.../&lt;profile&gt;/deps/`)
+<a href=#1747 id=1747 data-nosnippet>1747</a>        // Layouts at depth &gt;3 (more than `target/../&lt;profile&gt;/deps/`)
 <a href=#1748 id=1748 data-nosnippet>1748</a>        // are intentionally NOT accepted — see the rejection test below.
 <a href=#1749 id=1749 data-nosnippet>1749</a>        </span><span class="kw">for </span>path <span class="kw">in </span>[
 <a href=#1750 id=1750 data-nosnippet>1750</a>            <span class="comment">// Standard `target/&lt;profile&gt;/deps/` (2 hops to target).
