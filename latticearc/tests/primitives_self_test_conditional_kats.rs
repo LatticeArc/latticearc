@@ -1,5 +1,9 @@
-//! Coverage tests for conditional self-test KAT functions (kat_ml_dsa, kat_slh_dsa, kat_fn_dsa)
-//! and run_power_up_tests_with_report error paths.
+//! Coverage tests for conditional self-test functions and
+//! `run_power_up_tests_with_report` error paths. ML-DSA and SLH-DSA
+//! are real ACVP Known Answer Tests (fixed seed → expected pk, sk
+//! per NIST vectors); ML-KEM-768 is a `roundtrip_*` self-consistency
+//! check pending upstream `aws-lc-rs` deterministic-keygen API
+//! (see TRACKING.md TRK-007).
 
 // self_test module is gated behind fips-self-test feature.
 // the test-only `clear_error_state` /
@@ -12,20 +16,20 @@
 use latticearc::primitives::self_test::{
     ModuleErrorCode, SelfTestResult, clear_error_state, get_module_error_state,
     initialize_and_test, is_module_operational, kat_aes_256_gcm, kat_fn_dsa, kat_hkdf_sha256,
-    kat_ml_dsa, kat_ml_kem_768, kat_sha256, kat_slh_dsa, run_power_up_tests,
+    kat_ml_dsa, kat_sha256, kat_slh_dsa, roundtrip_ml_kem_768, run_power_up_tests,
     run_power_up_tests_with_report, self_tests_passed, set_module_error, verify_operational,
 };
 
 #[test]
 fn test_kat_ml_dsa_succeeds() {
     let result = kat_ml_dsa();
-    assert!(result.is_ok(), "ML-DSA KAT should succeed: {:?}", result.err());
+    assert!(result.is_ok(), "ML-DSA-44 KAT should succeed: {:?}", result.err());
 }
 
 #[test]
 fn test_kat_slh_dsa_succeeds() {
     let result = kat_slh_dsa();
-    assert!(result.is_ok(), "SLH-DSA KAT should succeed: {:?}", result.err());
+    assert!(result.is_ok(), "SLH-DSA-SHAKE-192s KAT should succeed: {:?}", result.err());
 }
 
 #[test]
@@ -53,8 +57,8 @@ fn test_kat_aes_256_gcm_succeeds() {
 }
 
 #[test]
-fn test_kat_ml_kem_768_succeeds() {
-    let result = kat_ml_kem_768();
+fn test_roundtrip_ml_kem_768_succeeds() {
+    let result = roundtrip_ml_kem_768();
     assert!(result.is_ok());
 }
 

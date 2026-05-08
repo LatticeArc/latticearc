@@ -172,37 +172,37 @@ pub fn run_power_up_tests() -> SelfTestResult {
 
     // 6-9. PQ algorithm self-consistency tests.
     //
-    // these were previously named `kat_*` but
-    // are NOT Known Answer Tests in the FIPS 140-3 §10.3.1 / CAVP
-    // sense — they generate a fresh keypair (random seed) and verify
-    // a roundtrip rather than comparing against precomputed test
+    // These functions are named `roundtrip_*` because they are NOT
+    // Known Answer Tests in the FIPS 140-3 §10.3.1 / CAVP sense —
+    // they generate a fresh keypair (random seed) and verify a
+    // roundtrip rather than comparing against precomputed test
     // vectors. A bug producing self-consistent-but-wrong output would
     // pass indefinitely.
     //
     // Real KAT validation against NIST test vectors runs in the
     // `latticearc-tests` crate at `tests/tests/nist_kat/{ml_kem,
     // ml_dsa, slh_dsa}_vectors.rs` and `tests/tests/fips_cavp.rs`.
-    // Those tests are required for CAVP submission; the self-tests
-    // below provide power-on smoke coverage that the algorithm chains
-    // are wired correctly. The naming here reflects that distinction.
+    // Those tests are required for CAVP submission; the roundtrip
+    // self-tests below provide power-on smoke coverage that the
+    // algorithm chains are wired correctly.
     //
     // Promoting the power-on path to true KATs requires a
     // deterministic-keygen API that the wrapper layers don't yet
     // expose; tracked as TRK-007 in docs/TRACKING.md.
 
     // 6. ML-KEM-768 self-consistency (encap/decap roundtrip).
-    if let Err(e) = kat_ml_kem_768() {
+    if let Err(e) = roundtrip_ml_kem_768() {
         return SelfTestResult::Fail(format!("ML-KEM-768 roundtrip failed: {}", e));
     }
 
-    // 7. ML-DSA-44 self-consistency (sign/verify roundtrip).
+    // 7. ML-DSA-44 KAT (ACVP keygen vector + sign/verify roundtrip).
     if let Err(e) = kat_ml_dsa() {
-        return SelfTestResult::Fail(format!("ML-DSA roundtrip failed: {}", e));
+        return SelfTestResult::Fail(format!("ML-DSA-44 KAT failed: {}", e));
     }
 
-    // 8. SLH-DSA self-consistency (sign/verify roundtrip).
+    // 8. SLH-DSA-SHAKE-192s KAT (ACVP keygen vector + sign/verify roundtrip).
     if let Err(e) = kat_slh_dsa() {
-        return SelfTestResult::Fail(format!("SLH-DSA roundtrip failed: {}", e));
+        return SelfTestResult::Fail(format!("SLH-DSA-SHAKE-192s KAT failed: {}", e));
     }
 
     // 9. FN-DSA self-consistency (runs in separate thread with 32 MB stack).
@@ -319,9 +319,9 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
         duration_us: Some(duration_to_us(hmac_start.elapsed())),
     });
 
-    // ML-KEM-768 KAT
+    // ML-KEM-768 roundtrip
     let kem_start = Instant::now();
-    let kem_result = match kat_ml_kem_768() {
+    let kem_result = match roundtrip_ml_kem_768() {
         Ok(()) => SelfTestResult::Pass,
         Err(e) => {
             overall_pass = false;
@@ -334,7 +334,7 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
         duration_us: Some(duration_to_us(kem_start.elapsed())),
     });
 
-    // ML-DSA-44 KAT
+    // ML-DSA-44 KAT (ACVP keygen + roundtrip)
     let mldsa_start = Instant::now();
     let mldsa_result = match kat_ml_dsa() {
         Ok(()) => SelfTestResult::Pass,
@@ -349,7 +349,7 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
         duration_us: Some(duration_to_us(mldsa_start.elapsed())),
     });
 
-    // SLH-DSA KAT
+    // SLH-DSA-SHAKE-192s KAT (ACVP keygen) + SHAKE-128s roundtrip
     let slhdsa_start = Instant::now();
     let slhdsa_result = match kat_slh_dsa() {
         Ok(()) => SelfTestResult::Pass,
@@ -653,31 +653,100 @@ pub fn kat_aes_256_gcm() -> Result<()> {
 }
 
 // =============================================================================
+// PQ KAT helpers — fixed-bytes RNG for ACVP-driven keygen
+// =============================================================================
+//
+// ML-DSA / SLH-DSA wrappers internally call `try_keygen()` (no RNG
+// argument). For ACVP fixed-input KATs we bypass the wrapper and call
+// `try_keygen_with_rng()` on the underlying `fips204` / `fips205`
+// crates with a deterministic RNG that returns exactly the bytes the
+// ACVP vector specifies. The RNG is consumed in stack order (`pop()`
+// returns the last-pushed value) — the call order is tied to the
+// upstream crate's `KG::try_keygen_with_rng` implementation:
+//   - ML-DSA: one 32-byte fill (`xi`).
+//   - SLH-DSA: three sequential 24-byte fills (`sk_seed`, `sk_prf`,
+//     `pk_seed`) — push in REVERSE order.
+//
+// This RNG must not be exposed publicly: it is unsafe by design (any
+// non-test caller would defeat keygen entropy).
+
+#[cfg(feature = "fips-self-test")]
+struct FixedBytesRng {
+    /// Stack of pre-loaded byte slices. `fill_bytes` pops from the top
+    /// and copies into `out`. Push values in reverse order of consumption.
+    data: Vec<Vec<u8>>,
+}
+
+#[cfg(feature = "fips-self-test")]
+impl FixedBytesRng {
+    fn new() -> Self {
+        Self { data: Vec::new() }
+    }
+
+    fn push(&mut self, bytes: &[u8]) {
+        self.data.push(bytes.to_vec());
+    }
+}
+
+// `RngCore::fill_bytes` is infallible by trait contract. We can't
+// surface vector-exhaustion or length-mismatch as a typed error from
+// inside this method, and the project lints forbid `panic!` /
+// `unimplemented!` / `.expect()` in production code. Misuse therefore
+// silently produces zeroed output — which the downstream
+// `pk_actual == pk_expected` / `sk_actual == sk_expected` comparison
+// in `kat_ml_dsa` / `kat_slh_dsa` always detects, since a zero-filled
+// `xi` / `sk_seed` cannot derive the ACVP-attested keypair.
+#[cfg(feature = "fips-self-test")]
+impl rand_core_0_6::RngCore for FixedBytesRng {
+    fn next_u32(&mut self) -> u32 {
+        0
+    }
+    fn next_u64(&mut self) -> u64 {
+        0
+    }
+    fn fill_bytes(&mut self, out: &mut [u8]) {
+        if let Some(bytes) = self.data.pop()
+            && bytes.len() == out.len()
+        {
+            out.copy_from_slice(&bytes);
+        }
+    }
+    fn try_fill_bytes(&mut self, out: &mut [u8]) -> core::result::Result<(), rand_core_0_6::Error> {
+        self.fill_bytes(out);
+        Ok(())
+    }
+}
+
+#[cfg(feature = "fips-self-test")]
+impl rand_core_0_6::CryptoRng for FixedBytesRng {}
+
+// =============================================================================
 // ML-KEM-768 Known Answer Test
 // =============================================================================
 
-/// ML-KEM-768 Known Answer Test
+/// ML-KEM-768 round-trip self-consistency check.
 ///
-/// This test verifies the ML-KEM-768 implementation by performing a complete
-/// encapsulate/decapsulate roundtrip using `MlKemDecapsulationKeyPair`.
+/// This is **not** a Known Answer Test (KAT) — it generates a fresh
+/// keypair and asserts that `decapsulate(encapsulate(pk).ct) == ss`.
+/// FIPS 140-3 §10.3.1 requires power-up KATs to use externally-attested
+/// fixed (key, message, output) tuples; a roundtrip passes even when
+/// `encapsulate` and `decapsulate` share the same bug. See
+/// [`kat_aes_256_gcm`] for a real KAT against NIST CAVP `Count=12`.
 ///
-/// The test:
-/// 1. Generates a keypair with decapsulation capability
-/// 2. Encapsulates a shared secret using the public key
-/// 3. Decapsulates using the decapsulation key
-/// 4. Verifies the shared secrets match (constant-time comparison)
+/// To upgrade this to a real KAT, wire ACVP `keyGen` and `encapDecap`
+/// vectors from <https://csrc.nist.gov/projects/cryptographic-standards-and-guidelines/example-values>.
 ///
 /// # Errors
 ///
 /// Returns error if key generation, encapsulation, decapsulation fails,
 /// or if the shared secrets don't match.
-pub fn kat_ml_kem_768() -> Result<()> {
+pub fn roundtrip_ml_kem_768() -> Result<()> {
     use crate::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 
     // Generate a keypair with decapsulation capability
     let dk = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768).map_err(|e| {
         LatticeArcError::ValidationError {
-            message: format!("ML-KEM-768 KAT: key generation failed: {}", e),
+            message: format!("ML-KEM-768 roundtrip: key generation failed: {}", e),
         }
     })?;
 
@@ -686,7 +755,7 @@ pub fn kat_ml_kem_768() -> Result<()> {
     if pk.as_bytes().len() != MlKemSecurityLevel::MlKem768.public_key_size() {
         return Err(LatticeArcError::ValidationError {
             message: format!(
-                "ML-KEM-768 KAT: public key size mismatch: expected {}, got {}",
+                "ML-KEM-768 roundtrip: public key size mismatch: expected {}, got {}",
                 MlKemSecurityLevel::MlKem768.public_key_size(),
                 pk.as_bytes().len()
             ),
@@ -696,14 +765,14 @@ pub fn kat_ml_kem_768() -> Result<()> {
     // Encapsulate a shared secret
     let (ss_encap, ciphertext) =
         MlKem::encapsulate(pk).map_err(|e| LatticeArcError::ValidationError {
-            message: format!("ML-KEM-768 KAT: encapsulation failed: {}", e),
+            message: format!("ML-KEM-768 roundtrip: encapsulation failed: {}", e),
         })?;
 
     // Verify ciphertext size
     if ciphertext.as_bytes().len() != MlKemSecurityLevel::MlKem768.ciphertext_size() {
         return Err(LatticeArcError::ValidationError {
             message: format!(
-                "ML-KEM-768 KAT: ciphertext size mismatch: expected {}, got {}",
+                "ML-KEM-768 roundtrip: ciphertext size mismatch: expected {}, got {}",
                 MlKemSecurityLevel::MlKem768.ciphertext_size(),
                 ciphertext.as_bytes().len()
             ),
@@ -712,14 +781,15 @@ pub fn kat_ml_kem_768() -> Result<()> {
 
     // Decapsulate the shared secret
     let ss_decap = dk.decapsulate(&ciphertext).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("ML-KEM-768 KAT: decapsulation failed: {}", e),
+        message: format!("ML-KEM-768 roundtrip: decapsulation failed: {}", e),
     })?;
 
     // Verify shared secrets match (constant-time comparison)
     if !bool::from(ss_encap.expose_secret().ct_eq(ss_decap.expose_secret())) {
         return Err(LatticeArcError::ValidationError {
-            message: "ML-KEM-768 KAT: encapsulated and decapsulated shared secrets do not match"
-                .to_string(),
+            message:
+                "ML-KEM-768 roundtrip: encapsulated and decapsulated shared secrets do not match"
+                    .to_string(),
         });
     }
 
@@ -727,7 +797,7 @@ pub fn kat_ml_kem_768() -> Result<()> {
     let all_zeros = ss_encap.expose_secret().iter().all(|&b| b == 0);
     if all_zeros {
         return Err(LatticeArcError::ValidationError {
-            message: "ML-KEM-768 KAT: shared secret is all zeros".to_string(),
+            message: "ML-KEM-768 roundtrip: shared secret is all zeros".to_string(),
         });
     }
 
@@ -738,189 +808,262 @@ pub fn kat_ml_kem_768() -> Result<()> {
 // ML-DSA Known Answer Test
 // =============================================================================
 
-/// ML-DSA Known Answer Test (FIPS 204)
+/// ML-DSA-44 Known Answer Test (FIPS 204).
 ///
-/// This test verifies the ML-DSA implementation by performing a complete
-/// sign/verify round-trip using ML-DSA-44 (NIST Level 2 security).
+/// Drives the upstream `fips204` crate's `try_keygen_with_rng` with a
+/// deterministic RNG pre-loaded with the NIST ACVP `keyGen` vector
+/// `tcId=1` (parameter set `ML-DSA-44`), then asserts that the produced
+/// `(pk, sk)` byte-exactly matches the ACVP-attested expected output.
+/// This satisfies FIPS 140-3 §10.3.1's requirement that power-up KATs
+/// use externally-attested fixed (input, output) tuples.
 ///
-/// The test:
-/// 1. Generates a fresh keypair
-/// 2. Signs a fixed test message
-/// 3. Verifies the signature succeeds
-/// 4. Verifies that verification fails with a modified message
+/// Vector source:
+/// <https://github.com/usnistgov/ACVP-Server/blob/master/gen-val/json-files/ML-DSA-keyGen-FIPS204/internalProjection.json>
+/// (mirrored in-tree by the upstream `fips204` crate).
+///
+/// A sign/verify roundtrip on the resulting fixed key is then run for
+/// additional coverage of the sign and verify paths.
 ///
 /// ML-DSA (FIPS 204) has longer execution times compared to symmetric primitives.
-/// This test should be run as a conditional self-test rather than at power-up
+/// This check should be run as a conditional self-test rather than at power-up
 /// if performance is a concern.
 ///
 /// # Errors
 ///
-/// Returns error if key generation, signing, or verification fails.
+/// Returns error if keygen output does not match the ACVP vector, or if
+/// the sign/verify roundtrip on the fixed key fails.
 pub fn kat_ml_dsa() -> Result<()> {
     use crate::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
+    use fips204::ml_dsa_44;
+    use fips204::traits::{KeyGen, SerDes};
 
-    // Fixed test message for KAT
+    // ACVP ML-DSA-keyGen-FIPS204, parameter set ML-DSA-44, tcId = 1.
+    const SEED: [u8; 32] = [
+        0x93, 0xef, 0x2e, 0x6e, 0xf1, 0xfb, 0x08, 0x99, 0x9d, 0x14, 0x2a, 0xbe, 0x02, 0x95, 0x48,
+        0x23, 0x70, 0xd3, 0xf4, 0x3b, 0xdb, 0x25, 0x4a, 0x78, 0xe2, 0xb0, 0xd5, 0x16, 0x8e, 0xca,
+        0x06, 0x5f,
+    ];
+
+    let mut rng = FixedBytesRng::new();
+    rng.push(&SEED);
+
+    let (pk_act, sk_act) = ml_dsa_44::KG::try_keygen_with_rng(&mut rng).map_err(|e| {
+        LatticeArcError::ValidationError {
+            message: format!("ML-DSA-44 KAT: deterministic keygen failed: {e}"),
+        }
+    })?;
+    let pk_bytes = pk_act.into_bytes();
+    let sk_bytes = sk_act.into_bytes();
+
+    // ACVP-attested expected outputs (truncated to head + tail; full
+    // 1312/2560-byte arrays would dominate the source file. Comparing
+    // 64 bytes total prefix + 64 bytes total suffix detects any
+    // implementation drift; a wrong implementation cannot accidentally
+    // match four 32-byte boundary regions of an externally-attested
+    // ML-DSA-44 keypair).
+    const PK_HEAD: [u8; 32] = [
+        0xbc, 0x5f, 0xf8, 0x10, 0xeb, 0x08, 0x90, 0x48, 0xb8, 0xab, 0x30, 0x20, 0xa7, 0xbd, 0x3b,
+        0x16, 0xc0, 0xe0, 0xca, 0x3d, 0x6b, 0x97, 0xe4, 0x64, 0x6c, 0x2c, 0xca, 0xe0, 0xbb, 0xf1,
+        0x9e, 0xf7,
+    ];
+    const PK_TAIL: [u8; 32] = [
+        0x50, 0x33, 0x2f, 0xaf, 0x1a, 0xc2, 0x19, 0x1e, 0x71, 0x71, 0x25, 0xf6, 0x3e, 0x25, 0x86,
+        0xc4, 0xd8, 0x6d, 0xca, 0x6b, 0xcd, 0x3d, 0x03, 0x8f, 0x9d, 0x3a, 0x7b, 0x66, 0xcb, 0xc7,
+        0xdf, 0x34,
+    ];
+    const SK_HEAD: [u8; 32] = [
+        0xbc, 0x5f, 0xf8, 0x10, 0xeb, 0x08, 0x90, 0x48, 0xb8, 0xab, 0x30, 0x20, 0xa7, 0xbd, 0x3b,
+        0x16, 0xc0, 0xe0, 0xca, 0x3d, 0x6b, 0x97, 0xe4, 0x64, 0x6c, 0x2c, 0xca, 0xe0, 0xbb, 0xf1,
+        0x9e, 0xf7,
+    ];
+    const SK_TAIL: [u8; 32] = [
+        0x10, 0xd5, 0x19, 0xd3, 0x31, 0xf9, 0xc4, 0x00, 0xaa, 0xe1, 0xe5, 0x0d, 0x48, 0x0c, 0xaa,
+        0xe5, 0xa1, 0xc0, 0xfa, 0x99, 0xd7, 0x79, 0x24, 0xcf, 0x8d, 0xfe, 0x56, 0xcd, 0x70, 0x92,
+        0xe7, 0xb9,
+    ];
+
+    if pk_bytes.len() != 1312 {
+        return Err(LatticeArcError::ValidationError {
+            message: format!("ML-DSA-44 KAT: pk size {} ≠ 1312", pk_bytes.len()),
+        });
+    }
+    if sk_bytes.len() != 2560 {
+        return Err(LatticeArcError::ValidationError {
+            message: format!("ML-DSA-44 KAT: sk size {} ≠ 2560", sk_bytes.len()),
+        });
+    }
+    if !bool::from(pk_bytes[..32].ct_eq(&PK_HEAD)) || !bool::from(pk_bytes[1280..].ct_eq(&PK_TAIL))
+    {
+        return Err(LatticeArcError::ValidationError {
+            message: "ML-DSA-44 KAT: pk does not match ACVP vector tcId=1".to_string(),
+        });
+    }
+    if !bool::from(sk_bytes[..32].ct_eq(&SK_HEAD)) || !bool::from(sk_bytes[2528..].ct_eq(&SK_TAIL))
+    {
+        return Err(LatticeArcError::ValidationError {
+            message: "ML-DSA-44 KAT: sk does not match ACVP vector tcId=1".to_string(),
+        });
+    }
+
+    // Sign/verify roundtrip on a fresh keypair (the ACVP-keyed sk
+    // contains randomness state that the wrapper API doesn't expose;
+    // re-keying through the public wrapper exercises the full
+    // production path).
     const TEST_MESSAGE: &[u8] = b"FIPS 140-3 ML-DSA Known Answer Test";
     const CONTEXT: &[u8] = b"";
-
-    // Generate a keypair using ML-DSA-44 (fastest variant for KAT)
     let (public_key, secret_key) = generate_keypair(MlDsaParameterSet::MlDsa44).map_err(|e| {
         LatticeArcError::ValidationError {
-            message: format!("ML-DSA KAT: key generation failed: {}", e),
+            message: format!("ML-DSA roundtrip: key generation failed: {e}"),
         }
     })?;
-
-    // Verify key sizes match expected values
-    if public_key.len() != MlDsaParameterSet::MlDsa44.public_key_size() {
-        return Err(LatticeArcError::ValidationError {
-            message: format!(
-                "ML-DSA KAT: public key size mismatch: expected {}, got {}",
-                MlDsaParameterSet::MlDsa44.public_key_size(),
-                public_key.len()
-            ),
-        });
-    }
-
-    // Sign the test message
-    let signature = secret_key.sign(TEST_MESSAGE, CONTEXT).map_err(|e| {
-        LatticeArcError::ValidationError { message: format!("ML-DSA KAT: signing failed: {}", e) }
-    })?;
-
-    // Verify signature size
-    if signature.len() != MlDsaParameterSet::MlDsa44.signature_size() {
-        return Err(LatticeArcError::ValidationError {
-            message: format!(
-                "ML-DSA KAT: signature size mismatch: expected {}, got {}",
-                MlDsaParameterSet::MlDsa44.signature_size(),
-                signature.len()
-            ),
-        });
-    }
-
-    // Verify the signature
+    let signature =
+        secret_key.sign(TEST_MESSAGE, CONTEXT).map_err(|e| LatticeArcError::ValidationError {
+            message: format!("ML-DSA roundtrip: signing failed: {e}"),
+        })?;
     let is_valid = public_key.verify(TEST_MESSAGE, &signature, CONTEXT).map_err(|e| {
         LatticeArcError::ValidationError {
-            message: format!("ML-DSA KAT: verification failed: {}", e),
+            message: format!("ML-DSA roundtrip: verification failed: {e}"),
         }
     })?;
-
     if !is_valid {
         return Err(LatticeArcError::ValidationError {
-            message: "ML-DSA KAT: valid signature was rejected".to_string(),
+            message: "ML-DSA roundtrip: valid signature was rejected".to_string(),
         });
     }
-
-    // Verify that a modified message fails verification
     const WRONG_MESSAGE: &[u8] = b"FIPS 140-3 ML-DSA Wrong Message";
     let is_valid_wrong = public_key.verify(WRONG_MESSAGE, &signature, CONTEXT).map_err(|e| {
         LatticeArcError::ValidationError {
-            message: format!("ML-DSA KAT: verification check failed: {}", e),
+            message: format!("ML-DSA roundtrip: verification check failed: {e}"),
         }
     })?;
-
     if is_valid_wrong {
         return Err(LatticeArcError::ValidationError {
-            message: "ML-DSA KAT: invalid signature was accepted".to_string(),
+            message: "ML-DSA roundtrip: invalid signature was accepted".to_string(),
         });
     }
 
     Ok(())
 }
 
-/// SLH-DSA Known Answer Test (FIPS 205)
+/// SLH-DSA-SHAKE-192s Known Answer Test (FIPS 205).
 ///
-/// This test verifies the SLH-DSA implementation by performing a complete
-/// sign/verify round-trip using SLH-DSA-SHAKE-128s (NIST Level 1 security).
+/// Drives the upstream `fips205` crate's `try_keygen_with_rng` with a
+/// deterministic RNG pre-loaded with the NIST ACVP `keyGen` vector
+/// `tcId=21` (parameter set `SLH-DSA-SHAKE-192s`), then asserts that
+/// the produced `(pk, sk)` byte-exactly matches the ACVP-attested
+/// expected output. This satisfies FIPS 140-3 §10.3.1's requirement
+/// that power-up KATs use externally-attested fixed (input, output)
+/// tuples.
 ///
-/// The test:
-/// 1. Generates a fresh keypair
-/// 2. Signs a fixed test message
-/// 3. Verifies the signature succeeds
-/// 4. Verifies that verification fails with a modified message
+/// Vector source:
+/// <https://github.com/usnistgov/ACVP-Server/blob/master/gen-val/json-files/SLH-DSA-keyGen-FIPS205/internalProjection.json>
+/// (mirrored in-tree by the upstream `fips205` crate).
+///
+/// SHAKE-192s rather than SHAKE-128s because the latter is not in the
+/// fips205 crate's bundled ACVP vectors as of v0.4.1; both share the
+/// same SHAKE-based code paths so coverage is equivalent.
+///
+/// A sign/verify roundtrip on a fresh wrapper-API keypair (SHAKE-128s,
+/// the production default) is then run for additional coverage.
 ///
 /// SLH-DSA (FIPS 205) has significantly longer execution times due to the
-/// hash-based signature scheme. This test should be run as a conditional
+/// hash-based signature scheme. This check should be run as a conditional
 /// self-test rather than at power-up.
 ///
 /// # Errors
 ///
-/// Returns error if key generation, signing, or verification fails.
+/// Returns error if keygen output does not match the ACVP vector, or if
+/// the sign/verify roundtrip on the production-default key fails.
 pub fn kat_slh_dsa() -> Result<()> {
     use crate::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+    use fips205::slh_dsa_shake_192s;
+    use fips205::traits::{KeyGen, SerDes};
 
-    // Fixed test message for KAT
-    const TEST_MESSAGE: &[u8] = b"FIPS 140-3 SLH-DSA Known Answer Test";
+    // ACVP SLH-DSA-keyGen-FIPS205, parameter set SLH-DSA-SHAKE-192s, tcId = 21.
+    // RNG fill order: sk_seed, sk_prf, pk_seed → push reverse.
+    const SK_SEED: [u8; 24] = [
+        0xbc, 0x95, 0x43, 0xf9, 0x1d, 0x3e, 0x83, 0xdf, 0x79, 0x3a, 0xcc, 0x0b, 0xbc, 0xdf, 0x54,
+        0x81, 0x06, 0x91, 0xc7, 0x70, 0xf2, 0xdc, 0x5d, 0xad,
+    ];
+    const SK_PRF: [u8; 24] = [
+        0x3a, 0xcf, 0xa7, 0x97, 0x32, 0xcd, 0xb7, 0x1d, 0x4e, 0xf1, 0xe9, 0xb2, 0xec, 0xa1, 0xa4,
+        0x90, 0xf9, 0x77, 0xcb, 0x0c, 0xce, 0x3a, 0xaa, 0xc5,
+    ];
+    const PK_SEED: [u8; 24] = [
+        0xf6, 0xc6, 0x4e, 0x2b, 0x66, 0x2b, 0xe5, 0xdd, 0xb6, 0xf9, 0xc2, 0x8c, 0xc6, 0x2c, 0x20,
+        0xc7, 0x69, 0x7e, 0xfe, 0xda, 0xab, 0x1c, 0x90, 0x28,
+    ];
+    const PK_EXPECTED: [u8; 48] = [
+        0xf6, 0xc6, 0x4e, 0x2b, 0x66, 0x2b, 0xe5, 0xdd, 0xb6, 0xf9, 0xc2, 0x8c, 0xc6, 0x2c, 0x20,
+        0xc7, 0x69, 0x7e, 0xfe, 0xda, 0xab, 0x1c, 0x90, 0x28, 0xac, 0x30, 0xc2, 0x49, 0xf7, 0x5b,
+        0x8b, 0x7f, 0x44, 0x73, 0x0e, 0x53, 0x41, 0x69, 0x88, 0x53, 0xb3, 0xf4, 0x8b, 0x5d, 0x15,
+        0x0c, 0x80, 0x2e,
+    ];
+    const SK_EXPECTED: [u8; 96] = [
+        0xbc, 0x95, 0x43, 0xf9, 0x1d, 0x3e, 0x83, 0xdf, 0x79, 0x3a, 0xcc, 0x0b, 0xbc, 0xdf, 0x54,
+        0x81, 0x06, 0x91, 0xc7, 0x70, 0xf2, 0xdc, 0x5d, 0xad, 0x3a, 0xcf, 0xa7, 0x97, 0x32, 0xcd,
+        0xb7, 0x1d, 0x4e, 0xf1, 0xe9, 0xb2, 0xec, 0xa1, 0xa4, 0x90, 0xf9, 0x77, 0xcb, 0x0c, 0xce,
+        0x3a, 0xaa, 0xc5, 0xf6, 0xc6, 0x4e, 0x2b, 0x66, 0x2b, 0xe5, 0xdd, 0xb6, 0xf9, 0xc2, 0x8c,
+        0xc6, 0x2c, 0x20, 0xc7, 0x69, 0x7e, 0xfe, 0xda, 0xab, 0x1c, 0x90, 0x28, 0xac, 0x30, 0xc2,
+        0x49, 0xf7, 0x5b, 0x8b, 0x7f, 0x44, 0x73, 0x0e, 0x53, 0x41, 0x69, 0x88, 0x53, 0xb3, 0xf4,
+        0x8b, 0x5d, 0x15, 0x0c, 0x80, 0x2e,
+    ];
 
-    // Generate a keypair using SLH-DSA-SHAKE-128s (fastest variant for KAT)
-    let (signing_key, verifying_key) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
-        .map_err(|e| LatticeArcError::ValidationError {
-            message: format!("SLH-DSA KAT: key generation failed: {}", e),
-        })?;
+    let mut rng = FixedBytesRng::new();
+    rng.push(&PK_SEED);
+    rng.push(&SK_PRF);
+    rng.push(&SK_SEED);
 
-    // Verify key sizes match expected values
-    let expected_pk_size = SlhDsaSecurityLevel::Shake128s.public_key_size();
-    if verifying_key.as_bytes().len() != expected_pk_size {
-        return Err(LatticeArcError::ValidationError {
-            message: format!(
-                "SLH-DSA KAT: public key size mismatch: expected {}, got {}",
-                expected_pk_size,
-                verifying_key.as_bytes().len()
-            ),
-        });
-    }
-
-    let expected_sk_size = SlhDsaSecurityLevel::Shake128s.secret_key_size();
-    if signing_key.expose_secret().len() != expected_sk_size {
-        return Err(LatticeArcError::ValidationError {
-            message: format!(
-                "SLH-DSA KAT: secret key size mismatch: expected {}, got {}",
-                expected_sk_size,
-                signing_key.expose_secret().len()
-            ),
-        });
-    }
-
-    // Sign the test message (None = no context string)
-    let signature = signing_key.sign(TEST_MESSAGE, &[]).map_err(|e| {
-        LatticeArcError::ValidationError { message: format!("SLH-DSA KAT: signing failed: {}", e) }
-    })?;
-
-    // Verify signature size
-    let expected_sig_size = SlhDsaSecurityLevel::Shake128s.signature_size();
-    if signature.len() != expected_sig_size {
-        return Err(LatticeArcError::ValidationError {
-            message: format!(
-                "SLH-DSA KAT: signature size mismatch: expected {}, got {}",
-                expected_sig_size,
-                signature.len()
-            ),
-        });
-    }
-
-    // Verify the signature
-    let is_valid = verifying_key.verify(TEST_MESSAGE, &signature, &[]).map_err(|e| {
+    let (pk_act, sk_act) = slh_dsa_shake_192s::KG::try_keygen_with_rng(&mut rng).map_err(|e| {
         LatticeArcError::ValidationError {
-            message: format!("SLH-DSA KAT: verification failed: {}", e),
+            message: format!("SLH-DSA-SHAKE-192s KAT: deterministic keygen failed: {e}"),
         }
     })?;
+    let pk_bytes = pk_act.into_bytes();
+    let sk_bytes = sk_act.into_bytes();
 
-    if !is_valid {
+    if !bool::from(pk_bytes.ct_eq(&PK_EXPECTED)) {
         return Err(LatticeArcError::ValidationError {
-            message: "SLH-DSA KAT: valid signature was rejected".to_string(),
+            message: "SLH-DSA-SHAKE-192s KAT: pk does not match ACVP vector tcId=21".to_string(),
+        });
+    }
+    if !bool::from(sk_bytes.ct_eq(&SK_EXPECTED)) {
+        return Err(LatticeArcError::ValidationError {
+            message: "SLH-DSA-SHAKE-192s KAT: sk does not match ACVP vector tcId=21".to_string(),
         });
     }
 
-    // Verify that a modified message fails verification
+    // Sign/verify roundtrip on the production-default SHAKE-128s key
+    // (the wrapper API's default). Catches sign+verify path bugs that
+    // a pure keygen KAT cannot reach.
+    const TEST_MESSAGE: &[u8] = b"FIPS 140-3 SLH-DSA Known Answer Test";
+    let (signing_key, verifying_key) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .map_err(|e| LatticeArcError::ValidationError {
+            message: format!("SLH-DSA roundtrip: key generation failed: {e}"),
+        })?;
+    let signature =
+        signing_key.sign(TEST_MESSAGE, &[]).map_err(|e| LatticeArcError::ValidationError {
+            message: format!("SLH-DSA roundtrip: signing failed: {e}"),
+        })?;
+    let is_valid = verifying_key.verify(TEST_MESSAGE, &signature, &[]).map_err(|e| {
+        LatticeArcError::ValidationError {
+            message: format!("SLH-DSA roundtrip: verification failed: {e}"),
+        }
+    })?;
+    if !is_valid {
+        return Err(LatticeArcError::ValidationError {
+            message: "SLH-DSA roundtrip: valid signature was rejected".to_string(),
+        });
+    }
     const WRONG_MESSAGE: &[u8] = b"FIPS 140-3 SLH-DSA Wrong Message";
     let is_valid_wrong = verifying_key.verify(WRONG_MESSAGE, &signature, &[]).map_err(|e| {
         LatticeArcError::ValidationError {
-            message: format!("SLH-DSA KAT: verification check failed: {}", e),
+            message: format!("SLH-DSA roundtrip: verification check failed: {e}"),
         }
     })?;
-
     if is_valid_wrong {
         return Err(LatticeArcError::ValidationError {
-            message: "SLH-DSA KAT: invalid signature was accepted".to_string(),
+            message: "SLH-DSA roundtrip: invalid signature was accepted".to_string(),
         });
     }
 
@@ -1701,8 +1844,8 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_768_kat_passes() {
-        assert!(kat_ml_kem_768().is_ok());
+    fn test_ml_kem_768_roundtrip_passes() {
+        assert!(roundtrip_ml_kem_768().is_ok());
     }
 
     #[test]
@@ -1829,13 +1972,13 @@ mod tests {
     #[test]
     fn test_ml_dsa_kat_passes() {
         let result = kat_ml_dsa();
-        assert!(result.is_ok(), "ML-DSA KAT should pass: {:?}", result);
+        assert!(result.is_ok(), "ML-DSA-44 KAT should pass: {:?}", result);
     }
 
     #[test]
     fn test_slh_dsa_kat_passes() {
         let result = kat_slh_dsa();
-        assert!(result.is_ok(), "SLH-DSA KAT should pass: {:?}", result);
+        assert!(result.is_ok(), "SLH-DSA-SHAKE-192s KAT should pass: {:?}", result);
     }
 
     #[test]
@@ -2343,10 +2486,10 @@ mod tests {
     }
 
     #[test]
-    fn test_kat_ml_kem_768_always_succeeds() {
+    fn test_roundtrip_ml_kem_768_always_succeeds() {
         // ML-KEM uses randomness but should always succeed
         for _ in 0..3 {
-            assert!(kat_ml_kem_768().is_ok());
+            assert!(roundtrip_ml_kem_768().is_ok());
         }
     }
 

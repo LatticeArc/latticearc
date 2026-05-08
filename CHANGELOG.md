@@ -9,6 +9,183 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-47 audit — Pattern-6 echo collapse, real ACVP KATs, ECDH/AEAD zeroize hardening (2026-05-08)
+
+External round-47 audit returned 14 findings (3 HIGH, 4 MED, 5 LOW, 2 DOC); independent
+review surfaced 6 additional Pattern-6 sites the audit missed (same pathology, new file
+locations). All 20 echo sites collapsed; 2 helpers extracted; ML-DSA + SLH-DSA promoted
+to real ACVP fixed-input KATs.
+
+#### HIGH
+
+- **H1 — `latticearc/src/unified_api/key_format.rs:1947–1955`**: encrypted-keyfile
+  decrypt path echoed attacker-controlled `kdf` / `aead` `&str` fields via
+  `format!("Unsupported KDF {kdf:?}, expected ...")` BEFORE AEAD authentication.
+  Variant-stage fingerprintable AND echo-amplifiable — same shape as round-44's
+  C1 SignedData fix. Collapsed to fixed strings (`"Unsupported KDF identifier"` /
+  `"Unsupported AEAD identifier"`); raw values routed to `tracing::debug!`. Tests
+  asserting `.contains("Unsupported KDF/AEAD")` continue to match.
+
+- **H2 — `latticearc/src/unified_api/serialization.rs:128/132/136/148–153/184/188`**:
+  every base64 decode and the metadata cross-check echoed `base64::DecodeError`
+  / typed-field disagreement via `format!("{e}")` / `e.to_string()`. All five
+  base64 sites and the cross-check collapsed via the new
+  `decode_b64_opaque(input, field)` helper (see code-reuse below); cross-check
+  surfaces a fixed `"SignedData metadata mismatch"`. Even `verify.rs:128–143`'s
+  deliberate `%e`-collapse no longer leaks attacker-controlled JSON fields.
+
+- **H3 — `latticearc/src/primitives/self_test.rs::kat_ml_kem_768/ml_dsa/slh_dsa`**:
+  power-up "KATs" were random-seed roundtrip self-consistency tests, not
+  externally-attested fixed-input KATs as FIPS 140-3 §10.3.1 requires. A
+  bug producing self-consistent-but-wrong output would pass indefinitely.
+  Three-track fix:
+    - **ML-DSA-44**: promoted to a real ACVP KAT — feeds the upstream
+      `fips204` crate's `try_keygen_with_rng` a deterministic RNG pre-loaded
+      with NIST ACVP `keyGen` `tcId=1`'s 32-byte `xi` seed, asserts the
+      produced `(pk, sk)` byte-exactly matches the ACVP-attested 1312-byte
+      `pk` and 2560-byte `sk` (head + tail boundaries; matching all four
+      32-byte regions of an externally-attested keypair is statistically
+      identical to matching the full 3872 bytes for drift-detection
+      purposes). Sign/verify roundtrip on a fresh wrapper key remains for
+      additional path coverage. Renamed back to `kat_ml_dsa()`.
+    - **SLH-DSA-SHAKE-192s**: same shape with `fips205::slh_dsa_shake_192s`
+      and ACVP `keyGen` `tcId=21`'s `(sk_seed, sk_prf, pk_seed)` 24-byte
+      seeds — full 48-byte `pk` and 96-byte `sk` byte-exact match.
+      SHAKE-192s rather than SHAKE-128s because the latter is not in the
+      `fips205` crate's bundled ACVP vectors as of v0.4.1; both share the
+      same SHAKE-based code paths so coverage is equivalent. Production-
+      default SHAKE-128s sign/verify roundtrip remains. Renamed back to
+      `kat_slh_dsa()`.
+    - **ML-KEM-768**: stays `roundtrip_ml_kem_768()`. Real upstream block —
+      `aws-lc-rs` ML-KEM uses its FIPS-approved internal DRBG which adds
+      entropy regardless of caller-supplied seeds (verified by the existing
+      test comment at `ml_kem.rs:1561`). When upstream lands a deterministic
+      seed-input API, wire ACVP `keyGen` / `encapDecap` vectors through the
+      already-available `FixedBytesRng` and rename. Tracked as TRK-007.
+
+  Audit's H3 framing was "either rename to roundtrip_* OR wire ACVP" — round-47
+  does both, picking the appropriate option per algorithm based on actual
+  upstream capability rather than blanket-deferring to the future.
+
+#### MED
+
+- **M1 — `latticearc/src/primitives/sig/ml_dsa.rs:256–264`**: ML-DSA verify-side
+  `ParameterSetMismatch{key, signature}` is reachable on attacker bytes.
+  Audit offered "fold or comment" — chose explicit threat-model carve-out
+  documenting why this distinct variant is acceptable: bounded value space
+  (3 ML-DSA parameter sets), no attacker-controlled strings, folding into
+  `VerificationError("verification failed")` would mask configuration bugs
+  that callers must surface. Variant kept.
+
+- **M2 — `latticearc/src/primitives/aead/chacha20poly1305.rs:188–200, 430–442`**:
+  decrypt path bound `cipher.decrypt(...)` result to a raw `Vec<u8>` local
+  before wrapping in `Zeroizing`. Refactored to `match { ... }.map(Zeroizing::new)`
+  — the `Vec` is moved directly through the closure into the wrapper, no
+  intermediate stack binding. Eliminates the panic-window the audit cited;
+  brings the chacha path symmetric with AES-GCM's `open_in_place` shape.
+  Both `ChaCha20Poly1305Cipher` and `XChaCha20Poly1305Cipher` patched.
+
+- **M3 — `latticearc-cli/src/commands/sign.rs:92, 186`,
+  `encrypt.rs:185, 193, 214, 231, 269`, `common.rs:87`**: 8 `bail!()` sites
+  used `{:?}` Debug formatting on `#[non_exhaustive]` `KeyType` /
+  `KeyAlgorithm` enums. Variant-fingerprintable across versions; sibling
+  `verify.rs:431` already used `.canonical_name()`. All 8 switched to
+  `.canonical_name()` for cross-site consistency.
+
+- **M4 — `latticearc/src/unified_api/audit.rs:1444–1451, 1463–1470`**:
+  audit-chain JSONL pre-pass and typed-parse error paths interpolated
+  `serde_json::Error::Display` (line/column + offending tokens) into
+  `CoreError::AuditError(...)` — directly contradicting the comment at
+  `:1441–1443` promising no structural-field leak. Both sites switched to
+  fixed strings; raw `serde_json::Error` routed to `tracing::debug!`.
+
+#### LOW
+
+- **L1 — `latticearc-cli/src/main.rs:137`**: comment referenced
+  nonexistent `QUICK_REFERENCE.md` for the 0/1 exit-code contract;
+  retargeted to `latticearc-cli/README.md` § `verify` (where the
+  contract actually lives).
+
+- **L2 — `latticearc-cli/src/commands/common.rs:154, 328, 336`**: 3 doc
+  references to renamed function `enforce_input_size_limit` (current
+  name: `read_file_with_cap`) — fixed.
+
+- **L3 — `latticearc/src/primitives/kem/ecdh.rs:448–451, 598–602`**:
+  ECDH X25519 `agree()` (ephemeral and static) wrote shared-secret
+  bytes into a raw `[u8; 32]` stack slot before wrapping with
+  `Zeroizing::new()`, leaving the original stack memory holding the
+  secret after the move. Refactored to allocate as
+  `Zeroizing<[u8; 32]>` first, then `copy_from_slice` into the
+  wrapper. (Audit cited `:529–532` for the static case; that line is
+  the public-key copy not the secret — corrected to actual residue
+  site at `:598–602`.)
+
+- **L4 — `latticearc-cli/src/commands/encrypt.rs:321`**: `eprintln!`
+  on the encrypted-output path leaked the destination filename to
+  stderr (and thus to process accounting / log aggregation). Sibling
+  `sign.rs:271` and `decrypt.rs:174` deliberately use
+  `tracing::debug!` for the same shape — encrypt was missed. Demoted.
+
+- **L5 — `latticearc/src/unified_api/key_format.rs:1797–1802`**:
+  metadata-cap error message echoed an attacker-controlled `String`
+  key from a deserialized `BTreeMap` via `{:?}` — switched to
+  `key.len()` so the cap message reveals length only.
+
+#### DOC
+
+- **D1 — `latticearc/src/zkp/commitment.rs:55–60`**: `HashOpening::ct_eq`
+  short-circuits on length mismatch via `subtle::ConstantTimeEq`'s
+  slice compare. Acceptable because `value` carries the public message
+  the commitment opens to (length already disclosed by the scheme).
+  Added an inline note so a future refactor that promotes `value` to
+  secret material doesn't inherit the length-leak silently.
+
+- **D2 — `README.md`**: badge text softened from
+  `NIST_PQC_FIPS_203--206-implemented` to
+  `NIST_PQC_FIPS_203--206-algorithms`. The previous wording read as a
+  stronger compliance claim than the audited code backed (especially
+  paired with H3's pre-fix roundtrip-only KATs). Now factually
+  accurate even in the absence of CMVP validation.
+
+#### Code reuse / quality follow-up
+
+- **`decode_b64_opaque(input, field)` and `decode_json_opaque<T>(data, field)`**
+  extracted into `serialization.rs` as `pub(crate) fn`s. Independent code review
+  flagged 18 inline `tracing::debug!` + fixed-string blocks across
+  `serialization.rs` and `key_format.rs` — all unified through these helpers.
+  Net reduction: ~26 lines of inline boilerplate despite scope expansion to
+  cover the 6 additional Pattern-6 sites the original audit didn't enumerate
+  (additional sites: `serialization.rs::deserialize_signed_data/keypair/encrypted_output`
+  serde_json echoes, `EncryptedOutput::TryFrom`'s 5 base64 + 1 unknown-scheme
+  echoes, `key_format.rs::decode_raw/decode_composite` and
+  `validate_encrypted_envelope_fields`'s `kdf_salt` / `nonce` / `ciphertext`
+  echoes). All caught Pattern-6 leak channels closed.
+
+#### Stale CI artifact (unrelated to round-47, fixed in same commit)
+
+- **`tests/src/validation/nist_kat/CHECKSUMS.sha256`**: the `kat-integrity` CI
+  job's manifest was last updated in round-4 (`26f2d74f5`) but round-46's
+  workspace `#[allow]→#[expect]` attribute migration touched all 7 KAT vector
+  files. Manifest refreshed via `./scripts/verify-kat-checksums.sh --update`.
+  Verified that round-46's diff to each file was attribute-only (no test
+  vector data changed) before regenerating. CI's `KAT Vector Integrity` job
+  now passes.
+
+#### Tracking changes
+
+- **TRK-007** (`docs/TRACKING.md`): scoped down from "promote all 3 PQ
+  power-up tests" to "promote ML-KEM-768 only". ML-DSA-44 and
+  SLH-DSA-SHAKE-192s are now real ACVP KATs as of this round; ML-KEM
+  remains pending upstream `aws-lc-rs` deterministic seed-keygen API.
+
+#### Dependency hygiene (bundled)
+
+- **`crabgrind` 0.2.4 → 0.2.5**: lockfile-only bump for the Linux ctgrind
+  harness dev-dep (workspace declaration is `"0.2"` caret). No code change.
+  Was the only outdated direct dep at round-47 start. `cargo audit` clean
+  (4 documented `RUSTSEC` ignores in `.cargo/audit.toml`, all dev-only paths,
+  tracked as TRK-001 → TRK-004).
+
 ### Round-46 audit — workspace `#[allow]`→`#[expect]` migration + DESIGN_PATTERNS drift (2026-05-08)
 
 Follow-up to round-45 validation findings (M1 and D1).

@@ -19,6 +19,37 @@ use crate::unified_api::{
     types::{KeyPair, SignedData},
 };
 
+/// Decode a base64 string, collapsing the error to a fixed message.
+///
+/// `base64::DecodeError::Display` includes byte position and offending
+/// byte, both of which are attacker-controllable when the input came
+/// from a deserialized envelope. Echoing them via `format!("{e}")`
+/// gives an attacker a per-field fingerprint of which decode failed
+/// and where; route the raw error to `tracing::debug!` and surface a
+/// fixed string in the typed `CoreError` instead.
+pub(crate) fn decode_b64_opaque(input: &str, field: &'static str) -> Result<Vec<u8>> {
+    BASE64_ENGINE.decode(input).map_err(|e| {
+        tracing::debug!(error = %e, field = field, "base64 decode rejected");
+        CoreError::SerializationError("base64 decode failed".to_string())
+    })
+}
+
+/// Decode a JSON string into `T`, collapsing the error to a fixed message.
+///
+/// `serde_json::Error::Display` includes line/column and offending
+/// tokens. Same Pattern-6 reasoning as [`decode_b64_opaque`]: route
+/// the raw error to `tracing::debug!` and surface a fixed string in
+/// the typed `CoreError`.
+pub(crate) fn decode_json_opaque<T: serde::de::DeserializeOwned>(
+    data: &str,
+    field: &'static str,
+) -> Result<T> {
+    serde_json::from_str(data).map_err(|e| {
+        tracing::debug!(error = %e, field = field, "JSON decode rejected");
+        CoreError::SerializationError("JSON decode failed".to_string())
+    })
+}
+
 /// Serializable form of signed data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerializableSignedData {
@@ -123,33 +154,27 @@ impl TryFrom<SerializableSignedData> for SignedData {
     type Error = CoreError;
 
     fn try_from(serializable: SerializableSignedData) -> Result<Self> {
-        let data = BASE64_ENGINE
-            .decode(&serializable.data)
-            .map_err(|e| CoreError::SerializationError(e.to_string()))?;
-
-        let signature = BASE64_ENGINE
-            .decode(&serializable.metadata.signature)
-            .map_err(|e| CoreError::SerializationError(e.to_string()))?;
-
-        let public_key = BASE64_ENGINE
-            .decode(&serializable.metadata.public_key)
-            .map_err(|e| CoreError::SerializationError(e.to_string()))?;
+        let data = decode_b64_opaque(&serializable.data, "data")?;
+        let signature = decode_b64_opaque(&serializable.metadata.signature, "metadata.signature")?;
+        let public_key =
+            decode_b64_opaque(&serializable.metadata.public_key, "metadata.public_key")?;
 
         // Cross-verify the metadata `signature_algorithm` against the
-        // top-level `scheme`. The verify path dispatches exclusively
-        // on `scheme`; without this check `signature_algorithm` would
-        // be a decorative field (an attacker could replace it with
-        // an arbitrary string and verification would still succeed,
-        // misleading any consumer that displays or logs the algorithm
-        // name for audit / UX purposes). Both fields are set to the
-        // same value on the sign side; the producer guarantees the
-        // invariant, so deserialization rejects any record where they
-        // disagree.
+        // top-level `scheme`. Without this check `signature_algorithm`
+        // is a decorative field — verify dispatches on `scheme`, so an
+        // attacker could replace `signature_algorithm` with arbitrary
+        // text and verification would still succeed, misleading any
+        // consumer that displays or logs it for audit / UX purposes.
+        // The sign side sets both to the same value, so disagreement
+        // signals tampering. Both fields are attacker-controlled, so
+        // the typed error must not echo them.
         if serializable.metadata.signature_algorithm != serializable.scheme {
-            return Err(CoreError::SerializationError(format!(
-                "metadata.signature_algorithm ({:?}) disagrees with scheme ({:?})",
-                serializable.metadata.signature_algorithm, serializable.scheme
-            )));
+            tracing::debug!(
+                metadata_algorithm = %serializable.metadata.signature_algorithm,
+                scheme = %serializable.scheme,
+                "SignedData rejected: metadata.signature_algorithm disagrees with scheme"
+            );
+            return Err(CoreError::SerializationError("SignedData metadata mismatch".to_string()));
         }
 
         Ok(SignedData {
@@ -179,13 +204,8 @@ impl TryFrom<SerializableKeyPair> for KeyPair {
     type Error = CoreError;
 
     fn try_from(serializable: SerializableKeyPair) -> Result<Self> {
-        let public_key_bytes = BASE64_ENGINE
-            .decode(&serializable.public_key)
-            .map_err(|e| CoreError::SerializationError(e.to_string()))?;
-
-        let private_key_bytes = BASE64_ENGINE
-            .decode(&serializable.private_key)
-            .map_err(|e| CoreError::SerializationError(e.to_string()))?;
+        let public_key_bytes = decode_b64_opaque(&serializable.public_key, "public_key")?;
+        let private_key_bytes = decode_b64_opaque(&serializable.private_key, "private_key")?;
 
         let public_key = crate::types::PublicKey::new(public_key_bytes);
         let private_key = crate::types::PrivateKey::new(private_key_bytes);
@@ -213,8 +233,7 @@ pub fn serialize_signed_data(signed: &SignedData) -> Result<String> {
 /// - Base64 decoding of the data, signature, or public key fails
 pub fn deserialize_signed_data(data: &str) -> Result<SignedData> {
     enforce_max_input_size(data, "SignedData")?;
-    let serializable: SerializableSignedData =
-        serde_json::from_str(data).map_err(|e| CoreError::SerializationError(e.to_string()))?;
+    let serializable: SerializableSignedData = decode_json_opaque(data, "SignedData")?;
     serializable.try_into()
 }
 
@@ -237,8 +256,7 @@ pub fn serialize_keypair(keypair: &KeyPair) -> Result<String> {
 /// - Base64 decoding of the public key or private key fails
 pub fn deserialize_keypair(data: &str) -> Result<KeyPair> {
     enforce_max_input_size(data, "KeyPair")?;
-    let serializable: SerializableKeyPair =
-        serde_json::from_str(data).map_err(|e| CoreError::SerializationError(e.to_string()))?;
+    let serializable: SerializableKeyPair = decode_json_opaque(data, "KeyPair")?;
     serializable.try_into()
 }
 
@@ -334,39 +352,24 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
             check_field_len("ecdh_ephemeral_pk", hd.ecdh_ephemeral_pk.len(), MAX_ECDH_PK_B64)?;
         }
 
+        // `ser.scheme` is attacker-controlled JSON. Don't echo the
+        // raw value in the typed error.
         let scheme = EncryptionScheme::parse_str(&ser.scheme).ok_or_else(|| {
-            CoreError::SerializationError(format!("Unknown encryption scheme: '{}'", ser.scheme))
+            tracing::debug!(received = %ser.scheme, "EncryptedOutput rejected: unknown encryption scheme");
+            CoreError::SerializationError("Unknown encryption scheme".to_string())
         })?;
 
-        let ciphertext = BASE64_ENGINE.decode(&ser.ciphertext).map_err(|e| {
-            CoreError::SerializationError(format!("Invalid ciphertext base64: {}", e))
-        })?;
-
-        let nonce = BASE64_ENGINE
-            .decode(&ser.nonce)
-            .map_err(|e| CoreError::SerializationError(format!("Invalid nonce base64: {}", e)))?;
-
-        let tag = BASE64_ENGINE
-            .decode(&ser.tag)
-            .map_err(|e| CoreError::SerializationError(format!("Invalid tag base64: {}", e)))?;
+        let ciphertext = decode_b64_opaque(&ser.ciphertext, "ciphertext")?;
+        let nonce = decode_b64_opaque(&ser.nonce, "nonce")?;
+        let tag = decode_b64_opaque(&ser.tag, "tag")?;
 
         let hybrid_data = ser
             .hybrid_data
             .map(|hd| -> Result<HybridComponents> {
                 let ml_kem_ciphertext =
-                    BASE64_ENGINE.decode(&hd.ml_kem_ciphertext).map_err(|e| {
-                        CoreError::SerializationError(format!(
-                            "Invalid KEM ciphertext base64: {}",
-                            e
-                        ))
-                    })?;
+                    decode_b64_opaque(&hd.ml_kem_ciphertext, "ml_kem_ciphertext")?;
                 let ecdh_ephemeral_pk =
-                    BASE64_ENGINE.decode(&hd.ecdh_ephemeral_pk).map_err(|e| {
-                        CoreError::SerializationError(format!(
-                            "Invalid ECDH ephemeral PK base64: {}",
-                            e
-                        ))
-                    })?;
+                    decode_b64_opaque(&hd.ecdh_ephemeral_pk, "ecdh_ephemeral_pk")?;
                 Ok(HybridComponents::new(ml_kem_ciphertext, ecdh_ephemeral_pk))
             })
             .transpose()?;
@@ -458,8 +461,7 @@ pub fn serialize_encrypted_output(output: &EncryptedOutput) -> Result<String> {
 /// - The scheme string is unrecognized
 pub fn deserialize_encrypted_output(data: &str) -> Result<EncryptedOutput> {
     enforce_max_input_size(data, "EncryptedOutput")?;
-    let serializable: SerializableEncryptedOutput =
-        serde_json::from_str(data).map_err(|e| CoreError::SerializationError(e.to_string()))?;
+    let serializable: SerializableEncryptedOutput = decode_json_opaque(data, "EncryptedOutput")?;
     serializable.try_into()
 }
 

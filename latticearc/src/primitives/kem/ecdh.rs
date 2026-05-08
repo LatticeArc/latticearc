@@ -446,9 +446,16 @@ impl X25519KeyPair {
             peer_public,
             EcdhError::AgreementFailed,
             |shared_secret| {
-                let mut result = [0u8; X25519_KEY_SIZE];
+                // Allocate the destination as `Zeroizing<[u8; 32]>`
+                // first so the stack slot we copy into is owned by a
+                // type that scrubs on drop. A `let mut result =
+                // [0u8; 32]; ...; Ok(Zeroizing::new(result))` shape
+                // leaves the unwrapped stack slot holding the secret
+                // bytes after the move into Zeroizing.
+                let mut result: Zeroizing<[u8; X25519_KEY_SIZE]> =
+                    Zeroizing::new([0u8; X25519_KEY_SIZE]);
                 result.copy_from_slice(shared_secret);
-                Ok(Zeroizing::new(result))
+                Ok(result)
             },
         )
     }
@@ -596,9 +603,12 @@ impl X25519StaticKeyPair {
         let peer_public = UnparsedPublicKey::new(&X25519, peer_public_bytes);
 
         agreement::agree(&self.private, peer_public, EcdhError::AgreementFailed, |shared_secret| {
-            let mut result = [0u8; X25519_KEY_SIZE];
+            // See X25519KeyPair::agree above for the Zeroizing-first
+            // rationale.
+            let mut result: Zeroizing<[u8; X25519_KEY_SIZE]> =
+                Zeroizing::new([0u8; X25519_KEY_SIZE]);
             result.copy_from_slice(shared_secret);
-            Ok(Zeroizing::new(result))
+            Ok(result)
         })
     }
 }

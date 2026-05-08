@@ -89,7 +89,7 @@ pub(crate) fn run(args: SignArgs) -> Result<()> {
 
     let key_file = KeyFile::read_from(&args.key)?;
     if key_file.key_type != KeyType::Secret {
-        bail!("Expected secret key file for signing, got {:?}", key_file.key_type);
+        bail!("Expected secret key file for signing, got {}", key_file.key_type.canonical_name());
     }
     let sk_bytes = key_file.key_bytes()?;
 
@@ -183,7 +183,7 @@ fn sign_unified(
 ) -> Result<()> {
     let pk_file = KeyFile::read_from(pk_path)?;
     if pk_file.key_type != KeyType::Public {
-        bail!("Expected public key file, got {:?}", pk_file.key_type);
+        bail!("Expected public key file, got {}", pk_file.key_type.canonical_name());
     }
     let pk_bytes = pk_file.key_bytes()?;
 

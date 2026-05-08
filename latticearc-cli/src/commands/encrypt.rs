@@ -182,15 +182,15 @@ fn encrypt_with_config(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs)
                 .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
         }
         _ => bail!(
-            "Expected symmetric or public key file for encryption, got {:?}",
-            key_file.key_type
+            "Expected symmetric or public key file for encryption, got {}",
+            key_file.key_type.canonical_name()
         ),
     }
 }
 
 fn encrypt_symmetric(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
     if key_file.key_type != KeyType::Symmetric {
-        bail!("Expected symmetric key file, got {:?}", key_file.key_type);
+        bail!("Expected symmetric key file, got {}", key_file.key_type.canonical_name());
     }
 
     let key_bytes = key_file.key_bytes()?;
@@ -211,7 +211,10 @@ fn encrypt_symmetric(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
 
 fn encrypt_chacha20(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
     if key_file.key_type != KeyType::Symmetric {
-        bail!("Expected symmetric key file for ChaCha20 encryption, got {:?}", key_file.key_type);
+        bail!(
+            "Expected symmetric key file for ChaCha20 encryption, got {}",
+            key_file.key_type.canonical_name()
+        );
     }
     let key_bytes = key_file.key_bytes()?;
 
@@ -228,7 +231,10 @@ fn encrypt_chacha20(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
 
 fn encrypt_hybrid(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
     if key_file.key_type != KeyType::Public {
-        bail!("Expected public key file for hybrid encryption, got {:?}", key_file.key_type);
+        bail!(
+            "Expected public key file for hybrid encryption, got {}",
+            key_file.key_type.canonical_name()
+        );
     }
 
     let pk_bytes = key_file.key_bytes()?;
@@ -266,7 +272,10 @@ fn encrypt_pq_only_mode(
     args: &EncryptArgs,
 ) -> Result<String> {
     if key_file.key_type != KeyType::Public {
-        bail!("Expected public key file for PQ-only encryption, got {:?}", key_file.key_type);
+        bail!(
+            "Expected public key file for PQ-only encryption, got {}",
+            key_file.key_type.canonical_name()
+        );
     }
 
     let pk_bytes = key_file.key_bytes()?;
@@ -318,7 +327,10 @@ fn write_output(path: &Option<PathBuf>, data: &str, force: bool) -> Result<()> {
                 .with_context(|| {
                     format!("Failed to write {} (use --force to overwrite)", p.display())
                 })?;
-            eprintln!("Encrypted data written to: {}", p.display());
+            // Path on stderr would leak through process accounting and log
+            // aggregation; route to tracing::debug! instead. Mirrors
+            // sign.rs:271 and decrypt.rs:174.
+            tracing::debug!(path = %p.display(), "encrypted data written");
         }
         None => {
             // `print!` (not `println!`) — byte-exact stdout for

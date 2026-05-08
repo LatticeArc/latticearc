@@ -1440,13 +1440,20 @@ impl FileAuditStorage {
                 //
                 // Rejection here cannot leak which structural field
                 // failed: any pre-pass parse error collapses to a
-                // single "unparseable" outcome.
+                // single "unparseable" outcome. `serde_json::Error::Display`
+                // includes line/column and offending tokens — route to
+                // tracing::debug! so the typed error stays opaque.
                 let bare: serde_json::Value = serde_json::from_str(&line).map_err(|e| {
+                    tracing::debug!(
+                        error = %e,
+                        line = line_idx,
+                        file = %file.display(),
+                        "audit chain pre-pass JSON parse rejected"
+                    );
                     CoreError::AuditError(format!(
-                        "Failed to parse line {} of {}: {}",
+                        "Failed to parse line {} of {}",
                         line_idx,
-                        file.display(),
-                        e
+                        file.display()
                     ))
                 })?;
                 let _stored_hash_seen =
@@ -1461,11 +1468,16 @@ impl FileAuditStorage {
                 // pre-pass to be a structurally valid event JSON
                 // with an `integrity_hash` field present.
                 let event: AuditEvent = serde_json::from_value(bare).map_err(|e| {
+                    tracing::debug!(
+                        error = %e,
+                        line = line_idx,
+                        file = %file.display(),
+                        "audit chain typed parse rejected"
+                    );
                     CoreError::AuditError(format!(
-                        "Failed to typed-parse line {} of {}: {}",
+                        "Failed to typed-parse line {} of {}",
                         line_idx,
-                        file.display(),
-                        e
+                        file.display()
                     ))
                 })?;
                 let stored = event.integrity_hash.clone();

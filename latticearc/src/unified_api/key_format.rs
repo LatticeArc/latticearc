@@ -114,6 +114,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use crate::unified_api::error::{CoreError, Result};
+use crate::unified_api::serialization::decode_b64_opaque;
 
 /// Pair of zeroizing byte buffers returned by [`KeyData::decode_composite_zeroized`].
 ///
@@ -609,9 +610,7 @@ impl KeyData {
     /// (call [`PortableKey::decrypt_with_passphrase`] first), or Base64 decoding fails.
     pub fn decode_raw(&self) -> Result<Vec<u8>> {
         match self {
-            Self::Single { raw } => BASE64_ENGINE
-                .decode(raw)
-                .map_err(|e| CoreError::SerializationError(format!("Invalid key base64: {e}"))),
+            Self::Single { raw } => decode_b64_opaque(raw, "key.raw"),
             Self::Composite { .. } => Err(CoreError::InvalidKey(
                 "Expected single key data but found composite".to_string(),
             )),
@@ -650,12 +649,8 @@ impl KeyData {
     pub fn decode_composite(&self) -> Result<(Vec<u8>, Vec<u8>)> {
         match self {
             Self::Composite { pq, classical } => {
-                let pq_bytes = BASE64_ENGINE.decode(pq).map_err(|e| {
-                    CoreError::SerializationError(format!("Invalid PQ key base64: {e}"))
-                })?;
-                let classical_bytes = BASE64_ENGINE.decode(classical).map_err(|e| {
-                    CoreError::SerializationError(format!("Invalid classical key base64: {e}"))
-                })?;
+                let pq_bytes = decode_b64_opaque(pq, "key.composite.pq")?;
+                let classical_bytes = decode_b64_opaque(classical, "key.composite.classical")?;
                 Ok((pq_bytes, classical_bytes))
             }
             Self::Single { .. } => Err(CoreError::InvalidKey(
@@ -1794,10 +1789,14 @@ impl PortableKey {
                 ))
             })?;
             if value_len > Self::MAX_METADATA_VALUE_JSON_LEN {
+                // `key` is an attacker-controlled `String` from the
+                // deserialized BTreeMap. Surface only its length (not the
+                // value) so a tampered key file can't be used to fingerprint
+                // which key-name tripped the cap.
                 return Err(CoreError::InvalidKey(format!(
-                    "metadata value JSON length {} for key {:?} exceeds maximum {}",
+                    "metadata value JSON length {} for key (len={}) exceeds maximum {}",
                     value_len,
-                    key,
+                    key.len(),
                     Self::MAX_METADATA_VALUE_JSON_LEN
                 )));
             }
@@ -1837,17 +1836,11 @@ impl PortableKey {
         // Verify base64 decodes / envelope shape
         match &self.key_data {
             KeyData::Single { raw } => {
-                let _ = BASE64_ENGINE
-                    .decode(raw)
-                    .map_err(|e| CoreError::SerializationError(format!("Invalid base64: {e}")))?;
+                let _ = decode_b64_opaque(raw, "validate.single")?;
             }
             KeyData::Composite { pq, classical } => {
-                let pq_bytes = BASE64_ENGINE.decode(pq).map_err(|e| {
-                    CoreError::SerializationError(format!("Invalid PQ base64: {e}"))
-                })?;
-                let classical_bytes = BASE64_ENGINE.decode(classical).map_err(|e| {
-                    CoreError::SerializationError(format!("Invalid classical base64: {e}"))
-                })?;
+                let pq_bytes = decode_b64_opaque(pq, "validate.composite.pq")?;
+                let classical_bytes = decode_b64_opaque(classical, "validate.composite.classical")?;
                 // validate component sizes for hybrid keys.
                 // The composite arm previously only verified that
                 // base64 decoded — a truncated PQ component or a
@@ -1944,15 +1937,18 @@ impl PortableKey {
                 "Unsupported encrypted key envelope version {enc}, expected {ENCRYPTED_ENVELOPE_VERSION}",
             )));
         }
+        // `kdf` and `aead` are attacker-controlled fields validated
+        // before AEAD authentication. Echoing them in the typed error
+        // would give an attacker a per-field fingerprint of which
+        // check tripped; surface a fixed string and route the raw
+        // value to `tracing::debug!` for operator visibility.
         if kdf != PBKDF2_KDF_ID {
-            return Err(CoreError::InvalidKey(format!(
-                "Unsupported KDF {kdf:?}, expected {PBKDF2_KDF_ID:?}",
-            )));
+            tracing::debug!(received = %kdf, expected = %PBKDF2_KDF_ID, "encrypted key envelope: unsupported KDF identifier");
+            return Err(CoreError::InvalidKey("Unsupported KDF identifier".to_string()));
         }
         if aead != AES_GCM_AEAD_ID {
-            return Err(CoreError::InvalidKey(format!(
-                "Unsupported AEAD {aead:?}, expected {AES_GCM_AEAD_ID:?}",
-            )));
+            tracing::debug!(received = %aead, expected = %AES_GCM_AEAD_ID, "encrypted key envelope: unsupported AEAD identifier");
+            return Err(CoreError::InvalidKey("Unsupported AEAD identifier".to_string()));
         }
         if kdf_iterations < PBKDF2_MIN_ITERATIONS {
             return Err(CoreError::InvalidKey(format!(
@@ -2015,27 +2011,21 @@ impl PortableKey {
                 );
             }
         }
-        let salt = BASE64_ENGINE
-            .decode(kdf_salt)
-            .map_err(|e| CoreError::SerializationError(format!("Invalid KDF salt base64: {e}")))?;
+        let salt = decode_b64_opaque(kdf_salt, "validate.encrypted.kdf_salt")?;
         if salt.len() < PBKDF2_MIN_SALT_LEN {
             return Err(CoreError::InvalidKey(format!(
                 "PBKDF2 salt length {} below minimum {PBKDF2_MIN_SALT_LEN}",
                 salt.len(),
             )));
         }
-        let nonce_bytes = BASE64_ENGINE
-            .decode(nonce)
-            .map_err(|e| CoreError::SerializationError(format!("Invalid nonce base64: {e}")))?;
+        let nonce_bytes = decode_b64_opaque(nonce, "validate.encrypted.nonce")?;
         if nonce_bytes.len() != AES_GCM_NONCE_LEN {
             return Err(CoreError::InvalidKey(format!(
                 "AES-GCM nonce length {} != {AES_GCM_NONCE_LEN}",
                 nonce_bytes.len(),
             )));
         }
-        let ct_bytes = BASE64_ENGINE.decode(ciphertext).map_err(|e| {
-            CoreError::SerializationError(format!("Invalid ciphertext base64: {e}"))
-        })?;
+        let ct_bytes = decode_b64_opaque(ciphertext, "validate.encrypted.ciphertext")?;
         if ct_bytes.len() < AES_GCM_TAG_LEN {
             return Err(CoreError::InvalidKey(
                 "Encrypted key ciphertext shorter than AES-GCM tag".to_string(),
@@ -2178,17 +2168,11 @@ impl PortableKey {
                     nonce,
                     ciphertext,
                 )?;
-                let salt = BASE64_ENGINE.decode(kdf_salt).map_err(|e| {
-                    CoreError::SerializationError(format!("Invalid KDF salt base64: {e}"))
-                })?;
-                let nonce_bytes = BASE64_ENGINE.decode(nonce).map_err(|e| {
-                    CoreError::SerializationError(format!("Invalid nonce base64: {e}"))
-                })?;
+                let salt = decode_b64_opaque(kdf_salt, "decrypt.encrypted.kdf_salt")?;
+                let nonce_bytes = decode_b64_opaque(nonce, "decrypt.encrypted.nonce")?;
                 let mut nonce_array = [0u8; AES_GCM_NONCE_LEN];
                 nonce_array.copy_from_slice(&nonce_bytes);
-                let ct_and_tag = BASE64_ENGINE.decode(ciphertext).map_err(|e| {
-                    CoreError::SerializationError(format!("Invalid ciphertext base64: {e}"))
-                })?;
+                let ct_and_tag = decode_b64_opaque(ciphertext, "decrypt.encrypted.ciphertext")?;
                 Decoded {
                     enc: *enc,
                     kdf_iterations: *kdf_iterations,

@@ -84,8 +84,8 @@ pub(crate) fn resolve_ml_kem_level(
         KeyAlgorithm::MlKem768 => Ok(MlKemSecurityLevel::MlKem768),
         KeyAlgorithm::MlKem1024 => Ok(MlKemSecurityLevel::MlKem1024),
         _ => Err(format!(
-            "PQ-only operation requires an ML-KEM key (ml-kem512/768/1024), got {:?}",
-            algorithm
+            "PQ-only operation requires an ML-KEM key (ml-kem512/768/1024), got {}",
+            algorithm.canonical_name()
         )),
     }
 }
@@ -150,12 +150,11 @@ pub(crate) const CLI_MAX_SIGNATURE_INPUT_BYTES: u64 = 100 * 1024 * 1024;
 pub(crate) const CLI_MAX_HASH_INPUT_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// read a file with a hard size cap by opening
-/// once and using a `Take` adapter. The previous
-/// `enforce_input_size_limit` + `std::fs::read` pattern was removed
-/// in this round — it stat'd via `metadata().len()`, which returns 0
-/// for `/dev/zero`, FIFOs, `/proc/*`, etc., letting the subsequent
-/// read consume unbounded bytes from those special files. The
-/// stat-then-open pattern was also a TOCTOU surface (the same shape
+/// once and using a `Take` adapter. A previous stat-then-open shape
+/// (`metadata().len()` + `std::fs::read`) was unsafe because
+/// `metadata().len()` returns 0 for `/dev/zero`, FIFOs, `/proc/*`,
+/// etc., letting the subsequent read consume unbounded bytes from
+/// those special files; it was also a TOCTOU surface (same shape
 /// was fixed in `keyfile.rs` separately). This open-once helper is
 /// the single canonical entry point for capped CLI reads — used by
 /// every command that takes a file path (encrypt / sign / hash /
@@ -325,20 +324,19 @@ pub(crate) fn read_stdin_with_limit(limit_bytes: u64, operation: &str) -> anyhow
 /// # Errors
 ///
 /// Returns the underlying I/O error or the size-cap rejection from
-/// [`enforce_input_size_limit`] / [`read_stdin_with_limit`].
+/// [`read_file_with_cap`] / [`read_stdin_with_limit`].
 pub(crate) fn read_file_or_stdin(
     path: Option<&std::path::Path>,
     limit_bytes: u64,
     operation: &str,
 ) -> anyhow::Result<Vec<u8>> {
     if let Some(p) = path {
-        // use the open-once `read_file_with_cap` helper
-        // instead of `enforce_input_size_limit` + `std::fs::read`.
-        // The old shape relied on `metadata().len()` which returns 0
-        // for `/dev/zero`, FIFOs, and `/proc/*` — letting the
-        // subsequent read consume unbounded bytes. This helper is
-        // used by encrypt / sign / hash / verify --input, so the gap
-        // affected every CLI command that takes a file path.
+        // use the open-once `read_file_with_cap` helper rather than
+        // any stat-then-read shape (`metadata().len()` returns 0 for
+        // `/dev/zero`, FIFOs, and `/proc/*` — letting the subsequent
+        // read consume unbounded bytes). This helper is used by
+        // encrypt / sign / hash / verify --input, so the gap would
+        // affect every CLI command that takes a file path.
         read_file_with_cap(p, limit_bytes, operation)
     } else {
         read_stdin_with_limit(limit_bytes, operation)

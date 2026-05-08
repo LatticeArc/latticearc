@@ -134,8 +134,9 @@ fn main() -> Result<()> {
             if !valid {
                 // `clippy::exit` allowed: deterministic exit 1 is the
                 // documented INVALID-signature signal in our exit-code
-                // contract (0/1/≥2 — see QUICK_REFERENCE.md). Pattern
-                // 12 wants the rationale adjacent to the `#[allow]`;
+                // contract (0 = VALID, 1 = INVALID — see
+                // `latticearc-cli/README.md` § `verify`). Pattern 12
+                // wants the rationale adjacent to the `#[allow]`;
                 // moved it from 11 lines above.
                 std::process::exit(1);
             }

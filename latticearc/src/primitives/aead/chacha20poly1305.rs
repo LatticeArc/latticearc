@@ -185,19 +185,20 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         ciphertext_with_tag.extend_from_slice(ciphertext);
         ciphertext_with_tag.extend_from_slice(tag);
 
-        let plaintext = match aad {
-            Some(aad) => cipher
-                .decrypt(
-                    &chacha_nonce,
-                    chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
-                )
-                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?,
-            None => cipher
-                .decrypt(&chacha_nonce, ciphertext_with_tag.as_ref())
-                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?,
-        };
-
-        Ok(Zeroizing::new(plaintext))
+        // Pipe the cipher.decrypt result directly into Zeroizing::new
+        // via .map() so the returned Vec<u8> is never bound to a named
+        // local. A `let plaintext = ...; Zeroizing::new(plaintext)`
+        // shape leaves a window where a panic between the bind and the
+        // wrap drops the Vec without zeroizing its heap allocation.
+        match aad {
+            Some(aad) => cipher.decrypt(
+                &chacha_nonce,
+                chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
+            ),
+            None => cipher.decrypt(&chacha_nonce, ciphertext_with_tag.as_ref()),
+        }
+        .map(Zeroizing::new)
+        .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))
     }
 }
 
@@ -427,19 +428,20 @@ impl XChaCha20Poly1305Cipher {
         ciphertext_with_tag.extend_from_slice(ciphertext);
         ciphertext_with_tag.extend_from_slice(tag);
 
-        let plaintext = match aad {
-            Some(aad) => cipher
-                .decrypt(
-                    &xnonce,
-                    chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
-                )
-                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?,
-            None => cipher
-                .decrypt(&xnonce, ciphertext_with_tag.as_ref())
-                .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))?,
-        };
-
-        Ok(Zeroizing::new(plaintext))
+        // Pipe the cipher.decrypt result directly into Zeroizing::new
+        // via .map() so the returned Vec<u8> is never bound to a named
+        // local. A `let plaintext = ...; Zeroizing::new(plaintext)`
+        // shape leaves a window where a panic between the bind and the
+        // wrap drops the Vec without zeroizing its heap allocation.
+        match aad {
+            Some(aad) => cipher.decrypt(
+                &xnonce,
+                chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
+            ),
+            None => cipher.decrypt(&xnonce, ciphertext_with_tag.as_ref()),
+        }
+        .map(Zeroizing::new)
+        .map_err(|_e| AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string()))
     }
 }
 

@@ -258,6 +258,20 @@ impl MlDsaPublicKey {
             // forgery. Callers that branch on `Ok(false)` for "invalid
             // signature" would silently treat a misconfigured key/signature
             // pair as a valid forgery report; surface as `Err` instead.
+            //
+            // Threat-model carve-out: this variant is reachable on the
+            // verify path when an attacker submits a signature constructed
+            // for a different parameter set, and the carried `key` /
+            // `signature` enum values are therefore an attacker-attainable
+            // distinguisher (Pattern-6). We accept that distinction because:
+            //   1. The variant value space is bounded (3 ML-DSA parameter
+            //      sets) and contains no attacker-controlled strings.
+            //   2. Folding into `VerificationError("verification failed")`
+            //      would mask configuration bugs at the API boundary —
+            //      callers must surface mis-paired (key, signature) to
+            //      avoid silently treating misconfig as a forgery report.
+            //   3. Operational telemetry routes parameter-set mismatch
+            //      through `tracing` for SOC visibility (see callers).
             return Err(MlDsaError::ParameterSetMismatch {
                 key: self.parameter_set(),
                 signature: signature.parameter_set(),

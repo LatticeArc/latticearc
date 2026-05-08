@@ -54,6 +54,14 @@ impl std::fmt::Debug for HashOpening {
 
 impl ConstantTimeEq for HashOpening {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        // `subtle::ConstantTimeEq::ct_eq` on `&[u8]` short-circuits to
+        // `Choice::ZERO` on length mismatch — i.e. the length of
+        // `self.value` is structurally not secret here. That's
+        // intentional: `HashOpening::value` carries the public message
+        // material the commitment is opening to, and its length is
+        // already disclosed by the commitment scheme. If a future
+        // refactor promotes `value` to secret material, replace this
+        // with a length-equal-padded compare before changing the type.
         self.value.as_slice().ct_eq(other.value.as_slice())
             & self.randomness.ct_eq(&other.randomness)
     }
