@@ -3,13 +3,7 @@
 //! Tests determinism, security monotonicity, and coverage of all
 //! (UseCase, SecurityLevel) combinations.
 
-#![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
-)]
+#![allow(clippy::unwrap_used)]
 
 use latticearc::types::config::CoreConfig;
 use latticearc::types::types::{SecurityLevel, UseCase};

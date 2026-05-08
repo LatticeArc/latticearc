@@ -104,9 +104,11 @@ impl From<std::alloc::LayoutError> for LatticeArcError {
 //   `LatticeArcError::InvalidInput(msg.to_string())`
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
-#[allow(clippy::expect_used)]
-#[allow(clippy::panic)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
+#[expect(clippy::panic, reason = "test/bench/macro-expanded assertion path")]
 mod tests {
     use super::*;
 

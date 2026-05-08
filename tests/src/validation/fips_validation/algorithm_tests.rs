@@ -1,5 +1,4 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: FIPS algorithm validation tests (197, 202, 203).
@@ -7,11 +6,7 @@
 // - Binary data comparison for algorithm correctness
 // - Test infrastructure prioritizes correctness verification
 // - Result<> used for API consistency across test functions
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
-#![allow(clippy::unnecessary_wraps)]
 
 //! Algorithm validation tests for FIPS compliance
 //!
@@ -136,7 +131,10 @@ pub fn test_aes_algorithm_succeeds() -> Result<TestResult, LatticeArcError> {
 }
 
 /// Test SHA-3 algorithm using FIPS 202 NIST test vectors
-#[allow(clippy::unnecessary_wraps)] // Result signature for consistency with fallible test functions
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Result signature for consistency with fallible test functions"
+)]
 pub fn test_sha3_algorithm_succeeds() -> Result<TestResult, LatticeArcError> {
     let start_time = std::time::Instant::now();
     let mut test_details = Vec::new();

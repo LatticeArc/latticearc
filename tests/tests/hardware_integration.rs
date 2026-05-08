@@ -3,11 +3,6 @@
 //! Validates that hardware types from arc-core traits module are usable
 //! for type-driven design. Real hardware detection is in enterprise.
 
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
-#![allow(dead_code)]
-
 use latticearc::types::traits::{HardwareCapabilities, HardwareInfo, HardwareType};
 
 // Note: The `HardwareAccelerator` and `HardwareAware` traits were removed in

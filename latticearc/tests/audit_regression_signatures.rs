@@ -5,13 +5,7 @@
 //! the fix must make the test fail.
 
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(clippy::cast_sign_loss)]
 
 use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 use latticearc::primitives::ec::ed25519::Ed25519KeyPair;

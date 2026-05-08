@@ -31,10 +31,8 @@
 #![deny(unsafe_code)]
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::print_stdout)]
-#![allow(missing_docs)]
 use std::io::{Read, Write};
 
 use base64::Engine;

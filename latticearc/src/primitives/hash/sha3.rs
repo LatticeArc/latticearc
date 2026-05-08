@@ -48,7 +48,6 @@ pub fn sha3_512(data: &[u8]) -> [u8; 64] {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
 mod tests {
     use super::*;
 

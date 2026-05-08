@@ -2,9 +2,6 @@
 #![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::indexing_slicing)] // Key prefix checks use bounded [..32] slices on verified-length keys
 
 //! ML-KEM Deterministic Keygen Regression Tests
 //!

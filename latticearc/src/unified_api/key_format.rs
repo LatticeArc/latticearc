@@ -2327,7 +2327,10 @@ impl PortableKey {
     /// adjacent variable-length fields. The salt is included as its raw
     /// (base64-decoded) bytes, not the base64 string, so an attacker
     /// cannot use base64 non-canonical encodings to get past the check.
-    #[allow(clippy::too_many_arguments)] // 8 fields are inherent to the AAD layout; bundling into a struct adds indirection without simplifying the call sites.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "8 fields are inherent to the AAD layout; bundling into a struct adds indirection without simplifying the call sites."
+    )]
     fn encryption_aad(
         enc: u32,
         algorithm: KeyAlgorithm,
@@ -2768,15 +2771,15 @@ fn parse_legacy_algorithm(s: &str) -> Result<KeyAlgorithm> {
 // ============================================================================
 
 #[cfg(test)]
-#[allow(
+#[expect(
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
     clippy::print_stdout,
     clippy::cast_precision_loss,
     clippy::useless_vec,
-    clippy::panic
+    clippy::panic,
+    reason = "test/bench scaffolding: lints suppressed for this module"
 )]
 mod tests {
     use super::*;

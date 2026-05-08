@@ -40,7 +40,10 @@ pub mod secrets;
 /// Core traits for cryptographic operations.
 pub mod traits;
 /// Fundamental cryptographic types.
-#[allow(clippy::module_inception)]
+#[expect(
+    clippy::module_inception,
+    reason = "the inner `types` submodule is the canonical home of the fundamental crypto type set; the parent module is the public re-export namespace, so the inner/outer same-name pairing is intentional"
+)]
 pub mod types;
 /// Pure-Rust zero-trust types.
 pub mod zero_trust;

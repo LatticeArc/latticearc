@@ -69,7 +69,7 @@ pub fn secure_rng() -> impl CryptoRng {
 #[must_use]
 pub fn random_bytes(count: usize) -> Vec<u8> {
     let mut bytes = vec![0u8; count];
-    #[allow(clippy::expect_used)] // see module-level rand 0.9 migration note
+    #[expect(clippy::expect_used, reason = "see module-level rand 0.9 migration note")]
     OsRng.try_fill_bytes(&mut bytes).expect("OS RNG failure");
     bytes
 }
@@ -81,7 +81,7 @@ pub fn random_bytes(count: usize) -> Vec<u8> {
 /// Panics if the OS entropy source returns an error. See module-level docs.
 #[must_use]
 pub fn random_u32() -> u32 {
-    #[allow(clippy::expect_used)] // see module-level rand 0.9 migration note
+    #[expect(clippy::expect_used, reason = "see module-level rand 0.9 migration note")]
     OsRng.try_next_u32().expect("OS RNG failure")
 }
 
@@ -92,15 +92,14 @@ pub fn random_u32() -> u32 {
 /// Panics if the OS entropy source returns an error. See module-level docs.
 #[must_use]
 pub fn random_u64() -> u64 {
-    #[allow(clippy::expect_used)] // see module-level rand 0.9 migration note
+    #[expect(clippy::expect_used, reason = "see module-level rand 0.9 migration note")]
     OsRng.try_next_u64().expect("OS RNG failure")
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
-#[allow(clippy::indexing_slicing)] // Tests use direct indexing
-#[allow(clippy::cast_possible_truncation)] // Tests cast sizes for testing
-#[allow(clippy::cast_lossless)] // Tests use simple casts
+#[expect(clippy::indexing_slicing, reason = "Tests use direct indexing")]
+#[expect(clippy::cast_possible_truncation, reason = "Tests cast sizes for testing")]
+#[expect(clippy::cast_lossless, reason = "Tests use simple casts")]
 mod tests {
     use super::*;
     use std::collections::HashSet;

@@ -273,7 +273,10 @@ impl SchnorrProver {
     /// # Elliptic Curve Arithmetic
     /// Uses secp256k1 scalar operations for Schnorr proof generation.
     /// These are modular arithmetic in a finite field.
-    #[allow(clippy::arithmetic_side_effects)] // EC scalar math is modular, cannot overflow
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "EC scalar math is modular, cannot overflow"
+    )]
     pub fn prove(&self, context: &[u8]) -> Result<SchnorrProof> {
         // wrap scalars k, x, s in `Zeroizing`
         // so the stack-resident copies are scrubbed when the function
@@ -367,7 +370,7 @@ impl SchnorrVerifier {
     /// # Elliptic Curve Arithmetic
     /// Uses secp256k1 scalar and point operations for verification.
     /// These are modular arithmetic in a finite field.
-    #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
+    #[expect(clippy::arithmetic_side_effects, reason = "EC math is modular, cannot overflow")]
     pub fn verify(&self, proof: &SchnorrProof, context: &[u8]) -> Result<bool> {
         // Parse public key P
         let p_point = Self::parse_point(&self.public_key)?;
@@ -411,7 +414,10 @@ impl SchnorrVerifier {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
 

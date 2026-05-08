@@ -273,7 +273,7 @@ impl Secp256k1KeyPair {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+#[expect(clippy::panic_in_result_fn, reason = "Tests use assertions for verification")]
 mod tests {
     use super::*;
     use crate::prelude::error::Result;

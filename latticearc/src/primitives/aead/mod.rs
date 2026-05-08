@@ -305,7 +305,6 @@ pub fn zeroize_data(data: &mut [u8]) {
 pub use self::chacha20poly1305::{ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher};
 
 #[cfg(test)]
-#[allow(unused_imports)] // Some re-exported types may not be directly used in tests
 mod tests {
     use super::*;
 

@@ -1,13 +1,10 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: FIPS 140-3 Section 7 security policy tests.
 // - Self-test execution with known test vectors
 // - Error handling validation for FIPS compliance
 // - Test infrastructure prioritizes correctness verification
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::indexing_slicing)]
 

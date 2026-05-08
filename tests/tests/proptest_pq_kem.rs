@@ -3,13 +3,7 @@
 //! Tests ML-KEM encapsulation roundtrip at all 3 parameter sets,
 //! shared secret length, and key/ciphertext size validation.
 
-#![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
-)]
+#![allow(clippy::unwrap_used)]
 
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemPublicKey, MlKemSecurityLevel};
 use proptest::prelude::*;

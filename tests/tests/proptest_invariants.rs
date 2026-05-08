@@ -10,13 +10,7 @@
 //! "correct input → correct output"; these proptests prove "wrong input →
 //! refusal".
 
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::arithmetic_side_effects,
-    clippy::indexing_slicing
-)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
 use proptest::prelude::*;
 

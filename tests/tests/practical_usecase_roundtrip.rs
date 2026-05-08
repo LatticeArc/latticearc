@@ -27,7 +27,6 @@
 #![allow(clippy::panic)]
 #![allow(clippy::unreachable)]
 #![allow(clippy::indexing_slicing)]
-#![allow(missing_docs)]
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -519,7 +518,11 @@ fn scenario_signed_transaction_succeeds() {
 /// Device only has: the signed firmware file + manufacturer's public key.
 #[test]
 fn scenario_firmware_update_signing_succeeds() {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test/bench scaffolding: lints suppressed for this module"
+    )]
     let firmware: Vec<u8> = (0..512).map(|i: i32| (i % 256) as u8).collect();
 
     // === MANUFACTURER PROCESS: signs firmware, publishes update file ===

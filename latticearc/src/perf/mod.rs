@@ -204,11 +204,14 @@ impl Histogram {
     /// Calculate statistics for the collected samples
     // Statistical calculations require float casting and modular arithmetic
     // that cannot overflow on timing sample values (nanosecond durations).
-    #[allow(clippy::arithmetic_side_effects)]
-    #[allow(clippy::cast_possible_truncation)]
-    #[allow(clippy::cast_precision_loss)]
-    #[allow(clippy::cast_sign_loss)]
-    #[allow(clippy::cast_lossless)]
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "arithmetic bounded by callsite invariants; overflow impossible at this site"
+    )]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "precision loss is intentional in this measurement/heuristic path"
+    )]
     #[must_use]
     pub fn calculate_statistics(&self) -> TimingStatistics {
         if self.samples.is_empty() {
@@ -274,7 +277,11 @@ impl Histogram {
         // `f64::to_bits()` returns the IEEE-754 bit pattern, not the
         // numeric value; `as u64` is the correct cast for a non-negative
         // finite f64 → integer ns.
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "f64-to-u64 cast on variance.sqrt(): a Duration std-dev exceeding u64 nanoseconds (~584 years) cannot occur on real timing samples; sign-loss is sound because variance is non-negative"
+        )]
         let std_dev = Duration::from_nanos(variance.sqrt() as u64);
 
         TimingStatistics {
@@ -292,9 +299,15 @@ impl Histogram {
 
     /// Calculate a specific percentile
     // Float ↔ integer casting for percentile index computation on sample arrays
-    #[allow(clippy::cast_possible_truncation)]
-    #[allow(clippy::cast_precision_loss)]
-    #[allow(clippy::cast_sign_loss)]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "truncation guarded by callsite preconditions"
+    )]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "precision loss is intentional in this measurement/heuristic path"
+    )]
+    #[expect(clippy::cast_sign_loss, reason = "sign loss is intentional in this conversion path")]
     fn percentile(sorted: &[u128], percentile: f64) -> Duration {
         if sorted.is_empty() {
             return Duration::ZERO;
@@ -351,7 +364,6 @@ impl MetricsCollector {
     }
 
     /// Record a single operation timing
-    #[allow(clippy::arithmetic_side_effects)] // Histogram bucket indexing on bounded duration values
     pub fn record_operation(&self, name: &str, duration: Duration) {
         // Single lock acquisition keeps the histogram update and the
         // counter increment atomic w.r.t. other observers.

@@ -119,7 +119,10 @@ impl WycheproofResults {
     ///
     /// Panics (via `assert!`) when the failure rate exceeds `budget`. This is
     /// intentional — callers use `check_rate` as a test assertion, not a query.
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "precision loss is intentional in this measurement/heuristic path"
+    )]
     pub fn check_rate(&self, label: &str, budget: f64) {
         println!(
             "{label}: {}/{} passed ({} skipped, {} failed)",

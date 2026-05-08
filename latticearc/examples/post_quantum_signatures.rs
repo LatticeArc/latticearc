@@ -7,7 +7,6 @@
 //!
 //! Run with: `cargo run --package latticearc --example post_quantum_signatures --release`
 
-#![allow(clippy::unwrap_used)]
 #![allow(clippy::print_stdout)]
 #![allow(clippy::expect_used)]
 

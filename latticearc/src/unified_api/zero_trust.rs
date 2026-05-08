@@ -430,7 +430,6 @@ impl VerifiedSession {
         // consults `Instant::elapsed()` instead. The const_assert above
         // pins the constant > 0, so `as u64` produces the same numeric
         // value with no saturation surprise.
-        #[allow(clippy::cast_sign_loss)]
         let lifetime = std::time::Duration::from_secs(DEFAULT_SESSION_LIFETIME_SECS as u64);
         Ok(Self {
             session_id,
@@ -1713,32 +1712,12 @@ impl ZeroTrustSession {
 }
 
 #[cfg(test)]
-#[allow(
+#[expect(
     clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
     clippy::panic_in_result_fn,
-    clippy::unnecessary_wraps,
-    clippy::redundant_clone,
     clippy::useless_vec,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::clone_on_copy,
-    clippy::len_zero,
-    clippy::single_match,
-    clippy::unnested_or_patterns,
-    clippy::default_constructed_unit_structs,
-    clippy::redundant_closure_for_method_calls,
-    clippy::semicolon_if_nothing_returned,
-    clippy::unnecessary_unwrap,
-    clippy::redundant_pattern_matching,
-    clippy::missing_const_for_thread_local,
-    clippy::get_first,
-    clippy::float_cmp,
-    clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    reason = "test/bench scaffolding: lints suppressed for this module"
 )]
 mod tests {
     use super::*;

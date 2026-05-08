@@ -13,8 +13,7 @@
 //!
 //! Reference: <https://github.com/C2SP/CCTV/tree/main/ML-KEM> (modulus/ folder)
 
-#![allow(missing_docs)]
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::expect_used)]
 #![allow(
     clippy::arithmetic_side_effects,
     clippy::indexing_slicing,

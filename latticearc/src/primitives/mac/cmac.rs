@@ -112,7 +112,6 @@ fn ct_xor_block_if(block: &mut [u8; 16], rb: &[u8; 16], condition: u8) {
 /// Bitwise shifts in Rust are safe and cannot overflow - they are defined
 /// to shift in zeros and the result fits in the same integer type.
 #[inline(always)]
-#[allow(clippy::arithmetic_side_effects)]
 fn left_shift_block(block: &[u8; 16]) -> ([u8; 16], u8) {
     let mut result = [0u8; 16];
     let mut overflow = 0u8;
@@ -275,7 +274,6 @@ fn compute_cmac_internal(key: &[u8], data: &[u8]) -> Result<[u8; 16], CmacError>
 
     if data_len == 0 {
         // Empty message: pad with 10...0 and XOR with K2
-        #[allow(clippy::indexing_slicing)] // final_block is [u8; 16], index 0 always valid
         {
             final_block[0] = 0x80;
         }
@@ -613,8 +611,8 @@ pub fn verify_cmac_256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic)] // Tests use panic for error verification
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
+#[expect(clippy::panic, reason = "Tests use panic for error verification")]
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
 mod tests {
     use super::*;
 

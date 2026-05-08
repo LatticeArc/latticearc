@@ -182,7 +182,10 @@ pub fn counter_kdf(
     // Max output length is 2^32 blocks * hash_length (SHA-256 = 32 bytes)
     const HASH_LEN: usize = 32;
     // Safe: compile-time constant multiplication
-    #[allow(clippy::arithmetic_side_effects)]
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "arithmetic bounded by callsite invariants; overflow impossible at this site"
+    )]
     let max_len = (1u64 << 32) * HASH_LEN as u64;
 
     // compare in u64 instead of routing through
@@ -369,8 +372,8 @@ pub fn derive_iv(ki: &[u8], context: &[u8]) -> Result<CounterKdfResult> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::indexing_slicing)] // Tests use indexing for verification
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::indexing_slicing, reason = "Tests use indexing for verification")]
 mod tests {
     use super::*;
 

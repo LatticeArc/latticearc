@@ -5,11 +5,9 @@
 
 // Originally: unified_api_comprehensive.rs
 mod comprehensive {
-    #![allow(clippy::unwrap_used)]
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
     #![allow(clippy::indexing_slicing)]
-    #![allow(missing_docs)]
     //! Comprehensive Unified API Integration Tests
     //!
     //! Exercises `latticearc::encrypt()` / `latticearc::decrypt()` through the public
@@ -512,10 +510,7 @@ mod coverage {
         clippy::expect_used,
         clippy::indexing_slicing,
         clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::single_match,
-        clippy::redundant_clone
+        clippy::single_match
     )]
 
     use latticearc::unified_api::convenience::*;

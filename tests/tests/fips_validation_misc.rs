@@ -25,34 +25,12 @@ mod global {
 
     #![allow(
         clippy::panic,
-        clippy::unwrap_used,
         clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
         clippy::unnecessary_literal_unwrap,
         clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
         clippy::redundant_closure_for_method_calls,
         clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec,
         dead_code
     )]
@@ -1104,38 +1082,7 @@ mod format {
     //!
     //! This module tests key format validation functions.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
-        clippy::useless_vec
-    )]
+    #![allow(clippy::unwrap_used, clippy::useless_vec)]
 
     use latticearc_tests::validation::format::{FormatError, validate_key_format};
 
@@ -1228,14 +1175,7 @@ mod format {
 mod format_misc {
     //! Coverage tests for format.rs, validation_summary.rs, and other small coverage gaps.
 
-    #![allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss
-    )]
+    #![allow(clippy::unwrap_used)]
 
     use latticearc_tests::validation::format::{FormatError, validate_key_format};
 
@@ -1414,12 +1354,6 @@ mod format_misc {
 mod impl_validator {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::expect_used)]
-    #![allow(clippy::panic)]
-    #![allow(clippy::indexing_slicing)]
-    #![allow(clippy::arithmetic_side_effects)]
-    #![allow(clippy::cast_precision_loss)]
-    #![allow(clippy::cast_possible_truncation)]
-    #![allow(missing_docs)]
 
     //! Coverage tests for `Fips140_3Validator` methods that are not exercised by existing tests.
     //!
@@ -1738,10 +1672,7 @@ mod impl_validator {
 // Originally: fips_input_coverage.rs
 mod input {
     #![allow(clippy::unwrap_used)]
-    #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
-    #![allow(clippy::indexing_slicing)]
-    #![allow(missing_docs)]
 
     //! Coverage tests for input.rs — validate_input_size and ValidationError
 
@@ -1882,38 +1813,7 @@ mod resource_limits {
     //! This test suite aims to achieve 80%+ code coverage for resource_limits.rs
     //! by testing all public functions, methods, error paths, and edge cases.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
-        clippy::useless_vec
-    )]
+    #![allow(clippy::panic, clippy::unwrap_used, clippy::redundant_clone, clippy::useless_vec)]
 
     use latticearc_tests::validation::resource_limits::{
         ResourceError, ResourceLimits, ResourceLimitsManager, get_global_resource_limits,
@@ -2813,31 +2713,7 @@ mod rfc_vectors {
         clippy::unwrap_used,
         clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
         clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec
     )]
 
@@ -3698,15 +3574,7 @@ mod coverage_boost {
     //! Exercises public APIs in rfc_vectors, wycheproof, nist_kat, fips_validation,
     //! and validation_summary to cover previously-missed lines.
 
-    #![allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::single_match
-    )]
+    #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::single_match)]
 
     // ============================================================
     // rfc_vectors.rs — RfcTestResults public API
@@ -3988,16 +3856,7 @@ mod nist_functions {
     //!
     //! Targets uncovered paths in RandomizedHasher: different modes, verify, edge cases.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::print_stdout,
-        clippy::redundant_clone,
-        clippy::cast_precision_loss
-    )]
+    #![allow(clippy::unwrap_used)]
 
     use latticearc_tests::validation::nist_functions::{
         RandomizedHashConfig, RandomizedHashMode, RandomizedHasher,
@@ -4229,18 +4088,7 @@ mod nist_sp800_22 {
     //! Targets uncovered paths: edge cases in statistical tests, helper functions,
     //! short sequences, individual test methods.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::print_stdout,
-        clippy::redundant_clone,
-        clippy::float_cmp
-    )]
+    #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::float_cmp)]
 
     use latticearc_tests::validation::nist_sp800_22::NistSp800_22Tester;
 
@@ -4533,22 +4381,7 @@ mod validation_summary {
     //! Targets uncovered paths in ComplianceReporter, ComplianceReport generation,
     //! HTML/JSON report generation, and recommendation generation.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::cast_precision_loss,
-        clippy::print_stdout,
-        clippy::useless_format,
-        clippy::needless_borrows_for_generic_args
-    )]
+    #![allow(clippy::unwrap_used, clippy::float_cmp, clippy::redundant_clone)]
 
     use chrono::Utc;
     use latticearc_tests::validation::fips_validation_impl::Fips140_3ValidationResult;

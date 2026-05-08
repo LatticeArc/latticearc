@@ -272,8 +272,8 @@ impl_aes_gcm!(
 );
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::panic)] // Tests use panic! for error case validation
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::panic, reason = "Tests use panic! for error case validation")]
 mod tests {
     use super::*;
 

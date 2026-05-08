@@ -1,5 +1,4 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: NIST SP 800-22 statistical test suite implementation.
@@ -7,11 +6,6 @@
 // - Probability calculations with integer-to-float conversions
 // - Test methods kept on instance for API consistency
 // - Result<> used for API consistency across test functions
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
-#![allow(clippy::unused_self)]
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::manual_let_else)]
 #![allow(clippy::vec_init_then_push)]
@@ -56,7 +50,6 @@ impl NistSp800_22Tester {
     ///
     /// # Errors
     /// This function is infallible but returns Result for API consistency.
-    #[allow(clippy::arithmetic_side_effects)] // Statistical calculations require arithmetic
     pub fn test_bit_sequence_succeeds(&self, data: &[u8]) -> Result<RngTestResults> {
         let min_bytes = self.min_sequence_length.saturating_div(8);
         if data.len() < min_bytes {
@@ -92,7 +85,6 @@ impl NistSp800_22Tester {
     }
 
     /// Convert bytes to bits
-    #[allow(clippy::arithmetic_side_effects)] // Bit manipulation is safe
     #[must_use]
     pub fn bytes_to_bits(&self, bytes: &[u8]) -> Vec<bool> {
         bytes
@@ -102,7 +94,10 @@ impl NistSp800_22Tester {
     }
 
     /// Frequency (Monobit) Test
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     fn frequency_test(&self, bits: &[bool]) -> Result<NistStatisticalTestResult> {
         let n = bits.len() as f64;
         let ones = bits.iter().filter(|&&b| b).count() as f64;
@@ -124,7 +119,11 @@ impl NistSp800_22Tester {
     }
 
     /// Frequency Within Block Test
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
+    #[expect(
+        clippy::arithmetic_side_effects,
+        clippy::cast_precision_loss,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     fn frequency_within_block_test(&self, bits: &[bool]) -> Result<NistStatisticalTestResult> {
         let n = bits.len();
         let block_size = if n >= 1000 { 10000 } else { n.saturating_div(10) };
@@ -176,7 +175,10 @@ impl NistSp800_22Tester {
     }
 
     /// Runs Test
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     fn runs_test(&self, bits: &[bool]) -> Result<NistStatisticalTestResult> {
         let n = bits.len() as f64;
         let ones = bits.iter().filter(|&&b| b).count() as f64;
@@ -213,7 +215,11 @@ impl NistSp800_22Tester {
     }
 
     /// Longest Run of Ones Test
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
+    #[expect(
+        clippy::arithmetic_side_effects,
+        clippy::cast_precision_loss,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     fn longest_run_of_ones_test(&self, bits: &[bool]) -> Result<NistStatisticalTestResult> {
         let n = bits.len();
         let (block_size, k, expected_probabilities): (usize, usize, Vec<f64>) = match n {
@@ -268,7 +274,10 @@ impl NistSp800_22Tester {
     }
 
     /// Serial Test
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     fn serial_test(&self, bits: &[bool]) -> Result<NistStatisticalTestResult> {
         // checked_ilog2() returns u32; safe on all Rust tier-1 targets (≥32-bit)
         let log2_len: usize = bits.len().checked_ilog2().unwrap_or(0).try_into().unwrap_or(0);
@@ -315,7 +324,10 @@ impl NistSp800_22Tester {
     }
 
     /// Approximate Entropy Test
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     fn approximate_entropy_test(&self, bits: &[bool]) -> Result<NistStatisticalTestResult> {
         // checked_ilog2() returns u32; safe on all Rust tier-1 targets (≥32-bit)
         let log2_len: usize = bits.len().checked_ilog2().unwrap_or(0).try_into().unwrap_or(0);
@@ -352,7 +364,10 @@ impl NistSp800_22Tester {
     }
 
     /// Count runs in bit sequence
-    #[allow(clippy::unused_self)] // Method of struct for consistency
+    #[expect(
+        clippy::unused_self,
+        reason = "method on NistSp800_22Tester preserved for instance-method API symmetry across all test functions"
+    )]
     fn count_runs(&self, bits: &[bool]) -> usize {
         if bits.is_empty() {
             return 0;
@@ -371,7 +386,10 @@ impl NistSp800_22Tester {
     }
 
     /// Find longest run of ones in a block
-    #[allow(clippy::unused_self)] // Method of struct for consistency
+    #[expect(
+        clippy::unused_self,
+        reason = "method on NistSp800_22Tester preserved for instance-method API symmetry across all test functions"
+    )]
     fn longest_run_of_ones_in_block(&self, block: &[bool]) -> usize {
         let mut max_run = 0usize;
         let mut current_run = 0usize;
@@ -388,7 +406,10 @@ impl NistSp800_22Tester {
     }
 
     /// Compute chi-squared statistic
-    #[allow(clippy::arithmetic_side_effects, clippy::unused_self)] // Statistical calculation
+    #[expect(
+        clippy::unused_self,
+        reason = "method on NistSp800_22Tester preserved for instance-method API symmetry across all test functions"
+    )]
     fn compute_chi_squared(&self, observed: &[f64], expected: &[f64], total: f64) -> f64 {
         observed
             .iter()
@@ -401,7 +422,11 @@ impl NistSp800_22Tester {
     }
 
     /// Compute psi_m statistic for serial test
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss, clippy::unused_self)] // Statistical math
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::unused_self,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     fn compute_psi_m(&self, bits: &[bool], m: usize) -> f64 {
         let mut counts = HashMap::new();
         let n = bits.len();
@@ -429,7 +454,11 @@ impl NistSp800_22Tester {
     }
 
     /// Compute approximate entropy
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss, clippy::unused_self)] // Statistical math
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::unused_self,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     fn compute_approximate_entropy(&self, bits: &[bool], m: usize) -> f64 {
         let mut counts = HashMap::new();
         let n = bits.len();
@@ -467,7 +496,10 @@ impl NistSp800_22Tester {
     }
 
     /// Estimate entropy of bit sequence
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "NIST SP 800-22 statistical computation; integer-to-f64 widening for probability and chi-squared formulas, bounded by the input bit sequence length"
+    )]
     #[must_use]
     pub fn estimate_entropy(&self, bits: &[bool]) -> f64 {
         if bits.is_empty() {
@@ -486,7 +518,6 @@ impl NistSp800_22Tester {
     }
 
     /// Incomplete gamma function (upper)
-    #[allow(clippy::arithmetic_side_effects, clippy::unused_self)] // Mathematical function
     fn igamc(&self, a: f64, x: f64) -> f64 {
         if x <= 0.0 {
             return 1.0;
@@ -498,7 +529,6 @@ impl NistSp800_22Tester {
     }
 
     /// Incomplete gamma function (lower)
-    #[allow(clippy::arithmetic_side_effects, clippy::unused_self)] // Mathematical function
     fn igam(&self, a: f64, x: f64) -> f64 {
         if x <= 0.0 {
             return 0.0;
@@ -510,7 +540,6 @@ impl NistSp800_22Tester {
     }
 
     /// Incomplete gamma function series expansion
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss, clippy::unused_self)] // Mathematical function
     fn igam_series(&self, a: f64, x: f64) -> f64 {
         let ax = a * log(x) - x - self.log_gamma(a);
         if ax < -709.782_712_893_384 {
@@ -538,7 +567,6 @@ impl NistSp800_22Tester {
     }
 
     /// Incomplete gamma function continued fraction
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss, clippy::unused_self)] // Mathematical function
     fn igamc_series(&self, a: f64, x: f64) -> f64 {
         let ax = a * log(x) - x - self.log_gamma(a);
         if ax < -709.782_712_893_384 {
@@ -566,7 +594,10 @@ impl NistSp800_22Tester {
     }
 
     /// Log gamma function (Lanczos approximation)
-    #[allow(clippy::arithmetic_side_effects, clippy::unused_self)] // Mathematical function
+    #[expect(
+        clippy::unused_self,
+        reason = "Lanczos log gamma approximation; method on NistSp800_22Tester preserved for instance-method API symmetry"
+    )]
     fn log_gamma(&self, x: f64) -> f64 {
         let cof = [
             76.18009172947146,
@@ -600,7 +631,10 @@ impl NistSp800_22Tester {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
 

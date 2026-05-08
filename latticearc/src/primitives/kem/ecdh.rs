@@ -1203,8 +1203,14 @@ pub fn validate_p521_public_key(public_key_bytes: &[u8]) -> Result<(), EcdhError
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
-#[allow(clippy::indexing_slicing)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "indexing into a slice whose length is known at this site"
+)]
 mod tests {
     use super::*;
 

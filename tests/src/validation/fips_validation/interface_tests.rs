@@ -1,5 +1,4 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: FIPS 140-3 Section 4 interface validation tests.
@@ -7,11 +6,7 @@
 // - Key management interface validation
 // - Test infrastructure prioritizes correctness verification
 // - Result<> used for API consistency across test functions
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
-#![allow(clippy::unnecessary_wraps)]
 
 //! Interface validation tests for FIPS 140-3 compliance
 //!

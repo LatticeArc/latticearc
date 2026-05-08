@@ -15,16 +15,9 @@
 
 #![allow(
     clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::arithmetic_side_effects,
-    clippy::indexing_slicing,
-    clippy::cast_precision_loss,
-    clippy::print_stdout,
     clippy::print_stderr,
     clippy::single_match_else,
-    clippy::manual_let_else,
-    clippy::explicit_auto_deref
+    clippy::manual_let_else
 )]
 
 use latticearc::primitives::aead::{AES_GCM_256_KEY_LEN, NONCE_LEN, TAG_LEN};

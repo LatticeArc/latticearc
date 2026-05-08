@@ -7,9 +7,6 @@
 // - Binary data containers for test vectors
 // - Test infrastructure prioritizes correctness verification
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 
 //! KAT (Known Answer Test) Types and Data Structures
 //!

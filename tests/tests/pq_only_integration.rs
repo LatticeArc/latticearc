@@ -1,4 +1,4 @@
-#![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
+#![allow(clippy::unwrap_used)]
 //! PQ-Only Integration Tests — CryptoMode::PqOnly through the unified API.
 //!
 //! These tests exercise the full PQ-only encryption path as an external consumer

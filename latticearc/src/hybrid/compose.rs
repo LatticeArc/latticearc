@@ -199,8 +199,7 @@ pub fn verify_hybrid_signature_security() -> Result<HybridSecurityProof, Composi
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
 mod tests {
     use super::*;
 

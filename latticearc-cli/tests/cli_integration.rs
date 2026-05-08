@@ -117,7 +117,6 @@
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::print_stdout,
-    clippy::print_stderr,
     clippy::panic,
     clippy::cast_possible_truncation
 )]

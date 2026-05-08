@@ -4,11 +4,7 @@
 //! removed. Real hardware detection and adaptive routing are in the enterprise
 //! `arc-enterprise-perf` crate. These tests verify the type system is usable.
 
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
 #![allow(clippy::redundant_clone)]
-#![allow(dead_code)]
 
 use latticearc::types::traits::{HardwareCapabilities, HardwareInfo, HardwareType};
 

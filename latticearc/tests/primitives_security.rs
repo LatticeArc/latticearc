@@ -1,10 +1,5 @@
 #![deny(unsafe_code)]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
-#![allow(clippy::indexing_slicing)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(missing_docs)]
 
 //! Coverage tests for security.rs
 //!

@@ -932,7 +932,6 @@ pub fn generate_signing_keypair(
 /// - Message size exceeds resource limits
 /// - Secret/public key bytes don't match the expected sizes for the scheme
 /// - Signing operation fails
-#[allow(clippy::arithmetic_side_effects)] // Key size additions use well-defined NIST constants
 #[must_use = "signing result must be used or errors will be silently dropped"]
 pub fn sign_with_key(
     message: &[u8],
@@ -1282,32 +1281,19 @@ fn verify_hybrid_ml_dsa_ed25519(
 }
 
 #[cfg(test)]
-#[allow(
+#[expect(
     clippy::panic,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
     clippy::panic_in_result_fn,
     clippy::unnecessary_wraps,
     clippy::redundant_clone,
     clippy::useless_vec,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::clone_on_copy,
-    clippy::len_zero,
     clippy::single_match,
-    clippy::unnested_or_patterns,
-    clippy::default_constructed_unit_structs,
-    clippy::redundant_closure_for_method_calls,
-    clippy::semicolon_if_nothing_returned,
-    clippy::unnecessary_unwrap,
-    clippy::redundant_pattern_matching,
-    clippy::missing_const_for_thread_local,
-    clippy::get_first,
-    clippy::float_cmp,
-    clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    reason = "test/bench scaffolding: lints suppressed for this module"
 )]
 mod tests {
     use super::*;

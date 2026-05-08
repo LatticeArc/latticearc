@@ -977,7 +977,6 @@ pub fn derive_hybrid_shared_secret(
     // Stack-allocated fixed-size buffer (invariant I-2); dropped (and
     // zeroized) when the function returns. Bounds are statically correct —
     // both inputs are 32 bytes (verified above) and 32 + 32 == 64.
-    #[allow(clippy::indexing_slicing)]
     let ikm = {
         let mut ikm_raw = [0u8; 64];
         ikm_raw[..32].copy_from_slice(ml_kem_ss);
@@ -1064,7 +1063,11 @@ pub fn derive_hybrid_shared_secret(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::implicit_clone)]
+#[expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test/bench scaffolding: lints suppressed for this module"
+)]
 mod tests {
     use super::*;
     use zeroize::Zeroize;

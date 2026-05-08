@@ -16,21 +16,7 @@ mod contract {
     //!
     //! Run: `cargo test --test scheme_contract_tests --all-features --release`
 
-    #![allow(
-        clippy::panic,
-        clippy::unreachable,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::panic_in_result_fn,
-        clippy::unnecessary_wraps,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::needless_borrows_for_generic_args,
-        unused_qualifications
-    )]
+    #![allow(clippy::panic, clippy::unreachable, clippy::unwrap_used, clippy::indexing_slicing)]
 
     use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
     use latticearc::{
@@ -516,15 +502,7 @@ mod direct {
     //! SignedData with specific scheme names, covering branches that
     //! the selector never picks through CryptoConfig.
 
-    #![allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::single_match
-    )]
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::single_match)]
 
     use latticearc::primitives::sig::fndsa::FnDsaSecurityLevel;
     use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;

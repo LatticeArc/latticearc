@@ -16,8 +16,7 @@
 //!
 //! Reference algorithm: <https://github.com/C2SP/CCTV/tree/main/ML-KEM>
 
-#![allow(missing_docs)]
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::unwrap_used)]
 
 use sha3::Shake128;
 use sha3::digest::{ExtendableOutput, Update, XofReader};

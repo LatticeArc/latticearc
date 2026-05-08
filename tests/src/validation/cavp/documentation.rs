@@ -9,7 +9,6 @@
 // - Test infrastructure prioritizes correctness over panic-safety
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::indexing_slicing)]
 
 use crate::validation::cavp::compliance::{CavpComplianceReport, ComplianceStatus};
@@ -284,7 +283,10 @@ impl NistDocumentationGenerator {
 
         technical_report.push_str("\nRECOMMENDATIONS\n");
         technical_report.push_str("---------------\n");
-        #[allow(clippy::float_cmp)] // Exact 100.0 comparison is intentional for perfect pass rate
+        #[expect(
+            clippy::float_cmp,
+            reason = "Exact 100.0 comparison is intentional for perfect pass rate"
+        )]
         if report.summary.pass_rate == 100.0 {
             technical_report
                 .push_str("• All tests passed - implementation meets NIST requirements\n");

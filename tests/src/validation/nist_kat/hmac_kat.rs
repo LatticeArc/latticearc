@@ -236,7 +236,11 @@ pub fn run_hmac_sha512_kat() -> Result<(), NistKatError> {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic, clippy::indexing_slicing, clippy::err_expect)]
+#[expect(
+    clippy::indexing_slicing,
+    clippy::err_expect,
+    reason = "test/bench scaffolding: lints suppressed for this module"
+)]
 mod tests {
     use super::*;
 
@@ -270,7 +274,6 @@ mod tests {
 
     /// Helper that runs the HMAC-SHA256 KAT flow against a single custom
     /// vector, exercising the same code path as `run_hmac_sha256_kat`.
-    #[allow(dead_code)]
     fn run_single_hmac_sha256(
         key_hex: &str,
         msg_hex: &str,
@@ -304,7 +307,6 @@ mod tests {
 
     /// Helper that runs the HMAC-SHA224 KAT flow against a single custom
     /// vector, exercising the same code path as `run_hmac_sha224_kat`.
-    #[allow(dead_code)]
     fn run_single_hmac_sha224(
         key_hex: &str,
         msg_hex: &str,
@@ -338,7 +340,6 @@ mod tests {
 
     /// Helper that runs the HMAC-SHA384 KAT flow against a single custom
     /// vector, exercising the same code path as `run_hmac_sha384_kat`.
-    #[allow(dead_code)]
     fn run_single_hmac_sha384(
         key_hex: &str,
         msg_hex: &str,
@@ -372,7 +373,6 @@ mod tests {
 
     /// Helper that runs the HMAC-SHA512 KAT flow against a single custom
     /// vector, exercising the same code path as `run_hmac_sha512_kat`.
-    #[allow(dead_code)]
     fn run_single_hmac_sha512(
         key_hex: &str,
         msg_hex: &str,

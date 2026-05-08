@@ -1270,7 +1270,7 @@ pub fn integrity_test() -> Result<()> {
     let Some(expected_hmac) = expected_hmac else {
         #[cfg(debug_assertions)]
         {
-            #[allow(clippy::print_stderr)] // Development mode diagnostic output
+            #[expect(clippy::print_stderr, reason = "Development mode diagnostic output")]
             {
                 eprintln!("FIPS Integrity Test: Development mode (debug build)");
                 eprintln!("   Expected HMAC not configured. Computed HMAC:");
@@ -1633,7 +1633,10 @@ pub fn verify_operational() -> Result<()> {
 // =============================================================================
 
 #[cfg(test)]
-#[allow(clippy::indexing_slicing)]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "indexing into a slice whose length is known at this site"
+)]
 mod tests {
     use super::*;
 

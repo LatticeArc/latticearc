@@ -2,8 +2,6 @@
 #![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::expect_used)]
 
 //! HKDF Known Answer Tests
 //!
@@ -123,7 +121,11 @@ fn run_hkdf_sha256_test(vector: &HkdfTestVector) -> Result<(), NistKatError> {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic, clippy::indexing_slicing)]
+#[expect(
+    clippy::panic,
+    clippy::indexing_slicing,
+    reason = "test/bench scaffolding: lints suppressed for this module"
+)]
 mod tests {
     use super::*;
 

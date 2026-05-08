@@ -22,7 +22,7 @@
 //!   data that Rust considers CT). We therefore target operations
 //!   that stay on the `subtle` side of the stack.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout)]
+#![allow(clippy::print_stdout)]
 
 #[cfg(target_os = "linux")]
 mod harness {

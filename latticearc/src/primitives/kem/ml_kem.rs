@@ -1290,12 +1290,11 @@ impl MlKem {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::explicit_iter_loop)] // Tests use iterator style
-#[allow(clippy::indexing_slicing)] // Tests use direct indexing
-#[allow(clippy::panic)]
+#[expect(clippy::panic_in_result_fn, reason = "Tests use assertions for verification")]
+#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::explicit_iter_loop, reason = "Tests use iterator style")]
+#[expect(clippy::indexing_slicing, reason = "Tests use direct indexing")]
 mod tests {
     use super::*;
 

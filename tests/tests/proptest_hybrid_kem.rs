@@ -2,13 +2,7 @@
 //!
 //! Tests roundtrip, key independence, and wrong-key rejection using proptest.
 
-#![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
-)]
+#![allow(clippy::unwrap_used)]
 
 use latticearc::hybrid::kem_hybrid::{decapsulate, encapsulate, generate_keypair};
 use proptest::prelude::*;

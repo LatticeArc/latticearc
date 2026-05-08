@@ -1,12 +1,8 @@
 #![deny(unsafe_code)]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
-#![allow(clippy::indexing_slicing)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
 #![allow(clippy::float_cmp)]
-#![allow(missing_docs)]
 
 //! Coverage tests for `CryptoPolicyEngine` trait implementations and uncovered paths.
 

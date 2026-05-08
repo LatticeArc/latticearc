@@ -20,7 +20,7 @@
 //! in Phase 2a (commit 69005c5f); completes the cross-impl matrix for
 //! the three NIST PQC primitives we ship.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+#![allow(clippy::expect_used)]
 
 use aws_lc_rs::kem::{DecapsulationKey, ML_KEM_512, ML_KEM_768, ML_KEM_1024};
 use fips203::traits::{Decaps, Encaps, KeyGen, SerDes};

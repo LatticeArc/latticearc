@@ -3,13 +3,7 @@
 //! Tests roundtrip, variable-size plaintext, non-malleability, key independence,
 //! and AAD integrity.
 
-#![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
-)]
+#![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use latticearc::hybrid::encrypt_hybrid::{HybridEncryptionContext, decrypt_hybrid, encrypt_hybrid};
 use latticearc::hybrid::kem_hybrid::generate_keypair;

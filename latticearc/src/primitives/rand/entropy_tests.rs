@@ -208,7 +208,10 @@ pub fn frequency_test(bytes: &[u8]) -> Result<()> {
     // For small samples, we use a more lenient threshold
     // For larger samples, we can be stricter
     // Note: precision loss is acceptable here as we're doing statistical analysis
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "precision loss is intentional in this measurement/heuristic path"
+    )]
     let expected_count_f64 = total_bytes as f64 / 256.0;
 
     // Calculate the maximum allowed count using statistical thresholds
@@ -313,8 +316,10 @@ pub fn frequency_test(bytes: &[u8]) -> Result<()> {
 /// Returns `LatticeArcError::ValidationError` if:
 /// - Input is empty
 /// - Bit frequencies are significantly unbalanced (>60% or <40% ones)
-#[allow(clippy::arithmetic_side_effects)] // Safe: multiplication by 8 won't overflow for realistic input sizes
-#[allow(clippy::cast_precision_loss)] // Intentional: statistical calculations require float conversion
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Intentional: statistical calculations require float conversion"
+)]
 pub fn monobit_test(bytes: &[u8]) -> Result<()> {
     if bytes.is_empty() {
         return Err(LatticeArcError::ValidationError {
@@ -372,11 +377,16 @@ pub fn monobit_test(bytes: &[u8]) -> Result<()> {
 /// Returns `LatticeArcError::ValidationError` if:
 /// - Input is too small (<8 bytes)
 /// - The number of runs is significantly different from expected
-#[allow(clippy::arithmetic_side_effects)] // Safe: checked len >= 8 before arithmetic
-#[allow(clippy::cast_precision_loss)] // Intentional: statistical calculations require float conversion
-#[allow(clippy::cast_possible_truncation)] // Intentional: converting float ratio to integer bounds
-#[allow(clippy::cast_sign_loss)] // Safe: values are always positive in this context
-#[allow(clippy::indexing_slicing)] // Safe: checked len >= 8 before indexing
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Intentional: statistical calculations require float conversion"
+)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "Intentional: converting float ratio to integer bounds"
+)]
+#[expect(clippy::cast_sign_loss, reason = "Safe: values are always positive in this context")]
+#[expect(clippy::indexing_slicing, reason = "Safe: checked len >= 8 before indexing")]
 pub fn runs_test(bytes: &[u8]) -> Result<()> {
     if bytes.len() < 8 {
         return Err(LatticeArcError::ValidationError {
@@ -459,9 +469,11 @@ pub fn adaptive_proportion_test(bytes: &[u8]) -> Result<()> {
 /// # Errors
 ///
 /// Returns `LatticeArcError::ValidationError` if any window exceeds the cutoff.
-#[allow(clippy::arithmetic_side_effects)] // Safe: checked len >= window_size before arithmetic
-#[allow(clippy::cast_precision_loss)] // Intentional: statistical calculations require float conversion
-#[allow(clippy::indexing_slicing)] // Safe: loop bounds ensure valid indices
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Intentional: statistical calculations require float conversion"
+)]
+#[expect(clippy::indexing_slicing, reason = "Safe: loop bounds ensure valid indices")]
 pub fn adaptive_proportion_test_with_params(
     bytes: &[u8],
     window_size: usize,
@@ -527,8 +539,7 @@ pub fn adaptive_proportion_test_with_params(
 /// # Errors
 ///
 /// Returns `LatticeArcError::ValidationError` if a run exceeds the threshold.
-#[allow(clippy::arithmetic_side_effects)] // Safe: checked non-empty before arithmetic
-#[allow(clippy::indexing_slicing)] // Safe: checked non-empty before indexing
+#[expect(clippy::indexing_slicing, reason = "Safe: checked non-empty before indexing")]
 pub fn longest_run_test(bytes: &[u8]) -> Result<()> {
     if bytes.is_empty() {
         return Err(LatticeArcError::ValidationError {
@@ -774,7 +785,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cast_possible_truncation)]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "truncation guarded by callsite preconditions"
+    )]
     fn test_frequency_test_min_sample_size_has_correct_size() {
         // Create a sample at exactly minimum size with some variation
         // Cast is safe: i % 256 always fits in u8

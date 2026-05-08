@@ -1355,7 +1355,10 @@ impl FileAuditStorage {
                     let remaining_room =
                         MAX_LINE_LEN.saturating_add(1).saturating_sub(line_buf.len());
                     let scan_end = buf.len().min(remaining_room);
-                    #[allow(clippy::indexing_slicing)]
+                    #[expect(
+                        clippy::indexing_slicing,
+                        reason = "indexing into a slice whose length is known at this site"
+                    )]
                     // SAFETY: `scan_end = buf.len().min(remaining_room)`
                     // ⇒ `scan_end ≤ buf.len()` ⇒ `&buf[..scan_end]`
                     // is in-bounds. (no possible panic)
@@ -1364,7 +1367,10 @@ impl FileAuditStorage {
                         // Found the newline within the room budget —
                         // append up to (but excluding) it, consume
                         // the newline.
-                        #[allow(clippy::indexing_slicing)]
+                        #[expect(
+                            clippy::indexing_slicing,
+                            reason = "indexing into a slice whose length is known at this site"
+                        )]
                         // SAFETY: `rel` came from `scan_slice.iter().position()`
                         // ⇒ `rel < scan_slice.len()` ⇒ `&scan_slice[..rel]`
                         // is in-bounds. (no possible panic)
@@ -1649,32 +1655,15 @@ fn generate_uuid() -> String {
 }
 
 #[cfg(test)]
-#[allow(
+#[expect(
     clippy::panic,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
-    clippy::panic_in_result_fn,
-    clippy::unnecessary_wraps,
     clippy::redundant_clone,
-    clippy::useless_vec,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::clone_on_copy,
-    clippy::len_zero,
-    clippy::single_match,
-    clippy::unnested_or_patterns,
-    clippy::default_constructed_unit_structs,
     clippy::redundant_closure_for_method_calls,
-    clippy::semicolon_if_nothing_returned,
-    clippy::unnecessary_unwrap,
-    clippy::redundant_pattern_matching,
-    clippy::missing_const_for_thread_local,
-    clippy::get_first,
-    clippy::float_cmp,
-    clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    reason = "test/bench scaffolding: lints suppressed for this module"
 )]
 mod tests {
     use super::*;

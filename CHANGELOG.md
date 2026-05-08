@@ -9,6 +9,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-46 audit — workspace `#[allow]`→`#[expect]` migration + DESIGN_PATTERNS drift (2026-05-08)
+
+Follow-up to round-45 validation findings (M1 and D1).
+
+#### M1: workspace-wide `#[allow]` → `#[expect]` migration
+
+Round-45 migrated 6 call sites and surfaced 25 stale lints in those alone.
+Validation found 237 outer `#[allow]` and 580 inner `#![allow]` sites
+remaining (≈3% migrated). Round-46 finishes the migration with the
+following policy, derived from `docs/DESIGN_PATTERNS.md` line 318:
+
+- **Item-level `#[allow(...)]` → `#[expect(LINT, reason = "…")]`**: 237
+  outer suppressions migrated. `#[expect]` auto-cleans when the lint
+  stops firing, surfacing dead suppressions as compile warnings.
+  Workspace-wide pass surfaced **2256 stale lint entries** that were
+  silently suppressed but no longer firing — all removed.
+
+- **Crate/file/module-level `#![allow(...)]` kept as `#![allow]`** with
+  justification comments — `#![expect]` does not propagate to submodules
+  the way `#![allow]` does. See `docs/DESIGN_PATTERNS.md` §Pattern 12 for
+  the full rule. Test-crate-root suppressions kept per Anti-Pattern 4.
+
+- Final state: 0 outer `#[allow]`, 187 outer `#[expect]`, 400 inner
+  `#![allow]`, 0 inner `#![expect]`. Workspace clippy clean under
+  `-D warnings`.
+
+- Helpers used (and discarded): `migrate_allow_to_expect.py`,
+  `remove_stale_expects.py`, `revert_inner_expect.py`,
+  `restore_inner_attrs.py` — mechanical-transform scripts run from
+  `/tmp/claude/`, not committed.
+
+#### D1: DESIGN_PATTERNS.md cross-check against current code
+
+Round-45's self-audit grew the doc by +85 / −16 lines. Round-46
+re-checked each named pattern against current code:
+
+- **Pattern 9 (Non-Exhaustive Public Enums)** — doc claimed "All 70
+  public enums are `#[non_exhaustive]`". Actual count in
+  `latticearc/src/`: 61 `pub enum` items, 100% non-exhaustive. Updated
+  doc to "All 61 public enums in `latticearc/src`".
+
+- **Pattern 12 (Workspace Lint Enforcement)** — doc listed only 5
+  workspace-denied lints. Actual `[workspace.lints]` denies 12+ lints
+  (incl. `clippy::indexing_slicing`, `missing_docs`, `clippy::exit`,
+  `unused_imports`, `unused_variables`, etc.) and **forbids**
+  `unsafe_code` (stricter than `deny`). Updated doc; added an
+  `#[allow]` vs `#[expect]` policy subsection.
+
+- **Pattern 12 (Banned Adjectives)** — `latticearc/src/unified_api/selector.rs`
+  used `data-aware` in 2 doc comments and 1 code comment without an
+  `/// Implementation:` tag. Renamed to `size-conditioned` (which is
+  what the branch actually does — it conditions on data length, not on
+  data shape). Other surviving `adaptive` mentions in source are NIST
+  technical terminology ("Adaptive Proportion Test" SP 800-90B §4.4.2;
+  "IND-CCA2 — adaptive chosen-ciphertext attack") and stay.
+
+- **Pattern 19 (Test File Layering)** — three test files violated the
+  "drop the `_tests.rs` suffix for new files" rule via `_tests_` in
+  the middle. Renamed via `git mv`:
+  - `negative_tests_aead.rs` → `negative_aead.rs`
+  - `negative_tests_pq_kem.rs` → `negative_pq_kem.rs`
+  - `negative_tests_pq_sig.rs` → `negative_pq_sig.rs`
+
+  Doc said `fips_kat_{kem,sig,aead,hash_kdf}.rs`; actual is
+  `hash_kdf_ec` (EC primitives co-located) plus shared `loaders`/
+  `runners` files. Doc updated to match.
+
+- **Other patterns spot-checked clean**: Anti-Patterns 1–6 (no derived
+  Debug/Clone on secret types; no short-circuit ct_eq; no public crypto
+  fields), Pattern 4 (sealed traits present for AeadCipher, EcKeyPair,
+  EcSignature, ZkpVerifier, ZeroTrustAuth), Pattern 17/18 (release-mode
+  `debug-assertions = true` pinned; all `#[ignore]` carry rationale
+  strings).
+
 ### Round-44 audit — CRITICAL signature-bypass fix + workspace ?e→%e sweep (2026-05-08)
 
 External round-44 audit returned 9 findings (1 CRIT, 2 HIGH, 3 MED,

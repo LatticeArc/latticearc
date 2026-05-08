@@ -6,10 +6,6 @@
 // - Processes serialized test results with known structures
 // - Statistics calculations for batch results
 // - Test infrastructure prioritizes correctness verification
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 
 use crate::validation::cavp::types::*;
 use anyhow::Result;

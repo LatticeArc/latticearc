@@ -1,19 +1,4 @@
-#![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
-    clippy::panic_in_result_fn,
-    clippy::unnecessary_wraps,
-    clippy::redundant_clone,
-    clippy::useless_vec,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::clone_on_copy,
-    clippy::len_zero,
-    clippy::needless_borrows_for_generic_args
-)]
+#![allow(clippy::expect_used, clippy::indexing_slicing)]
 //! Cross-validation tests: verify arc-core convenience APIs produce identical
 //! results to calling arc-primitives directly.
 //!

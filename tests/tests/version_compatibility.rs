@@ -6,31 +6,11 @@
 
 #![deny(unsafe_code)]
 #![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
     clippy::panic_in_result_fn,
     clippy::unnecessary_wraps,
     clippy::redundant_clone,
-    clippy::useless_vec,
     clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::clone_on_copy,
-    clippy::len_zero,
-    clippy::single_match,
-    clippy::unnested_or_patterns,
-    clippy::default_constructed_unit_structs,
-    clippy::redundant_closure_for_method_calls,
-    clippy::semicolon_if_nothing_returned,
-    clippy::unnecessary_unwrap,
-    clippy::redundant_pattern_matching,
-    clippy::missing_const_for_thread_local,
-    clippy::get_first,
-    clippy::float_cmp,
-    clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    clippy::cast_sign_loss
 )]
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
@@ -75,7 +55,7 @@ fn create_keypair(public_key: Vec<u8>, private_key: Vec<u8>) -> KeyPair {
 
 /// Represents a versioned format for testing migrations.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[expect(dead_code, reason = "interface stability or feature-gated path")]
 struct VersionedFormat {
     version: u32,
     format_type: &'static str,
@@ -83,7 +63,7 @@ struct VersionedFormat {
 }
 
 impl VersionedFormat {
-    #[allow(dead_code)]
+    #[expect(dead_code, reason = "interface stability or feature-gated path")]
     fn new(version: u32, format_type: &'static str, data: Vec<u8>) -> Self {
         Self { version, format_type, data }
     }

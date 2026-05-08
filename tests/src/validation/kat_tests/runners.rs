@@ -8,12 +8,9 @@
 // - Test infrastructure prioritizes correctness verification
 // - Result<> used for API consistency across functions
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::manual_let_else)]
-#![allow(clippy::if_same_then_else)]
 
 use super::loaders::*;
 use super::types::*;
@@ -543,7 +540,10 @@ pub fn validate_ed25519_signature(vector: &Ed25519KatVector) -> Result<bool> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
 

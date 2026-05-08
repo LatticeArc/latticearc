@@ -101,7 +101,10 @@ impl From<FnDsaError> for LatticeArcError {
             // emits `SigningFailed` instead. The arm preserves the
             // historical mapping for any consumer that constructs the
             // variant directly.
-            #[allow(deprecated)]
+            #[expect(
+                deprecated,
+                reason = "FnDsaError::MessageTooLong is deprecated upstream but still constructible by external callers; the match arm preserves the historical mapping for ABI completeness — remove when the upstream variant is fully gone"
+            )]
             FnDsaError::MessageTooLong => Self::MessageTooLong,
             FnDsaError::SigningFailed => Self::SigningError("FN-DSA signing failed".to_string()),
         }
@@ -843,8 +846,8 @@ pub(crate) type FnDsaSigningKeyStandard = fn_dsa::SigningKeyStandard;
 pub(crate) type FnDsaVerifyingKeyStandard = fn_dsa::VerifyingKeyStandard;
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
 mod tests {
     use super::*;
     use rand_core_0_6::OsRng;
@@ -1142,8 +1145,8 @@ mod tests {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
 mod integration_tests {
     use super::*;
     use rand_core_0_6::OsRng;

@@ -528,7 +528,7 @@ impl DlogEqualityProof {
     /// # Elliptic Curve Arithmetic
     /// Uses secp256k1 scalar and point operations. These are modular
     /// arithmetic in a finite field that cannot overflow.
-    #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
+    #[expect(clippy::arithmetic_side_effects, reason = "EC math is modular, cannot overflow")]
     pub fn prove(
         statement: &DlogEqualityStatement,
         secret: &[u8; 32],
@@ -623,7 +623,7 @@ impl DlogEqualityProof {
     ///
     /// # Elliptic Curve Arithmetic
     /// Uses secp256k1 scalar and point operations for verification.
-    #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
+    #[expect(clippy::arithmetic_side_effects, reason = "EC math is modular, cannot overflow")]
     pub fn verify(&self, statement: &DlogEqualityStatement, context: &[u8]) -> Result<bool> {
         use k256::{FieldBytes, Scalar};
 
@@ -784,7 +784,10 @@ impl DlogEqualityProof {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
     use k256::{

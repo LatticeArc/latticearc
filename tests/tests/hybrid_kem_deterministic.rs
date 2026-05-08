@@ -14,8 +14,7 @@
 //! 3. IKM is ml_kem_ss || ecdh_ss (not reversed)
 //! 4. Roundtrip determinism (same inputs → same output every time)
 
-#![allow(missing_docs)]
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use hkdf::Hkdf;
 use latticearc::hybrid::{HybridSharedSecretInputs, derive_hybrid_shared_secret};

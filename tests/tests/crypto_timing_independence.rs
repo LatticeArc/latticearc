@@ -26,14 +26,10 @@
 //!    virtualized CI runners.
 
 #![allow(
-    clippy::panic,
-    clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::arithmetic_side_effects,
     clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_lossless,
     clippy::cast_precision_loss,
     clippy::print_stdout
 )]

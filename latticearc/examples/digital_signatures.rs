@@ -4,7 +4,6 @@
 //!
 //! Run with: `cargo run --package latticearc --example digital_signatures --release`
 
-#![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::print_stdout)]
 #![allow(clippy::panic)]

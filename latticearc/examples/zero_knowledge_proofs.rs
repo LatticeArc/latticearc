@@ -9,12 +9,7 @@
 //!
 //! Note: ZKP is not FIPS-approved. This example prints a notice and exits in FIPS mode.
 
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 #![allow(clippy::print_stdout)]
-#![allow(clippy::indexing_slicing)]
-#![allow(clippy::panic)]
-#![allow(clippy::redundant_clone)]
 
 #[cfg(not(feature = "fips"))]
 use latticearc::zkp::{

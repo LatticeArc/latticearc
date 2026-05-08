@@ -9,7 +9,7 @@
 //! aws-lc-rs's Rust API (tracked as `aws/aws-lc-rs#1029`), so until that
 //! lands, `pqcrypto-mldsa` is the only Rust-packaged cross-check available.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use latticearc::primitives::sig::ml_dsa::{
     self, MlDsaParameterSet, MlDsaPublicKey, MlDsaSignature,

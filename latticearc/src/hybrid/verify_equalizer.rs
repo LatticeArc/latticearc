@@ -300,7 +300,7 @@ fn try_init_ed25519_parsed() -> Option<Ed25519VerifyDummyParsed> {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic)] // Tests panic on missing init material
+#[expect(clippy::panic, reason = "Tests panic on missing init material")]
 mod tests {
     use super::*;
 

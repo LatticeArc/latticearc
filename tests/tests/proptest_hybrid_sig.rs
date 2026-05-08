@@ -3,13 +3,7 @@
 //! Tests roundtrip, wrong-message rejection, wrong-key rejection,
 //! variable message sizes, and signature determinism.
 
-#![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
-)]
+#![allow(clippy::unwrap_used)]
 
 use latticearc::hybrid::sig_hybrid::{generate_keypair, sign, verify};
 use proptest::prelude::*;

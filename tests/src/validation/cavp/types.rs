@@ -8,8 +8,6 @@
 // - Test code prioritizes correctness verification over panic-safety
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -348,7 +346,7 @@ impl CavpTestResult {
     }
 
     #[must_use]
-    #[allow(clippy::too_many_arguments)] // Constructor for test result with full context
+    #[expect(clippy::too_many_arguments, reason = "Constructor for test result with full context")]
     pub fn failed(
         test_id: String,
         algorithm: CavpAlgorithm,

@@ -8,11 +8,7 @@
 #![allow(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::indexing_slicing)]
-#![allow(clippy::unnecessary_wraps)]
-#![allow(clippy::should_implement_trait)]
 #![allow(clippy::vec_init_then_push)]
 
 use super::types::*;
@@ -22,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 // Note: We use fips203 directly here to avoid circular dependency with arc-primitives
 use fips203::ml_kem_1024;
-#[allow(unused_imports)]
+#[expect(unused_imports, reason = "import retained for re-export or feature-gated visibility")]
 use fips203::traits::{Decaps, Encaps, KeyGen, SerDes};
 
 /// NIST CAVP JSON format for test vectors

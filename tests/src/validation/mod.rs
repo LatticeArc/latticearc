@@ -1,5 +1,4 @@
-#![allow(missing_docs)]
-#![allow(unused_imports)] // Test infrastructure - re-exports may not all be used
+#![allow(unused_imports)]
 
 //! LatticeArc Validation
 //!
@@ -32,17 +31,20 @@ pub mod validation_summary;
 pub mod wycheproof;
 
 // Re-exports
-#[allow(ambiguous_glob_reexports)]
+#[expect(
+    ambiguous_glob_reexports,
+    reason = "intentional re-export pattern; later items shadow earlier ones"
+)]
 pub use bounds::*;
-#[allow(ambiguous_glob_reexports)]
+#[expect(
+    ambiguous_glob_reexports,
+    reason = "intentional re-export pattern; later items shadow earlier ones"
+)]
 pub use cavp::*;
-#[allow(ambiguous_glob_reexports)]
 pub use fips_validation::*;
 pub use format::*;
 pub use input::*;
-#[allow(ambiguous_glob_reexports)]
 pub use kat_tests::*;
-#[allow(ambiguous_glob_reexports)]
 pub use output::*;
 pub use resource_limits::*;
 pub use timing::*;

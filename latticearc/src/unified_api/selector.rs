@@ -16,7 +16,7 @@ use crate::unified_api::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme}
 // PERFORMANCE OPTIMIZATION THRESHOLDS
 // =============================================================================
 
-/// Data-size threshold (in bytes) below which the legacy data-aware
+/// Data-size threshold (in bytes) below which the legacy size-conditioned
 /// branch in [`CryptoPolicyEngine::select_encryption_scheme`] would
 /// have downgraded a caller-declared [`SecurityLevel::High`]
 /// (ML-KEM-768) to ML-KEM-512 under [`PerformancePreference::Memory`].
@@ -219,7 +219,7 @@ impl CryptoPolicyEngine {
     /// Returns `TypeError::ConfigurationError` when:
     ///   * `hardware_acceleration = false` and `security_level != Standard`
     ///     (refusal of silent post-quantum strip), or
-    ///   * the caller declared `SecurityLevel::High` and the data-aware
+    ///   * the caller declared `SecurityLevel::High` and the size-conditioned
     ///     branch would otherwise downgrade ML-KEM-768 to ML-KEM-512.
     pub fn select_encryption_scheme(
         data: &[u8],
@@ -690,13 +690,19 @@ fn calculate_entropy(data: &[u8]) -> f64 {
         }
     }
 
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "precision loss is intentional in this measurement/heuristic path"
+    )]
     let len = data.len() as f64;
     let mut entropy = 0.0_f64;
 
     for &count in &frequency {
         if count > 0 {
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "precision loss is intentional in this measurement/heuristic path"
+            )]
             let probability = count as f64 / len;
             entropy -= probability * probability.log2();
         }
@@ -939,32 +945,21 @@ mod kani_proofs {
 }
 
 #[cfg(test)]
-#[allow(
-    clippy::panic,
+#[expect(
     clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
+#[expect(
     clippy::panic_in_result_fn,
-    clippy::unnecessary_wraps,
-    clippy::redundant_clone,
-    clippy::useless_vec,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::clone_on_copy,
-    clippy::len_zero,
-    clippy::single_match,
-    clippy::unnested_or_patterns,
-    clippy::default_constructed_unit_structs,
-    clippy::redundant_closure_for_method_calls,
-    clippy::semicolon_if_nothing_returned,
-    clippy::unnecessary_unwrap,
-    clippy::redundant_pattern_matching,
-    clippy::missing_const_for_thread_local,
-    clippy::get_first,
+    reason = "test fns return Result and use assert! macros which expand to panic"
+)]
+#[expect(
     clippy::float_cmp,
-    clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    reason = "exact float comparison is intentional when verifying entropy/threshold constants"
+)]
+#[expect(
+    unused_qualifications,
+    reason = "fully-qualified paths kept for clarity in test assertions"
 )]
 mod tests {
     use super::*;
@@ -1072,7 +1067,7 @@ mod tests {
     }
 
     #[test]
-    fn test_data_aware_random_data_speed_high_refuses_silent_downgrade() {
+    fn test_size_conditioned_random_data_speed_high_refuses_silent_downgrade() {
         // Post-85e2bd79e L3 caller-declared `SecurityLevel::High`
         // (ML-KEM-768 / NIST L3) under `(Speed, Random)` MUST refuse rather
         // than silently downgrade to ML-KEM-512 (NIST L1). Previously this
@@ -1098,7 +1093,7 @@ mod tests {
     }
 
     #[test]
-    fn test_data_aware_random_data_speed_standard_succeeds() {
+    fn test_size_conditioned_random_data_speed_standard_succeeds() {
         // Companion to `_high_refuses_silent_downgrade`: when caller
         // explicitly declares `Standard`, ML-KEM-512 is the requested
         // level — no refusal, just normal selection.
@@ -1114,7 +1109,7 @@ mod tests {
     }
 
     #[test]
-    fn test_data_aware_structured_data_balanced_no_downgrade_succeeds() {
+    fn test_size_conditioned_structured_data_balanced_no_downgrade_succeeds() {
         let data = b"This is structured text data for encryption testing";
         let config = CoreConfig::new()
             .with_performance_preference(PerformancePreference::Balanced)
@@ -1185,7 +1180,7 @@ mod tests {
     fn test_performance_preference_influences_encryption_scheme_succeeds() {
         use crate::primitives::rand::secure_rng;
         use rand::RngCore;
-        // Use random data so data-aware branch activates. Post-L3 audit
+        // Use random data so the size-conditioned branch activates. Post-L3 audit
         // fix: caller-declared `SecurityLevel::High` + `Speed` + Random
         // data REFUSES (was: silent downgrade to ML-KEM-512). To still
         // prove "performance_preference influences output", compare two

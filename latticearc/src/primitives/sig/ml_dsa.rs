@@ -768,12 +768,15 @@ pub fn generate_keypair(
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
-#[allow(clippy::indexing_slicing)] // Tests use direct indexing
-#[allow(clippy::single_match)] // Tests use match for clarity
-#[allow(clippy::panic)]
-#[allow(clippy::unwrap_used)]
+#[expect(clippy::panic_in_result_fn, reason = "Tests use assertions for verification")]
+#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
+#[expect(clippy::indexing_slicing, reason = "Tests use direct indexing")]
+#[expect(clippy::single_match, reason = "Tests use match for clarity")]
+#[expect(clippy::panic, reason = "test/bench/macro-expanded assertion path")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
     use rand::RngCore;

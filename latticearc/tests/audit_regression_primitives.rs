@@ -7,7 +7,6 @@
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
-#![allow(clippy::indexing_slicing)]
 
 // ============================================================================
 // H1: HkdfResult.key field is private, accessed only via key() accessor

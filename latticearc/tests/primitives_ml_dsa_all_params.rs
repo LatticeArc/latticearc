@@ -2,7 +2,7 @@
 //! Exercises code paths in arc-primitives/src/sig/ml_dsa.rs that require
 //! different parameter set variants.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::panic)]
 
 use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 

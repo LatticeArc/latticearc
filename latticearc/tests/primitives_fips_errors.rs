@@ -1,9 +1,4 @@
 #![deny(unsafe_code)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
-#![allow(clippy::indexing_slicing)]
-#![allow(missing_docs)]
 
 //! Coverage tests for fips_error.rs
 //!

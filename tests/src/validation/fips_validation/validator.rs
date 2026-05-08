@@ -354,8 +354,8 @@ impl FIPSValidator {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
-#[allow(clippy::print_stderr)] // Tests use eprintln for diagnostic output
+#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
+#[expect(clippy::print_stderr, reason = "Tests use eprintln for diagnostic output")]
 mod tests {
     use super::*;
 

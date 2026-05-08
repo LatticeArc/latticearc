@@ -252,7 +252,7 @@ impl PedersenCommitment {
     /// These are modular arithmetic operations in a finite field that
     /// mathematically cannot overflow - the group operations are defined
     /// to always produce valid field elements.
-    #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
+    #[expect(clippy::arithmetic_side_effects, reason = "EC math is modular, cannot overflow")]
     pub fn commit_with_blinding(
         value: &[u8; 32],
         blinding: &[u8; 32],
@@ -298,7 +298,7 @@ impl PedersenCommitment {
     ///
     /// # Elliptic Curve Arithmetic
     /// Uses secp256k1 scalar multiplication and point addition.
-    #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
+    #[expect(clippy::arithmetic_side_effects, reason = "EC math is modular, cannot overflow")]
     pub fn verify(&self, opening: &PedersenOpening) -> Result<bool> {
         let v: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(opening.value())).into();
         let r: Option<Scalar> =
@@ -361,7 +361,7 @@ impl PedersenCommitment {
     ///
     /// # Elliptic Curve Arithmetic
     /// Uses secp256k1 point addition for homomorphic commitment.
-    #[allow(clippy::arithmetic_side_effects)] // EC point addition is modular
+    #[expect(clippy::arithmetic_side_effects, reason = "EC point addition is modular")]
     pub fn add(&self, other: &PedersenCommitment) -> Result<PedersenCommitment> {
         use k256::EncodedPoint;
         use k256::elliptic_curve::sec1::FromEncodedPoint;
@@ -438,7 +438,10 @@ impl PedersenCommitment {
             let mut buf =
                 Vec::with_capacity(b"arc-zkp/pedersen-generator-H-v3".len().saturating_add(4));
             buf.extend_from_slice(b"arc-zkp/pedersen-generator-H-v3");
-            #[allow(clippy::arithmetic_side_effects)] // counter.to_be_bytes() is infallible
+            #[expect(
+                clippy::arithmetic_side_effects,
+                reason = "counter.to_be_bytes() is infallible"
+            )]
             // Big-endian to match the transcript convention used elsewhere
             // in the crate.
             buf.extend_from_slice(&counter.to_be_bytes());
@@ -480,7 +483,10 @@ impl PedersenCommitment {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
 

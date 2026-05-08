@@ -455,7 +455,7 @@ pub mod ci_integration {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
 mod tests {
     use super::*;
 

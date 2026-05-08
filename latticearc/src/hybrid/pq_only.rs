@@ -578,12 +578,10 @@ pub fn decrypt_pq_only_with_aad(
 }
 
 #[cfg(test)]
-#[allow(
-    clippy::panic,
+#[expect(
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
+    reason = "test/bench scaffolding: lints suppressed for this module"
 )]
 mod tests {
     use super::*;

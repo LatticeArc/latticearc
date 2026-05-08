@@ -3,7 +3,6 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
-#![allow(missing_docs)]
 
 //! Coverage tests for sig_hybrid.rs error paths and edge cases.
 

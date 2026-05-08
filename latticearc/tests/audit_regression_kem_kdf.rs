@@ -7,8 +7,6 @@
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
-#![allow(clippy::indexing_slicing)]
 
 use latticearc::PqOnlySecretKey;
 use latticearc::hybrid::kem_hybrid::{

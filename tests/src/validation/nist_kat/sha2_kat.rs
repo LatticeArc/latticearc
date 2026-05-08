@@ -2,8 +2,6 @@
 #![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::expect_used)]
 
 //! SHA-2 Known Answer Tests
 //!
@@ -362,7 +360,6 @@ mod tests {
     // produces NistKatError::TestFailed.
     // =========================================================================
 
-    #[allow(dead_code)]
     fn verify_sha256_mismatch_error(
         message_hex: &str,
         wrong_expected_hex: &str,
@@ -403,7 +400,6 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     fn verify_sha224_mismatch_error(
         message_hex: &str,
         wrong_expected_hex: &str,
@@ -442,7 +438,6 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     fn verify_sha384_mismatch_error(
         message_hex: &str,
         wrong_expected_hex: &str,
@@ -482,7 +477,6 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     fn verify_sha512_mismatch_error(
         message_hex: &str,
         wrong_expected_hex: &str,
@@ -524,7 +518,6 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     fn verify_sha512_224_mismatch_error(
         message_hex: &str,
         wrong_expected_hex: &str,
@@ -563,7 +556,6 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     fn verify_sha512_256_mismatch_error(
         message_hex: &str,
         wrong_expected_hex: &str,

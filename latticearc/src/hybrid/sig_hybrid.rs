@@ -803,11 +803,10 @@ pub fn verify(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
-#[allow(clippy::implicit_clone)] // Tests don't require optimal cloning patterns
-#[allow(clippy::indexing_slicing)] // Tests use direct indexing for simplicity
-#[allow(clippy::single_match)] // Match with comment is clearer than if-let in tests
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
+#[expect(clippy::indexing_slicing, reason = "Tests use direct indexing for simplicity")]
+#[expect(clippy::single_match, reason = "Match with comment is clearer than if-let in tests")]
 mod tests {
     use super::*;
 

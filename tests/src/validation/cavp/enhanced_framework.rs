@@ -14,13 +14,12 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use std::collections::HashMap;
 
-#[allow(unused_imports)]
+#[expect(unused_imports, reason = "import retained for re-export or feature-gated visibility")]
 // Import types from the same module
 use crate::validation::cavp::{
     CavpAlgorithm, CavpBatchResult, CavpComplianceGenerator, CavpComplianceReport,

@@ -180,7 +180,10 @@ mod hkdf_kem_label_tests {
 
 // Formal verification with Kani
 #[cfg(kani)]
-#[allow(clippy::indexing_slicing)]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "indexing into a slice whose length is known at this site"
+)]
 mod kani_proofs {
     use super::*;
 

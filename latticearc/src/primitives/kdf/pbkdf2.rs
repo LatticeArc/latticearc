@@ -565,10 +565,13 @@ pub fn verify_password(
 use super::get_random_bytes;
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
-#[allow(clippy::indexing_slicing)] // Tests use slice indexing for verification
-#[allow(clippy::panic)] // `let Else { ... panic!(...) }` is the canonical error-extraction shape under deny(expect_used)
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::panic_in_result_fn, reason = "Tests use assertions for verification")]
+#[expect(clippy::indexing_slicing, reason = "Tests use slice indexing for verification")]
+#[expect(
+    clippy::panic,
+    reason = "`let Else { ... panic!(...) }` is the canonical error-extraction shape under deny(expect_used)"
+)]
 mod tests {
     use super::*;
 

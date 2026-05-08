@@ -2,8 +2,6 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
-#![allow(clippy::indexing_slicing)]
-#![allow(missing_docs)]
 
 //! Coverage tests for kem_hybrid.rs error paths and edge cases.
 

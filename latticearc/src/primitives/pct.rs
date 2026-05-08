@@ -505,7 +505,7 @@ pub fn pct_secp256k1(
 // =============================================================================
 
 #[cfg(test)]
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
+#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
 mod tests {
     use super::*;
 

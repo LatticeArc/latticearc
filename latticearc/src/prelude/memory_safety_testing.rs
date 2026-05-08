@@ -273,9 +273,15 @@ impl UtilityLeakDetector {
         let mut error_count = 0;
         for i in 0..1000 {
             match operation() {
-                #[allow(clippy::arithmetic_side_effects)]
+                #[expect(
+                    clippy::arithmetic_side_effects,
+                    reason = "arithmetic bounded by callsite invariants; overflow impossible at this site"
+                )]
                 Ok(_) => success_count += 1,
-                #[allow(clippy::arithmetic_side_effects)]
+                #[expect(
+                    clippy::arithmetic_side_effects,
+                    reason = "arithmetic bounded by callsite invariants; overflow impossible at this site"
+                )]
                 Err(e) => {
                     error_count += 1;
                     tracing::warn!("Operation {} failed: {}", i, e);

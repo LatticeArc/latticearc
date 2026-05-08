@@ -3,7 +3,6 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
-#![allow(missing_docs)]
 //! End-to-End Workflow Integration Tests
 //!
 //! Full roundtrip tests through the latticearc facade layer,

@@ -358,8 +358,8 @@ pub fn hkdf_simple(ikm: &[u8], length: usize) -> Result<HkdfResult> {
 use super::get_random_bytes;
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::indexing_slicing)] // Tests use slice indexing for verification
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::indexing_slicing, reason = "Tests use slice indexing for verification")]
 mod tests {
     use super::*;
 

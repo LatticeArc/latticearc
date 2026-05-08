@@ -1,5 +1,4 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 // JUSTIFICATION: CAVP test infrastructure for algorithm validation.
 // - Tests use unwrap()/expect() on known-valid test vectors
 // - Test code prioritizes correctness verification

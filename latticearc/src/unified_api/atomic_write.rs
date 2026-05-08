@@ -241,7 +241,10 @@ impl<'a> AtomicWrite<'a> {
             let mut remaining = self.bytes.len();
             while remaining > 0 {
                 let n = remaining.min(ZERO_CHUNK.len());
-                #[allow(clippy::indexing_slicing)]
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "indexing into a slice whose length is known at this site"
+                )]
                 // SAFETY: `n = remaining.min(ZERO_CHUNK.len())`
                 // ⇒ `n ≤ ZERO_CHUNK.len()` ⇒ `&ZERO_CHUNK[..n]` is
                 // in-bounds. (no possible panic)

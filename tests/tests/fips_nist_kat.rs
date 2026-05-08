@@ -3,39 +3,7 @@
 
 // Originally: fips_nist_kat_compliance.rs
 mod compliance {
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
-        clippy::useless_vec,
-        unused_imports
-    )]
+    #![allow(clippy::expect_used, clippy::useless_vec, unused_imports)]
 
     //! NIST Known-Answer-Test Compliance Suite
     //!
@@ -280,11 +248,9 @@ mod compliance {
 // Originally: fips_nist_kat_coverage.rs
 mod coverage {
     #![allow(clippy::unwrap_used)]
-    #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
     #![allow(clippy::indexing_slicing)]
     #![allow(clippy::float_cmp)]
-    #![allow(missing_docs)]
 
     //! Coverage tests for nist_kat/mod.rs
     //!
@@ -715,38 +681,7 @@ mod coverage {
 
 // Originally: fips_nist_kat_integration.rs
 mod integration {
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
-        clippy::useless_vec
-    )]
+    #![allow(clippy::redundant_closure, clippy::print_stdout, clippy::useless_vec)]
 
     //! NIST Known Answer Test Integration Suite
     //!
@@ -955,7 +890,7 @@ mod mod_coverage {
     //! Coverage tests for arc-validation/src/nist_kat/mod.rs
     //! Targets: KatTestResult factory methods, NistKatError display, decode_hex
 
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
+    #![allow(clippy::unwrap_used)]
 
     use latticearc_tests::validation::nist_kat::{KatTestResult, NistKatError, decode_hex};
 
@@ -1053,33 +988,8 @@ mod mod_tests {
     #![allow(
         clippy::panic,
         clippy::unwrap_used,
-        clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
         clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec
     )]
 

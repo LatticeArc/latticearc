@@ -4,32 +4,10 @@
 // Originally: primitives_concurrency_comprehensive.rs
 mod comprehensive {
     #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
         clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::redundant_clone,
-        clippy::clone_on_copy,
         clippy::collapsible_if,
-        clippy::single_match,
-        clippy::needless_range_loop,
-        clippy::explicit_iter_loop,
-        clippy::explicit_auto_deref,
-        clippy::assertions_on_constants,
-        clippy::len_zero,
-        clippy::print_stdout,
-        clippy::unused_unit,
-        clippy::expect_fun_call,
-        clippy::useless_vec,
-        clippy::cloned_instead_of_copied,
-        clippy::float_cmp,
-        clippy::needless_borrows_for_generic_args,
-        clippy::manual_let_else
+        clippy::cloned_instead_of_copied
     )]
     //! Comprehensive Concurrency and Thread Safety Tests for arc-primitives
     //!

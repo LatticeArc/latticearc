@@ -5,7 +5,6 @@
 // Allow println! in examples - they're meant to output results
 #![allow(clippy::print_stdout)]
 // Allow precision loss and arithmetic in benchmark calculations
-#![allow(clippy::cast_precision_loss)]
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 

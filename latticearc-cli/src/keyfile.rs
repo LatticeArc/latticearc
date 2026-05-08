@@ -397,7 +397,7 @@ pub(crate) fn write_composite_key(
 ///
 /// Metadata is bound into the AEAD AAD when a passphrase is supplied,
 /// so a tampered metadata field invalidates the AEAD tag.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "function signature reflects domain shape")]
 pub(crate) fn write_key_protected_with_metadata(
     path: &std::path::Path,
     algorithm: KeyAlgorithm,
@@ -422,7 +422,7 @@ pub(crate) fn write_key_protected_with_metadata(
 }
 
 /// Composite-key counterpart to [`write_key_protected`].
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "function signature reflects domain shape")]
 pub(crate) fn write_composite_key_protected(
     path: &std::path::Path,
     algorithm: KeyAlgorithm,

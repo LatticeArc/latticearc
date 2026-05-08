@@ -1,5 +1,4 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: NIST CAVP embedded test vectors.
@@ -7,8 +6,6 @@
 // - Hex string parsing is validated at test time, not runtime
 // - These vectors are reference data for algorithm certification
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
 
 //! Official NIST CAVP Test Vectors
 //!
@@ -582,7 +579,10 @@ pub fn total_vector_count() -> usize {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)]
+#[expect(
+    clippy::expect_used,
+    reason = "test/bench code: expect is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
 

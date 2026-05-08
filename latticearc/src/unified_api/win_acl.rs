@@ -83,7 +83,6 @@ const LOCAL_ADMIN_DACL_SDDL: &str = "D:P(A;OICI;FA;;;OW)(A;OICI;FA;;;BA)(A;OICI;
 /// (programmer error — the constant is fixed) or when
 /// `SetNamedSecurityInfoW` rejects the call (typical: target path
 /// does not exist, or the calling process lacks `WRITE_DAC`).
-#[allow(unused_variables)] // path is unused on non-Windows
 pub fn set_local_admin_dacl(path: &Path) -> Result<()> {
     #[cfg(windows)]
     {

@@ -17,7 +17,7 @@
 //! encoding). Cross-verification of actual signatures is attempted and
 //! documented as a known incompatibility if the context binding diverges.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel, VerifyingKey};
 use pqcrypto_traits::sign::{DetachedSignature as _, PublicKey as _};

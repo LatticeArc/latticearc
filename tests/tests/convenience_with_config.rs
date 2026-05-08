@@ -2,14 +2,7 @@
 //! across all convenience modules: aes_gcm, ed25519, hashing, pq_kem, keygen, hybrid.
 //! (pq_sig variants are tested separately in pq_sig_with_config_coverage.rs)
 
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::panic,
-    clippy::arithmetic_side_effects,
-    clippy::cast_precision_loss
-)]
+#![allow(clippy::unwrap_used)]
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 use latticearc::unified_api::CoreConfig;
 use latticearc::unified_api::convenience::*;

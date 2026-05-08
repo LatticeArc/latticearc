@@ -8,9 +8,6 @@
 // - Test infrastructure prioritizes correctness verification
 // - Result<> used for API consistency across functions
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 #![allow(clippy::unnecessary_wraps)]
 
 use super::types::*;

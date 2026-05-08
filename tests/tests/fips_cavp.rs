@@ -14,38 +14,7 @@ mod pipeline {
     //! These tests focus on increasing coverage for arc-validation/src/cavp/pipeline.rs
     //! Testing pipeline configuration, execution, result aggregation, and error handling.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
-        clippy::useless_vec
-    )]
+    #![allow(clippy::panic, clippy::unwrap_used, clippy::float_cmp, clippy::useless_vec)]
 
     use latticearc_tests::validation::cavp::compliance::CavpComplianceGenerator;
     use latticearc_tests::validation::cavp::pipeline::{
@@ -3722,38 +3691,7 @@ mod pipeline_algorithms {
     //! These tests focus on the actual cryptographic algorithm implementations
     //! in the CAVP pipeline, testing real ML-KEM, ML-DSA, SLH-DSA, and FN-DSA operations.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
-        clippy::useless_vec
-    )]
+    #![allow(clippy::unwrap_used, clippy::useless_vec)]
 
     use latticearc_tests::validation::cavp::pipeline::{CavpTestExecutor, PipelineConfig};
     use latticearc_tests::validation::cavp::storage::{CavpStorage, MemoryCavpStorage};
@@ -4487,19 +4425,7 @@ mod pipeline_error_paths {
     //! Targets: wrong test type combinations (ML-KEM Signature, SLH-DSA Encapsulation, etc.),
     //! unsupported variants, HybridKem operations, CavpValidationPipeline methods.
 
-    #![allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::float_cmp,
-        clippy::needless_borrows_for_generic_args,
-        clippy::redundant_closure_for_method_calls,
-        clippy::useless_format,
-        clippy::field_reassign_with_default
-    )]
+    #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::field_reassign_with_default)]
 
     use latticearc_tests::validation::cavp::pipeline::{
         CavpTestExecutor, CavpValidationPipeline, PipelineConfig,
@@ -4979,38 +4905,7 @@ mod pipeline_integration {
     //! These tests verify the CAVP (Cryptographic Algorithm Validation Program) pipeline
     //! implementation, ensuring FIPS 140-3 compliance readiness.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
-        clippy::useless_vec
-    )]
+    #![allow(clippy::unwrap_used, clippy::float_cmp, clippy::useless_vec)]
 
     use latticearc_tests::validation::cavp::compliance::CavpComplianceGenerator;
     use latticearc_tests::validation::cavp::pipeline::{
@@ -5874,18 +5769,7 @@ mod pipeline_sign_verify_roundtrip {
     //! Targets pipeline.rs lines: ML-DSA sign/verify (44, 65, 87), SLH-DSA sign/verify
     //! (shake-128s, 192s, 256s), FN-DSA sign/verify (512, 1024).
 
-    #![allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::float_cmp,
-        clippy::needless_borrows_for_generic_args,
-        clippy::redundant_closure_for_method_calls,
-        clippy::useless_format
-    )]
+    #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
     use latticearc_tests::validation::cavp::pipeline::{CavpTestExecutor, PipelineConfig};
     use latticearc_tests::validation::cavp::storage::{CavpStorage, MemoryCavpStorage};
@@ -6390,15 +6274,7 @@ mod pipeline_dispatch {
     //! Targets the execute_* async methods and real_*_implementation functions
     //! including error paths for unsupported variants and test types.
 
-    #![allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::field_reassign_with_default
-    )]
+    #![allow(clippy::unwrap_used, clippy::field_reassign_with_default)]
 
     use chrono::Utc;
     use latticearc_tests::validation::cavp::pipeline::{
@@ -7891,19 +7767,7 @@ mod compliance_coverage {
     //! JSON/XML export, compliance evaluation (FullyCompliant, PartiallyCompliant,
     //! NonCompliant), and algorithm-specific criteria.
 
-    #![allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss,
-        clippy::float_cmp,
-        clippy::needless_borrows_for_generic_args,
-        clippy::redundant_clone,
-        clippy::redundant_closure_for_method_calls,
-        clippy::useless_format
-    )]
+    #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::redundant_clone)]
 
     use chrono::Utc;
     use latticearc_tests::validation::cavp::compliance::*;
@@ -8480,35 +8344,10 @@ mod official_vectors {
     //! - Error handling paths
 
     #![allow(
-        clippy::panic,
         clippy::unwrap_used,
-        clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
         clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
         clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec
     )]
 
@@ -13185,35 +13024,10 @@ mod storage {
     //! 6. Algorithm-based indexing and retrieval
 
     #![allow(
-        clippy::panic,
         clippy::unwrap_used,
-        clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
         clippy::float_cmp,
-        clippy::redundant_closure,
         clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec
     )]
 
@@ -14743,12 +14557,8 @@ mod types_and_storage {
 
     #![allow(
         clippy::unwrap_used,
-        clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
         clippy::cast_possible_truncation,
-        clippy::cast_precision_loss,
         clippy::cast_sign_loss,
         clippy::float_cmp
     )]
@@ -15290,33 +15100,11 @@ mod enhanced {
     #![allow(
         clippy::panic,
         clippy::unwrap_used,
-        clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
         clippy::float_cmp,
-        clippy::redundant_closure,
         clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
         clippy::assertions_on_constants,
         clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec
     )]
 

@@ -10,8 +10,7 @@
 //!
 //! Reference: <https://datatracker.ietf.org/doc/html/rfc7748#section-6.1>
 
-#![allow(missing_docs)]
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::expect_used)]
 
 use latticearc::primitives::kem::ecdh::X25519StaticKeyPair;
 

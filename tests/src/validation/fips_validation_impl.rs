@@ -9,9 +9,7 @@
 // - Result<> used for API consistency across test functions
 // - Vec construction patterns for test data clarity
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::vec_init_then_push)]
 

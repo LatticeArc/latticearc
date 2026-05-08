@@ -1,14 +1,10 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: FIPS global state management for validation.
 // - Initialization and state tracking for FIPS mode
 // - Test infrastructure prioritizes correctness verification
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 
 //! Global FIPS state management and initialization functions
 
@@ -191,9 +187,10 @@ pub fn get_fips_validation_result() -> Option<ValidationResult> {
 // Tests that need FIPS call `ensure_initialized_for_test()` explicitly.
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
-#[allow(clippy::expect_used)]
-#[allow(dead_code)]
+#[expect(
+    clippy::expect_used,
+    reason = "test/bench code: expect is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
 

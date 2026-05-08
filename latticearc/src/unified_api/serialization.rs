@@ -495,7 +495,12 @@ fn enforce_max_input_size(data: &str, kind: &'static str) -> Result<()> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
+#[expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "test/bench scaffolding: lints suppressed for this module"
+)]
 mod tests {
     use super::*;
     use crate::types::{CryptoPayload, PrivateKey, SignedMetadata};

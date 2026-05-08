@@ -6,38 +6,7 @@
 
 // Originally: fips_140_3_compliance_tests.rs
 mod fips_140_3 {
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
-        clippy::useless_vec
-    )]
+    #![allow(clippy::expect_used, clippy::print_stdout, clippy::useless_vec)]
 
     //! FIPS 140-3 Compliance Tests
     //!
@@ -476,35 +445,10 @@ mod nist_comprehensive {
     //! - SP 800-38D: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 
     #![allow(
-        clippy::panic,
         clippy::unwrap_used,
         clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
         clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec,
         unused_imports
     )]
@@ -1596,15 +1540,11 @@ mod nist_comprehensive {
 // Originally: fips_documentation_coverage.rs
 mod documentation {
     #![allow(clippy::unwrap_used)]
-    #![allow(clippy::expect_used)]
-    #![allow(clippy::panic)]
-    #![allow(clippy::indexing_slicing)]
     #![allow(clippy::arithmetic_side_effects)]
     #![allow(clippy::too_many_arguments)]
     #![allow(clippy::float_cmp)]
     #![allow(clippy::cast_possible_truncation)]
     #![allow(clippy::cast_sign_loss)]
-    #![allow(missing_docs)]
 
     //! Coverage tests for `NistDocumentationGenerator` in cavp/documentation.rs.
 
@@ -2366,35 +2306,12 @@ mod validation_summary {
     //! - Security level calculation
 
     #![allow(
-        clippy::panic,
         clippy::unwrap_used,
-        clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
         clippy::float_cmp,
-        clippy::redundant_closure,
         clippy::redundant_clone,
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec
     )]
 
@@ -4031,35 +3948,10 @@ mod validation {
     //! 4. Error handling paths
 
     #![allow(
-        clippy::panic,
         clippy::unwrap_used,
-        clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
         clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
-        clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
         clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec
     )]
 
@@ -5193,33 +5085,7 @@ mod validation_comprehensive {
     #![allow(
         clippy::panic,
         clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::float_cmp,
-        clippy::redundant_closure,
-        clippy::redundant_clone,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_lossless,
-        clippy::single_match_else,
         clippy::default_constructed_unit_structs,
-        clippy::manual_is_multiple_of,
-        clippy::needless_borrows_for_generic_args,
-        clippy::print_stdout,
-        clippy::unnecessary_unwrap,
-        clippy::unnecessary_literal_unwrap,
-        clippy::to_string_in_format_args,
-        clippy::expect_fun_call,
-        clippy::clone_on_copy,
-        clippy::cast_precision_loss,
-        clippy::useless_format,
-        clippy::assertions_on_constants,
-        clippy::drop_non_drop,
-        clippy::redundant_closure_for_method_calls,
-        clippy::unnecessary_map_or,
-        clippy::print_stderr,
-        clippy::inconsistent_digit_grouping,
         clippy::useless_vec
     )]
 
@@ -6060,13 +5926,7 @@ mod validation_comprehensive {
 mod reporter {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::expect_used)]
-    #![allow(clippy::panic)]
-    #![allow(clippy::indexing_slicing)]
-    #![allow(clippy::arithmetic_side_effects)]
-    #![allow(clippy::cast_precision_loss)]
-    #![allow(clippy::cast_possible_truncation)]
     #![allow(clippy::drop_non_drop)]
-    #![allow(missing_docs)]
 
     //! Coverage tests for `ComplianceReporter` methods in validation_summary.rs.
     //!

@@ -4,11 +4,10 @@
 //! arc-primitives library for runtime integrity verification per FIPS 140-3
 //! Section 9.2.2 (Software/Firmware Load Test).
 
-#![allow(missing_docs)] // Build scripts don't need public API docs
-#![allow(clippy::arithmetic_side_effects)] // Build scripts can use arithmetic
-#![allow(clippy::print_stderr)] // Build scripts use eprintln for cargo warnings
-#![allow(clippy::manual_let_else)] // Build scripts can use if-let patterns
-#![allow(clippy::panic)] // Build scripts can panic - they run at compile time
+#![allow(clippy::arithmetic_side_effects)]
+#![allow(clippy::print_stderr)]
+#![allow(clippy::manual_let_else)]
+#![allow(clippy::panic)]
 
 use std::env;
 use std::fs;

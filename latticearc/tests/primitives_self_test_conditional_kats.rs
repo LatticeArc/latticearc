@@ -7,7 +7,7 @@
 // "test-utils"))` — this file imports them and therefore also requires
 // `test-utils` to compile.
 #![cfg(all(feature = "fips-self-test", feature = "test-utils"))]
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
+#![allow(clippy::unwrap_used)]
 
 use latticearc::primitives::self_test::{
     ModuleErrorCode, SelfTestResult, clear_error_state, get_module_error_state,

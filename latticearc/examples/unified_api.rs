@@ -6,7 +6,6 @@
 //!
 //! Run with: `cargo run --package latticearc --example unified_api --release`
 
-#![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::print_stdout)]
 #![allow(clippy::panic)]

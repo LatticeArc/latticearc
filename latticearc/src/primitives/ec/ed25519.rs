@@ -225,9 +225,9 @@ impl Ed25519KeyPair {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
-#[allow(clippy::indexing_slicing)] // Tests use direct indexing
-#[allow(clippy::expect_used)] // Tests use expect for simplicity
+#[expect(clippy::panic_in_result_fn, reason = "Tests use assertions for verification")]
+#[expect(clippy::indexing_slicing, reason = "Tests use direct indexing")]
+#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
 mod tests {
     use super::*;
     use crate::prelude::error::Result;

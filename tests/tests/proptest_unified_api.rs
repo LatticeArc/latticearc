@@ -3,13 +3,7 @@
 //! Tests AEAD roundtrip, signing roundtrip, and cross-security-level consistency
 //! via `latticearc::encrypt/decrypt/generate_signing_keypair/sign_with_key/verify`.
 
-#![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
-)]
+#![allow(clippy::unwrap_used)]
 
 use latticearc::{
     CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, SecurityLevel, UseCase, decrypt, encrypt,

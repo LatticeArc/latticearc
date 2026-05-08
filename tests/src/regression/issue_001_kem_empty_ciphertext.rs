@@ -18,7 +18,7 @@
 //! and the error contains useful diagnostic information.
 
 #[cfg(test)]
-#[allow(clippy::panic)]
+#[expect(clippy::panic, reason = "test/bench/macro-expanded assertion path")]
 mod tests {
     use latticearc::primitives::kem::ml_kem::{MlKemCiphertext, MlKemError, MlKemSecurityLevel};
 

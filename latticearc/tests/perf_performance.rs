@@ -19,18 +19,9 @@
 
 #![deny(unsafe_code)]
 #![allow(
-    clippy::panic,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::needless_borrows_for_generic_args,
-    clippy::redundant_clone,
-    clippy::useless_vec,
     clippy::cast_lossless,
     unused_qualifications
 )]

@@ -318,9 +318,10 @@ pub fn generate_secure_random_u32() -> Result<u32> {
 // Types are already defined above, no need for re-exports
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
-#[allow(clippy::expect_used)]
-#[allow(clippy::indexing_slicing)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
 

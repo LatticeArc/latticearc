@@ -92,10 +92,16 @@ impl UtilityTimingAnalyzer {
             })?;
 
             // Check for suspicious timing variations
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "precision loss is intentional in this measurement/heuristic path"
+            )]
             let encode_cv =
                 encode_analysis.std_dev.as_nanos() as f64 / encode_analysis.mean.as_nanos() as f64;
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "precision loss is intentional in this measurement/heuristic path"
+            )]
             let decode_cv =
                 decode_analysis.std_dev.as_nanos() as f64 / decode_analysis.mean.as_nanos() as f64;
 
@@ -143,7 +149,10 @@ impl UtilityTimingAnalyzer {
             Ok(())
         })?;
 
-        #[allow(clippy::cast_precision_loss)]
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "precision loss is intentional in this measurement/heuristic path"
+        )]
         let cv = analysis.std_dev.as_nanos() as f64 / analysis.mean.as_nanos() as f64;
 
         if cv > 0.1 {
@@ -226,10 +235,10 @@ pub enum Severity {
 }
 
 /// Calculate mean duration.
-#[allow(
-    clippy::cast_precision_loss,
+#[expect(
     clippy::cast_possible_truncation,
-    clippy::arithmetic_side_effects
+    clippy::arithmetic_side_effects,
+    reason = "u128-to-u64 truncation on average nanos: a mean Duration that overflows u64 ns (~584 years) cannot occur on real timing samples; arithmetic on Duration::as_nanos() sums is bounded by the sample count"
 )]
 fn calculate_mean(durations: &[Duration]) -> Duration {
     let total_nanos: u128 = durations.iter().map(Duration::as_nanos).sum();
@@ -237,17 +246,30 @@ fn calculate_mean(durations: &[Duration]) -> Duration {
 }
 
 /// Calculate standard deviation.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "f64-to-u64 cast on variance.sqrt(): a Duration std-dev exceeding u64 nanoseconds (~584 years) cannot occur on real timing samples; sign-loss is sound because variance is non-negative"
+)]
 fn calculate_std_dev(durations: &[Duration]) -> Duration {
     let mean = calculate_mean(durations);
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "precision loss is intentional in this measurement/heuristic path"
+    )]
     let mean_nanos = mean.as_nanos() as f64;
 
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "precision loss is intentional in this measurement/heuristic path"
+    )]
     let variance: f64 = durations
         .iter()
         .map(|d| {
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "precision loss is intentional in this measurement/heuristic path"
+            )]
             let diff = d.as_nanos() as f64 - mean_nanos;
             diff * diff
         })
@@ -324,7 +346,10 @@ impl UtilitySideChannelTester {
             Ok(())
         })?;
 
-        #[allow(clippy::cast_precision_loss)]
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "precision loss is intentional in this measurement/heuristic path"
+        )]
         let cv = analysis.std_dev.as_nanos() as f64 / analysis.mean.as_nanos() as f64;
 
         if cv > 0.05 {

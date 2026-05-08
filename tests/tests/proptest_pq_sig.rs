@@ -23,13 +23,7 @@
 //! Total keygen work drops from ~1024 to ~48 (3 algos × 16), amortized
 //! across the whole test file via `OnceLock`.
 
-#![allow(
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
-)]
+#![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use latticearc::primitives::sig::fndsa::{
     FnDsaSecurityLevel, KeyPair as FnDsaKeyPair, VerifyingKey as FnDsaVerifyingKey,

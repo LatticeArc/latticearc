@@ -18,33 +18,7 @@ mod encrypt {
     //! 6. **Cross-key rejection** - Wrong key decryption failure
     //! 7. **Edge cases** - Empty, single-byte, boundary values
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::panic_in_result_fn,
-        clippy::unnecessary_wraps,
-        clippy::redundant_clone,
-        clippy::useless_vec,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::clone_on_copy,
-        clippy::len_zero,
-        clippy::single_match,
-        clippy::unnested_or_patterns,
-        clippy::default_constructed_unit_structs,
-        clippy::redundant_closure_for_method_calls,
-        clippy::semicolon_if_nothing_returned,
-        clippy::unnecessary_unwrap,
-        clippy::redundant_pattern_matching,
-        clippy::missing_const_for_thread_local,
-        clippy::get_first,
-        clippy::float_cmp,
-        clippy::needless_borrows_for_generic_args,
-        unused_qualifications
-    )]
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
     use latticearc::{
         CryptoConfig, DecryptKey, EncryptKey, EncryptedOutput, HybridComponents, SecurityMode,
@@ -601,32 +575,10 @@ mod sig {
     //! 9. **Unverified/mode interop** - _unverified and SecurityMode::Unverified produce compatible results
 
     #![allow(
-        clippy::panic,
         clippy::unwrap_used,
-        clippy::expect_used,
         clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
         clippy::panic_in_result_fn,
-        clippy::unnecessary_wraps,
-        clippy::redundant_clone,
-        clippy::useless_vec,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::clone_on_copy,
-        clippy::len_zero,
-        clippy::single_match,
-        clippy::unnested_or_patterns,
-        clippy::default_constructed_unit_structs,
-        clippy::redundant_closure_for_method_calls,
-        clippy::semicolon_if_nothing_returned,
-        clippy::unnecessary_unwrap,
-        clippy::redundant_pattern_matching,
-        clippy::missing_const_for_thread_local,
-        clippy::get_first,
-        clippy::float_cmp,
-        clippy::needless_borrows_for_generic_args,
-        unused_qualifications,
-        missing_docs
+        clippy::unnecessary_wraps
     )]
 
     use latticearc::unified_api::CoreConfig;
@@ -1008,33 +960,7 @@ mod integration {
     //! This file contains additional integration-level tests for the ML-KEM keypair
     //! generation and encapsulated key size validation.
 
-    #![allow(
-        clippy::panic,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects,
-        clippy::panic_in_result_fn,
-        clippy::unnecessary_wraps,
-        clippy::redundant_clone,
-        clippy::useless_vec,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::clone_on_copy,
-        clippy::len_zero,
-        clippy::single_match,
-        clippy::unnested_or_patterns,
-        clippy::default_constructed_unit_structs,
-        clippy::redundant_closure_for_method_calls,
-        clippy::semicolon_if_nothing_returned,
-        clippy::unnecessary_unwrap,
-        clippy::redundant_pattern_matching,
-        clippy::missing_const_for_thread_local,
-        clippy::get_first,
-        clippy::float_cmp,
-        clippy::needless_borrows_for_generic_args,
-        unused_qualifications
-    )]
+    #![allow(clippy::panic_in_result_fn)]
     use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
     use latticearc::unified_api::{
         convenience::generate_ml_kem_keypair, error::Result, generate_hybrid_keypair,

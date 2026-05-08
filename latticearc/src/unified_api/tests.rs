@@ -12,7 +12,7 @@ use crate::unified_api::*;
 /// updated. A new variant fails compilation here until the match arm is
 /// added, and the companion `assert_eq!(all_use_cases.len(), ...)` at
 /// runtime catches a matching omission in the fixture.
-#[allow(dead_code)]
+#[expect(dead_code, reason = "interface stability or feature-gated path")]
 fn assert_all_signing_use_cases_covered(uc: crate::types::types::UseCase) {
     use crate::types::types::UseCase;
     match uc {

@@ -4,8 +4,6 @@
 //! - Hex encoding/decoding utilities
 //! - Constant-time comparison
 
-#![allow(dead_code)] // Some utilities may be used by future tests
-
 use sha2::{Digest, Sha256};
 
 /// Decode a hex string to bytes

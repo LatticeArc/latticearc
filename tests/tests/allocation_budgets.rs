@@ -13,13 +13,7 @@
 //! tight enough to catch a doubling. When a legitimate refactor pushes
 //! the budget, raise the number here and note the reason in the diff.
 
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::arithmetic_side_effects,
-    clippy::indexing_slicing
-)]
+#![allow(clippy::expect_used)]
 
 use std::alloc::System;
 

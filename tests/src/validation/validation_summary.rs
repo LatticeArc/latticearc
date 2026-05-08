@@ -12,7 +12,6 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 #![allow(clippy::float_cmp)]
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::unnecessary_to_owned)]

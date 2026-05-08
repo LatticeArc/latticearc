@@ -4,12 +4,7 @@
 // Originally: hybrid_encrypt_hybrid_coverage.rs
 mod hybrid {
     #![allow(clippy::unwrap_used)]
-    #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
-    #![allow(clippy::indexing_slicing)]
-    #![allow(clippy::print_stderr)]
-    #![allow(clippy::cast_possible_truncation)]
-    #![allow(missing_docs)]
     //! Coverage tests for encrypt_hybrid.rs
     //!
     //! Targets uncovered error paths, validation branches, and edge cases
@@ -468,8 +463,6 @@ mod validation {
     //! Coverage tests for encrypt_hybrid.rs decrypt validation paths
     //! Tests validation errors that don't require actual ML-KEM decapsulation.
 
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
-
     use latticearc::hybrid::encrypt_hybrid::{
         HybridCiphertext, HybridEncryptionContext, HybridEncryptionError,
     };
@@ -534,14 +527,7 @@ mod true_hybrid {
     //! Coverage tests for encrypt_hybrid.rs — true hybrid (ML-KEM + X25519)
     //! encrypt/decrypt roundtrip and error paths.
 
-    #![allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::arithmetic_side_effects,
-        clippy::cast_precision_loss
-    )]
+    #![allow(clippy::unwrap_used)]
     use latticearc::hybrid::encrypt_hybrid::{
         HybridCiphertext, HybridEncryptionContext, decrypt_hybrid, encrypt_hybrid,
     };

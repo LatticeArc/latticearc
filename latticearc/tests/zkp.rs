@@ -5,8 +5,8 @@
 
 // ZKP is not FIPS-approved; skip these tests when the `fips` feature is active.
 #![cfg(not(feature = "fips"))]
-#![allow(clippy::expect_used)] // Tests use expect for clarity
-#![allow(clippy::arithmetic_side_effects)] // Elliptic curve arithmetic in tests
+#![allow(clippy::expect_used)]
+#![allow(clippy::arithmetic_side_effects)]
 
 use latticearc::zkp::{
     DlogEqualityProof, DlogEqualityStatement, HashCommitment, HashOpening, PedersenCommitment,

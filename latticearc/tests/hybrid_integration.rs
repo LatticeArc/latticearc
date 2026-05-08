@@ -7,9 +7,6 @@ mod roundtrip {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
     #![allow(clippy::indexing_slicing)]
-    #![allow(clippy::print_stderr)]
-    #![allow(clippy::cast_possible_truncation)]
-    #![allow(missing_docs)]
 
     //! Hybrid Cryptography Roundtrip Integration Tests
     //!

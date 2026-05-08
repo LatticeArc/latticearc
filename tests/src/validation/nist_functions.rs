@@ -1,5 +1,4 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: NIST SP 800-106 randomized hashing implementation.
@@ -8,8 +7,6 @@
 // - Test infrastructure for signature validation
 // - Result<> used for API consistency across functions
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::should_implement_trait)]
@@ -343,7 +340,7 @@ impl RandomizedHashing {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
 mod tests {
     use super::*;
 

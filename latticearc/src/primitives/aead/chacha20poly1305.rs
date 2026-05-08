@@ -456,8 +456,8 @@ impl ConstantTimeEq for XChaCha20Poly1305Cipher {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
-#[allow(clippy::panic)] // Tests use panic! for error case validation
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
+#[expect(clippy::panic, reason = "Tests use panic! for error case validation")]
 mod tests {
     use super::*;
     use crate::primitives::aead::{verify_tag_constant_time, zeroize_data};

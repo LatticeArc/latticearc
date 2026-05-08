@@ -3,7 +3,6 @@
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::expect_used)]
 
 //! ChaCha20-Poly1305 Known Answer Tests
 //!
@@ -138,7 +137,12 @@ fn run_chacha20_poly1305_test(vector: &ChaCha20Poly1305TestVector) -> Result<(),
 }
 
 #[cfg(test)]
-#[allow(clippy::panic, clippy::indexing_slicing, clippy::expect_used)]
+#[expect(
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::expect_used,
+    reason = "test/bench scaffolding: lints suppressed for this module"
+)]
 mod tests {
     use super::*;
 

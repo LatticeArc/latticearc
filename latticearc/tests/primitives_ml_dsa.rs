@@ -1,21 +1,10 @@
 #![allow(
     clippy::panic,
-    clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_lossless,
     clippy::collapsible_if,
     clippy::single_match,
-    clippy::needless_range_loop,
-    clippy::explicit_iter_loop,
-    clippy::expect_fun_call,
-    clippy::useless_vec,
-    clippy::needless_borrows_for_generic_args,
-    clippy::manual_let_else
+    clippy::expect_fun_call
 )]
 //! Comprehensive ML-DSA (FIPS 204) Test Suite
 //!

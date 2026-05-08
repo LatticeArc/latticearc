@@ -530,7 +530,7 @@ impl<'a> CryptoConfig<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[expect(clippy::unwrap_used, reason = "test/bench scaffolding: lints suppressed for this module")]
 mod tests {
     use super::*;
 

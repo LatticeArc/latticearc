@@ -1,5 +1,4 @@
 #![deny(unsafe_code)]
-#![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 #![allow(hidden_glob_reexports)]
@@ -7,10 +6,6 @@
 // - Statistical calculations for compliance scoring
 // - Test vector processing with known NIST data structures
 // - Test infrastructure prioritizes correctness verification
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::indexing_slicing)]
 
 //! # FIPS Validation Framework
 //!

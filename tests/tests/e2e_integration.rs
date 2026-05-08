@@ -1,9 +1,5 @@
 #![deny(unsafe_code)]
-#![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
-#![allow(clippy::indexing_slicing)]
-#![allow(missing_docs)]
 //! End-to-End Integration Tests
 //!
 //! Validates that all public `latticearc` facade APIs produce correct results

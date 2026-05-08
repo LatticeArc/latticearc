@@ -1,4 +1,4 @@
-#![allow(missing_docs, clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
 //! ML-KEM KAT integration tests
 //!

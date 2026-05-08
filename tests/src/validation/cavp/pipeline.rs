@@ -7,10 +7,9 @@
 // - Statistics and metrics for batch execution
 // - Test infrastructure prioritizes correctness verification
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::indexing_slicing)]
-#![allow(clippy::unused_async)] // Test execution functions are async for future extensibility
+#![allow(clippy::unused_async)]
 
 use crate::validation::cavp::compliance::CavpComplianceGenerator;
 use crate::validation::cavp::storage::CavpStorage;
@@ -36,7 +35,6 @@ use fips203::traits::{KeyGen, SerDes};
 // Import SLH-DSA SHAKE variants from fips205
 use fips205::{slh_dsa_shake_128s, slh_dsa_shake_192s, slh_dsa_shake_256s};
 
-#[allow(unused_imports)]
 use fips203::traits::{Decaps, Encaps, SerDes as Fips203SerDes};
 use fips204::traits::{
     SerDes as Fips204SerDes, Signer as Fips204Signer, Verifier as Fips204Verifier,
@@ -411,7 +409,7 @@ impl CavpTestExecutor {
         }
     }
 
-    #[allow(clippy::unused_self)] // Method kept on instance for API consistency
+    #[expect(clippy::unused_self, reason = "Method kept on instance for API consistency")]
     fn real_slhdsa_implementation(
         &self,
         vector: &CavpTestVector,
@@ -1154,7 +1152,10 @@ pub struct CavpValidationPipeline {
 
 impl CavpValidationPipeline {
     /// Creates a new CAVP validation pipeline with the given configuration and storage.
-    #[allow(clippy::needless_pass_by_value)] // Arc<T> is cheap to clone, pass by value is idiomatic
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Arc<T> is cheap to clone, pass by value is idiomatic"
+    )]
     pub fn new(config: PipelineConfig, storage: Arc<dyn CavpStorage>) -> Self {
         let executor = CavpTestExecutor::new(config, storage.clone());
         let compliance_generator = CavpComplianceGenerator::new();
@@ -1233,7 +1234,7 @@ impl CavpValidationPipeline {
     }
 
     #[must_use]
-    #[allow(clippy::needless_pass_by_value)] // CavpAlgorithm is cloned into vectors
+    #[expect(clippy::needless_pass_by_value, reason = "CavpAlgorithm is cloned into vectors")]
     pub fn create_sample_vectors(
         &self,
         algorithm: CavpAlgorithm,

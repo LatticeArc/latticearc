@@ -34,12 +34,10 @@
 
 #![deny(unsafe_code)]
 #![allow(
-    clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
     clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
-    missing_docs
+    clippy::arithmetic_side_effects
 )]
 
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemCiphertext, MlKemSecurityLevel};

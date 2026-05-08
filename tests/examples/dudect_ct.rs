@@ -18,13 +18,7 @@
 //! any bench produces `|max t| > DUDECT_T_THRESHOLD` (default 10 —
 //! conservative vs. the paper's 5 to absorb shared-runner noise).
 
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
-)]
+#![allow(clippy::expect_used, clippy::indexing_slicing)]
 
 use dudect_bencher::{BenchRng, Class, CtRunner, ctbench_main};
 

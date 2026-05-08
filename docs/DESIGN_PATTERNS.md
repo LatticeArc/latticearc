@@ -168,8 +168,8 @@ to make entire classes of cryptographic bugs structurally impossible.
 | **`#[deny(unsafe_code)]`** | Memory safety is provable | The entire crate denies unsafe. All memory access is bounds-checked by the compiler. (aws-lc-rs uses unsafe internally for FFI — that's their responsibility, audited by AWS.) |
 | **Sealed traits** | Prevent broken external implementations | `AeadCipher`, `EcKeyPair`, `EcSignature` use the sealed-trait pattern. External crates cannot implement them with non-constant-time or non-zeroizing logic. |
 | **`#[must_use]`** | Prevent discarding security-critical values | `generate_key()`, `allow_request()`, and builder methods are `#[must_use]` — the compiler warns if the return value is dropped. |
-| **`#[non_exhaustive]`** | Semver-safe enum extensibility | All 70 public enums are `#[non_exhaustive]`, allowing new algorithm variants without breaking 30+ downstream enterprise crates. |
-| **Workspace lints** | Consistent enforcement across all crates | `deny(unsafe_code, clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)` — no crate can opt out. |
+| **`#[non_exhaustive]`** | Semver-safe enum extensibility | All 61 public enums in `latticearc/src` are `#[non_exhaustive]`, allowing new algorithm variants without breaking downstream enterprise crates. |
+| **Workspace lints** | Consistent enforcement across all crates | `forbid(unsafe_code)` and `deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, dead_code, missing_docs)` (and more — see `[workspace.lints]` in root `Cargo.toml`). No crate can opt out. |
 
 ## Rust-Specific Anti-Patterns We Prevent
 
@@ -1108,19 +1108,48 @@ fails to compile until every conversion site is updated.
 ## Pattern 12: Workspace Lint Enforcement
 
 ### What
-The workspace `Cargo.toml` denies: `unsafe_code`, `clippy::unwrap_used`,
-`clippy::expect_used`, `clippy::panic`, `dead_code`. Individual crates inherit via
-`[lints] workspace = true`.
+The workspace `Cargo.toml` configures lints that all member crates inherit via
+`[lints] workspace = true`. Highlights:
+
+- **`forbid`**: `unsafe_code` — cannot be overridden even with `#[allow]`.
+- **`deny`** (compile error, override only with justification): `dead_code`,
+  `unused_imports`, `unused_variables`, `unused_mut`, `unreachable_code`,
+  `unreachable_patterns`, `missing_docs`, `clippy::panic`, `clippy::expect_used`,
+  `clippy::unwrap_used`, `clippy::indexing_slicing`, `clippy::exit`.
+- **`warn`**: `unused_qualifications`, `ambiguous_glob_reexports`,
+  `clippy::arithmetic_side_effects`, `clippy::cast_*`, etc. (see root
+  `Cargo.toml` for the full list).
 
 ### Why This Is The Right Pattern
-- `unsafe_code` — a crypto library must prove memory safety via the Rust type system
-- `unwrap/expect/panic` — a crypto library must never crash; all errors must be propagated
+- `unsafe_code` (forbid) — a crypto library must prove memory safety via the Rust type system; FFI to aws-lc-rs is the only safe-but-audited boundary.
+- `unwrap/expect/panic` — a crypto library must never crash; all errors must be propagated.
+- `indexing_slicing` — bounds checks must be explicit; use `.get()` over `[i]`.
 - `dead_code` — if clippy says it's dead, it's dead. No `#[allow(dead_code)]` in production.
 
-Any `#[allow(...)]` override must have a justification comment explaining why the
-specific case is safe. Example:
+### `#[allow]` vs `#[expect]` policy
+
+- Permanent suppression at file/module/crate scope: use `#![allow(...)]` with a
+  justification comment. File-level inner attributes propagate to submodules
+  via lint-level inheritance. (Note: `#![expect(...)]` does NOT reliably do
+  this — rustc requires the lint to fire within the attribute's *immediate*
+  scope, so crate-root `#![expect]` over a multi-module crate fires
+  `unfulfilled_lint_expectations` even when submodules trigger the lint.)
+- Item-level transient suppression: use `#[expect(LINT, reason = "…")]` so
+  that the suppression auto-cleans when the underlying issue is fixed.
+
+Either form requires a justification.
+
+**Permanent (use `#[allow]` with a same-line `//` justification):**
+
 ```rust
 #[allow(clippy::indexing_slicing)] // ZETAS[k] where k ∈ [0,127] for ZETAS: [i32; 128]
+```
+
+**Transient (use `#[expect]` with a `reason = "…"` argument that
+auto-cleans the suppression when the lint stops firing):**
+
+```rust
+#[expect(clippy::unnecessary_wraps, reason = "Result shape preserved for API parity with sibling functions")]
 ```
 
 ### Error Format Style
@@ -1214,8 +1243,10 @@ right one when adding tests; do not invent a fourth.
 - Property tests (`proptest!`) live in `tests/tests/proptest_*.rs`,
   regardless of layer being tested. Keep the `proptest_` prefix consistent.
 - KAT (Known Answer Test) vectors for FIPS algorithms live in
-  `tests/tests/fips_kat_{kem,sig,aead,hash_kdf}.rs`, grouped by primitive
-  family. Never split per-algorithm into separate files.
+  `tests/tests/fips_kat_{kem,sig,aead,hash_kdf_ec}.rs`, grouped by primitive
+  family. Shared loader and runner machinery sits in
+  `tests/tests/fips_kat_{loaders,runners}.rs`. Never split per-algorithm
+  into separate files.
 - Do not name files `*_coverage.rs`, `*_extended_tests.rs`, or
   `*_boost_tests.rs`. These naming patterns signal coverage-metric
   manipulation rather than functional grouping. If a test file gets too

@@ -383,7 +383,6 @@ impl CavpVectorDownloader {
     ///
     /// Checks hex encoding, parameter sets, and required fields based on test type.
     #[must_use]
-    #[allow(clippy::unused_self)] // Method kept on instance for API consistency
     pub fn validate_vector(&self, vector: &OfficialCavpVector) -> VectorValidationResult {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
@@ -513,8 +512,10 @@ impl CavpVectorDownloader {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
-#[allow(dead_code)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "test/bench code: unwrap is acceptable when inputs are statically known"
+)]
 mod tests {
     use super::*;
     use serde_json::json;

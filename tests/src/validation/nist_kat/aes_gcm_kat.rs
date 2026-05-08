@@ -2,8 +2,6 @@
 #![allow(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![deny(clippy::panic)]
-#![allow(clippy::arithmetic_side_effects)]
-#![allow(clippy::expect_used)]
 
 //! AES-GCM Known Answer Tests
 //!
@@ -253,7 +251,7 @@ fn run_aes_256_gcm_test(vector: &AesGcmTestVector) -> Result<(), NistKatError> {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic)]
+#[expect(clippy::panic, reason = "test/bench/macro-expanded assertion path")]
 mod tests {
     use super::*;
 

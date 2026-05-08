@@ -50,7 +50,6 @@ pub fn blake2s_256(data: &[u8]) -> [u8; 32] {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

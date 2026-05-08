@@ -165,24 +165,23 @@ proptest! {
     #[test]
     fn prop_error_conversions_work(msg in arb_error_message()) {
         // Test string conversion - clone needed for multiple uses
-        #[allow(clippy::redundant_clone)]
         let error: LatticeArcError = LatticeArcError::InvalidInput(msg.clone());
         match error {
-            #[allow(clippy::redundant_clone)]
+            #[expect(
+                clippy::redundant_clone,
+                reason = "explicit clone for ownership clarity at this call site"
+            )]
             LatticeArcError::InvalidInput(s) => prop_assert_eq!(s, msg.clone()),
             // Wildcard match needed for exhaustive coverage in proptest
-            #[allow(clippy::wildcard_enum_match_arm)]
             _ => prop_assert!(false, "Expected InvalidInput error"),
         }
 
         // Test io::Error conversion - clone needed for multiple uses
-        #[allow(clippy::redundant_clone)]
         let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, msg.clone());
         let converted: LatticeArcError = io_error.into();
         match converted {
             LatticeArcError::IoError(s) => prop_assert!(s.contains(&msg)),
             // Wildcard match needed for exhaustive coverage in proptest
-            #[allow(clippy::wildcard_enum_match_arm)]
             _ => prop_assert!(false, "Expected IoError"),
         }
     }
@@ -220,7 +219,7 @@ impl Default for PropertyTestConfig {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
+#[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
 mod tests {
     use super::*;
 
