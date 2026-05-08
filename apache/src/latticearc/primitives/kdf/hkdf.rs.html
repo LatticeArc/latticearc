@@ -358,8 +358,8 @@
 <a href=#358 id=358 data-nosnippet>358</a><span class="kw">use </span><span class="kw">super</span>::get_random_bytes;
 <a href=#359 id=359 data-nosnippet>359</a>
 <a href=#360 id=360 data-nosnippet>360</a><span class="attr">#[cfg(test)]
-<a href=#361 id=361 data-nosnippet>361</a>#[allow(clippy::unwrap_used)] </span><span class="comment">// Tests use unwrap for simplicity
-<a href=#362 id=362 data-nosnippet>362</a></span><span class="attr">#[allow(clippy::indexing_slicing)] </span><span class="comment">// Tests use slice indexing for verification
+<a href=#361 id=361 data-nosnippet>361</a>#[expect(clippy::unwrap_used, reason = <span class="string">"Tests use unwrap for simplicity"</span>)]
+<a href=#362 id=362 data-nosnippet>362</a>#[expect(clippy::indexing_slicing, reason = <span class="string">"Tests use slice indexing for verification"</span>)]
 <a href=#363 id=363 data-nosnippet>363</a></span><span class="kw">mod </span>tests {
 <a href=#364 id=364 data-nosnippet>364</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#365 id=365 data-nosnippet>365</a>

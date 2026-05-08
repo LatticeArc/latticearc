@@ -272,8 +272,8 @@
 <a href=#272 id=272 data-nosnippet>272</a></span>);
 <a href=#273 id=273 data-nosnippet>273</a>
 <a href=#274 id=274 data-nosnippet>274</a><span class="attr">#[cfg(test)]
-<a href=#275 id=275 data-nosnippet>275</a>#[allow(clippy::unwrap_used)] </span><span class="comment">// Tests use unwrap for simplicity
-<a href=#276 id=276 data-nosnippet>276</a></span><span class="attr">#[allow(clippy::panic)] </span><span class="comment">// Tests use panic! for error case validation
+<a href=#275 id=275 data-nosnippet>275</a>#[expect(clippy::unwrap_used, reason = <span class="string">"Tests use unwrap for simplicity"</span>)]
+<a href=#276 id=276 data-nosnippet>276</a>#[expect(clippy::panic, reason = <span class="string">"Tests use panic! for error case validation"</span>)]
 <a href=#277 id=277 data-nosnippet>277</a></span><span class="kw">mod </span>tests {
 <a href=#278 id=278 data-nosnippet>278</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#279 id=279 data-nosnippet>279</a>

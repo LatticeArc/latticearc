@@ -225,9 +225,9 @@
 <a href=#225 id=225 data-nosnippet>225</a>}
 <a href=#226 id=226 data-nosnippet>226</a>
 <a href=#227 id=227 data-nosnippet>227</a><span class="attr">#[cfg(test)]
-<a href=#228 id=228 data-nosnippet>228</a>#[allow(clippy::panic_in_result_fn)] </span><span class="comment">// Tests use assertions for verification
-<a href=#229 id=229 data-nosnippet>229</a></span><span class="attr">#[allow(clippy::indexing_slicing)] </span><span class="comment">// Tests use direct indexing
-<a href=#230 id=230 data-nosnippet>230</a></span><span class="attr">#[allow(clippy::expect_used)] </span><span class="comment">// Tests use expect for simplicity
+<a href=#228 id=228 data-nosnippet>228</a>#[expect(clippy::panic_in_result_fn, reason = <span class="string">"Tests use assertions for verification"</span>)]
+<a href=#229 id=229 data-nosnippet>229</a>#[expect(clippy::indexing_slicing, reason = <span class="string">"Tests use direct indexing"</span>)]
+<a href=#230 id=230 data-nosnippet>230</a>#[expect(clippy::expect_used, reason = <span class="string">"Tests use expect for simplicity"</span>)]
 <a href=#231 id=231 data-nosnippet>231</a></span><span class="kw">mod </span>tests {
 <a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#233 id=233 data-nosnippet>233</a>    <span class="kw">use </span><span class="kw">crate</span>::prelude::error::Result;
