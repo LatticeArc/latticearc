@@ -1971,14 +1971,14 @@ mod tests {
     fn test_sanitize_data_small_has_correct_format() {
         let data = b"short";
         let sanitized = sanitize_data(data);
-        assert_eq!(format!("{}", sanitized), "[5 bytes]");
+        assert_eq!(format!("{sanitized}"), "[5 bytes]");
     }
 
     #[test]
     fn test_sanitize_data_large_has_correct_format() {
         let data = vec![0u8; 100];
         let sanitized = sanitize_data(&data);
-        let output = format!("{}", sanitized);
+        let output = format!("{sanitized}");
         assert!(output.contains("[100 bytes"));
         assert!(output.contains("hash:"));
     }

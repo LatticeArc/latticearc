@@ -1241,7 +1241,7 @@ impl MlKem {
         // rejection, (b) parameter-set mismatch, (c) key-reconstruction
         // failure, or (d) the constant-time decap rejection itself. The
         // upstream cause is logged at `tracing::debug!` so operators with a
-        // debug subscriber retain the detail. audit fix: the
+        // debug subscriber retain the detail. the
         // pre-checks below were previously distinguishable error strings.
         if validate_decryption_size(ciphertext.as_bytes().len()).is_err()
             || secret_key.security_level() != ciphertext.security_level()
@@ -1863,7 +1863,7 @@ mod tests {
             MlKemError::CryptoError("crypto fail".into()),
         ];
         for err in &errors {
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(!msg.is_empty(), "Display should not be empty for {:?}", err);
         }
     }

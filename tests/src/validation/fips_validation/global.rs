@@ -562,7 +562,7 @@ mod tests {
             let err = LatticeArcError::ValidationError {
                 message: "RNG continuous test failed: identical samples".to_string(),
             };
-            let err_msg = format!("{}", err);
+            let err_msg = format!("{err}");
             assert!(err_msg.contains("identical samples"));
         }
     }
@@ -579,7 +579,7 @@ mod tests {
                     ones_ratio
                 ),
             };
-            let err_msg = format!("{}", err);
+            let err_msg = format!("{err}");
             assert!(err_msg.contains("bit distribution out of range"));
             assert!(err_msg.contains("0.350"));
         }

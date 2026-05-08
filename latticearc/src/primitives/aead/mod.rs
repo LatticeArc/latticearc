@@ -346,23 +346,23 @@ mod tests {
     #[test]
     fn test_aead_error_display_fails() {
         let err = AeadError::InvalidKeyLength;
-        assert_eq!(format!("{}", err), "Invalid key length");
+        assert_eq!(format!("{err}"), "Invalid key length");
 
         let err = AeadError::InvalidNonceLength;
-        assert_eq!(format!("{}", err), "Invalid nonce length");
+        assert_eq!(format!("{err}"), "Invalid nonce length");
 
         let err = AeadError::EncryptionFailed("test".to_string());
-        assert_eq!(format!("{}", err), "Encryption failed: test");
+        assert_eq!(format!("{err}"), "Encryption failed: test");
 
         let err = AeadError::DecryptionFailed("oops".to_string());
-        assert_eq!(format!("{}", err), "Decryption failed: oops");
+        assert_eq!(format!("{err}"), "Decryption failed: oops");
 
         // `AeadError::WeakKey` Display — message includes both the diagnosis
         // ("likely uninitialised memory") and a remediation hint pointing
         // at `generate_secure_random_bytes` and the `kat-test-vectors`
         // escape hatch.
         let err = AeadError::WeakKey;
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(
             msg.contains("Weak key rejected by AEAD constructor"),
             "WeakKey Display must lead with the diagnosis"

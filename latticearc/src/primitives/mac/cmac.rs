@@ -1081,7 +1081,7 @@ mod tests {
         // The variant constructs cleanly and has the expected Display.
         let err = CmacError::ComputationError("AES key init failed".to_string());
         assert!(matches!(err, CmacError::ComputationError(_)));
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(
             msg.contains("AES key init failed"),
             "Display must surface the inner detail for developer diagnosis"

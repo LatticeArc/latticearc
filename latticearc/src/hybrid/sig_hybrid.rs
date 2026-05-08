@@ -263,7 +263,7 @@ impl HybridSigPublicKey {
 /// // Generate keypair
 /// let (pk, sk) = generate_keypair().expect("keypair generation failed");
 ///
-/// // ... use sk for cryptographic operations ...
+/// //.. use sk for cryptographic operations..
 ///
 /// // Drop secret key - automatically zeroized
 /// drop(sk);  // Secret material automatically zeroized
@@ -530,7 +530,7 @@ pub fn sign(
     //
     // the prior attempt at this
     // wrapped the clone in `Zeroizing<Vec<u8>>` but then immediately
-    // re-cloned to pass into `MlDsaSecretKey::new(... Vec<u8>)`,
+    // re-cloned to pass into `MlDsaSecretKey::new(.. Vec<u8>)`,
     // creating a second bare copy that would leak on the `new()` error
     // path. The proper fix is structural: `MlDsaSecretKey::new()` now
     // wraps its `Vec<u8>` argument in `Zeroizing` on entry, so a single
@@ -636,7 +636,7 @@ pub fn verify(
     //
     // When parse fails on the substituted bytes, we DO still run a
     // real verify against the equalizer's pre-parsed valid material
-    // (`dummy.parsed`, post-85e2bd79e M1 audit fix). This guarantees
+    // (`dummy.parsed`, post-85e2bd79e M1). This guarantees
     // verify-pipeline execution regardless of whether `from_bytes`
     // adds content validation downstream. The pre-parsed PK + sig
     // verify against an internal test message — content-dependent
@@ -655,8 +655,8 @@ pub fn verify(
                 .map(|parsed_sig| (parsed_pk, parsed_sig))
         });
     // the previous shape was
-    //   `Ok(parsed) => parsed.verify(...)`,
-    //   `Err(_) => dummy.verify(...)`.
+    //   `Ok(parsed) => parsed.verify(..)`,
+    //   `Err(_) => dummy.verify(..)`.
     // But `MlDsaPublicKey::verify` internally calls
     // `ml_dsa_NN::PublicKey::try_from_bytes`, which short-circuits with
     // `Err(VerificationError)` on structurally-invalid PKs (e.g.
@@ -683,7 +683,7 @@ pub fn verify(
                 Err(_) => match &dummy_parsed {
                     Some(parsed) => {
                         let _ = parsed.pq_pk.verify(&parsed.pq_test_message, &parsed.pq_sig, &[]);
-                        // Bubble the original Err so `matches!(.., Ok(true))`
+                        // Bubble the original Err so `matches!(., Ok(true))`
                         // below still rejects the substituted input.
                         inner
                     }

@@ -327,7 +327,7 @@ pub fn validate_decryption_size(size: usize) -> Result<()> {
 }
 
 /// Validates AEAD AAD size against global resource limits.
-/// audit fix (H8): every AEAD encrypt/decrypt entrypoint must call this
+/// every AEAD encrypt/decrypt entrypoint must call this
 /// before passing AAD to the underlying primitive.
 ///
 /// # Errors
@@ -340,7 +340,7 @@ pub fn validate_aad_size(size: usize) -> Result<()> {
 mod kani_proofs {
     use super::*;
 
-    // These proofs work on `ResourceLimitsManager::with_limits(...)` rather
+    // These proofs work on `ResourceLimitsManager::with_limits(..)` rather
     // than the global manager so Kani can fully model the underlying state.
     // The biconditional check (size > limit ⇔ Err) is the DoS property we
     // care about: no caller-supplied size can bypass the cap without hitting
@@ -491,7 +491,7 @@ mod tests {
     #[test]
     fn test_resource_error_display_fails() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("2000"));
         assert!(msg.contains("1000"));
     }

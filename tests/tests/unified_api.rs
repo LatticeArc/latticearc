@@ -898,7 +898,7 @@ mod coverage {
              rejected as a ComplianceViolation. A prior substring-match bug let this \
              pass by checking compliance via name-prefix instead of canonical name.",
         );
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(
             msg.contains("Standard") && msg.contains("Maximum"),
             "Expected ComplianceViolation citing Standard vs Maximum, got: {}",

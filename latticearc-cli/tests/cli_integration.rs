@@ -4908,6 +4908,14 @@ fn legacy_sign_fixture(dir: &tempfile::TempDir, alg: &LegacyAlg) -> (PathBuf, Pa
 /// chosen algorithm/use-case (e.g. `"ml-dsa-65"` for `--algorithm
 /// ml-dsa65`, `"hybrid-ml-dsa-65-ed25519"` for `--use-case
 /// secure-messaging`).
+///
+/// **Per-dir requirement**: the helper hardcodes `msg.txt` and
+/// `msg.sig` filenames. Calling it twice on the same `TempDir`
+/// silently overwrites both files. Tests that need two independent
+/// fixtures (e.g. the C1 key-substitution regression) must use two
+/// separate `TempDir` values; the function asserts this at runtime
+/// via the `msg.txt` non-existence check below to surface the
+/// collision instead of letting it pass silently.
 fn signed_data_sign_fixture(
     dir: &tempfile::TempDir,
     keygen_args: &[&str],
@@ -4924,6 +4932,12 @@ fn signed_data_sign_fixture(
     let pk_path = dir.path().join(format!("{keyfile_stem}.pub.json"));
 
     let msg_path = dir.path().join("msg.txt");
+    assert!(
+        !msg_path.exists(),
+        "signed_data_sign_fixture: caller must use a fresh TempDir; \
+         {} already exists (would silently overwrite the prior fixture)",
+        msg_path.display()
+    );
     std::fs::write(&msg_path, msg_bytes).unwrap();
 
     let sig_path = dir.path().join("msg.sig");

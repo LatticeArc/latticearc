@@ -99,7 +99,7 @@ pub struct HybridCiphertext {
     /// ML-KEM ciphertext for key decapsulation (1088 bytes for ML-KEM-768).
     kem_ciphertext: Vec<u8>,
     /// X25519 ephemeral public key for ECDH (exactly 32 bytes).
-    /// audit fix #13: previously documented as "Empty for legacy ML-KEM-
+    /// previously documented as "Empty for legacy ML-KEM-
     /// only ciphertexts." That contract was always dead — `decrypt_hybrid`
     /// rejects any `len() != 32` (see `decrypt_hybrid` validation block).
     /// All current callers must pass a 32-byte ephemeral X25519 PK.
@@ -316,7 +316,7 @@ pub struct DerivationBinding<'a> {
     /// hybrid PK).
     pub recipient_static_pk: &'a [u8],
     /// Recipient's static ML-KEM public key (the PQ leg of the hybrid
-    /// PK). audit fix (M4 / M19): bound here so the AEAD KDF
+    /// PK). bound here so the AEAD KDF
     /// info channel-binds the FULL hybrid recipient identity, not just
     /// its X25519 half. The previous binding only bound X25519
     /// directly; the ML-KEM half was bound only transitively via the
@@ -1131,7 +1131,7 @@ mod tests {
             HybridEncryptionError::KeyLengthError { expected: 32, actual: 16 },
         ];
         for err in &errors {
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(!msg.is_empty());
         }
     }

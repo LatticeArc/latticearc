@@ -41,7 +41,7 @@ use core::fmt;
 /// assert!(!code.is_critical());
 ///
 /// // Display as FIPS-formatted string
-/// let msg = format!("{}", code);
+/// let msg = format!("{code}");
 /// assert!(msg.starts_with("FIPS-0100:"));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -507,6 +507,13 @@ impl fmt::Display for FipsErrorCode {
 ///     }
 /// }
 /// ```
+// The trait is intentionally NOT sealed (despite Pattern 4 in
+// `DESIGN_PATTERNS.md` calling for sealed security traits): this is
+// a *reporting* abstraction, not a security check. A custom impl
+// that returns the wrong `FipsErrorCode` for a given error variant
+// produces inaccurate audit logs but does not bypass any verifier or
+// decryptor. The trait's doc-comment example (line 501) shows
+// external implementation as the intended usage.
 pub trait FipsError {
     /// Returns the FIPS error code for this error.
     fn fips_code(&self) -> FipsErrorCode;
@@ -762,11 +769,11 @@ mod tests {
     #[test]
     fn test_display_format_matches_expected() {
         let code = FipsErrorCode::InvalidKeyLength;
-        let display = format!("{}", code);
+        let display = format!("{code}");
         assert_eq!(display, "FIPS-0100: Invalid key length");
 
         let code = FipsErrorCode::SelfTestFailed;
-        let display = format!("{}", code);
+        let display = format!("{code}");
         assert_eq!(display, "FIPS-0001: Power-up self-test failed");
     }
 
@@ -781,7 +788,7 @@ mod tests {
             .with_context("Expected 32 bytes");
         assert_eq!(error_with_context.context(), Some("Expected 32 bytes"));
 
-        let display = format!("{}", error_with_context);
+        let display = format!("{error_with_context}");
         assert!(display.contains("FIPS-0100"));
         assert!(display.contains("Expected 32 bytes"));
     }
@@ -887,7 +894,7 @@ mod tests {
         for code in &all_codes {
             let msg = code.message();
             assert!(!msg.is_empty(), "Message for {:?} is empty", code);
-            let display = format!("{}", code);
+            let display = format!("{code}");
             assert!(
                 display.starts_with("FIPS-"),
                 "Display for {:?} doesn't start with FIPS-",
@@ -1001,7 +1008,7 @@ mod tests {
     #[test]
     fn test_fips_compliant_error_display_without_context_succeeds() {
         let error = FipsCompliantError::new(FipsErrorCode::RngFailure);
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert_eq!(display, "FIPS-0200: Random number generation failed");
     }
 

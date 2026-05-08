@@ -630,7 +630,7 @@ mod sha2 {
                 test_name: "test-1".to_string(),
                 message: "hash mismatch".to_string(),
             };
-            let display_str = format!("{}", error);
+            let display_str = format!("{error}");
             assert!(display_str.contains("SHA-256"));
             assert!(display_str.contains("test-1"));
             assert!(display_str.contains("hash mismatch"));
@@ -639,7 +639,7 @@ mod sha2 {
         #[test]
         fn test_hex_error_display_matches_expected() {
             let error = NistKatError::HexError("invalid character".to_string());
-            let display_str = format!("{}", error);
+            let display_str = format!("{error}");
             assert!(display_str.contains("Hex decode error"));
             assert!(display_str.contains("invalid character"));
         }
@@ -1865,7 +1865,7 @@ mod hkdf {
                 test_name: "test-case-1".to_string(),
                 message: "PRK mismatch".to_string(),
             };
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("HKDF-SHA256"));
             assert!(display.contains("test-case-1"));
             assert!(display.contains("PRK mismatch"));
@@ -1874,14 +1874,14 @@ mod hkdf {
         #[test]
         fn test_nist_kat_error_hex_error_display_matches_expected() {
             let error = NistKatError::HexError("invalid character".to_string());
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("invalid character"));
         }
 
         #[test]
         fn test_nist_kat_error_implementation_error_display_matches_expected() {
             let error = NistKatError::ImplementationError("expand failed".to_string());
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("expand failed"));
         }
 
@@ -2813,7 +2813,7 @@ mod hmac {
                 test_name: "RFC-4231-Test-Case-1".to_string(),
                 message: "MAC mismatch: got abc, expected def".to_string(),
             };
-            let display_str = format!("{}", error);
+            let display_str = format!("{error}");
             assert!(display_str.contains("HMAC-SHA256"));
             assert!(display_str.contains("RFC-4231-Test-Case-1"));
             assert!(display_str.contains("MAC mismatch"));
@@ -2822,7 +2822,7 @@ mod hmac {
         #[test]
         fn test_nist_kat_error_hex_error_display_matches_expected() {
             let error = NistKatError::HexError("Invalid character 'g' at position 0".to_string());
-            let display_str = format!("{}", error);
+            let display_str = format!("{error}");
             assert!(display_str.contains("Hex"));
             assert!(display_str.contains("Invalid character"));
         }
@@ -2830,7 +2830,7 @@ mod hmac {
         #[test]
         fn test_nist_kat_error_implementation_error_display_matches_expected() {
             let error = NistKatError::ImplementationError("HMAC creation failed".to_string());
-            let display_str = format!("{}", error);
+            let display_str = format!("{error}");
             assert!(display_str.contains("Implementation error"));
             assert!(display_str.contains("HMAC creation failed"));
         }

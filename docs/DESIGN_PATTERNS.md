@@ -95,7 +95,7 @@ requirements govern their code.
 | **§7.7** | Pairwise consistency test for keypairs | `primitives::pct` module runs PCT after every keypair generation (ML-DSA, FN-DSA). |
 | **§7.10.1** | Power-up self-test | `primitives::self_test` runs KAT vectors for AES-GCM on module load. |
 | **§7.10.2** | Module integrity test | `primitives::self_test` computes HMAC-SHA256 over module binary, compares against expected value. |
-| **§7.11** | Conditional self-tests | Conditional KAT tests run on algorithm first-use (`primitives_self_test_conditional_kats.rs`). |
+| **§7.11** | Conditional self-tests | Conditional KAT tests run on algorithm first-use (`latticearc/tests/primitives_self_test_conditional_kats.rs`). |
 
 ## IETF RFCs
 
@@ -303,6 +303,32 @@ preferences — they are rules enforced by CI and code review.
 | Formatter | `rustfmt` with `max_width = 100` | 100-char line width balances readability and diff size |
 | Linter | `cargo clippy` with workspace-level `deny` lints | Zero warnings policy — every clippy warning is a compile error |
 
+## Modern Rust Idioms (1.93-era best practices)
+
+The codebase uses these idioms across crypto-relevant paths. Reviewers
+should flag deviations during PR review even if the older form
+compiles cleanly.
+
+| Idiom | Stable since | Use it when | Avoid for |
+|-------|--------------|-------------|-----------|
+| `let-else` | 1.65 | Early-return on `Option`/`Result` you'd otherwise `match` with one bind arm | Multi-arm matches; stick with `match` for exhaustiveness |
+| `if let` chains (`let X && let Y`) | 1.88 | Chained binding when both must succeed | Three+ bindings — extract a helper |
+| `format!("{e}")` captured-identifier | 1.58 | Always preferred over `format!("{}", e)` | Never use the positional form |
+| `std::sync::LazyLock` | 1.80 | Static lazy initialization without `lazy_static!` / `once_cell` | Per-thread lazy init (use `thread_local!`) |
+| `#[expect(lint)]` | 1.81 | Lint-allow that should resolve as code evolves — compile error if lint becomes irrelevant | A genuinely permanent allow (use `#[allow]`) |
+| `core::hint::black_box` | 1.66 | Constant-time microbenches that need to defeat the optimizer | Cryptographic constant-time — use `subtle` traits, not `black_box` |
+| `OsStr::display()` | 1.87 | Path / OsStr display in user-facing messages | — |
+| `std::mem::offset_of!` | 1.77 | Layout assertions in `static_assertions!` blocks | FFI struct layout — use `#[repr(C)]` + tests |
+| `c"..."` C string literals | 1.77 | FFI bindings that need null-terminated bytes | Internal-only string handling |
+
+**Closure of obsolete patterns:**
+
+- ❌ `lazy_static!` macro — use `std::sync::LazyLock`
+- ❌ `once_cell::sync::Lazy` — same; std now covers this
+- ❌ `format!("{}", x)` for any captured identifier — use `format!("{x}")`
+- ❌ `match opt { Some(x) => x, None => return ... }` — use `let-else`
+- ❌ `#[allow(clippy::xxx)]` for transient noise — use `#[expect(clippy::xxx)]` so the allow is removed automatically when the underlying issue is fixed
+
 ## Naming Conventions
 
 | Item | Convention | Example |
@@ -328,13 +354,27 @@ pub enum KemError {
     EncapsulationError(String),
 }
 
-// PATTERN: map_err with {e} format (Rust 2021+), never {}, never {:?}
+// PATTERN: map_err with {e} format (captured-identifier shorthand,
+// stable since 1.58 — see "Modern Rust Idioms" above), never `{}`,
+// never `{:?}`
 let key = generate().map_err(|e| KemError::KeyGenerationError(format!("{e}")))?;
 
 // PATTERN: context-rich errors that name the operation and the cause
 // WRONG: Err("failed")
 // RIGHT: Err(CoreError::EncryptionFailed(format!("AES-GCM encryption failed: {e}")))
 ```
+
+> ⚠️ **`format!("{e}")` is for non-adversary-reachable errors only**
+> (programmer mistakes, configuration errors, I/O setup). For any
+> decrypt / decapsulate / verify / authenticate path that an attacker
+> can reach, see [Pattern 6: Error Opacity on Adversary-Reachable
+> Paths](#pattern-6-error-opacity-on-adversary-reachable-paths) — the
+> upstream error's `Display` (let alone `Debug`) walks the source
+> chain and can leak attacker-controlled JSON snippets, byte offsets,
+> or variant fingerprints. Use `Display` (`%e`) over `Debug` (`?e`)
+> when logging via `tracing::debug!`, and prefer a single opaque
+> `VerificationFailed` / `DecryptionFailed` variant over `format!`
+> with the upstream cause.
 
 ## Function Signature Style
 
@@ -401,7 +441,14 @@ use crate::types::domains;
 Every module file follows this order:
 
 ```rust
-// 1. Module-level lint attributes
+// 1. Module-level lint attributes (OPTIONAL — workspace lints in
+//    `Cargo.toml`'s `[workspace.lints.rust]` and `[workspace.lints.clippy]`
+//    already enforce these workspace-wide. Per-file `#![deny(...)]`
+//    is belt-and-suspenders: useful in security-sensitive modules
+//    where a future contributor might accidentally relax workspace
+//    lints, but redundant for most modules. Use for `unsafe_code`,
+//    `missing_docs`, `clippy::unwrap_used`, `clippy::panic` at your
+//    discretion; the workspace floor already catches violations.)
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
@@ -494,12 +541,14 @@ a `///` doc comment. Module-level docs use `//!`.
 ///
 /// let key = AesGcm256::generate_key();
 /// let cipher = AesGcm256::new(&*key)?;
-/// let nonce = AesGcm256::generate_nonce();
-/// let (ct, tag) = cipher.encrypt(&nonce, b"secret data", None)?;
+/// // `seal` encapsulates nonce generation per Pattern 3 — prefer
+/// // it over the lower-level `encrypt(&nonce, ...)` form which
+/// // exists for KAT/CAVP test paths only.
+/// let blob = cipher.seal(b"secret data", None)?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn encrypt(&self, nonce: &Nonce, data: &[u8], aad: Option<&[u8]>) -> Result<...> {
+pub fn seal(&self, data: &[u8], aad: Option<&[u8]>) -> Result<EncryptedBlob, AeadError> {
 ```
 
 ### Required Doc Sections by Item Type
@@ -654,7 +703,7 @@ dimension author could accidentally collide with the core hybrid encryption labe
 ### Rules
 1. Every HKDF `info` parameter must reference a constant from `types::domains::*`
 2. New HKDF use → add constant to `domains.rs` → add to Kani proof → reference by name
-3. The Kani proof must cover ALL constants (currently 9, checking all 36 pairs)
+3. The Kani proof must cover ALL constants (currently 8, checking all 28 pairs — C(8,2))
 4. ZKP Fiat-Shamir labels use a separate namespace (`arc-zkp/*`) and do not collide because they use a different hash construction (not HKDF)
 
 ---
@@ -736,18 +785,35 @@ implies closure and creates a false sense of audit completeness. Tracked limitat
 stay visible until genuinely resolved.
 
 ### Constant-Time Equality — The Canonical Pattern
-From `slh_dsa.rs` (the reference implementation):
+From `slh_dsa.rs` (the reference implementation, reproduced verbatim):
 ```rust
 impl ConstantTimeEq for SigningKey {
     fn ct_eq(&self, other: &Self) -> Choice {
+        // Compare security level in constant time
         let level_eq = (self.security_level as u8).ct_eq(&(other.security_level as u8));
-        // [u8]::ct_eq handles different lengths by returning Choice::from(0)
-        level_eq & self.bytes.ct_eq(&other.bytes)
+        // Compare length in constant time
+        let len_eq = self.len.ct_eq(&other.len);
+        // Compare bytes in constant time (only up to the actual length)
+        let bytes_eq = self.bytes[..self.len].ct_eq(&other.bytes[..other.len]);
+        level_eq & len_eq & bytes_eq
     }
 }
 ```
-**Never** use `if != { return }` before `ct_eq` — that leaks timing. **Never** use `&&`
-(short-circuit) — use `&` (bitwise AND) to evaluate all branches in constant time.
+**Three components, ALL combined with `&`** (bitwise AND, NOT `&&` short-circuit):
+1. Discriminant / parameter set (`level_eq`)
+2. Length prefix (`len_eq`) — for over-allocated buffers where the
+   declared length is smaller than the underlying array, this prevents
+   an attacker from probing past-end bytes
+3. Bytes-up-to-length (`bytes_eq`) — sliced to `self.len` so an
+   attacker who controls a buffer with garbage tail bytes can't pass
+   `ct_eq` by matching only the active prefix
+
+**Never** use `if level != ... { return Choice::from(0) }` before
+the byte comparison — that leaks timing. **Never** use `&&`
+(short-circuit) — use `&` (bitwise AND) to evaluate all branches in
+constant time. **Always include the length component** if the type's
+storage is over-allocated; copying this pattern without `len_eq`
+re-introduces a leak the slh_dsa reference closes.
 
 ---
 
@@ -1058,7 +1124,9 @@ specific case is safe. Example:
 ```
 
 ### Error Format Style
-Production code uses `format!("{e}")` (Rust 2021+), not `format!("{}", e)`.
+Production code uses `format!("{e}")` (captured-identifier shorthand,
+stabilised in Rust 1.58 and the workspace baseline since the MSRV
+moved to 1.93). Never `format!("{}", e)`.
 
 ### Banned Adjectives
 Marketing language in doc comments is prohibited unless accompanied by
@@ -1120,9 +1188,10 @@ in CI as well. `#[ignore]` correctly skips by default and runs under
 **The rationale string MUST name the floor.** "perf-floor" alone is
 not enough; readers should be able to grep the file for the specific
 threshold to understand what changed if the test starts failing under
-`--include-ignored`. Round-13's "passes on a clean checkout" claim
-turned out to be false because reviewers couldn't tell from the test
-file which assertions were the flaky ones.
+`--include-ignored`. A prior reviewer's "passes on a clean checkout"
+claim turned out to be false because the test file didn't surface
+which assertions were the flaky ones — the rationale string is what
+prevents that recurrence.
 
 **Where to put the assertion instead:** if you need ongoing perf
 tracking, add a Criterion benchmark in `benches/` (handles

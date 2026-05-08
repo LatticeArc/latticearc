@@ -246,31 +246,31 @@ fn test_decapsulate_rejects_wrong_ecdh_pk_length_fails() {
 #[test]
 fn test_error_display_ml_kem_fails() {
     let err = HybridKemError::MlKemError("test".to_string());
-    assert!(format!("{}", err).contains("ML-KEM"));
+    assert!(format!("{err}").contains("ML-KEM"));
 }
 
 #[test]
 fn test_error_display_ecdh_fails() {
     let err = HybridKemError::EcdhError("test".to_string());
-    assert!(format!("{}", err).contains("ECDH"));
+    assert!(format!("{err}").contains("ECDH"));
 }
 
 #[test]
 fn test_error_display_kdf_fails() {
     let err = HybridKemError::KdfError("test".to_string());
-    assert!(format!("{}", err).contains("Key derivation"));
+    assert!(format!("{err}").contains("Key derivation"));
 }
 
 #[test]
 fn test_error_display_invalid_key_fails() {
     let err = HybridKemError::InvalidKeyMaterial("test".to_string());
-    assert!(format!("{}", err).contains("Invalid key material"));
+    assert!(format!("{err}").contains("Invalid key material"));
 }
 
 #[test]
 fn test_error_display_crypto_fails() {
     let err = HybridKemError::CryptoError("test".to_string());
-    assert!(format!("{}", err).contains("Cryptographic operation"));
+    assert!(format!("{err}").contains("Cryptographic operation"));
 }
 
 #[test]

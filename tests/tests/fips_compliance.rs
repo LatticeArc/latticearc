@@ -5317,7 +5317,7 @@ mod validation_comprehensive {
         #[test]
         fn test_validation_error_display_passes_validation() {
             let err = ValidationError::InputTooSmall(10, 20);
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("10"));
             assert!(msg.contains("20"));
         }
@@ -5388,7 +5388,7 @@ mod validation_comprehensive {
         #[test]
         fn test_bounds_error_display_passes_validation() {
             let err = BoundsError::ValueTooSmall(5, 10);
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("5"));
             assert!(msg.contains("10"));
         }
@@ -5442,7 +5442,7 @@ mod validation_comprehensive {
         #[test]
         fn test_format_error_display_passes_validation() {
             let err = FormatError::InvalidKeySize(16, 32);
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("16"));
             assert!(msg.contains("32"));
         }
@@ -5660,7 +5660,7 @@ mod validation_comprehensive {
         #[test]
         fn test_resource_error_key_derivation_display_passes_validation() {
             let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("2000"));
             assert!(msg.contains("1000"));
             assert!(msg.contains("Key derivation"));
@@ -5672,7 +5672,7 @@ mod validation_comprehensive {
                 requested: 200 * 1024 * 1024,
                 limit: 100 * 1024 * 1024,
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Encryption"));
         }
 
@@ -5682,7 +5682,7 @@ mod validation_comprehensive {
                 requested: 100 * 1024,
                 limit: 64 * 1024,
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Signature"));
         }
 
@@ -5692,7 +5692,7 @@ mod validation_comprehensive {
                 requested: 200 * 1024 * 1024,
                 limit: 100 * 1024 * 1024,
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Decryption"));
         }
 
@@ -6022,20 +6022,20 @@ mod validation_comprehensive {
         #[test]
         fn test_output_error_display_passes_validation() {
             let err = OutputError::EmptyOutput;
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("empty"));
 
             let err = OutputError::InvalidLength("test".to_string());
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Invalid"));
 
             let err = OutputError::InvalidByte { position: 5, byte: 0xAB };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("5"));
             assert!(msg.contains("ab") || msg.contains("AB"));
 
             let err = OutputError::OutputTooLarge { size: 100, max: 50 };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("100"));
             assert!(msg.contains("50"));
         }
@@ -6043,13 +6043,13 @@ mod validation_comprehensive {
         #[test]
         fn test_output_bounds_error_display_passes_validation() {
             let err = OutputBoundsError::OutOfBounds { actual: 10, min: 20, max: 30 };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("10"));
             assert!(msg.contains("20"));
             assert!(msg.contains("30"));
 
             let err = OutputBoundsError::InvalidBounds { min: 100, max: 50 };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("100"));
             assert!(msg.contains("50"));
         }

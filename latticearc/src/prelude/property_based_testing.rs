@@ -40,8 +40,8 @@ fn arb_quantum_shield_error() -> impl Strategy<Value = LatticeArcError> {
 proptest! {
     #[test]
     fn prop_error_display_consistent(error in arb_quantum_shield_error()) {
-        let display1 = format!("{}", error);
-        let display2 = format!("{}", error);
+        let display1 = format!("{error}");
+        let display2 = format!("{error}");
 
         // Display should be deterministic
         prop_assert_eq!(display1.clone(), display2);
@@ -68,7 +68,7 @@ proptest! {
         let _value: serde_json::Value = serde_json::from_str(&json)?;
 
         // Display impl is independent of serde and must always succeed.
-        let display = format!("{}", error);
+        let display = format!("{error}");
         prop_assert!(!display.is_empty());
     }
 }
@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn test_error_display_fails() {
         let error = LatticeArcError::InvalidInput("test message".to_string());
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("test message"));
         assert!(display.contains("Invalid input"));
     }

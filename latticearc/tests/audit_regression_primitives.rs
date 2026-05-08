@@ -1,6 +1,9 @@
-//! Tests for deep audit fix coverage (21 findings: H1-H6, M1-M10, L1-L5)
-//!
-//! Each test is tagged with its audit finding ID for traceability.
+//! Regression tests for primitives-layer behavior pinned by prior
+//! audits. Test names use a fixed-identifier prefix (`h1_`, `m2_`,
+//! etc.) as a stable grep target — these are equivalent to CVE-style
+//! identifiers, not audit-round attribution. The behavior each test
+//! pins is described in the test body's leading comment, not in the
+//! identifier.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]

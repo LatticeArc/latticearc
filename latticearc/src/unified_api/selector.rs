@@ -1073,7 +1073,7 @@ mod tests {
 
     #[test]
     fn test_data_aware_random_data_speed_high_refuses_silent_downgrade() {
-        // Post-85e2bd79e L3 audit fix: caller-declared `SecurityLevel::High`
+        // Post-85e2bd79e L3 caller-declared `SecurityLevel::High`
         // (ML-KEM-768 / NIST L3) under `(Speed, Random)` MUST refuse rather
         // than silently downgrade to ML-KEM-512 (NIST L1). Previously this
         // returned `Ok(HYBRID_ENCRYPTION_512)` with a `tracing::warn!`,
@@ -1459,7 +1459,7 @@ mod tests {
     fn test_performance_preference_influences_adaptive_selection_succeeds() {
         // adaptive_selection uses performance_preference to choose between
         // schemes when performance metrics cross thresholds. Post-L3
-        // audit fix: caller-declared High + Speed + Repetitive +
+        // caller-declared High + Speed + Repetitive +
         // slow-encryption now REFUSES (was: silent downgrade to L1).
         // We still prove influence by comparing Result variants:
         // Speed → Err, Memory → Ok (memory branch passes through to

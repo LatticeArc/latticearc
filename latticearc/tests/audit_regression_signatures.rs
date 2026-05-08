@@ -239,7 +239,7 @@ fn ml_dsa_sign_error_does_not_leak_fips204_string() {
     let sk_result = MlDsaSecretKey::new(MlDsaParameterSet::MlDsa44, too_short);
     let err_msg = match sk_result {
         Ok(sk) => format!("{}", sk.sign(b"m", &[]).unwrap_err()),
-        Err(e) => format!("{}", e),
+        Err(e) => format!("{e}"),
     };
     assert!(
         !err_msg.contains("Failed to deserialize"),

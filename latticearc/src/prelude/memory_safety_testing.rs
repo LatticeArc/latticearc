@@ -80,7 +80,7 @@ impl UtilityMemorySafetyTester {
         ];
 
         for error in test_errors {
-            let _display = format!("{}", error);
+            let _display = format!("{error}");
             let _debug = format!("{:?}", error);
             // Should not panic
         }

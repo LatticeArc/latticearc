@@ -20,7 +20,10 @@ pub(crate) struct InfoArgs;
 ///
 /// Returns `Result<()>` for consistency with other command handlers,
 /// even though this function is infallible.
-#[allow(clippy::unnecessary_wraps)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Result<()> shape kept for parity with other CLI command handlers (encrypt/decrypt/sign/verify); the dispatcher's match arms use a single signature"
+)]
 pub(crate) fn run(_args: InfoArgs) -> Result<()> {
     println!("LatticeArc CLI v{}", env!("CARGO_PKG_VERSION"));
     println!("Library:  latticearc v{}", latticearc::VERSION);

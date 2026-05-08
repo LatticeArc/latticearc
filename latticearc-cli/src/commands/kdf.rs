@@ -34,7 +34,7 @@ pub(crate) enum KdfAlgorithm {
     Pbkdf2,
 }
 
-/// PBKDF2 PRF choice. audit fix (H14).
+/// PBKDF2 PRF choice.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub(crate) enum PbkdfPrf {
     /// HMAC-SHA256 (OWASP 2023 floor: 600,000 iterations).
@@ -108,7 +108,7 @@ pub(crate) struct KdfArgs {
     /// Per-PRF floors: HMAC-SHA256 → 600,000; HMAC-SHA512 → 210,000.
     #[arg(long, default_value = "600000")]
     pub iterations: u32,
-    /// PRF for PBKDF2 (default: hmac-sha256). audit fix (H14).
+    /// PRF for PBKDF2 (default: hmac-sha256).
     /// HMAC-SHA512 was reachable from the library API but unreachable
     /// from the CLI before this flag.
     #[arg(long, value_enum, default_value = "hmac-sha256")]

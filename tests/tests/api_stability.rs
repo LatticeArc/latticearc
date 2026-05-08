@@ -565,7 +565,7 @@ fn test_core_error_implements_error_trait_correctly_fails() {
     let _: &dyn Error = &error;
 
     // Should have Display
-    let display = format!("{}", error);
+    let display = format!("{error}");
     assert!(!display.is_empty());
 }
 

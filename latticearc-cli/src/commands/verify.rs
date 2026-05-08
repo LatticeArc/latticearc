@@ -62,7 +62,13 @@ pub(crate) struct VerifyArgs {
     /// Signature file (SignedData JSON or legacy JSON).
     #[arg(short, long)]
     pub signature: PathBuf,
-    /// Public key file (required for legacy format, optional for SignedData).
+    /// Public key file. Required for legacy format. Optional for
+    /// SignedData — but **WARNING**: omitting `--key` for a SignedData
+    /// envelope trusts the public key embedded in the envelope
+    /// itself, which an attacker who delivered the envelope chose.
+    /// Pass `--key` to enforce a specific trust anchor; the verifier
+    /// will reject the signature if the operator's `--key` does not
+    /// match the embedded public key.
     #[arg(short, long)]
     pub key: Option<PathBuf>,
 }
@@ -191,6 +197,50 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
             }
         }
 
+        // Operator-side `--algorithm` cross-check: if the operator
+        // asserted an algorithm via `--algorithm`, the envelope's
+        // scheme MUST match. This mirrors `verify_legacy` Phase 1b's
+        // operator-picked algorithm vs key cross-check, but on the
+        // SignedData path the comparison is between the operator's
+        // assertion and the envelope's declared scheme.
+        //
+        // Strip the optional `pq-` prefix on the envelope side: the
+        // unified sign API emits both forms ("ml-dsa-65" and
+        // "pq-ml-dsa-65") for the same scheme depending on policy,
+        // but `algorithm_name` canonicalises to the un-prefixed form.
+        //
+        // SECURITY: the envelope's `signature_algorithm` field is
+        // attacker-controllable (the envelope is loaded from a file
+        // the attacker may have written). The bail message therefore
+        // does NOT interpolate it — an attacker writing
+        // `signature_algorithm: "X".repeat(1_000_000)` would otherwise
+        // produce a 1 MiB stderr line on operator misuse. Operators
+        // who need the envelope-side detail can recover it via
+        // `RUST_LOG=debug`. Mismatch bubbles as helpful `Err` (exit
+        // ≥2) — operator misuse, not an attacker action.
+        if let Some(cli_alg) = args.algorithm {
+            let envelope_alg = signed
+                .metadata
+                .signature_algorithm
+                .strip_prefix("pq-")
+                .unwrap_or(&signed.metadata.signature_algorithm);
+            let operator_alg = algorithm_name(cli_alg);
+            if envelope_alg != operator_alg {
+                tracing::debug!(
+                    envelope_scheme = %signed.metadata.signature_algorithm,
+                    operator_assertion = operator_alg,
+                    "verify (SignedData) rejected: --algorithm vs envelope scheme mismatch"
+                );
+                bail!(
+                    "Algorithm mismatch: --algorithm asserts '{operator_alg}' but the \
+                     SignedData envelope declares a different scheme. Either omit \
+                     --algorithm to verify against the embedded scheme, or pass \
+                     --algorithm matching the envelope. Set RUST_LOG=debug for the \
+                     envelope's declared scheme."
+                );
+            }
+        }
+
         let config =
             super::common::build_config(args.use_case, args.security_level, &args.compliance);
         // A `latticearc::verify(...)` Err (e.g. malformed public key)
@@ -316,11 +366,16 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
 ///
 /// **Narrow exception — `?e` IS safe when:**
 /// - `e` has a concrete typed `Debug` impl whose source chain does
-///   NOT reach `anyhow::Error` / `serde_json::Error` / `base64::Decode
-///   Error`. Closure parameters typed `&dyn std::fmt::Debug` whose
-///   producers are bounded internal crate enums fall into this
-///   category. New uses of this exception MUST cite the rationale at
-///   the call site (typed Debug, bounded producers, no chain walking).
+///   NOT reach `anyhow::Error` / `serde_json::Error` /
+///   `base64::DecodeError`. Closure parameters typed `&dyn
+///   std::fmt::Debug` whose producers are bounded internal crate
+///   enums fall into this category. The ONLY currently-sanctioned
+///   site is the `log_reject` closure inside
+///   `latticearc::primitives::sig::ml_dsa::SigningKey::sign_message`
+///   (search for "tracing-observability contract" in that file).
+///   New uses of this exception MUST cite the rationale at the
+///   call site AND be added to this allowlist; do not extend the
+///   exception by analogy to similar-looking sites.
 ///
 /// # When adding a new reject path
 ///
@@ -354,12 +409,20 @@ fn input_label(args: &VerifyArgs) -> String {
 
 /// Load the operator's `--key` file and require it to be a public key.
 ///
-/// Used by both the SignedData branch (to enforce that `--key`
-/// matches the embedded public key) and the legacy branch (Phase 1a)
-/// of `verify_legacy`. The `canonical_name()` form of the key-type
-/// rejection is used instead of `{:?}` Debug — the Debug repr of a
-/// `#[non_exhaustive]` enum is variant-fingerprintable across
-/// versions.
+/// **Scope: this helper does ONLY the read + key-type check.** It
+/// does NOT validate the key's algorithm against any specific
+/// operator-asserted algorithm — that cross-check is the caller's
+/// responsibility (see `verify_legacy` Phase 1b for the canonical
+/// pattern, and the SignedData `--key` byte-equality block in `run`
+/// for the alternative shape). A new caller that copies this helper
+/// without also implementing the algorithm check creates an
+/// operator-intent vs envelope-content mismatch — the same class of
+/// signature-verification bypass the SignedData `--key` enforcement
+/// closes.
+///
+/// The `canonical_name()` form of the key-type rejection is used
+/// instead of `{:?}` Debug — the Debug repr of a `#[non_exhaustive]`
+/// enum is variant-fingerprintable across versions.
 fn read_operator_public_key_file(key_path: &std::path::Path) -> Result<KeyFile> {
     let key_file = KeyFile::read_from(key_path)?;
     if key_file.key_type != KeyType::Public {

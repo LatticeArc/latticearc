@@ -575,7 +575,7 @@ pub fn kat_aes_256_gcm() -> Result<()> {
     // (GCMVS), file `gcmEncryptExtIV256.rsp`, Count = 12. URL:
     //   https://csrc.nist.gov/Projects/Cryptographic-Algorithm-Validation-Program/CAVP-TESTING-BLOCK-CIPHER-MODES#GCMVS
     //
-    // audit fix (C4) replaced the previous self-computed
+    // replaced the previous self-computed
     // vector with this CAVP entry to satisfy FIPS 140-3 §10.3.1's
     // requirement that power-up KATs use externally-attested vectors
     // — a self-roundtrip would pass even if encrypt and decrypt shared
@@ -1118,7 +1118,7 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
     // model rejects adversary-injected binaries by HMAC mismatch, not
     // by path. The profile-name and any tool-specific nesting are
     // just where the build system chose to put the artifact; an
-    // attacker who can write into `target/<arbitrary>/.../deps/` can
+    // attacker who can write into `target/<arbitrary>/../deps/` can
     // already write into `target/release/deps/` too.
     //
     // Hop bound: the deepest known cargo-tooling layout is
@@ -1659,7 +1659,7 @@ mod tests {
     /// neither `Send` nor `Sync` at compile time (raw pointers are
     /// neither). Without it, a zero-size struct is implicitly
     /// `Send + Sync`, so a test that accidentally moves the guard
-    /// into a `thread::spawn(...)` closure would restore the FIPS
+    /// into a `thread::spawn(..)` closure would restore the FIPS
     /// state on the spawned thread's drop — racing with the main
     /// test body and re-opening exactly the false-state-leak we are
     /// guarding against. The marker raises that to a compile error.
@@ -1744,7 +1744,7 @@ mod tests {
         }
 
         // Cargo-test deps shapes within the bounded ancestor walk.
-        // Layouts at depth >3 (more than `target/.../<profile>/deps/`)
+        // Layouts at depth >3 (more than `target/../<profile>/deps/`)
         // are intentionally NOT accepted — see the rejection test below.
         for path in [
             // Standard `target/<profile>/deps/` (2 hops to target).

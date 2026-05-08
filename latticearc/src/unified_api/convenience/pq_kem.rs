@@ -112,7 +112,7 @@ fn encrypt_pq_ml_kem_internal(
     })?;
 
     // Derive AES-256 key from ML-KEM shared secret via HKDF.
-    // audit fix (H1): bind both the recipient PK and the KEM ciphertext
+    // bind both the recipient PK and the KEM ciphertext
     // into the info string (RFC 9180 §5.1 channel binding). Encrypt has
     // the PK directly; decrypt extracts it from the SK's embedded `ek`
     // slice (FIPS 203 §6.1 layout) via `embedded_public_key_bytes()`.
@@ -195,7 +195,7 @@ fn decrypt_pq_ml_kem_internal(
     })?;
 
     // Derive AES-256 key from ML-KEM shared secret via HKDF.
-    // audit fix (H1): bind the recipient PK (extracted from SK's
+    // bind the recipient PK (extracted from SK's
     // embedded `ek` per FIPS 203 §6.1) AND the KEM ciphertext. Must
     // match the encrypt path byte-for-byte; `pq_kem_aead_key_info` is
     // the single canonical helper to prevent encrypt / decrypt drift.

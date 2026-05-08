@@ -536,6 +536,19 @@ fn parse_audit_filename_timestamp(file_name: &str) -> Option<DateTime<Utc>> {
 ///
 /// Implement this trait to create custom audit storage backends
 /// (e.g., database, remote service, etc.).
+///
+/// # Why this trait is intentionally NOT sealed
+///
+/// `DESIGN_PATTERNS.md` Pattern 4 (Sealed Security Traits) requires
+/// sealing traits where an external impl could *bypass security* —
+/// e.g., a `SigmaProtocol::verify` impl that always returns `Ok(true)`
+/// silently passes any proof. `AuditStorage` doesn't have that shape:
+/// the trait surfaces a *storage* abstraction, not a security check.
+/// A custom backend that drops events doesn't compromise crypto
+/// integrity — it just produces incomplete audit logs, which is the
+/// operator's deployment trust decision. Sealing this trait would
+/// remove the documented plug-in architecture (database, remote
+/// service, etc.) without closing any actual security hole.
 pub trait AuditStorage: Send + Sync {
     /// Write an audit event to storage.
     ///
@@ -1084,7 +1097,7 @@ impl FileAuditStorage {
             // file is never world-readable, even briefly. Audit logs may
             // contain operation context (key IDs, paths, actors) and must
             // not inherit the default umask the way the previous bare
-            // `OpenOptions::new().create(...).open(...)` did.
+            // `OpenOptions::new().create(..).open(..)` did.
             // `create_new(true)` (not `create(true)`): refuse to open a
             // pre-existing file. The rotation code generates the
             // filename from `Utc::now()` to second precision; if a
@@ -1248,7 +1261,7 @@ impl FileAuditStorage {
             let path = entry.path();
             let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
             // Match `audit-*.jsonl` (case-insensitive on extension;
-            // audit fix L for case-sensitive .jsonl bug).
+            // for case-sensitive .jsonl bug).
             let lower = name.to_ascii_lowercase();
             if lower.starts_with("audit-") && lower.ends_with(".jsonl") {
                 log_files.push(path);
@@ -1344,8 +1357,8 @@ impl FileAuditStorage {
                     let scan_end = buf.len().min(remaining_room);
                     #[allow(clippy::indexing_slicing)]
                     // SAFETY: `scan_end = buf.len().min(remaining_room)`
-                    // ⇒ `scan_end ≤ buf.len()` ⇒ `&buf[..scan_end]` is
-                    // in-bounds. (no possible panic)
+                    // ⇒ `scan_end ≤ buf.len()` ⇒ `&buf[..scan_end]`
+                    // is in-bounds. (no possible panic)
                     let scan_slice = &buf[..scan_end];
                     if let Some(rel) = scan_slice.iter().position(|&b| b == b'\n') {
                         // Found the newline within the room budget —

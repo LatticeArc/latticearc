@@ -383,7 +383,10 @@ impl UtilitySideChannelTester {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn)] // Test functions use assert! which can panic
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "Test functions use `assert!` macros which expand to panic; if assertions are removed, the suppress will be cleaned automatically"
+)]
 mod tests {
     use super::*;
 

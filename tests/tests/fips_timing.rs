@@ -57,7 +57,7 @@ use std::thread;
 #[test]
 fn test_timing_error_timing_variation_display_passes_validation() {
     let error = TimingError::TimingVariation;
-    let display = format!("{}", error);
+    let display = format!("{error}");
     assert!(
         display.contains("Timing variation detected"),
         "TimingVariation error should mention timing variation: {}",
@@ -68,7 +68,7 @@ fn test_timing_error_timing_variation_display_passes_validation() {
 #[test]
 fn test_timing_error_insufficient_samples_display_passes_validation() {
     let error = TimingError::InsufficientSamples;
-    let display = format!("{}", error);
+    let display = format!("{error}");
     assert!(
         display.contains("Insufficient samples"),
         "InsufficientSamples error should mention insufficient samples: {}",
@@ -79,7 +79,7 @@ fn test_timing_error_insufficient_samples_display_passes_validation() {
 #[test]
 fn test_timing_error_constant_time_failed_display_passes_validation() {
     let error = TimingError::ConstantTimeFailed;
-    let display = format!("{}", error);
+    let display = format!("{error}");
     assert!(
         display.contains("Constant-time comparison failed"),
         "ConstantTimeFailed error should mention constant-time failure: {}",
@@ -911,7 +911,7 @@ fn test_compare_timings_insufficient_samples_boundary_fails() {
 #[test]
 fn test_timing_error_display_variation_fails() {
     let e = TimingError::TimingVariation;
-    let d = format!("{}", e);
+    let d = format!("{e}");
     assert!(!d.is_empty(), "TimingVariation display must not be empty");
     assert!(d.contains("variance") || d.contains("ariation"), "Should mention variance/variation");
 }
@@ -919,7 +919,7 @@ fn test_timing_error_display_variation_fails() {
 #[test]
 fn test_timing_error_display_insufficient_fails() {
     let e = TimingError::InsufficientSamples;
-    let d = format!("{}", e);
+    let d = format!("{e}");
     assert!(!d.is_empty(), "InsufficientSamples display must not be empty");
     assert!(d.contains("ample") || d.contains("nsufficient"), "Should mention samples");
 }
@@ -927,7 +927,7 @@ fn test_timing_error_display_insufficient_fails() {
 #[test]
 fn test_timing_error_display_constant_time_failed_fails() {
     let e = TimingError::ConstantTimeFailed;
-    let d = format!("{}", e);
+    let d = format!("{e}");
     assert!(!d.is_empty());
 }
 

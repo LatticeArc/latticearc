@@ -169,7 +169,10 @@ pub(super) fn fips_verify_operational() -> Result<()> {
 }
 
 #[cfg(not(feature = "fips-self-test"))]
-#[allow(clippy::unnecessary_wraps)] // No-op when FIPS self-test disabled; Result for API parity with enabled path
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Result returned for API parity with the fips-self-test-enabled path; this no-op variant must keep the same signature"
+)]
 pub(super) fn fips_verify_operational() -> Result<()> {
     Ok(())
 }

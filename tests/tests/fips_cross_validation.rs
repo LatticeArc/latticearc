@@ -227,7 +227,7 @@ mod wycheproof {
         #[test]
         fn test_load_error_display_matches_expected() {
             let error = WycheproofError::LoadError("Network timeout".to_string());
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Failed to load test vectors"));
             assert!(display.contains("Network timeout"));
         }
@@ -253,7 +253,7 @@ mod wycheproof {
                 tc_id: 123,
                 message: "Invalid ciphertext".to_string(),
             };
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Test case 123 failed"));
             assert!(display.contains("Invalid ciphertext"));
         }
@@ -287,7 +287,7 @@ mod wycheproof {
                 expected: "success".to_string(),
                 actual: "failure".to_string(),
             };
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Unexpected result for test 77"));
             assert!(display.contains("expected success"));
             assert!(display.contains("got failure"));
@@ -317,14 +317,14 @@ mod wycheproof {
         #[test]
         fn test_load_error_with_empty_message_matches_wycheproof_vector_matches_expected() {
             let error = WycheproofError::LoadError(String::new());
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Failed to load test vectors"));
         }
 
         #[test]
         fn test_test_failed_with_zero_tc_id_matches_wycheproof_vector_matches_expected() {
             let error = WycheproofError::TestFailed { tc_id: 0, message: "Test zero".to_string() };
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Test case 0 failed"));
         }
 
@@ -332,7 +332,7 @@ mod wycheproof {
         fn test_test_failed_with_max_tc_id_matches_wycheproof_vector_matches_expected() {
             let error =
                 WycheproofError::TestFailed { tc_id: u32::MAX, message: "Max test".to_string() };
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains(&u32::MAX.to_string()));
         }
 
@@ -343,14 +343,14 @@ mod wycheproof {
                 expected: String::new(),
                 actual: String::new(),
             };
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Unexpected result for test 1"));
         }
 
         #[test]
         fn test_load_error_with_special_characters_matches_wycheproof_vector_matches_expected() {
             let error = WycheproofError::LoadError("Error: <>&\"'".to_string());
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("<>&\"'"));
         }
 
@@ -358,7 +358,7 @@ mod wycheproof {
         fn test_test_failed_with_unicode_message_matches_wycheproof_vector_matches_expected() {
             let error =
                 WycheproofError::TestFailed { tc_id: 100, message: "Unicode test".to_string() };
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Unicode"));
         }
 
@@ -371,7 +371,7 @@ mod wycheproof {
                 expected: long_expected.clone(),
                 actual: long_actual.clone(),
             };
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains(&long_expected));
             assert!(display.contains(&long_actual));
         }

@@ -126,31 +126,31 @@ fn test_verify_rejects_wrong_message_fails() {
 #[test]
 fn test_error_display_ml_dsa_fails() {
     let err = HybridSignatureError::MlDsaError("test".to_string());
-    assert!(format!("{}", err).contains("ML-DSA"));
+    assert!(format!("{err}").contains("ML-DSA"));
 }
 
 #[test]
 fn test_error_display_ed25519_fails() {
     let err = HybridSignatureError::Ed25519Error("test".to_string());
-    assert!(format!("{}", err).contains("Ed25519"));
+    assert!(format!("{err}").contains("Ed25519"));
 }
 
 #[test]
 fn test_error_display_verification_fails() {
     let err = HybridSignatureError::VerificationFailed("test".to_string());
-    assert!(format!("{}", err).contains("verification failed"));
+    assert!(format!("{err}").contains("verification failed"));
 }
 
 #[test]
 fn test_error_display_invalid_key_fails() {
     let err = HybridSignatureError::InvalidKeyMaterial("test".to_string());
-    assert!(format!("{}", err).contains("Invalid key material"));
+    assert!(format!("{err}").contains("Invalid key material"));
 }
 
 #[test]
 fn test_error_display_crypto_fails() {
     let err = HybridSignatureError::CryptoError("test".to_string());
-    assert!(format!("{}", err).contains("Cryptographic operation"));
+    assert!(format!("{err}").contains("Cryptographic operation"));
 }
 
 #[test]

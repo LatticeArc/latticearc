@@ -66,7 +66,7 @@ impl EcKeyPair for Ed25519KeyPair {
 
         let keypair = Self { public_key, secret_key };
 
-        // Pairwise Consistency Test (PCT). audit fix (H9):
+        // Pairwise Consistency Test (PCT).
         // upstream PctError -> opaque KeyGenerationError so that variant
         // wording from the `pct` module isn't relayed verbatim.
         crate::primitives::pct::pct_ed25519(&keypair).map_err(|e| {
@@ -193,7 +193,7 @@ impl EcSignature for Ed25519Signature {
         // infallible (RFC 8032 defines no parse-time validity rule for the
         // 64-byte signature representation; validity is checked only at
         // verify time). The length check above is the only failure path; the
-        // `Ok(...)` wrapper here exists for trait-shape parity with other
+        // `Ok(..)` wrapper here exists for trait-shape parity with other
         // signature schemes (ML-DSA, SLH-DSA, FN-DSA) whose `from_bytes`
         // can fail at parse time. Removing the wrapper breaks the trait's
         // `Result` return type — leave it.
@@ -208,7 +208,7 @@ impl Ed25519KeyPair {
     /// this type guarantees by construction); the only failure path is
     /// the resource-limit gate that bounds the message length to
     /// `max_signature_size_bytes` (default 64 KiB) before SHA-512
-    /// hashes the payload (RFC 8032 §5.1.6). audit fix (H4)
+    /// hashes the payload (RFC 8032 §5.1.6).
     /// added this gate to close the unbounded-hash DoS that previously
     /// existed on the sign path.
     ///

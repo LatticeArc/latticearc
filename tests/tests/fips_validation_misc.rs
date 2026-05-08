@@ -1008,7 +1008,7 @@ mod global {
             let err = LatticeArcError::ValidationError {
                 message: "RNG continuous test failed: identical samples".to_string(),
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("identical samples"));
         }
 
@@ -1024,7 +1024,7 @@ mod global {
                     ones_ratio
                 ),
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("bit distribution out of range"));
             assert!(msg.contains("0.350"));
         }
@@ -1037,7 +1037,7 @@ mod global {
             let err = LatticeArcError::ValidationError {
                 message: format!("Failed to acquire FIPS validation result lock: {}", "poisoned"),
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Failed to acquire FIPS validation result lock"));
         }
     }
@@ -1210,7 +1210,7 @@ mod format {
     #[test]
     fn test_format_error_display_fails() {
         let error = FormatError::InvalidKeySize(16, 32);
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("16"));
         assert!(display.contains("32"));
         assert!(display.contains("Invalid key size"));
@@ -1281,7 +1281,7 @@ mod format_misc {
     #[test]
     fn test_format_error_display_contains_sizes_fails() {
         let err = FormatError::InvalidKeySize(16, 32);
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("16"), "error message should contain actual size 16");
         assert!(msg.contains("32"), "error message should contain expected size 32");
     }
@@ -1852,7 +1852,7 @@ mod input {
     #[test]
     fn test_validation_error_display_too_small_fails() {
         let err = ValidationError::InputTooSmall(10, 16);
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("too small"));
         assert!(msg.contains("10"));
         assert!(msg.contains("16"));
@@ -1861,7 +1861,7 @@ mod input {
     #[test]
     fn test_validation_error_display_too_large_fails() {
         let err = ValidationError::InputTooLarge(100, 64);
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("too large"));
         assert!(msg.contains("100"));
         assert!(msg.contains("64"));
@@ -2436,7 +2436,7 @@ mod resource_limits {
         #[test]
         fn test_key_derivation_error_display_passes_validation() {
             let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Key derivation"));
             assert!(msg.contains("2000"));
             assert!(msg.contains("1000"));
@@ -2448,7 +2448,7 @@ mod resource_limits {
                 requested: 200 * 1024 * 1024,
                 limit: 100 * 1024 * 1024,
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Encryption size"));
         }
 
@@ -2458,7 +2458,7 @@ mod resource_limits {
                 requested: 100 * 1024,
                 limit: 64 * 1024,
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Signature size"));
         }
 
@@ -2468,7 +2468,7 @@ mod resource_limits {
                 requested: 200 * 1024 * 1024,
                 limit: 100 * 1024 * 1024,
             };
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             assert!(msg.contains("Decryption size"));
         }
 
@@ -2568,10 +2568,10 @@ mod resource_limits {
             let dec_err = ResourceError::DecryptionSizeLimitExceeded { requested: 100, limit: 50 };
 
             // Each error variant should have distinct display messages
-            let key_msg = format!("{}", key_err);
-            let enc_msg = format!("{}", enc_err);
-            let sig_msg = format!("{}", sig_err);
-            let dec_msg = format!("{}", dec_err);
+            let key_msg = format!("{key_err}");
+            let enc_msg = format!("{enc_err}");
+            let sig_msg = format!("{sig_err}");
+            let dec_msg = format!("{dec_err}");
 
             assert_ne!(key_msg, enc_msg);
             assert_ne!(enc_msg, sig_msg);
@@ -3042,7 +3042,7 @@ mod rfc_vectors {
             message: "ciphertext mismatch".to_string(),
         };
 
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("RFC 8439"));
         assert!(display.contains("ChaCha20-Poly1305 AEAD"));
         assert!(display.contains("ciphertext mismatch"));
@@ -3052,7 +3052,7 @@ mod rfc_vectors {
     fn test_rfc_test_error_hex_error_display_has_correct_format() {
         let error = RfcTestError::HexError("invalid hex character 'g'".to_string());
 
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("Hex decode error"));
         assert!(display.contains("invalid hex character 'g'"));
     }
@@ -3089,7 +3089,7 @@ mod rfc_vectors {
             message: String::new(),
         };
 
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("RFC test failed"));
     }
 
@@ -3101,7 +3101,7 @@ mod rfc_vectors {
             message: "Expected 0x00 but got 0xff".to_string(),
         };
 
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("RFC-8439 (ChaCha20)"));
         assert!(display.contains("Test <vector> #1"));
         assert!(display.contains("Expected 0x00 but got 0xff"));
@@ -3111,7 +3111,7 @@ mod rfc_vectors {
     fn test_rfc_test_error_hex_error_empty_displays_correctly_fails() {
         let error = RfcTestError::HexError(String::new());
 
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("Hex decode error"));
     }
 
@@ -3333,8 +3333,8 @@ mod rfc_vectors {
         let hex_error = RfcTestError::HexError("invalid input".to_string());
 
         // Both should implement Display
-        let _ = format!("{}", test_failed);
-        let _ = format!("{}", hex_error);
+        let _ = format!("{test_failed}");
+        let _ = format!("{hex_error}");
 
         // Both should implement Debug
         let _ = format!("{:?}", test_failed);
@@ -3754,7 +3754,7 @@ mod coverage_boost {
             test_name: "test-1".to_string(),
             message: "mismatch".to_string(),
         };
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("RFC 5869") || msg.contains("mismatch") || msg.contains("test-1"));
     }
 
@@ -3792,7 +3792,7 @@ mod coverage_boost {
     fn test_wycheproof_error_display_has_correct_format() {
         let err =
             WycheproofError::TestFailed { tc_id: 42, message: "verification failed".to_string() };
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("42") || msg.contains("failed"));
     }
 

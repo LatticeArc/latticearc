@@ -1245,27 +1245,27 @@ mod tests {
     #[test]
     fn test_ml_dsa_error_display_all_variants_are_non_empty_fails() {
         let err = MlDsaError::KeyGenerationError("test".to_string());
-        assert!(format!("{}", err).contains("test"));
+        assert!(format!("{err}").contains("test"));
 
         let err = MlDsaError::SigningError("sign fail".to_string());
-        assert!(format!("{}", err).contains("sign fail"));
+        assert!(format!("{err}").contains("sign fail"));
 
         let err = MlDsaError::VerificationError("verify fail".to_string());
-        assert!(format!("{}", err).contains("verify fail"));
+        assert!(format!("{err}").contains("verify fail"));
 
         let err = MlDsaError::InvalidParameterSet("bad param".to_string());
-        assert!(format!("{}", err).contains("bad param"));
+        assert!(format!("{err}").contains("bad param"));
 
         let err = MlDsaError::CryptoError("crypto fail".to_string());
-        assert!(format!("{}", err).contains("crypto fail"));
+        assert!(format!("{err}").contains("crypto fail"));
 
         let err = MlDsaError::InvalidKeyLength { expected: 32, actual: 16 };
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("32"));
         assert!(msg.contains("16"));
 
         let err = MlDsaError::InvalidSignatureLength { expected: 2420, actual: 100 };
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("2420"));
         assert!(msg.contains("100"));
     }

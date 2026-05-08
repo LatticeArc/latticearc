@@ -141,7 +141,7 @@ mod tests {
         let result = decode_hex("zzzz");
         assert!(result.is_err());
         if let Err(ref err) = result {
-            assert!(format!("{}", err).contains("Hex decode error"));
+            assert!(format!("{err}").contains("Hex decode error"));
         }
     }
 
@@ -182,16 +182,16 @@ mod tests {
             test_name: "vector1".to_string(),
             message: "hash mismatch".to_string(),
         };
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("SHA-256"));
         assert!(display.contains("vector1"));
         assert!(display.contains("hash mismatch"));
 
         let err2 = NistKatError::ImplementationError("not implemented".to_string());
-        assert!(format!("{}", err2).contains("not implemented"));
+        assert!(format!("{err2}").contains("not implemented"));
 
         let err3 = NistKatError::UnsupportedAlgorithm("SIKE".to_string());
-        assert!(format!("{}", err3).contains("SIKE"));
+        assert!(format!("{err3}").contains("SIKE"));
     }
 
     #[test]

@@ -57,7 +57,10 @@ pub fn generate_hybrid_keypair_with_level(
 }
 
 #[cfg(test)]
-#[allow(clippy::panic, clippy::unwrap_used, clippy::expect_used, clippy::panic_in_result_fn)]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "Test functions return Result<()> and use `?` plus `assert!`; the assert macros expand to panic. If asserts are removed, the expect(...) will fail and the suppress is cleaned automatically."
+)]
 mod tests {
     use super::*;
 

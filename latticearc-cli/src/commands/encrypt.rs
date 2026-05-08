@@ -80,7 +80,7 @@ pub(crate) struct EncryptArgs {
     #[arg(short, long)]
     pub key: PathBuf,
     /// Overwrite the output file if it already exists. Default: false
-    /// (refuses to clobber). audit fix (H12).
+    /// (refuses to clobber).
     #[arg(long)]
     pub force: bool,
 }

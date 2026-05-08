@@ -194,7 +194,7 @@ fn test_category_succeeds() {
 #[test]
 fn test_display_format_has_correct_size() {
     let code = FipsErrorCode::InvalidKeyLength;
-    let display = format!("{}", code);
+    let display = format!("{code}");
     assert!(display.starts_with("FIPS-0100:"));
     assert!(display.contains("Invalid key length"));
 }
@@ -202,7 +202,7 @@ fn test_display_format_has_correct_size() {
 #[test]
 fn test_display_critical_succeeds() {
     let code = FipsErrorCode::SelfTestFailed;
-    let display = format!("{}", code);
+    let display = format!("{code}");
     assert!(display.starts_with("FIPS-0001:"));
 }
 
@@ -256,7 +256,7 @@ fn test_fips_compliant_error_with_context_fails() {
 #[test]
 fn test_fips_compliant_error_display_no_context_fails() {
     let err = FipsCompliantError::new(FipsErrorCode::RngFailure);
-    let display = format!("{}", err);
+    let display = format!("{err}");
     assert!(display.contains("FIPS-0200"));
 }
 
@@ -264,7 +264,7 @@ fn test_fips_compliant_error_display_no_context_fails() {
 fn test_fips_compliant_error_display_with_context_fails() {
     let err =
         FipsCompliantError::new(FipsErrorCode::DecryptionFailed).with_context("auth tag mismatch");
-    let display = format!("{}", err);
+    let display = format!("{err}");
     assert!(display.contains("FIPS-0102"));
     assert!(display.contains("auth tag mismatch"));
 }

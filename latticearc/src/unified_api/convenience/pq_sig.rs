@@ -56,7 +56,10 @@ use crate::unified_api::error::{CoreError, Result};
 // the wrapping `Result<bool>` is required to match the call sites that
 // previously could fail and to keep the public-API shape stable across
 // the Pattern 6 sweep. `unnecessary_wraps` is silenced for that reason.
-#[allow(clippy::unnecessary_wraps)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Result<bool> shape preserved for API parity with the pre-Pattern-6 callers; if a future change re-introduces a fallible path the suppress will resolve naturally"
+)]
 fn map_verify_result<E: std::fmt::Display>(
     r: std::result::Result<bool, E>,
     alg: &str,
@@ -962,32 +965,11 @@ pub fn verify_pq_fn_dsa_with_config_unverified(
 }
 
 #[cfg(test)]
-#[allow(
-    clippy::panic,
-    clippy::unwrap_used,
+#[expect(
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::arithmetic_side_effects,
     clippy::panic_in_result_fn,
-    clippy::unnecessary_wraps,
-    clippy::redundant_clone,
-    clippy::useless_vec,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::clone_on_copy,
-    clippy::len_zero,
-    clippy::single_match,
-    clippy::unnested_or_patterns,
-    clippy::default_constructed_unit_structs,
-    clippy::redundant_closure_for_method_calls,
-    clippy::semicolon_if_nothing_returned,
-    clippy::unnecessary_unwrap,
-    clippy::redundant_pattern_matching,
-    clippy::missing_const_for_thread_local,
-    clippy::get_first,
-    clippy::float_cmp,
-    clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    reason = "Test code uses .expect() for keygen-failed assertions, direct indexing for fixed-size signature/key buffers, and assert! macros (which expand to panic) inside Result-returning test functions. Any lint here that no longer triggers will fail #[expect] and be cleaned automatically."
 )]
 mod tests {
     use super::*;

@@ -61,7 +61,7 @@ pub enum SlhDsaError {
     /// Pairwise Consistency Test (FIPS 140-3 §9.2 / IG 10.3.A) failed.
     /// Distinct from `RngError` because PCT failure indicates a
     /// corrupted keypair, not transient entropy depletion.
-    /// audit fix #12: a FIPS error-state monitor must be able to
+    /// a FIPS error-state monitor must be able to
     /// distinguish "retry with fresh entropy" from "discard this
     /// keypair, generate a new one, and investigate."
     #[error("Pairwise Consistency Test failed (FIPS 140-3 §9.2)")]

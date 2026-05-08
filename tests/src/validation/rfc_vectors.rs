@@ -672,7 +672,7 @@ mod tests {
             message: "shared secret mismatch".to_string(),
         };
 
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("RFC 7748"));
         assert!(display.contains("X25519 DH"));
         assert!(display.contains("shared secret mismatch"));
@@ -683,7 +683,7 @@ mod tests {
     fn test_rfc_test_error_display_hex_error_is_correct() {
         let error = RfcTestError::HexError("odd length input".to_string());
 
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("Hex decode error"));
         assert!(display.contains("odd length input"));
     }

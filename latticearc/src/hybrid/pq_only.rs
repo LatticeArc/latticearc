@@ -400,9 +400,9 @@ impl PqOnlyCiphertext {
 /// 3. AES-256-GCM encrypt(plaintext) → (ciphertext, nonce, tag)
 ///
 /// The `info` string binds the KEM ciphertext into the AEAD-key
-/// derivation per RFC 9180 §5.1 (HPKE channel binding) —
-/// audit fix (L-2). The exact byte layout is `LABEL || 0x00 ||
-/// kem_ciphertext`, where `LABEL = "LatticeArc-PqOnly-Encryption-v1"`
+/// derivation per RFC 9180 §5.1 (HPKE channel binding). The exact
+/// byte layout is `LABEL || 0x00 || kem_ciphertext`, where
+/// `LABEL = "LatticeArc-PqOnly-Encryption-v1"`
 /// (see `crate::types::domains::PQ_ONLY_ENCRYPTION_INFO`). Encrypt and
 /// decrypt MUST construct `info` identically; both go through
 /// `pq_only_encryption_info()` (private to this module) to keep the
@@ -497,7 +497,7 @@ pub fn encrypt_pq_only_with_aad(
 /// it via `pq_only_encryption_info(recipient_pk, kem_ciphertext)`.
 /// Substituting a different recipient PK or KEM ciphertext produces a
 /// different AEAD key, so the AEAD tag fails (HPKE-style channel
-/// binding, RFC 9180 §5.1). audit fix (L25) updated this doc
+/// binding, RFC 9180 §5.1). updated this doc
 /// to reflect the prior PK-binding migration that the prose had
 /// stayed silent about.
 ///

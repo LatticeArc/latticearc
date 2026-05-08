@@ -171,7 +171,7 @@ fn test_use_case_reexport_succeeds() {
 fn test_core_error_reexport_succeeds() {
     // Verify CoreError is accessible
     let err = latticearc::unified_api::CoreError::InvalidInput("test".to_string());
-    let msg = format!("{}", err);
+    let msg = format!("{err}");
     assert!(msg.contains("test"));
 }
 

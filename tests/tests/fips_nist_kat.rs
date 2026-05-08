@@ -388,7 +388,7 @@ mod coverage {
             test_name: "TC1".to_string(),
             message: "tag mismatch".to_string(),
         };
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("AES-GCM"));
         assert!(display.contains("TC1"));
         assert!(display.contains("tag mismatch"));
@@ -397,7 +397,7 @@ mod coverage {
     #[test]
     fn test_nist_kat_error_hex_error_display_has_correct_format() {
         let err = NistKatError::HexError("invalid hex".to_string());
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("Hex decode error"));
         assert!(display.contains("invalid hex"));
     }
@@ -405,7 +405,7 @@ mod coverage {
     #[test]
     fn test_nist_kat_error_implementation_error_display_has_correct_format() {
         let err = NistKatError::ImplementationError("algo not found".to_string());
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("Implementation error"));
         assert!(display.contains("algo not found"));
     }
@@ -413,7 +413,7 @@ mod coverage {
     #[test]
     fn test_nist_kat_error_unsupported_algorithm_display_has_correct_format() {
         let err = NistKatError::UnsupportedAlgorithm("SIKE".to_string());
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("Unsupported algorithm"));
         assert!(display.contains("SIKE"));
     }

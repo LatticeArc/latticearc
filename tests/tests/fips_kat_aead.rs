@@ -747,24 +747,24 @@ mod aes_gcm {
                 test_name: "TEST-1".to_string(),
                 message: "Output mismatch".to_string(),
             };
-            let display = format!("{}", err);
+            let display = format!("{err}");
             assert!(display.contains("AES-128-GCM"));
             assert!(display.contains("TEST-1"));
             assert!(display.contains("Output mismatch"));
 
             // Test HexError error formatting
             let err = NistKatError::HexError("Invalid character".to_string());
-            let display = format!("{}", err);
+            let display = format!("{err}");
             assert!(display.contains("Invalid character"));
 
             // Test ImplementationError error formatting
             let err = NistKatError::ImplementationError("Key creation failed".to_string());
-            let display = format!("{}", err);
+            let display = format!("{err}");
             assert!(display.contains("Key creation failed"));
 
             // Test UnsupportedAlgorithm error formatting
             let err = NistKatError::UnsupportedAlgorithm("Unknown-ALG".to_string());
-            let display = format!("{}", err);
+            let display = format!("{err}");
             assert!(display.contains("Unknown-ALG"));
         }
 
@@ -1993,7 +1993,7 @@ mod chacha20_poly1305 {
                 message: "ciphertext mismatch".to_string(),
             };
 
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("ChaCha20-Poly1305"));
             assert!(display.contains("RFC-8439-Test-Vector-1"));
             assert!(display.contains("ciphertext mismatch"));
@@ -2003,7 +2003,7 @@ mod chacha20_poly1305 {
         fn test_nist_kat_error_hex_error_display_matches_expected() {
             let error = NistKatError::HexError("invalid hex character".to_string());
 
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Hex decode error"));
             assert!(display.contains("invalid hex character"));
         }
@@ -2012,7 +2012,7 @@ mod chacha20_poly1305 {
         fn test_nist_kat_error_implementation_error_display_matches_expected() {
             let error = NistKatError::ImplementationError("Invalid key length".to_string());
 
-            let display = format!("{}", error);
+            let display = format!("{error}");
             assert!(display.contains("Implementation error"));
             assert!(display.contains("Invalid key length"));
         }

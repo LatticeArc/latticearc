@@ -125,7 +125,7 @@ impl HashCommitment {
     /// Length prefix is `value.len() as u32` big-endian to match the
     /// transcript convention used by `zkp::sigma::compute_challenge`
     /// and `unified_api::audit::compute_integrity_hash` — both u32 BE.
-    /// (Post-85e2bd79e L4 audit fix: previous version used u64, which
+    /// (Post-85e2bd79e L4 previous version used u64, which
     /// was the only u64-width transcript prefix in the crate. Migrating
     /// to u32 BE unifies the convention; SHA-3's 1 GiB DoS cap below
     /// makes the u32 ceiling unreachable in practice.)
@@ -398,7 +398,7 @@ impl PedersenCommitment {
 
     /// Generate second generator H via try-and-increment on SHA-256.
     ///
-    /// Hashes `"arc-zkp/pedersen-generator-H-v3" || counter_BE` for counter = 0, 1, ...
+    /// Hashes `"arc-zkp/pedersen-generator-H-v3" || counter_BE` for counter = 0, 1, 2, ...
     /// until the 32-byte output is a valid compressed x-coordinate on secp256k1.
     /// The resulting point has no known discrete-log relationship to G, which is
     /// required for the binding property of Pedersen commitments.
@@ -412,7 +412,7 @@ impl PedersenCommitment {
     /// integration tests in `tests/` — can construct
     /// discrete-log-equality statements over the canonical
     /// NUMS-derived H. External callers should generally rely on the
-    /// `DlogEqualityStatement::canonical(...)` constructor rather
+    /// `DlogEqualityStatement::canonical(..)` constructor rather
     /// than calling this directly; both routes pin the same H.
     pub fn generator_h() -> Result<ProjectivePoint> {
         use k256::EncodedPoint;

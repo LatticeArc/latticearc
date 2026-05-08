@@ -205,7 +205,7 @@ mod hybrid {
     #[test]
     fn test_error_display_kem_error_fails() {
         let err = HybridEncryptionError::KemError("test kem".to_string());
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("KEM error"));
         assert!(msg.contains("test kem"));
     }
@@ -213,35 +213,35 @@ mod hybrid {
     #[test]
     fn test_error_display_encryption_error_fails() {
         let err = HybridEncryptionError::EncryptionError("test enc".to_string());
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("Encryption error"));
     }
 
     #[test]
     fn test_error_display_decryption_error_fails() {
         let err = HybridEncryptionError::DecryptionError("test dec".to_string());
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("Decryption error"));
     }
 
     #[test]
     fn test_error_display_kdf_error_fails() {
         let err = HybridEncryptionError::KdfError("test kdf".to_string());
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("Key derivation error"));
     }
 
     #[test]
     fn test_error_display_invalid_input_fails() {
         let err = HybridEncryptionError::InvalidInput("test input".to_string());
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("Invalid input"));
     }
 
     #[test]
     fn test_error_display_key_length_error_fails() {
         let err = HybridEncryptionError::KeyLengthError { expected: 32, actual: 16 };
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("32"));
         assert!(msg.contains("16"));
     }

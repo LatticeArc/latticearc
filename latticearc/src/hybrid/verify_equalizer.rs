@@ -13,7 +13,7 @@
 //! - **Raw bytes** (`pq_pk`, `pq_sig`, `ed_pk`, `ed_sig`): zero-filled
 //!   length-correct buffers. Used by the unified-API path's raw-byte
 //!   interface; the consumer there re-parses internally via
-//!   `verify_pq_ml_dsa_unverified(...).unwrap_or(false)` so a parse
+//!   `verify_pq_ml_dsa_unverified(..).unwrap_or(false)` so a parse
 //!   failure on the dummy collapses to `false` (today the parser is
 //!   length-only so this is unreachable, but the `unwrap_or(false)`
 //!   shape preserves verify-pipeline execution).
@@ -24,7 +24,7 @@
 //!   when caller bytes fail the shape check OR fail to parse. Ensures
 //!   `MlDsaPublicKey::verify` runs against guaranteed-valid material
 //!   regardless of whether `from_bytes` ever adds content validation
-//!   in a future `fips204` release. Post-85e2bd79e M1 audit fix —
+//!   in a future `fips204` release. Post-85e2bd79e M1 —
 //!   the previous design held raw bytes only and re-parsed at verify
 //!   time, which would silently lose its equalizer property if
 //!   `from_bytes` started rejecting zero-byte buffers.

@@ -417,7 +417,7 @@ mod tests {
         let err = result.err();
         assert!(err.is_some());
         let err_val = err.expect("error expected");
-        let msg = format!("{}", err_val);
+        let msg = format!("{err_val}");
         assert!(msg.contains("HMAC-SHA256"));
         assert!(msg.contains("MAC mismatch"));
     }
@@ -431,7 +431,7 @@ mod tests {
             run_single_hmac_sha224(vector.key, vector.message, wrong_expected, vector.test_name);
         assert!(result.is_err());
         let err_val = result.err().expect("error expected");
-        let msg = format!("{}", err_val);
+        let msg = format!("{err_val}");
         assert!(msg.contains("HMAC-SHA224"));
         assert!(msg.contains("MAC mismatch"));
     }
@@ -445,7 +445,7 @@ mod tests {
             run_single_hmac_sha384(vector.key, vector.message, wrong_expected, vector.test_name);
         assert!(result.is_err());
         let err_val = result.err().expect("error expected");
-        let msg = format!("{}", err_val);
+        let msg = format!("{err_val}");
         assert!(msg.contains("HMAC-SHA384"));
         assert!(msg.contains("MAC mismatch"));
     }
@@ -459,7 +459,7 @@ mod tests {
             run_single_hmac_sha512(vector.key, vector.message, wrong_expected, vector.test_name);
         assert!(result.is_err());
         let err_val = result.err().expect("error expected");
-        let msg = format!("{}", err_val);
+        let msg = format!("{err_val}");
         assert!(msg.contains("HMAC-SHA512"));
         assert!(msg.contains("MAC mismatch"));
     }
@@ -691,7 +691,7 @@ mod tests {
             test_name: "test-1".to_string(),
             message: "mismatch".to_string(),
         };
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("HMAC-SHA256"));
         assert!(display.contains("test-1"));
         assert!(display.contains("mismatch"));
@@ -700,7 +700,7 @@ mod tests {
     #[test]
     fn test_nist_kat_error_hex_error_display_has_correct_format() {
         let err = NistKatError::HexError("invalid character".to_string());
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("Hex decode error"));
         assert!(display.contains("invalid character"));
     }
@@ -708,7 +708,7 @@ mod tests {
     #[test]
     fn test_nist_kat_error_implementation_error_display_has_correct_format() {
         let err = NistKatError::ImplementationError("HMAC creation failed".to_string());
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("Implementation error"));
         assert!(display.contains("HMAC creation failed"));
     }
