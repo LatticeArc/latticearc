@@ -442,7 +442,7 @@
 <a href=#442 id=442 data-nosnippet>442</a>    <span class="kw">let </span>is_valid = <span class="kw">match </span>verify_result {
 <a href=#443 id=443 data-nosnippet>443</a>        <span class="prelude-val">Ok</span>(()) =&gt; <span class="bool-val">true</span>,
 <a href=#444 id=444 data-nosnippet>444</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#445 id=445 data-nosnippet>445</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"Ed25519 PCT verify rejected"</span>);
+<a href=#445 id=445 data-nosnippet>445</a>            <span class="macro">tracing::debug!</span>(error = %e, <span class="string">"Ed25519 PCT verify rejected"</span>);
 <a href=#446 id=446 data-nosnippet>446</a>            <span class="bool-val">false
 <a href=#447 id=447 data-nosnippet>447</a>        </span>}
 <a href=#448 id=448 data-nosnippet>448</a>    };
@@ -493,7 +493,7 @@
 <a href=#493 id=493 data-nosnippet>493</a>    <span class="kw">let </span>is_valid = <span class="kw">match </span>verify_result {
 <a href=#494 id=494 data-nosnippet>494</a>        <span class="prelude-val">Ok</span>(()) =&gt; <span class="bool-val">true</span>,
 <a href=#495 id=495 data-nosnippet>495</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#496 id=496 data-nosnippet>496</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"secp256k1 PCT verify rejected"</span>);
+<a href=#496 id=496 data-nosnippet>496</a>            <span class="macro">tracing::debug!</span>(error = %e, <span class="string">"secp256k1 PCT verify rejected"</span>);
 <a href=#497 id=497 data-nosnippet>497</a>            <span class="bool-val">false
 <a href=#498 id=498 data-nosnippet>498</a>        </span>}
 <a href=#499 id=499 data-nosnippet>499</a>    };

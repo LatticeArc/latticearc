@@ -1148,7 +1148,7 @@
 <a href=#1148 id=1148 data-nosnippet>1148</a>        // upstream `requested=N, limit=M` detail is logged at
 <a href=#1149 id=1149 data-nosnippet>1149</a>        // `tracing::debug!` for operators.
 <a href=#1150 id=1150 data-nosnippet>1150</a>        </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_encryption_size(public_key.as_bytes().len()) {
-<a href=#1151 id=1151 data-nosnippet>1151</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, pk_len = public_key.as_bytes().len(), <span class="string">"ML-KEM encap rejected: PK exceeds resource limit"</span>);
+<a href=#1151 id=1151 data-nosnippet>1151</a>            <span class="macro">tracing::debug!</span>(error = %e, pk_len = public_key.as_bytes().len(), <span class="string">"ML-KEM encap rejected: PK exceeds resource limit"</span>);
 <a href=#1152 id=1152 data-nosnippet>1152</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(MlKemError::EncapsulationError(<span class="string">"encapsulation failed"</span>.to_string()));
 <a href=#1153 id=1153 data-nosnippet>1153</a>        }
 <a href=#1154 id=1154 data-nosnippet>1154</a>
@@ -1259,11 +1259,11 @@
 <a href=#1259 id=1259 data-nosnippet>1259</a>        </span><span class="kw">let </span>algorithm = secret_key.security_level().as_aws_algorithm();
 <a href=#1260 id=1260 data-nosnippet>1260</a>        <span class="kw">let </span>decaps_key =
 <a href=#1261 id=1261 data-nosnippet>1261</a>            DecapsulationKey::new(algorithm, secret_key.expose_secret()).map_err(|e| {
-<a href=#1262 id=1262 data-nosnippet>1262</a>                <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"ML-KEM DecapsulationKey::new rejected secret key"</span>);
+<a href=#1262 id=1262 data-nosnippet>1262</a>                <span class="macro">tracing::debug!</span>(error = %e, <span class="string">"ML-KEM DecapsulationKey::new rejected secret key"</span>);
 <a href=#1263 id=1263 data-nosnippet>1263</a>                MlKemError::DecapsulationError(<span class="string">"decapsulation failed"</span>.to_string())
 <a href=#1264 id=1264 data-nosnippet>1264</a>            })<span class="question-mark">?</span>;
 <a href=#1265 id=1265 data-nosnippet>1265</a>        <span class="kw">let </span>shared_secret = decaps_key.decapsulate(ciphertext.as_bytes().into()).map_err(|e| {
-<a href=#1266 id=1266 data-nosnippet>1266</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"ML-KEM decapsulate rejected ciphertext"</span>);
+<a href=#1266 id=1266 data-nosnippet>1266</a>            <span class="macro">tracing::debug!</span>(error = %e, <span class="string">"ML-KEM decapsulate rejected ciphertext"</span>);
 <a href=#1267 id=1267 data-nosnippet>1267</a>            MlKemError::DecapsulationError(<span class="string">"decapsulation failed"</span>.to_string())
 <a href=#1268 id=1268 data-nosnippet>1268</a>        })<span class="question-mark">?</span>;
 <a href=#1269 id=1269 data-nosnippet>1269</a>        <span class="kw">let </span>ss_bytes = shared_secret.as_ref();

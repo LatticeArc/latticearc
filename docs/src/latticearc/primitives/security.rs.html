@@ -53,10 +53,10 @@
 <a href=#53 id=53 data-nosnippet>53</a>// `SecretVec::zero(size)` directly at every call site — same semantics,
 <a href=#54 id=54 data-nosnippet>54</a>// no lock contention.
 <a href=#55 id=55 data-nosnippet>55</a>
-<a href=#56 id=56 data-nosnippet>56</a></span><span class="doccomment">/// Allocate a zeroed `SecretVec` of `size` bytes. audit fix
-<a href=#57 id=57 data-nosnippet>57</a>/// (M26): replaces the `MemoryPool::allocate` API. This is a thin
-<a href=#58 id=58 data-nosnippet>58</a>/// wrapper around `SecretVec::zero(size)` with the same per-call size
-<a href=#59 id=59 data-nosnippet>59</a>/// validation the pool used to enforce.
+<a href=#56 id=56 data-nosnippet>56</a></span><span class="doccomment">/// Allocate a zeroed `SecretVec` of `size` bytes. Replaces the
+<a href=#57 id=57 data-nosnippet>57</a>/// `MemoryPool::allocate` API; this is a thin wrapper around
+<a href=#58 id=58 data-nosnippet>58</a>/// `SecretVec::zero(size)` with the same per-call size validation
+<a href=#59 id=59 data-nosnippet>59</a>/// the pool used to enforce.
 <a href=#60 id=60 data-nosnippet>60</a>///
 <a href=#61 id=61 data-nosnippet>61</a>/// # Errors
 <a href=#62 id=62 data-nosnippet>62</a>/// Returns an error if `size` is zero or exceeds `1 MiB`.

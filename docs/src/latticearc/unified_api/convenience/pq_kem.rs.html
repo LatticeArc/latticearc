@@ -95,7 +95,7 @@
 <a href=#95 id=95 data-nosnippet>95</a>    <span class="comment">// opaque ResourceExceeded.
 <a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_encryption_size(data.len()) {
 <a href=#97 id=97 data-nosnippet>97</a>        <span class="macro">log_crypto_operation_error!</span>(op::ENCRYPT_PQ_ML_KEM, <span class="string">"resource limit exceeded"</span>);
-<a href=#98 id=98 data-nosnippet>98</a>        <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, data_len = data.len(), <span class="string">"pq_kem encrypt rejected: plaintext exceeds resource limit"</span>);
+<a href=#98 id=98 data-nosnippet>98</a>        <span class="macro">tracing::debug!</span>(error = %e, data_len = data.len(), <span class="string">"pq_kem encrypt rejected: plaintext exceeds resource limit"</span>);
 <a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::ResourceExceeded(<span class="string">"plaintext exceeds resource limit"</span>.to_string()));
 <a href=#100 id=100 data-nosnippet>100</a>    }
 <a href=#101 id=101 data-nosnippet>101</a>

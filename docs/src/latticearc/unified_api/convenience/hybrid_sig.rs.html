@@ -73,7 +73,7 @@
 <a href=#73 id=73 data-nosnippet>73</a>    <span class="comment">// opaque ResourceExceeded — sign-side
 <a href=#74 id=74 data-nosnippet>74</a>    // resource-limit errors stay loud; caller controls input.
 <a href=#75 id=75 data-nosnippet>75</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(message.len()) {
-<a href=#76 id=76 data-nosnippet>76</a>        <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"hybrid sig rejected: message exceeds resource limit"</span>);
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="macro">tracing::debug!</span>(error = %e, msg_len = message.len(), <span class="string">"hybrid sig rejected: message exceeds resource limit"</span>);
 <a href=#77 id=77 data-nosnippet>77</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::ResourceExceeded(<span class="string">"message exceeds resource limit"</span>.to_string()));
 <a href=#78 id=78 data-nosnippet>78</a>    }
 <a href=#79 id=79 data-nosnippet>79</a>
@@ -103,7 +103,7 @@
 <a href=#103 id=103 data-nosnippet>103</a>    // verify path so an adversary cannot binary-search the configured
 <a href=#104 id=104 data-nosnippet>104</a>    // cap from the Result variant.
 <a href=#105 id=105 data-nosnippet>105</a>    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = validate_signature_size(message.len()) {
-<a href=#106 id=106 data-nosnippet>106</a>        <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, msg_len = message.len(), <span class="string">"hybrid sig verify rejected: message exceeds resource limit"</span>);
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="macro">tracing::debug!</span>(error = %e, msg_len = message.len(), <span class="string">"hybrid sig verify rejected: message exceeds resource limit"</span>);
 <a href=#107 id=107 data-nosnippet>107</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
 <a href=#108 id=108 data-nosnippet>108</a>    }
 <a href=#109 id=109 data-nosnippet>109</a>
@@ -118,7 +118,7 @@
 <a href=#118 id=118 data-nosnippet>118</a>    </span><span class="kw">match </span>sig_hybrid::verify(pk, message, signature) {
 <a href=#119 id=119 data-nosnippet>119</a>        <span class="prelude-val">Ok</span>(b) =&gt; <span class="prelude-val">Ok</span>(b),
 <a href=#120 id=120 data-nosnippet>120</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#121 id=121 data-nosnippet>121</a>            <span class="macro">tracing::debug!</span>(error = <span class="question-mark">?</span>e, <span class="string">"hybrid sig verify rejected (Err mapped to Ok(false))"</span>);
+<a href=#121 id=121 data-nosnippet>121</a>            <span class="macro">tracing::debug!</span>(error = %e, <span class="string">"hybrid sig verify rejected (Err mapped to Ok(false))"</span>);
 <a href=#122 id=122 data-nosnippet>122</a>            <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>)
 <a href=#123 id=123 data-nosnippet>123</a>        }
 <a href=#124 id=124 data-nosnippet>124</a>    }

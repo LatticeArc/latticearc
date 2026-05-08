@@ -20,8 +20,8 @@
 <a href=#20 id=20 data-nosnippet>20</a>/// branch in [`CryptoPolicyEngine::select_encryption_scheme`] would
 <a href=#21 id=21 data-nosnippet>21</a>/// have downgraded a caller-declared [`SecurityLevel::High`]
 <a href=#22 id=22 data-nosnippet>22</a>/// (ML-KEM-768) to ML-KEM-512 under [`PerformancePreference::Memory`].
-<a href=#23 id=23 data-nosnippet>23</a>/// that downgrade now **refuses** instead
-<a href=#24 id=24 data-nosnippet>24</a>/// of silently weakening the caller's contract.
+<a href=#23 id=23 data-nosnippet>23</a>/// That downgrade now **refuses** instead of silently weakening the
+<a href=#24 id=24 data-nosnippet>24</a>/// caller's contract.
 <a href=#25 id=25 data-nosnippet>25</a>///
 <a href=#26 id=26 data-nosnippet>26</a>/// **What actually happens at runtime**:
 <a href=#27 id=27 data-nosnippet>27</a>///

@@ -259,9 +259,9 @@
 <a href=#259 id=259 data-nosnippet>259</a>    // leftover from a seconds→ns conversion that doesn't apply here
 <a href=#260 id=260 data-nosnippet>260</a>    // — it inflated every std_dev by 10⁹×, blew CV past every
 <a href=#261 id=261 data-nosnippet>261</a>    // threshold, and made every side-channel report spurious noise.
-<a href=#262 id=262 data-nosnippet>262</a>    // Same class as (`f64::to_bits` vs `as u64` for
-<a href=#263 id=263 data-nosnippet>263</a>    // perf-mod std_dev); the symbol-class sweep at the time should
-<a href=#264 id=264 data-nosnippet>264</a>    // have caught this site too.
+<a href=#262 id=262 data-nosnippet>262</a>    // Same class of bug as `f64::to_bits` vs `as u64` for perf-mod
+<a href=#263 id=263 data-nosnippet>263</a>    // std_dev; the symbol-class sweep at the time should have caught
+<a href=#264 id=264 data-nosnippet>264</a>    // this site too.
 <a href=#265 id=265 data-nosnippet>265</a>    </span>Duration::from_nanos(variance.sqrt() <span class="kw">as </span>u64)
 <a href=#266 id=266 data-nosnippet>266</a>}
 <a href=#267 id=267 data-nosnippet>267</a>
