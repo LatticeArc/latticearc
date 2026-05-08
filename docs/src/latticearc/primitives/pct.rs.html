@@ -204,7 +204,7 @@
 <a href=#204 id=204 data-nosnippet>204</a>    // testing a different keypair satisfies the wording but not the
 <a href=#205 id=205 data-nosnippet>205</a>    // intent. The other PCT helpers (`pct_ml_dsa`, `pct_slh_dsa`,
 <a href=#206 id=206 data-nosnippet>206</a>    // `pct_fn_dsa`) all already take the keypair; this brings ML-KEM
-<a href=#207 id=207 data-nosnippet>207</a>    // into parity. Round-30 H1 wires this into
+<a href=#207 id=207 data-nosnippet>207</a>    // into parity. H1 wires this into
 <a href=#208 id=208 data-nosnippet>208</a>    // `generate_decapsulation_keypair` (the missing call site).
 <a href=#209 id=209 data-nosnippet>209</a>
 <a href=#210 id=210 data-nosnippet>210</a>    // Encapsulate
@@ -516,7 +516,7 @@
 <a href=#516 id=516 data-nosnippet>516</a>            .expect(<span class="string">"keygen should succeed under test conditions"</span>);
 <a href=#517 id=517 data-nosnippet>517</a>        <span class="comment">// PCT now takes the keypair, not the level.
 <a href=#518 id=518 data-nosnippet>518</a>        // `generate_decapsulation_keypair` ALSO runs PCT internally
-<a href=#519 id=519 data-nosnippet>519</a>        // post-fix (round-30 H1), so this is technically redundant —
+<a href=#519 id=519 data-nosnippet>519</a>        // post-fix, so this is technically redundant —
 <a href=#520 id=520 data-nosnippet>520</a>        // we re-run it to assert the externally-callable PCT passes
 <a href=#521 id=521 data-nosnippet>521</a>        // on a known-good keypair.
 <a href=#522 id=522 data-nosnippet>522</a>        </span><span class="kw">let </span>result = pct_ml_kem(<span class="kw-2">&amp;</span>keypair);

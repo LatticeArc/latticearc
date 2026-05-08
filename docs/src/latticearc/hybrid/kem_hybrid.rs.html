@@ -161,7 +161,7 @@
 <a href=#161 id=161 data-nosnippet>161</a>    /// collapsing to one variant keeps the surface stable across
 <a href=#162 id=162 data-nosnippet>162</a>    /// dependency upgrades and removes a class of accidental disclosure.
 <a href=#163 id=163 data-nosnippet>163</a>    /// Per-stage detail is preserved via internal trace events
-<a href=#164 id=164 data-nosnippet>164</a>    /// (`log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, ...)`).
+<a href=#164 id=164 data-nosnippet>164</a>    /// (`log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE...)`).
 <a href=#165 id=165 data-nosnippet>165</a>    </span><span class="attr">#[error(<span class="string">"Hybrid encapsulation failed"</span>)]
 <a href=#166 id=166 data-nosnippet>166</a>    </span>EncapsulationFailed,
 <a href=#167 id=167 data-nosnippet>167</a>}
@@ -236,7 +236,7 @@
 <a href=#236 id=236 data-nosnippet>236</a>    /// X25519 public keys are bounded well below this limit, so the
 <a href=#237 id=237 data-nosnippet>237</a>    /// error path is unreachable in practice — but `?`-propagation
 <a href=#238 id=238 data-nosnippet>238</a>    /// matches the symmetric posture of `append_lenp_field` in
-<a href=#239 id=239 data-nosnippet>239</a>    /// `unified_api::audit` (post-round-21 audit fix L2).
+<a href=#239 id=239 data-nosnippet>239</a>    /// `unified_api::audit`.
 <a href=#240 id=240 data-nosnippet>240</a>    </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, HybridKemError&gt; {
 <a href=#241 id=241 data-nosnippet>241</a>        <span class="kw">let </span>level_tag: u8 = <span class="kw">match </span><span class="self">self</span>.security_level {
 <a href=#242 id=242 data-nosnippet>242</a>            MlKemSecurityLevel::MlKem512 =&gt; <span class="number">1</span>,
@@ -899,12 +899,12 @@
 <a href=#899 id=899 data-nosnippet>899</a>    </span><span class="kw">pub </span>ecdh_ss: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
 <a href=#900 id=900 data-nosnippet>900</a>    <span class="doccomment">/// Static recipient ECDH (X25519) public key. Binds the derivation
 <a href=#901 id=901 data-nosnippet>901</a>    /// to the intended ECDH peer identity. Renamed from `static_pk`
-<a href=#902 id=902 data-nosnippet>902</a>    /// in round-29 M5 to disambiguate from the new `ml_kem_static_pk`
+<a href=#902 id=902 data-nosnippet>902</a>    /// in to disambiguate from the new `ml_kem_static_pk`
 <a href=#903 id=903 data-nosnippet>903</a>    /// (HPKE §5.1 wants both legs bound at the combiner, not just one).
 <a href=#904 id=904 data-nosnippet>904</a>    </span><span class="kw">pub </span>ecdh_static_pk: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
-<a href=#905 id=905 data-nosnippet>905</a>    <span class="doccomment">/// Static recipient ML-KEM public key (round-29 M5). The previous
+<a href=#905 id=905 data-nosnippet>905</a>    <span class="doccomment">/// Static recipient ML-KEM public key. The previous
 <a href=#906 id=906 data-nosnippet>906</a>    /// combiner only bound the X25519 static PK; the AEAD-AAD layer
-<a href=#907 id=907 data-nosnippet>907</a>    /// (round-26 `DerivationBinding`) bound the ML-KEM PK but the
+<a href=#907 id=907 data-nosnippet>907</a>    /// bound the ML-KEM PK but the
 <a href=#908 id=908 data-nosnippet>908</a>    /// combiner did not. HPKE / X-Wing guidance is to bind both legs
 <a href=#909 id=909 data-nosnippet>909</a>    /// at the combiner, so a substituted ML-KEM PK cannot yield the
 <a href=#910 id=910 data-nosnippet>910</a>    /// same shared secret even if the AEAD layer is stripped.
@@ -988,15 +988,15 @@
 <a href=#988 id=988 data-nosnippet>988</a>    <span class="comment">// Context info for domain separation and public-key binding, using
 <a href=#989 id=989 data-nosnippet>989</a>    // length-prefixed encoding to prevent canonicalization collisions
 <a href=#990 id=990 data-nosnippet>990</a>    // between the variable-length fields (HPKE §5.1 / RFC 9180 "LabeledExtract").
-<a href=#991 id=991 data-nosnippet>991</a>    // Round-29 M5 layout (BREAKING WIRE FORMAT — bumps the wire after
-<a href=#992 id=992 data-nosnippet>992</a>    // round-19 M2's prior bump):
+<a href=#991 id=991 data-nosnippet>991</a>    // Layout (BREAKING WIRE FORMAT — bump the domain separator on any
+<a href=#992 id=992 data-nosnippet>992</a>    // change here):
 <a href=#993 id=993 data-nosnippet>993</a>    //   [domain]
 <a href=#994 id=994 data-nosnippet>994</a>    //   [ecdh_static_pk_len: u32 BE][ecdh_static_pk]
 <a href=#995 id=995 data-nosnippet>995</a>    //   [ml_kem_static_pk_len: u32 BE][ml_kem_static_pk]
 <a href=#996 id=996 data-nosnippet>996</a>    //   [ephemeral_pk_len: u32 BE][ephemeral_pk]
 <a href=#997 id=997 data-nosnippet>997</a>    //   [kem_ct_len: u32 BE][kem_ct]
 <a href=#998 id=998 data-nosnippet>998</a>    // The previous layout omitted ml_kem_static_pk; the AEAD-AAD layer
-<a href=#999 id=999 data-nosnippet>999</a>    // (round-26 DerivationBinding) bound it but the combiner did not,
+<a href=#999 id=999 data-nosnippet>999</a>    // bound it but the combiner did not,
 <a href=#1000 id=1000 data-nosnippet>1000</a>    // so a peer-substituted ML-KEM PK with the same X25519 PK would
 <a href=#1001 id=1001 data-nosnippet>1001</a>    // produce the same shared secret pre-AEAD. HPKE §5.1 wants both
 <a href=#1002 id=1002 data-nosnippet>1002</a>    // legs bound at the combiner.

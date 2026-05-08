@@ -30,7 +30,7 @@ both work, and a multi-line piped input is taken verbatim
 (with the trailing newline removed). Use instead of <code>--input</code>
 when the input is a secret (PBKDF2 password) and you don’t
 want it in <code>ps</code> / shell history.</p>
-<p><strong>Behaviour change in 0.8.x</strong>: prior to round-34 M3 this
+<p><strong>Behaviour change in 0.8.x</strong>: prior to this
 flag read only the first line via <code>read_line</code>; it now reads
 the whole stream up to 1 MiB. Multi-line piped input that
 silently produced a different KDF output before now produces
@@ -42,7 +42,7 @@ the same output if the trailing-newline pattern matches.</p>
 for HMAC-SHA256). Values below the per-PRF OWASP floor are
 rejected unless <code>--allow-weak-iterations</code> is also passed.
 Per-PRF floors: HMAC-SHA256 → 600,000; HMAC-SHA512 → 210,000.</p>
-</div><span id="structfield.prf" class="structfield section-header"><a href="#structfield.prf" class="anchor field">§</a><code>prf: <a class="enum" href="enum.PbkdfPrf.html" title="enum latticearc_cli::commands::kdf::PbkdfPrf">PbkdfPrf</a></code></span><div class="docblock"><p>PRF for PBKDF2 (default: hmac-sha256). Round-26 audit fix (H14).
+</div><span id="structfield.prf" class="structfield section-header"><a href="#structfield.prf" class="anchor field">§</a><code>prf: <a class="enum" href="enum.PbkdfPrf.html" title="enum latticearc_cli::commands::kdf::PbkdfPrf">PbkdfPrf</a></code></span><div class="docblock"><p>PRF for PBKDF2 (default: hmac-sha256). audit fix (H14).
 HMAC-SHA512 was reachable from the library API but unreachable
 from the CLI before this flag.</p>
 </div><span id="structfield.allow_weak_iterations" class="structfield section-header"><a href="#structfield.allow_weak_iterations" class="anchor field">§</a><code>allow_weak_iterations: <a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.bool.html">bool</a></code></span><div class="docblock"><p>Bypass the OWASP-2023 PBKDF2 iteration floor (600,000). Reserved

@@ -7,9 +7,9 @@
     overwrite: <a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.bool.html">bool</a>,
 ) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.102/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.unit.html">()</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Write a single-component key to a JSON file using <code>PortableKey</code>.</p>
 <p><code>overwrite = false</code> refuses to clobber an existing file; <code>true</code> replaces.
-keygen now threads its <code>--force</code> flag through this surface
-so a re-run with <code>--force</code> no longer hits the partial-state bug
-(round-8 fix #4 wrote SK first to avoid orphan PKs; without <code>--force</code>,
-re-running orphans the SK retry on the existing-file refusal — symmetric
-failure mode in the inverse direction).</p>
+keygen threads its <code>--force</code> flag through this surface so a re-run
+with <code>--force</code> doesn’t hit the partial-state bug. The SK is written
+first to avoid orphan PKs; without <code>--force</code>, re-running orphans
+the SK retry on the existing-file refusal — symmetric failure mode
+in the inverse direction.</p>
 </div></details></section></div></main></body></html>

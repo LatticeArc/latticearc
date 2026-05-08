@@ -60,12 +60,12 @@ window), dated in the future beyond the clock-skew tolerance,
 OR the cryptographic check fails. <strong>All rejection causes
 produce the same <code>Ok(false)</code></strong> so callers cannot distinguish
 “stale, refresh and retry” from “wrong PoP” by branching on
-the Result. (Round-34 L7 changed the stale path from
-<code>Err(InvalidInput)</code> to <code>Ok(false)</code> to remove a side-channel
-that exposed server clock skew. Stale-vs-cryptographic-reject
-is logged at <code>tracing::debug!</code> for operators only — callers
-that need refresh logic should re-issue a fresh PoP and retry
-rather than branching on the error variant.)</p>
+the Result. The stale path returns <code>Ok(false)</code> rather than
+<code>Err(InvalidInput)</code> to avoid a side-channel that would expose
+server clock skew. Stale-vs-cryptographic-reject is logged at
+<code>tracing::debug!</code> for operators only — callers that need
+refresh logic should re-issue a fresh PoP and retry rather
+than branching on the error variant.</p>
 <h5 id="errors-8"><a class="doc-anchor" href="#errors-8">§</a>Errors</h5>
 <p>Returns <code>CoreError::InvalidInput</code> only if the signature
 format is structurally invalid (e.g. wrong length).</p>

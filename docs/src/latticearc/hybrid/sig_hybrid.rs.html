@@ -473,8 +473,8 @@
 <a href=#473 id=473 data-nosnippet>473</a>    // into the HybridSigSecretKey so the wrapping Zeroizing is preserved.
 <a href=#474 id=474 data-nosnippet>474</a>    </span><span class="kw">let </span>ed25519_sk_zeroizing = ed25519_kp.secret_key_bytes();
 <a href=#475 id=475 data-nosnippet>475</a>
-<a href=#476 id=476 data-nosnippet>476</a>    <span class="comment">// Round-35 H4: route construction through the validating
-<a href=#477 id=477 data-nosnippet>477</a>    // `HybridSigPublicKey::new` (round-34 L4) instead of building
+<a href=#476 id=476 data-nosnippet>476</a>    <span class="comment">// H4: route construction through the validating
+<a href=#477 id=477 data-nosnippet>477</a>    // `HybridSigPublicKey::new` instead of building
 <a href=#478 id=478 data-nosnippet>478</a>    // the struct literal directly. Direct construction here
 <a href=#479 id=479 data-nosnippet>479</a>    // bypassed the length-check L4 added — the production keygen
 <a href=#480 id=480 data-nosnippet>480</a>    // was the most-common construction path and the only one that
@@ -528,7 +528,7 @@
 <a href=#528 id=528 data-nosnippet>528</a>    // state; failures here indicate a programmer / storage bug, but keep the
 <a href=#529 id=529 data-nosnippet>529</a>    // public error uniform to avoid exposing upstream detail.
 <a href=#530 id=530 data-nosnippet>530</a>    //
-<a href=#531 id=531 data-nosnippet>531</a>    // the round-12 attempt at this
+<a href=#531 id=531 data-nosnippet>531</a>    // the prior attempt at this
 <a href=#532 id=532 data-nosnippet>532</a>    // wrapped the clone in `Zeroizing&lt;Vec&lt;u8&gt;&gt;` but then immediately
 <a href=#533 id=533 data-nosnippet>533</a>    // re-cloned to pass into `MlDsaSecretKey::new(... Vec&lt;u8&gt;)`,
 <a href=#534 id=534 data-nosnippet>534</a>    // creating a second bare copy that would leak on the `new()` error
@@ -699,7 +699,7 @@
 <a href=#699 id=699 data-nosnippet>699</a>            // below — its only purpose is to consume verify-time
 <a href=#700 id=700 data-nosnippet>700</a>            // wall-clock budget.
 <a href=#701 id=701 data-nosnippet>701</a>            </span><span class="prelude-val">Some</span>(parsed) =&gt; parsed.pq_pk.verify(<span class="kw-2">&amp;</span>parsed.pq_test_message, <span class="kw-2">&amp;</span>parsed.pq_sig, <span class="kw-2">&amp;</span>[]),
-<a href=#702 id=702 data-nosnippet>702</a>            <span class="comment">// Init keygen failed (extremely rare; round-29 L6 retries
+<a href=#702 id=702 data-nosnippet>702</a>            <span class="comment">// Init keygen failed (extremely rare; retries
 <a href=#703 id=703 data-nosnippet>703</a>            // on every call). Equalizer degraded; legacy fast-fail
 <a href=#704 id=704 data-nosnippet>704</a>            // behavior. Not a correctness regression because the bit
 <a href=#705 id=705 data-nosnippet>705</a>            // is computed below via AND with multiple guards.
@@ -772,7 +772,7 @@
 <a href=#772 id=772 data-nosnippet>772</a>            );
 <a href=#773 id=773 data-nosnippet>773</a>        }
 <a href=#774 id=774 data-nosnippet>774</a>        <span class="comment">// If `ed_dummy_parsed` is None (RNG/PCT init failure —
-<a href=#775 id=775 data-nosnippet>775</a>        // round-29 L6 retries on every call), fall through to the
+<a href=#775 id=775 data-nosnippet>775</a>        // retries on every call), fall through to the
 <a href=#776 id=776 data-nosnippet>776</a>        // legacy fast-fail. Bit is computed below via AND with
 <a href=#777 id=777 data-nosnippet>777</a>        // `pq_shape_ok` and `parse_ok.is_ok()`, so a degraded
 <a href=#778 id=778 data-nosnippet>778</a>        // equalizer cannot affect correctness.

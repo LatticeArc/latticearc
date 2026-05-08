@@ -504,7 +504,7 @@
 <a href=#504 id=504 data-nosnippet>504</a>    <span class="kw">fn </span>make_signed_data() -&gt; SignedData {
 <a href=#505 id=505 data-nosnippet>505</a>        <span class="comment">// The production sign path (`api.rs:1019-1029`) sets
 <a href=#506 id=506 data-nosnippet>506</a>        // `metadata.signature_algorithm = scheme.clone()` — the two
-<a href=#507 id=507 data-nosnippet>507</a>        // fields must agree on every produced record. Round-38's S4
+<a href=#507 id=507 data-nosnippet>507</a>        // fields must agree on every produced record.'s S4
 <a href=#508 id=508 data-nosnippet>508</a>        // fix elevates that producer-side guarantee to a deserializer
 <a href=#509 id=509 data-nosnippet>509</a>        // invariant, so test fixtures must match the production
 <a href=#510 id=510 data-nosnippet>510</a>        // shape. The earlier test data here used a mismatched pair
@@ -664,7 +664,7 @@
 <a href=#664 id=664 data-nosnippet>664</a>    <span class="comment">// --- EncryptedOutput serialization ---
 <a href=#665 id=665 data-nosnippet>665</a>
 <a href=#666 id=666 data-nosnippet>666</a>    </span><span class="kw">fn </span>make_encrypted_output_symmetric() -&gt; EncryptedOutput {
-<a href=#667 id=667 data-nosnippet>667</a>        <span class="comment">// Round-37 M5 (and round-39 L1+L2 tightening) require the
+<a href=#667 id=667 data-nosnippet>667</a>        <span class="comment">// M5 (and+L2 tightening) require the
 <a href=#668 id=668 data-nosnippet>668</a>        // top-level `nonce`/`tag` to match the embedded copies in
 <a href=#669 id=669 data-nosnippet>669</a>        // `ciphertext` for symmetric schemes — wire layout is
 <a href=#670 id=670 data-nosnippet>670</a>        // `nonce(12) || actual_ct || tag(16)`. Build the fixture
@@ -808,7 +808,7 @@
 <a href=#808 id=808 data-nosnippet>808</a>            EncryptionScheme::HybridMlKem1024Aes256Gcm,
 <a href=#809 id=809 data-nosnippet>809</a>        ];
 <a href=#810 id=810 data-nosnippet>810</a>        <span class="comment">// Symmetric schemes require `nonce(12) || ct || tag(16)`
-<a href=#811 id=811 data-nosnippet>811</a>        // packed in `ciphertext` (round-37 M5 + round-39 L1+L2). For
+<a href=#811 id=811 data-nosnippet>811</a>        // packed in `ciphertext`. For
 <a href=#812 id=812 data-nosnippet>812</a>        // hybrid schemes the layout is different — `ciphertext` is
 <a href=#813 id=813 data-nosnippet>813</a>        // just the AEAD output and the deserializer accepts any
 <a href=#814 id=814 data-nosnippet>814</a>        // matching pair. We construct a single packed buffer and

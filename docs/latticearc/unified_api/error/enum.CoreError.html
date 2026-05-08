@@ -128,7 +128,7 @@ category. Used as the catch-all destination when mapping
 </div><section id="variant.Replay" class="variant"><a href="#variant.Replay" class="anchor">§</a><h3 class="code-header">Replay</h3></section><div class="docblock"><p>A ciphertext was rejected because its stamped <code>EncryptedOutput.timestamp</code>
 is older than the receiver’s configured <code>CryptoConfig::max_age</code> window.</p>
 <p>Returned exclusively by the convenience-API replay-protection guard
-(round-6 audit fix). Distinct from <code>ResourceExceeded</code> (which signals
+. Distinct from <code>ResourceExceeded</code> (which signals
 “the data itself is too big”) so callers can pattern-match
 <code>CoreError::Replay { .. }</code> and react appropriately — e.g., prompt
 the sender to re-encrypt with a fresh timestamp, or alert on a
@@ -155,7 +155,7 @@ rejections vs. configuration tightening events; collapsing
 to the opaque <code>DecryptionError</code> would force them through
 private logs for a routine operational signal.</li>
 </ol>
-<p>Round-6 audit approved this carve-out; round-8 audit fix #6
+<p>audit approved this carve-out;
 requires the inline justification per <code>docs/DESIGN_PATTERNS.md</code>
 Pattern 12 (“inline <code>#[allow]</code> justification” convention).</p>
 </div><div class="sub-variant" id="variant.Replay.fields"><h4>Fields</h4><div class="sub-variant-field"><span id="variant.Replay.field.age_seconds" class="section-header"><a href="#variant.Replay.field.age_seconds" class="anchor field">§</a><code>age_seconds: <a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u64.html">u64</a></code></span><div class="docblock"><p>Observed age (seconds) — <code>now - encrypted.timestamp()</code>.</p>

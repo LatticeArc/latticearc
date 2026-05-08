@@ -20,8 +20,8 @@ once and using a <code>Take</code> adapter. The previous
 in this round — it stat’d via <code>metadata().len()</code>, which returns 0
 for <code>/dev/zero</code>, FIFOs, <code>/proc/*</code>, etc., letting the subsequent
 read consume unbounded bytes from those special files. The
-stat-then-open pattern was also a TOCTOU surface (round-26 H15
-fixed the same shape in <code>keyfile.rs</code>). This open-once helper is
+stat-then-open pattern was also a TOCTOU surface (the same shape
+was fixed in <code>keyfile.rs</code> separately). This open-once helper is
 the single canonical entry point for capped CLI reads — used by
 every command that takes a file path (encrypt / sign / hash /
 verify / kdf).</dd><dt><a class="fn" href="fn.read_stdin_string_with_limit.html" title="fn latticearc_cli::commands::common::read_stdin_string_with_limit">read_<wbr>stdin_<wbr>string_<wbr>with_<wbr>limit</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Read a UTF-8 string from stdin, capped at <code>limit_bytes</code>.</dd><dt><a class="fn" href="fn.read_stdin_with_limit.html" title="fn latticearc_cli::commands::common::read_stdin_with_limit">read_<wbr>stdin_<wbr>with_<wbr>limit</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Read bytes from stdin, capped at <code>limit_bytes</code>.</dd><dt><a class="fn" href="fn.resolve_ml_kem_level.html" title="fn latticearc_cli::commands::common::resolve_ml_kem_level">resolve_<wbr>ml_<wbr>kem_<wbr>level</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Resolve ML-KEM security level from a key file’s algorithm.</dd></dl></section></div></main></body></html>

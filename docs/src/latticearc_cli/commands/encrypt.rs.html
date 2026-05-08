@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a>/// Used by both the use-case-driven path and the expert-mode inference
 <a href=#28 id=28 data-nosnippet>28</a>/// to route pure-PQ keys away from the hybrid splitter (which would
 <a href=#29 id=29 data-nosnippet>29</a>/// misinterpret the trailing bytes as X25519 and produce garbage
-<a href=#30 id=30 data-nosnippet>30</a>/// ciphertext). Single source of truth — round-26 simplify pass.
+<a href=#30 id=30 data-nosnippet>30</a>/// ciphertext). Single source of truth — simplify pass.
 <a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">fn </span>is_pq_only_key(key_file: <span class="kw-2">&amp;</span>KeyFile) -&gt; bool {
 <a href=#32 id=32 data-nosnippet>32</a>    <span class="kw">use </span>latticearc::unified_api::key_format::KeyAlgorithm;
 <a href=#33 id=33 data-nosnippet>33</a>    <span class="macro">matches!</span>(
@@ -80,7 +80,7 @@
 <a href=#80 id=80 data-nosnippet>80</a>    </span><span class="attr">#[arg(short, long)]
 <a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">pub </span>key: PathBuf,
 <a href=#82 id=82 data-nosnippet>82</a>    <span class="doccomment">/// Overwrite the output file if it already exists. Default: false
-<a href=#83 id=83 data-nosnippet>83</a>    /// (refuses to clobber). Round-26 audit fix (H12).
+<a href=#83 id=83 data-nosnippet>83</a>    /// (refuses to clobber). audit fix (H12).
 <a href=#84 id=84 data-nosnippet>84</a>    </span><span class="attr">#[arg(long)]
 <a href=#85 id=85 data-nosnippet>85</a>    </span><span class="kw">pub </span>force: bool,
 <a href=#86 id=86 data-nosnippet>86</a>}
@@ -106,10 +106,10 @@
 <a href=#106 id=106 data-nosnippet>106</a>
 <a href=#107 id=107 data-nosnippet>107</a>    <span class="comment">// Expert path (or default). When `--mode` is omitted, infer it from
 <a href=#108 id=108 data-nosnippet>108</a>    // the key file's type — a hybrid PK should default to hybrid, a
-<a href=#109 id=109 data-nosnippet>109</a>    // symmetric key to AES-256-GCM. Without this inference (round-7
-<a href=#110 id=110 data-nosnippet>110</a>    // audit fix #12), passing a hybrid PK without `--mode hybrid`
-<a href=#111 id=111 data-nosnippet>111</a>    // produced "Expected symmetric key file, got Public" — accurate
-<a href=#112 id=112 data-nosnippet>112</a>    // but surprising for the common case.
+<a href=#109 id=109 data-nosnippet>109</a>    // symmetric key to AES-256-GCM. Without this inference, passing a
+<a href=#110 id=110 data-nosnippet>110</a>    // hybrid PK without `--mode hybrid` produces "Expected symmetric
+<a href=#111 id=111 data-nosnippet>111</a>    // key file, got Public" — accurate but surprising for the common
+<a href=#112 id=112 data-nosnippet>112</a>    // case.
 <a href=#113 id=113 data-nosnippet>113</a>    //
 <a href=#114 id=114 data-nosnippet>114</a>    // branch on the key's algorithm so
 <a href=#115 id=115 data-nosnippet>115</a>    // pure-PQ ML-KEM PKs are routed to `PqOnly` and hybrid
@@ -307,7 +307,7 @@
 <a href=#307 id=307 data-nosnippet>307</a>        <span class="prelude-val">Some</span>(p) =&gt; {
 <a href=#308 id=308 data-nosnippet>308</a>            <span class="comment">// Atomic write — closes the partial-file confidentiality
 <a href=#309 id=309 data-nosnippet>309</a>            // window for decrypted material at rest. Same helper the
-<a href=#310 id=310 data-nosnippet>310</a>            // keyfile writer uses (round-7 audit fix #18).
+<a href=#310 id=310 data-nosnippet>310</a>            // keyfile writer uses.
 <a href=#311 id=311 data-nosnippet>311</a>            // only overwrite when --force is
 <a href=#312 id=312 data-nosnippet>312</a>            // passed; otherwise refuse to clobber, matching keygen's
 <a href=#313 id=313 data-nosnippet>313</a>            // default-safe behavior.
@@ -322,9 +322,9 @@
 <a href=#322 id=322 data-nosnippet>322</a>        }
 <a href=#323 id=323 data-nosnippet>323</a>        <span class="prelude-val">None </span>=&gt; {
 <a href=#324 id=324 data-nosnippet>324</a>            <span class="comment">// `print!` (not `println!`) — byte-exact stdout for
-<a href=#325 id=325 data-nosnippet>325</a>            // pipelines that hash or chain into other tools (round-7
-<a href=#326 id=326 data-nosnippet>326</a>            // audit fix #14). Callers that want a trailing newline can
-<a href=#327 id=327 data-nosnippet>327</a>            // redirect through `cat` or append themselves.
+<a href=#325 id=325 data-nosnippet>325</a>            // pipelines that hash or chain into other tools. Callers
+<a href=#326 id=326 data-nosnippet>326</a>            // that want a trailing newline can redirect through `cat`
+<a href=#327 id=327 data-nosnippet>327</a>            // or append themselves.
 <a href=#328 id=328 data-nosnippet>328</a>            </span><span class="macro">print!</span>(<span class="string">"{data}"</span>);
 <a href=#329 id=329 data-nosnippet>329</a>        }
 <a href=#330 id=330 data-nosnippet>330</a>    }

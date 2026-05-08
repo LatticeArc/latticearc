@@ -98,7 +98,7 @@
 <a href=#98 id=98 data-nosnippet>98</a></span><span class="kw">pub struct </span>HybridCiphertext {
 <a href=#99 id=99 data-nosnippet>99</a>    <span class="doccomment">/// ML-KEM ciphertext for key decapsulation (1088 bytes for ML-KEM-768).
 <a href=#100 id=100 data-nosnippet>100</a>    </span>kem_ciphertext: Vec&lt;u8&gt;,
-<a href=#101 id=101 data-nosnippet>101</a>    <span class="doccomment">/// X25519 ephemeral public key for ECDH (exactly 32 bytes). Round-20
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="doccomment">/// X25519 ephemeral public key for ECDH (exactly 32 bytes).
 <a href=#102 id=102 data-nosnippet>102</a>    /// audit fix #13: previously documented as "Empty for legacy ML-KEM-
 <a href=#103 id=103 data-nosnippet>103</a>    /// only ciphertexts." That contract was always dead — `decrypt_hybrid`
 <a href=#104 id=104 data-nosnippet>104</a>    /// rejects any `len() != 32` (see `decrypt_hybrid` validation block).
@@ -144,7 +144,7 @@
 <a href=#144 id=144 data-nosnippet>144</a>    /// The legacy "empty for ML-KEM-only ciphertexts" contract was
 <a href=#145 id=145 data-nosnippet>145</a>    /// always dead — `decrypt_hybrid` rejected anything other than 32
 <a href=#146 id=146 data-nosnippet>146</a>    /// bytes. See the field doc on
-<a href=#147 id=147 data-nosnippet>147</a>    /// [`HybridCiphertext::ecdh_ephemeral_pk`] above for the round-20
+<a href=#147 id=147 data-nosnippet>147</a>    /// [`HybridCiphertext::ecdh_ephemeral_pk`] above for the
 <a href=#148 id=148 data-nosnippet>148</a>    /// audit trail.
 <a href=#149 id=149 data-nosnippet>149</a>    </span><span class="attr">#[must_use]
 <a href=#150 id=150 data-nosnippet>150</a>    </span><span class="kw">pub fn </span>ecdh_ephemeral_pk(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
@@ -316,7 +316,7 @@
 <a href=#316 id=316 data-nosnippet>316</a>    /// hybrid PK).
 <a href=#317 id=317 data-nosnippet>317</a>    </span><span class="kw">pub </span>recipient_static_pk: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
 <a href=#318 id=318 data-nosnippet>318</a>    <span class="doccomment">/// Recipient's static ML-KEM public key (the PQ leg of the hybrid
-<a href=#319 id=319 data-nosnippet>319</a>    /// PK). Round-26 audit fix (M4 / M19): bound here so the AEAD KDF
+<a href=#319 id=319 data-nosnippet>319</a>    /// PK). audit fix (M4 / M19): bound here so the AEAD KDF
 <a href=#320 id=320 data-nosnippet>320</a>    /// info channel-binds the FULL hybrid recipient identity, not just
 <a href=#321 id=321 data-nosnippet>321</a>    /// its X25519 half. The previous binding only bound X25519
 <a href=#322 id=322 data-nosnippet>322</a>    /// directly; the ML-KEM half was bound only transitively via the
@@ -417,7 +417,7 @@
 <a href=#417 id=417 data-nosnippet>417</a>    //   [info_len][info]
 <a href=#418 id=418 data-nosnippet>418</a>    //   [aad_len][aad]
 <a href=#419 id=419 data-nosnippet>419</a>    //   [recipient_x25519_pk_len][recipient_x25519_pk]   ── Pattern 7 / channel binding
-<a href=#420 id=420 data-nosnippet>420</a>    //   [recipient_ml_kem_pk_len][recipient_ml_kem_pk]   ── round-26 fix M4/M19
+<a href=#420 id=420 data-nosnippet>420</a>    //   [recipient_ml_kem_pk_len][recipient_ml_kem_pk]   ── fix M4/M19
 <a href=#421 id=421 data-nosnippet>421</a>    //   [ephemeral_pk_len][ephemeral_pk]                 ── ditto
 <a href=#422 id=422 data-nosnippet>422</a>    //   [kem_ct_len][kem_ct]                             ── ditto
 <a href=#423 id=423 data-nosnippet>423</a>    //
@@ -503,7 +503,7 @@
 <a href=#503 id=503 data-nosnippet>503</a>
 <a href=#504 id=504 data-nosnippet>504</a>    <span class="comment">// DoS bound on AAD: rejected up-front before any KEM / KDF / AEAD
 <a href=#505 id=505 data-nosnippet>505</a>    // work runs, so an oversized AAD cannot consume cryptographic budget.
-<a href=#506 id=506 data-nosnippet>506</a>    // See `HybridEncryptionContext::MAX_AAD_LEN`. Round-20 audit fix #4:
+<a href=#506 id=506 data-nosnippet>506</a>    // See `HybridEncryptionContext::MAX_AAD_LEN`.
 <a href=#507 id=507 data-nosnippet>507</a>    // collapse to opaque InvalidInput (matching decrypt-side opacity at
 <a href=#508 id=508 data-nosnippet>508</a>    // `decrypt_hybrid:538`) so the encrypt path doesn't disclose the
 <a href=#509 id=509 data-nosnippet>509</a>    // observed AAD length and the cap as a probable-bound oracle. Source-

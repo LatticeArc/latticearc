@@ -575,7 +575,7 @@
 <a href=#575 id=575 data-nosnippet>575</a>    // (GCMVS), file `gcmEncryptExtIV256.rsp`, Count = 12. URL:
 <a href=#576 id=576 data-nosnippet>576</a>    //   https://csrc.nist.gov/Projects/Cryptographic-Algorithm-Validation-Program/CAVP-TESTING-BLOCK-CIPHER-MODES#GCMVS
 <a href=#577 id=577 data-nosnippet>577</a>    //
-<a href=#578 id=578 data-nosnippet>578</a>    // Round-26 audit fix (C4) replaced the previous self-computed
+<a href=#578 id=578 data-nosnippet>578</a>    // audit fix (C4) replaced the previous self-computed
 <a href=#579 id=579 data-nosnippet>579</a>    // vector with this CAVP entry to satisfy FIPS 140-3 §10.3.1's
 <a href=#580 id=580 data-nosnippet>580</a>    // requirement that power-up KATs use externally-attested vectors
 <a href=#581 id=581 data-nosnippet>581</a>    // — a self-roundtrip would pass even if encrypt and decrypt shared
@@ -1483,7 +1483,7 @@
 <a href=#1483 id=1483 data-nosnippet>1483</a>/// ```
 <a href=#1484 id=1484 data-nosnippet>1484</a></span><span class="attr">#[must_use]
 <a href=#1485 id=1485 data-nosnippet>1485</a></span><span class="kw">pub fn </span>is_module_operational() -&gt; bool {
-<a href=#1486 id=1486 data-nosnippet>1486</a>    <span class="comment">// Round-36 M1: use SeqCst loads to match the SeqCst stores in
+<a href=#1486 id=1486 data-nosnippet>1486</a>    <span class="comment">// M1: use SeqCst loads to match the SeqCst stores in
 <a href=#1487 id=1487 data-nosnippet>1487</a>    // `set_module_error`. Acquire-only loads synchronize with each
 <a href=#1488 id=1488 data-nosnippet>1488</a>    // location's own Release store but do NOT preserve a single
 <a href=#1489 id=1489 data-nosnippet>1489</a>    // total order across MODULE_ERROR_CODE and SELF_TEST_PASSED;

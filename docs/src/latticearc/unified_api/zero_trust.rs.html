@@ -463,7 +463,7 @@
 <a href=#463 id=463 data-nosnippet>463</a>        <span class="self">self</span>.trust_level
 <a href=#464 id=464 data-nosnippet>464</a>    }
 <a href=#465 id=465 data-nosnippet>465</a>
-<a href=#466 id=466 data-nosnippet>466</a>    <span class="doccomment">/// Downgrade the session's trust level. Round-29 M3: previously the
+<a href=#466 id=466 data-nosnippet>466</a>    <span class="doccomment">/// Downgrade the session's trust level. M3: previously the
 <a href=#467 id=467 data-nosnippet>467</a>    /// `trust_level` field was set once at construction (always to
 <a href=#468 id=468 data-nosnippet>468</a>    /// `Trusted`) and no public mutator existed, so the
 <a href=#469 id=469 data-nosnippet>469</a>    /// `Trusted -&gt; Partial -&gt; Untrusted` transitions described in the
@@ -594,7 +594,7 @@
 <a href=#594 id=594 data-nosnippet>594</a>    /// async tasks and multi-threaded callers; an `Arc&lt;ZeroTrustAuth&gt;`
 <a href=#595 id=595 data-nosnippet>595</a>    /// shared between Tokio workers must compile.
 <a href=#596 id=596 data-nosnippet>596</a>    </span>last_verification: Mutex&lt;<span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;&gt;,
-<a href=#597 id=597 data-nosnippet>597</a>    <span class="doccomment">/// Replay cache for proofs-of-possession (round-26 audit fix M16).
+<a href=#597 id=597 data-nosnippet>597</a>    <span class="doccomment">/// Replay cache for proofs-of-possession.
 <a href=#598 id=598 data-nosnippet>598</a>    /// Keyed on `pk || sig || ts_micros_be` (microsecond precision —
 <a href=#599 id=599 data-nosnippet>599</a>    /// see the M16 follow-up note in `generate_pop` for why second
 <a href=#600 id=600 data-nosnippet>600</a>    /// precision was insufficient under Ed25519's deterministic
@@ -784,7 +784,7 @@
 <a href=#784 id=784 data-nosnippet>784</a>        // the verifier's Medium policy (or vice versa). Pin the field
 <a href=#785 id=785 data-nosnippet>785</a>        // by requiring it to match the verifier's expected complexity;
 <a href=#786 id=786 data-nosnippet>786</a>        // mismatch collapses to `Ok(false)` (Pattern 6 — no
-<a href=#787 id=787 data-nosnippet>787</a>        // distinguishable error per round-26 audit posture).
+<a href=#787 id=787 data-nosnippet>787</a>        // distinguishable error per audit posture).
 <a href=#788 id=788 data-nosnippet>788</a>        </span><span class="kw">if </span>proof.complexity() != <span class="kw-2">&amp;</span><span class="self">self</span>.config.proof_complexity {
 <a href=#789 id=789 data-nosnippet>789</a>            <span class="macro">tracing::debug!</span>(
 <a href=#790 id=790 data-nosnippet>790</a>                expected = <span class="question-mark">?</span><span class="self">self</span>.config.proof_complexity,
@@ -878,12 +878,12 @@
 <a href=#878 id=878 data-nosnippet>878</a>    /// OR the cryptographic check fails. **All rejection causes
 <a href=#879 id=879 data-nosnippet>879</a>    /// produce the same `Ok(false)`** so callers cannot distinguish
 <a href=#880 id=880 data-nosnippet>880</a>    /// "stale, refresh and retry" from "wrong PoP" by branching on
-<a href=#881 id=881 data-nosnippet>881</a>    /// the Result. (Round-34 L7 changed the stale path from
-<a href=#882 id=882 data-nosnippet>882</a>    /// `Err(InvalidInput)` to `Ok(false)` to remove a side-channel
-<a href=#883 id=883 data-nosnippet>883</a>    /// that exposed server clock skew. Stale-vs-cryptographic-reject
-<a href=#884 id=884 data-nosnippet>884</a>    /// is logged at `tracing::debug!` for operators only — callers
-<a href=#885 id=885 data-nosnippet>885</a>    /// that need refresh logic should re-issue a fresh PoP and retry
-<a href=#886 id=886 data-nosnippet>886</a>    /// rather than branching on the error variant.)
+<a href=#881 id=881 data-nosnippet>881</a>    /// the Result. The stale path returns `Ok(false)` rather than
+<a href=#882 id=882 data-nosnippet>882</a>    /// `Err(InvalidInput)` to avoid a side-channel that would expose
+<a href=#883 id=883 data-nosnippet>883</a>    /// server clock skew. Stale-vs-cryptographic-reject is logged at
+<a href=#884 id=884 data-nosnippet>884</a>    /// `tracing::debug!` for operators only — callers that need
+<a href=#885 id=885 data-nosnippet>885</a>    /// refresh logic should re-issue a fresh PoP and retry rather
+<a href=#886 id=886 data-nosnippet>886</a>    /// than branching on the error variant.
 <a href=#887 id=887 data-nosnippet>887</a>    ///
 <a href=#888 id=888 data-nosnippet>888</a>    /// # Errors
 <a href=#889 id=889 data-nosnippet>889</a>    ///
@@ -1388,7 +1388,7 @@
 <a href=#1388 id=1388 data-nosnippet>1388</a>
 <a href=#1389 id=1389 data-nosnippet>1389</a>        <span class="comment">// Append the timestamp to the proof bytes so the verifier can
 <a href=#1390 id=1390 data-nosnippet>1390</a>        // recover it. All three complexity levels now carry a timestamp
-<a href=#1391 id=1391 data-nosnippet>1391</a>        // suffix (round-11 audit fix #16); older proofs without the
+<a href=#1391 id=1391 data-nosnippet>1391</a>        // suffix; older proofs without the
 <a href=#1392 id=1392 data-nosnippet>1392</a>        // suffix will fail length check at verify time.
 <a href=#1393 id=1393 data-nosnippet>1393</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>proof = signature;
 <a href=#1394 id=1394 data-nosnippet>1394</a>        proof.extend_from_slice(<span class="kw-2">&amp;</span>timestamp);
@@ -2162,7 +2162,7 @@
 <a href=#2162 id=2162 data-nosnippet>2162</a>    </span><span class="attr">#[test]
 <a href=#2163 id=2163 data-nosnippet>2163</a>    </span><span class="kw">fn </span>test_security_mode_explicit_unverified_succeeds() {
 <a href=#2164 id=2164 data-nosnippet>2164</a>        <span class="comment">// Pinning the explicit-construction shape after `impl Default for
-<a href=#2165 id=2165 data-nosnippet>2165</a>        // SecurityMode` was removed (round-6 audit fix #5). Callers must
+<a href=#2165 id=2165 data-nosnippet>2165</a>        // SecurityMode` was removed. Callers must
 <a href=#2166 id=2166 data-nosnippet>2166</a>        // now opt into `Unverified` by name; this test guards the variant's
 <a href=#2167 id=2167 data-nosnippet>2167</a>        // behaviour, not the (deliberately-absent) `Default` impl.
 <a href=#2168 id=2168 data-nosnippet>2168</a>        </span><span class="kw">let </span>mode = SecurityMode::Unverified;
@@ -2626,7 +2626,7 @@
 <a href=#2626 id=2626 data-nosnippet>2626</a>    }
 <a href=#2627 id=2627 data-nosnippet>2627</a>
 <a href=#2628 id=2628 data-nosnippet>2628</a>    <span class="comment">// regression coverage for the
-<a href=#2629 id=2629 data-nosnippet>2629</a>    // round-12 L-3 fix that capped forward clock-skew tolerance at
+<a href=#2629 id=2629 data-nosnippet>2629</a>    // L-3 fix that capped forward clock-skew tolerance at
 <a href=#2630 id=2630 data-nosnippet>2630</a>    // 30 s on `verify_proof`. Previously `now_ms.abs_diff(proof_ts_ms)
 <a href=#2631 id=2631 data-nosnippet>2631</a>    // &gt; 300_000` allowed proofs up to 5 min in the future; an
 <a href=#2632 id=2632 data-nosnippet>2632</a>    // attacker with a forward-skewed clock got a 10-min replay

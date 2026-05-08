@@ -155,8 +155,8 @@
 <a href=#155 id=155 data-nosnippet>155</a>/// in this round — it stat'd via `metadata().len()`, which returns 0
 <a href=#156 id=156 data-nosnippet>156</a>/// for `/dev/zero`, FIFOs, `/proc/*`, etc., letting the subsequent
 <a href=#157 id=157 data-nosnippet>157</a>/// read consume unbounded bytes from those special files. The
-<a href=#158 id=158 data-nosnippet>158</a>/// stat-then-open pattern was also a TOCTOU surface (round-26 H15
-<a href=#159 id=159 data-nosnippet>159</a>/// fixed the same shape in `keyfile.rs`). This open-once helper is
+<a href=#158 id=158 data-nosnippet>158</a>/// stat-then-open pattern was also a TOCTOU surface (the same shape
+<a href=#159 id=159 data-nosnippet>159</a>/// was fixed in `keyfile.rs` separately). This open-once helper is
 <a href=#160 id=160 data-nosnippet>160</a>/// the single canonical entry point for capped CLI reads — used by
 <a href=#161 id=161 data-nosnippet>161</a>/// every command that takes a file path (encrypt / sign / hash /
 <a href=#162 id=162 data-nosnippet>162</a>/// verify / kdf).
@@ -182,9 +182,9 @@
 <a href=#182 id=182 data-nosnippet>182</a>    </span><span class="kw">let </span>allow_symlinks = std::env::var(<span class="string">"LATTICEARC_ALLOW_SYMLINK_INPUT"</span>)
 <a href=#183 id=183 data-nosnippet>183</a>        .ok()
 <a href=#184 id=184 data-nosnippet>184</a>        .is_some_and(|v| v == <span class="string">"1" </span>|| v.eq_ignore_ascii_case(<span class="string">"true"</span>));
-<a href=#185 id=185 data-nosnippet>185</a>    <span class="comment">// Round-35 M10: open with `O_NOFOLLOW` (when symlinks are
+<a href=#185 id=185 data-nosnippet>185</a>    <span class="comment">// M10: open with `O_NOFOLLOW` (when symlinks are
 <a href=#186 id=186 data-nosnippet>186</a>    // disallowed) so the symlink check happens atomically at open
-<a href=#187 id=187 data-nosnippet>187</a>    // time. The previous round-34 L1 form did `symlink_metadata`
+<a href=#187 id=187 data-nosnippet>187</a>    // time. The previous form did `symlink_metadata`
 <a href=#188 id=188 data-nosnippet>188</a>    // followed by a separate `File::open` — a swap on /tmp between
 <a href=#189 id=189 data-nosnippet>189</a>    // the two syscalls would defeat the guard. On Windows, the
 <a href=#190 id=190 data-nosnippet>190</a>    // `O_NOFOLLOW`-equivalent isn't standard; fall back to the stat
@@ -237,7 +237,7 @@
 <a href=#237 id=237 data-nosnippet>237</a>            <span class="kw">if </span>!allow_symlinks {
 <a href=#238 id=238 data-nosnippet>238</a>                <span class="comment">// O_NOFOLLOW: open() returns ELOOP if the final path
 <a href=#239 id=239 data-nosnippet>239</a>                // component is a symlink. Atomic with the open;
-<a href=#240 id=240 data-nosnippet>240</a>                // closes the round-34 L1 stat-then-open TOCTOU.
+<a href=#240 id=240 data-nosnippet>240</a>                // closes the prior L1 stat-then-open TOCTOU.
 <a href=#241 id=241 data-nosnippet>241</a>                </span>opts.custom_flags(O_NOFOLLOW);
 <a href=#242 id=242 data-nosnippet>242</a>            }
 <a href=#243 id=243 data-nosnippet>243</a>            opts.open(path).map_err(|e| {
@@ -320,7 +320,7 @@
 <a href=#320 id=320 data-nosnippet>320</a>///
 <a href=#321 id=321 data-nosnippet>321</a>/// Centralises the duplicated `if let Some(path) = … else stdin`
 <a href=#322 id=322 data-nosnippet>322</a>/// pattern that previously lived in encrypt / decrypt / sign / verify /
-<a href=#323 id=323 data-nosnippet>323</a>/// hash. Round-8 audit fix #13.
+<a href=#323 id=323 data-nosnippet>323</a>/// hash.
 <a href=#324 id=324 data-nosnippet>324</a>///
 <a href=#325 id=325 data-nosnippet>325</a>/// # Errors
 <a href=#326 id=326 data-nosnippet>326</a>///

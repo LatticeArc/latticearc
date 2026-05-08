@@ -171,13 +171,13 @@
 <a href=#171 id=171 data-nosnippet>171</a>    <span class="doccomment">/// Message length exceeds the configured resource limit.
 <a href=#172 id=172 data-nosnippet>172</a>    ///
 <a href=#173 id=173 data-nosnippet>173</a>    /// kept for ABI compatibility but no longer returned from
-<a href=#174 id=174 data-nosnippet>174</a>    /// `sign()` — the cap-rejection now collapses to `SigningError` so the
-<a href=#175 id=175 data-nosnippet>175</a>    /// sign path matches Pattern 6 opacity (round-26 M1 closed the verify
-<a href=#176 id=176 data-nosnippet>176</a>    /// side; this completes the sign-side symmetry). Mirrors the
-<a href=#177 id=177 data-nosnippet>177</a>    /// deprecation on `SlhDsaError::MessageTooLong` and
-<a href=#178 id=178 data-nosnippet>178</a>    /// `FnDsaError::MessageTooLong`. Will be removed in a future major
-<a href=#179 id=179 data-nosnippet>179</a>    /// bump alongside its siblings.
-<a href=#180 id=180 data-nosnippet>180</a>    </span><span class="attr">#[deprecated(note = <span class="string">"Round-28 H7: sign() now returns SigningError for cap rejection; \
+<a href=#174 id=174 data-nosnippet>174</a>    /// `sign()` — the cap-rejection now collapses to `SigningError`
+<a href=#175 id=175 data-nosnippet>175</a>    /// so the sign path matches Pattern 6 opacity (verify-side
+<a href=#176 id=176 data-nosnippet>176</a>    /// already collapsed; this completes sign-side symmetry). Mirrors
+<a href=#177 id=177 data-nosnippet>177</a>    /// the deprecation on `SlhDsaError::MessageTooLong` and
+<a href=#178 id=178 data-nosnippet>178</a>    /// `FnDsaError::MessageTooLong`. Will be removed in a future
+<a href=#179 id=179 data-nosnippet>179</a>    /// major bump alongside its siblings.
+<a href=#180 id=180 data-nosnippet>180</a>    </span><span class="attr">#[deprecated(note = <span class="string">"sign() now returns SigningError for cap rejection; \
 <a href=#181 id=181 data-nosnippet>181</a>                this variant is no longer reachable from production code."</span>)]
 <a href=#182 id=182 data-nosnippet>182</a>    #[error(<span class="string">"Message exceeds signature resource limit"</span>)]
 <a href=#183 id=183 data-nosnippet>183</a>    </span>MessageTooLong,
@@ -242,9 +242,9 @@
 <a href=#242 id=242 data-nosnippet>242</a>        // signature (sign-side rejects), but the audit's principle is
 <a href=#243 id=243 data-nosnippet>243</a>        // to fail explicitly here rather than rely on the verifier to
 <a href=#244 id=244 data-nosnippet>244</a>        // produce a Boolean false on mismatched canonicalization.
-<a href=#245 id=245 data-nosnippet>245</a>        // Collapsed to the same opaque `VerificationError` (round-26
-<a href=#246 id=246 data-nosnippet>246</a>        // M1 Pattern 6 posture — no distinguishable `ContextTooLong`
-<a href=#247 id=247 data-nosnippet>247</a>        // variant on the verify path).
+<a href=#245 id=245 data-nosnippet>245</a>        // Collapsed to the same opaque `VerificationError` (Pattern 6
+<a href=#246 id=246 data-nosnippet>246</a>        // posture — no distinguishable `ContextTooLong` variant on the
+<a href=#247 id=247 data-nosnippet>247</a>        // verify path).
 <a href=#248 id=248 data-nosnippet>248</a>        </span><span class="kw">if </span>context.len() &gt; <span class="number">255 </span>{
 <a href=#249 id=249 data-nosnippet>249</a>            <span class="macro">tracing::debug!</span>(
 <a href=#250 id=250 data-nosnippet>250</a>                ctx_len = context.len(),
@@ -406,9 +406,9 @@
 <a href=#406 id=406 data-nosnippet>406</a>    ///
 <a href=#407 id=407 data-nosnippet>407</a>    /// `context` is the FIPS 204 context string; pass `&amp;[]` for domain-neutral
 <a href=#408 id=408 data-nosnippet>408</a>    /// signatures. Messages longer than the configured resource limit are
-<a href=#409 id=409 data-nosnippet>409</a>    /// rejected with [`MlDsaError::SigningError`] (round-28 H7 collapsed
-<a href=#410 id=410 data-nosnippet>410</a>    /// the previous `MessageTooLong` variant for Pattern 6 sign-side
-<a href=#411 id=411 data-nosnippet>411</a>    /// opacity; the `MessageTooLong` variant is now `#[deprecated]`).
+<a href=#409 id=409 data-nosnippet>409</a>    /// rejected with [`MlDsaError::SigningError`] — the previous
+<a href=#410 id=410 data-nosnippet>410</a>    /// `MessageTooLong` variant collapsed for Pattern 6 sign-side
+<a href=#411 id=411 data-nosnippet>411</a>    /// opacity and is now `#[deprecated]`.
 <a href=#412 id=412 data-nosnippet>412</a>    ///
 <a href=#413 id=413 data-nosnippet>413</a>    /// # Errors
 <a href=#414 id=414 data-nosnippet>414</a>    /// Returns `MlDsaError::SigningError` (Pattern-6 opaque) if:
@@ -422,7 +422,7 @@
 <a href=#422 id=422 data-nosnippet>422</a>        // `SIGN_ERR_MSG` and the cause is logged via tracing::debug!
 <a href=#423 id=423 data-nosnippet>423</a>        // only. Distinguishable variants would let an attacker probe
 <a href=#424 id=424 data-nosnippet>424</a>        // message length / context length / SK shape from error wording
-<a href=#425 id=425 data-nosnippet>425</a>        // (round-26 M1, round-28 H7, round-29 H2, round-30 M3).
+<a href=#425 id=425 data-nosnippet>425</a>        //.
 <a href=#426 id=426 data-nosnippet>426</a>        </span><span class="kw">const </span>SIGN_ERR_MSG: <span class="kw-2">&amp;</span>str = <span class="string">"ML-DSA signing failed"</span>;
 <a href=#427 id=427 data-nosnippet>427</a>        <span class="kw">let </span>opaque_sign_err = || MlDsaError::SigningError(SIGN_ERR_MSG.to_string());
 <a href=#428 id=428 data-nosnippet>428</a>
@@ -583,8 +583,8 @@
 <a href=#583 id=583 data-nosnippet>583</a>    /// need an owned, zeroize-on-drop copy (e.g. for serialization).
 <a href=#584 id=584 data-nosnippet>584</a>    </span><span class="attr">#[must_use]
 <a href=#585 id=585 data-nosnippet>585</a>    </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Zeroizing&lt;Vec&lt;u8&gt;&gt; {
-<a href=#586 id=586 data-nosnippet>586</a>        <span class="comment">// `self.data` is `Zeroizing&lt;Vec&lt;u8&gt;&gt;` post round-13; deref to
-<a href=#587 id=587 data-nosnippet>587</a>        // the slice and re-allocate into a fresh zeroizing copy.
+<a href=#586 id=586 data-nosnippet>586</a>        <span class="comment">// `self.data` is `Zeroizing&lt;Vec&lt;u8&gt;&gt;`; deref to the slice and
+<a href=#587 id=587 data-nosnippet>587</a>        // re-allocate into a fresh zeroizing copy.
 <a href=#588 id=588 data-nosnippet>588</a>        </span>Zeroizing::new(<span class="self">self</span>.data.to_vec())
 <a href=#589 id=589 data-nosnippet>589</a>    }
 <a href=#590 id=590 data-nosnippet>590</a>}
@@ -1371,7 +1371,7 @@
 <a href=#1371 id=1371 data-nosnippet>1371</a>    }
 <a href=#1372 id=1372 data-nosnippet>1372</a>
 <a href=#1373 id=1373 data-nosnippet>1373</a>    <span class="doccomment">/// An oversized message must be rejected by `sign()` before
-<a href=#1374 id=1374 data-nosnippet>1374</a>    /// reaching the upstream crate. Round-28 collapsed the
+<a href=#1374 id=1374 data-nosnippet>1374</a>    /// reaching the upstream crate. collapsed the
 <a href=#1375 id=1375 data-nosnippet>1375</a>    /// cap-rejection variant to the opaque
 <a href=#1376 id=1376 data-nosnippet>1376</a>    /// `SigningError` (was distinguishable `MessageTooLong`) so a caller
 <a href=#1377 id=1377 data-nosnippet>1377</a>    /// probing the cap cannot recover its configured value from the
