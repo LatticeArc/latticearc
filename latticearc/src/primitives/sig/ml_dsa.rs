@@ -233,7 +233,7 @@ impl MlDsaPublicKey {
         // lengths and binary-search the configured cap from the error
         // shape — a slow leak of operator config.
         if let Err(e) = crate::primitives::resource_limits::validate_signature_size(message.len()) {
-            tracing::debug!(error = ?e, msg_len = message.len(), "ML-DSA verify rejected: message exceeds resource limit");
+            tracing::debug!(error = %e, msg_len = message.len(), "ML-DSA verify rejected: message exceeds resource limit");
             return Err(MlDsaError::VerificationError("verification failed".to_string()));
         }
 
@@ -429,7 +429,7 @@ impl MlDsaSecretKey {
         // DoS bound: primitive callers bypass unified_api's resource limits.
         crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
             |e| {
-                tracing::debug!(error = ?e, msg_len = message.len(), "ML-DSA sign rejected: resource limit");
+                tracing::debug!(error = %e, msg_len = message.len(), "ML-DSA sign rejected: resource limit");
                 opaque_sign_err()
             },
         )?;
@@ -447,6 +447,13 @@ impl MlDsaSecretKey {
             MlDsaParameterSet::MlDsa65 => "ML-DSA-65",
             MlDsaParameterSet::MlDsa87 => "ML-DSA-87",
         };
+        // `?e` is intentional here (NOT `%e`): the closure parameter is
+        // typed `&dyn std::fmt::Debug`, the upstream errors are internal
+        // `MlDsa*Error` variants whose Debug repr is bounded (no anyhow
+        // chain walking), and there is no attacker-controlled input
+        // mixed in. The tracing-observability contract on `%e` applies
+        // to `anyhow::Error` wrapping `serde_json` / `base64` — not to
+        // closure-typed Debug sinks like this one.
         let log_reject = |stage: &'static str, e: &dyn std::fmt::Debug| {
             tracing::debug!(error = ?e, parameter_set = ps_label, "ML-DSA sign rejected: {stage}");
         };
@@ -1371,11 +1378,10 @@ mod tests {
     }
 
     /// An oversized message must be rejected by `sign()` before
-    /// reaching the upstream crate. collapsed the
-    /// cap-rejection variant to the opaque
-    /// `SigningError` (was distinguishable `MessageTooLong`) so a caller
-    /// probing the cap cannot recover its configured value from the
-    /// returned variant.
+    /// reaching the upstream crate. The cap-rejection variant
+    /// collapsed to the opaque `SigningError` (was a distinguishable
+    /// `MessageTooLong`) so a caller probing the cap cannot recover
+    /// its configured value from the returned variant.
     #[test]
     fn test_ml_dsa_sign_oversized_message_rejects_opaquely() {
         let (_pk, sk) =

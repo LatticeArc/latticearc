@@ -338,7 +338,7 @@ impl VerifyingKey {
         // verification-failure variant. `MessageTooLong` on verify
         // leaked the configured cap to a probing attacker.
         if let Err(e) = crate::primitives::resource_limits::validate_signature_size(message.len()) {
-            tracing::debug!(error = ?e, msg_len = message.len(), "SLH-DSA verify rejected: message exceeds resource limit");
+            tracing::debug!(error = %e, msg_len = message.len(), "SLH-DSA verify rejected: message exceeds resource limit");
             return Err(SlhDsaError::VerificationFailed);
         }
 
@@ -722,7 +722,7 @@ impl SigningKey {
         // operator diagnostics.
         crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
             |e| {
-                tracing::debug!(error = ?e, msg_len = message.len(), "SLH-DSA sign rejected: message exceeds resource limit");
+                tracing::debug!(error = %e, msg_len = message.len(), "SLH-DSA sign rejected: message exceeds resource limit");
                 SlhDsaError::SigningFailed
             },
         )?;

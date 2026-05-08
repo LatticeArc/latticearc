@@ -257,7 +257,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         // distinguisher.
         let expected_challenge =
             self.compute_challenge(statement, proof.commitment(), context).map_err(|e| {
-                tracing::debug!(error = ?e, "FiatShamir::verify rejected: challenge hash");
+                tracing::debug!(error = %e, "FiatShamir::verify rejected: challenge hash");
                 ZkpError::VerificationFailed
             })?;
 
@@ -268,11 +268,11 @@ impl<P: SigmaProtocol> FiatShamir<P> {
 
         // Deserialize and verify
         let commitment = self.protocol.deserialize_commitment(proof.commitment()).map_err(|e| {
-            tracing::debug!(error = ?e, "FiatShamir::verify rejected: commitment deserialize");
+            tracing::debug!(error = %e, "FiatShamir::verify rejected: commitment deserialize");
             ZkpError::VerificationFailed
         })?;
         let response = self.protocol.deserialize_response(proof.response()).map_err(|e| {
-            tracing::debug!(error = ?e, "FiatShamir::verify rejected: response deserialize");
+            tracing::debug!(error = %e, "FiatShamir::verify rejected: response deserialize");
             ZkpError::VerificationFailed
         })?;
 
@@ -652,7 +652,7 @@ impl DlogEqualityProof {
         // `tracing::debug!` for operators.
         let parse_or_fail = |result: Result<k256::ProjectivePoint>| {
             result.map_err(|e| {
-                tracing::debug!(error = ?e, "DlogEqualityProof::verify rejected: point parse");
+                tracing::debug!(error = %e, "DlogEqualityProof::verify rejected: point parse");
                 ZkpError::VerificationFailed
             })
         };
@@ -666,7 +666,7 @@ impl DlogEqualityProof {
         // Constant-time challenge comparison to prevent timing side-channels
         let expected_challenge = Self::compute_challenge(statement, &self.a, &self.b, context)
             .map_err(|e| {
-                tracing::debug!(error = ?e, "DlogEqualityProof::verify rejected: hash failure");
+                tracing::debug!(error = %e, "DlogEqualityProof::verify rejected: hash failure");
                 ZkpError::VerificationFailed
             })?;
         if expected_challenge.ct_eq(&self.challenge).unwrap_u8() == 0 {

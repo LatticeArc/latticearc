@@ -53,10 +53,10 @@ pub fn secure_zeroize(data: &mut [u8]) {
 // `SecretVec::zero(size)` directly at every call site — same semantics,
 // no lock contention.
 
-/// Allocate a zeroed `SecretVec` of `size` bytes. audit fix
-/// (M26): replaces the `MemoryPool::allocate` API. This is a thin
-/// wrapper around `SecretVec::zero(size)` with the same per-call size
-/// validation the pool used to enforce.
+/// Allocate a zeroed `SecretVec` of `size` bytes. Replaces the
+/// `MemoryPool::allocate` API; this is a thin wrapper around
+/// `SecretVec::zero(size)` with the same per-call size validation
+/// the pool used to enforce.
 ///
 /// # Errors
 /// Returns an error if `size` is zero or exceeds `1 MiB`.

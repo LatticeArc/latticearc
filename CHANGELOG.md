@@ -9,6 +9,157 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-44 audit — CRITICAL signature-bypass fix + workspace ?e→%e sweep (2026-05-08)
+
+External round-44 audit returned 9 findings (1 CRIT, 2 HIGH, 3 MED,
+4 LOW, 1 DOC). C1 is a signature-verification bypass that survived
+every audit since SignedData was introduced. All fixed in this commit;
+no defer.
+
+#### CRIT
+
+- **C1**: `latticearc-cli/src/commands/verify.rs` — SignedData verify
+  path silently ignored the operator's `--key` and used the embedded
+  `signed.metadata.public_key` for crypto verification. An attacker
+  who delivers a SignedData envelope (signed with their own key, with
+  their own pk embedded) gets a "VALID" verdict against ANY operator-
+  trusted `--key`. Live-reproduced: `keygen` evil + trusted, sign
+  with evil sec key + embed evil pk, verify with `--key trusted/...`,
+  result was `Signature is VALID. (scheme: pq-ml-dsa-65)` exit 0.
+  This was a signature-verification bypass under the user-facing
+  contract "verify this signature against my trusted key".
+
+  Fix: when `--key` is provided for SignedData verify, load the
+  operator pk_bytes and compare them against
+  `signed.metadata.public_key` BEFORE the crypto verify. Mismatch
+  collapses to `print_invalid()` (Pattern-6 indistinguishability
+  with crypto reject). `--key` remains optional for SignedData;
+  omitting it falls through to the embedded-key trust shape that's
+  appropriate when the operator hasn't asserted a specific trust
+  anchor. Operator-side errors (key file missing, wrong key type)
+  bubble as helpful Err at exit ≥2.
+
+  Public keys are not secret material; comparison uses `==` (which
+  on `Vec<u8>` short-circuits on length mismatch then bytewise
+  compares) rather than `subtle::ConstantTimeEq` — operator's key is
+  fixed across the call so per-invocation timing cannot be amplified
+  across runs.
+
+  Regression test: `test_pattern6_signed_data_key_substitution_collapses_invalid`
+  — generates two independent ML-DSA-65 keypairs, signs with one,
+  verifies with `--key` pointing at the other, asserts the
+  `assert_verify_invalid_collapse` contract (exit 1, exact verdict
+  line, no leak substring).
+
+#### HIGH
+
+- **H1**: `latticearc/src/unified_api/audit.rs:1322` — broken comment
+  fragment `(the cap is exclusive).'s first` left by the round-43 L1
+  marker strip. The orphan possessive `'s first` was the tail of
+  "Round-39's first pass". Fixed.
+
+- **H2**: `latticearc/src/unified_api/convenience/api.rs:295` —
+  fragment `self-contradictory shape that onwards has been` left by
+  the strip. Round-32 attribution removed but left the dangling
+  preposition. Fixed.
+
+#### MED
+
+- **M1**: Two more broken fragments in `convenience/api.rs:874` (`before
+  added the explicit suffix`) and `:3087` (cleared by re-reading;
+  was a false positive — the sentence reads cleanly as written).
+  Real fragment fixed.
+
+- **M2**: Round-43 L2 `?e`→`%e` sweep was incomplete — 39 surviving
+  `error = ?e` Debug-format tracing calls in 12 files. The round-43
+  commit body claimed workspace-wide application but only verify.rs
+  was touched. Workspace bulk-replaced 37 production sites via perl
+  (1 cautionary doc reference in verify.rs preserved). All Phase-2-
+  equivalent collapse-side `tracing::debug!` calls now use `%e`
+  Display. The remaining 1 site in `ml_dsa::SigningKey::sign_message`
+  uses a closure parameter typed `&dyn std::fmt::Debug` and is
+  documented as safe-as-Debug because the only producers are bounded
+  internal `MlDsa*Error` enums (no anyhow chain walking).
+
+- **M3**: `latticearc/src/unified_api/selector.rs:23` — module doc
+  started mid-sentence (`/// that downgrade now refuses instead`).
+  Fixed by capitalizing into a complete sentence.
+
+#### LOW
+
+- **L1**: 3 orphan parentheticals from incomplete strip — `audit.rs:567`
+  (`audit fix (M20)`), `resource_limits.rs:272` (`audit fix (H8)`),
+  `security.rs:56` (`audit fix (M26)`). Stripped the dangling fix-IDs.
+
+- **L2**: `serialization.rs:667` concatenation artifact `M5 (and+L2`.
+  Rewritten as a complete sentence ("The wire layout requires...").
+
+- **L3**: `side_channel_analysis.rs:262` orphan parenthetical `Same
+  class as (`. Restructured into "Same class of bug as ...".
+
+- **L4**: `ml_dsa.rs:1374` (`reaching the upstream crate. collapsed
+  the`) and `resource_limits.rs:88` (bare leading semicolon in
+  rustdoc). Both fixed.
+
+#### DOC
+
+- **D1**: `print_invalid()` SECURITY contract previously scoped the
+  tracing observability boundary to verify.rs but the audit's M2
+  showed the `?e` discipline wasn't enforced workspace-wide. Updated
+  the doc to:
+  - Rename the section "Tracing observability boundary (workspace-wide)".
+  - Enumerate the production sites where the contract IS enforced
+    (`convenience::api::verify`, `convenience::pq_kem`,
+    `primitives::sig/*`, `primitives::kem::ml_kem`,
+    `primitives::ec/*`, `zkp::sigma`).
+  - Document the safe `?e` exception: closure parameter typed
+    `&dyn std::fmt::Debug` whose producers are bounded internal
+    enums (no anyhow chain walking).
+
+#### /simplify follow-up
+
+- **A1**: extracted `read_operator_public_key_file` and
+  `load_operator_public_key` helpers in `verify.rs`. The SignedData
+  branch and `verify_legacy` Phase 1a previously duplicated the
+  three-step sequence (`KeyFile::read_from` + key-type check + bail
+  with canonical_name + `key_bytes()`); both now delegate.
+
+- **A2**: extracted `signed_data_sign_fixture` test helper. Both
+  `test_pattern6_signed_data_data_mismatch_collapses_invalid` and
+  the new `test_pattern6_signed_data_key_substitution_collapses_invalid`
+  previously inlined the same `keygen + msg + sign --public-key`
+  sequence; the helper takes flexible `keygen_args` so callers can
+  pass `--algorithm <X>` or `--use-case <Y>`.
+
+- **Q1**: trimmed WHAT-narration of `Vec::eq` semantics in the
+  SignedData `--key` block; kept only the constant-time-justification.
+
+- **Q2**: switched `pk_bytes.as_slice() != signed.metadata.public_key.as_slice()`
+  to the more idiomatic `*pk_bytes != signed.metadata.public_key`
+  (deref `Zeroizing<Vec<u8>>` then `Vec<u8>: PartialEq`).
+
+- **Q3**: replaced the rot-prone module-path enumeration in
+  `print_invalid()` SECURITY doc with a categorical description
+  ("every reject-collapse `tracing::debug!` ... potentially wrapping
+  attacker-controlled parser output"). The CHANGELOG entry above
+  retains the audited site list — the doc shouldn't.
+
+- **Q4**: removed the "L2 contract" round-audit label from the
+  `?e`-justification comment in `ml_dsa.rs`; replaced with
+  "tracing-observability contract".
+
+- **Q5**: stripped a surviving `// audit fix (H9):` marker from
+  `secp256k1.rs:79` (out of round-44 audit scope but the file was
+  in the touched set, so it was an opportunistic cleanup).
+
+- **Q6**: fixed the `// deserializer's // cross-check` line-wrap
+  orphan in `serialization.rs:671`.
+
+- **Q7**: trimmed the C1 regression test's pre-fix-behavior narration
+  to two sentences stating the contract being pinned. The full
+  attack walk-through belongs in this CHANGELOG entry, not as a
+  perpetual test comment.
+
 ### Round-43 audit — Pattern-6 contract tightening + workspace marker hygiene (2026-05-07)
 
 External round-43 audit returned 8 findings (4 MED, 3 LOW, 1 DOC) on

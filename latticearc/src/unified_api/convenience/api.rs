@@ -287,15 +287,12 @@ fn encrypt_chacha20_internal(data: &[u8], key: &[u8], aad: &[u8]) -> Result<Vec<
         AeadError::InvalidKeyLength => {
             CoreError::InvalidKeyLength { expected: 32, actual: key.len() }
         }
-        // H7: replaced the wildcard `_ =>
-        // InvalidKeyLength { 32, 32 }` arm. With `AeadError` marked
-        // `#[non_exhaustive]`, any future variant routed through
-        // here produced the contradictory diagnostic "wrong key
-        // length: expected 32, got 32" — exactly the
-        // self-contradictory shape that onwards has been
-        // collapsing. Forward unknown variants as
-        // `EncryptionFailed(e.to_string())`, matching the AES-GCM
-        // sibling at `aes_gcm.rs:97`.
+        // Replaced an earlier wildcard `_ => InvalidKeyLength { 32, 32 }`
+        // arm. With `AeadError` marked `#[non_exhaustive]`, any future
+        // variant routed through that arm produced the contradictory
+        // diagnostic "wrong key length: expected 32, got 32". Forward
+        // unknown variants as `EncryptionFailed(e.to_string())`,
+        // matching the AES-GCM sibling at `aes_gcm.rs:97`.
         other => CoreError::EncryptionFailed(other.to_string()),
     })?;
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -454,7 +451,7 @@ pub fn encrypt_with_aad(
     // Pattern-6 defense — `ResourceError::Display` interpolates
     // `requested=N, limit=M`, leaking the configured cap.
     if let Err(e) = validate_encryption_size(data.len()) {
-        tracing::debug!(error = ?e, data_len = data.len(), "encrypt rejected: plaintext exceeds resource limit");
+        tracing::debug!(error = %e, data_len = data.len(), "encrypt rejected: plaintext exceeds resource limit");
         return Err(CoreError::ResourceExceeded("plaintext exceeds resource limit".to_string()));
     }
 
@@ -869,10 +866,10 @@ pub fn generate_signing_keypair(
             let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s)?;
             (pk, sk)
         }
-        // Accept both the canonical "fn-dsa-512" / "fn-dsa-1024" tags and
-        // the legacy bare "fn-dsa" alias (treated as Level512 for backward
-        // compatibility with keys produced before added the
-        // explicit suffix).
+        // Accept both the canonical "fn-dsa-512" / "fn-dsa-1024" tags
+        // and the legacy bare "fn-dsa" alias (treated as Level512 for
+        // backward compatibility with keys produced before the
+        // explicit-suffix tags were introduced).
         "fn-dsa-512" | "fn-dsa" => {
             let (pk, sk) = generate_fn_dsa_keypair_with_level(FnDsaSecurityLevel::Level512)?;
             (pk, sk)
@@ -948,7 +945,7 @@ pub fn sign_with_key(
 
     // opaque ResourceExceeded error.
     if let Err(e) = validate_signature_size(message.len()) {
-        tracing::debug!(error = ?e, msg_len = message.len(), "sign rejected: message exceeds resource limit");
+        tracing::debug!(error = %e, msg_len = message.len(), "sign rejected: message exceeds resource limit");
         return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
     }
 
@@ -1082,7 +1079,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
     // verify path so an adversary cannot binary-search the configured
     // cap from the Result variant.
     if let Err(e) = validate_signature_size(signed.data.len()) {
-        tracing::debug!(error = ?e, msg_len = signed.data.len(), "verify rejected: message exceeds resource limit");
+        tracing::debug!(error = %e, msg_len = signed.data.len(), "verify rejected: message exceeds resource limit");
         return Ok(false);
     }
 

@@ -392,7 +392,7 @@ impl VerifyingKey {
         // failure on verify so a probing attacker cannot binary-search
         // the configured cap from the Result shape.
         if let Err(e) = crate::primitives::resource_limits::validate_signature_size(message.len()) {
-            tracing::debug!(error = ?e, msg_len = message.len(), "FN-DSA verify rejected: message exceeds resource limit");
+            tracing::debug!(error = %e, msg_len = message.len(), "FN-DSA verify rejected: message exceeds resource limit");
             return Ok(false);
         }
 
@@ -570,7 +570,7 @@ impl SigningKey {
         // operator diagnostics.
         crate::primitives::resource_limits::validate_signature_size(message.len()).map_err(
             |e| {
-                tracing::debug!(error = ?e, msg_len = message.len(), "FN-DSA sign rejected: message exceeds resource limit");
+                tracing::debug!(error = %e, msg_len = message.len(), "FN-DSA sign rejected: message exceeds resource limit");
                 FnDsaError::SigningFailed
             },
         )?;

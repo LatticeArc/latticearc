@@ -84,9 +84,8 @@ impl ResourceLimits {
     }
 
     /// Creates a new `ResourceLimits` with all five fields specified
-    /// explicitly. Use this when the caller cares about the AAD cap
-    ///; use [`Self::new`] when the default
-    /// 1 MiB AAD cap is acceptable.
+    /// explicitly. Use this when the caller cares about the AAD cap;
+    /// use [`Self::new`] when the default 1 MiB AAD cap is acceptable.
     #[must_use]
     pub fn with_aad_limit(
         max_key_derivations: usize,
@@ -269,7 +268,7 @@ pub enum ResourceError {
         limit: usize,
     },
 
-    /// AEAD AAD size exceeds configured limit. audit fix (H8).
+    /// AEAD AAD size exceeds configured limit.
     #[error("AAD size limit exceeded: requested {requested}, limit {limit}")]
     AadSizeLimitExceeded {
         /// Size in bytes requested.

@@ -564,8 +564,7 @@ struct FileState {
     created_at: DateTime<Utc>,
 }
 
-/// Result of [`FileAuditStorage::verify_chain`]. audit fix
-/// (M20).
+/// Result of [`FileAuditStorage::verify_chain`].
 #[derive(Debug, Clone)]
 pub struct ChainVerificationReport {
     /// Number of `audit-*.jsonl` files inspected.
@@ -1319,10 +1318,10 @@ impl FileAuditStorage {
             // `b'\n'` in the buffered region and accumulate at most
             // `MAX_LINE_LEN + 1` bytes into `line_buf` per line.
             // The +1 byte lets us detect the over-cap case
-            // unambiguously (the cap is exclusive).'s first
-            // pass used per-byte `reader.read()` which was correct
-            // but did one syscall per byte; this shape keeps the
-            // bound while letting the kernel/buffer combine reads.
+            // unambiguously (the cap is exclusive). An earlier
+            // implementation used per-byte `reader.read()` which was
+            // correct but did one syscall per byte; this shape keeps
+            // the bound while letting the kernel/buffer combine reads.
             let mut line_buf: Vec<u8> = Vec::new();
             let mut line_idx: usize = 0;
             loop {

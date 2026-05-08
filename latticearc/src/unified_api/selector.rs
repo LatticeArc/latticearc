@@ -20,8 +20,8 @@ use crate::unified_api::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme}
 /// branch in [`CryptoPolicyEngine::select_encryption_scheme`] would
 /// have downgraded a caller-declared [`SecurityLevel::High`]
 /// (ML-KEM-768) to ML-KEM-512 under [`PerformancePreference::Memory`].
-/// that downgrade now **refuses** instead
-/// of silently weakening the caller's contract.
+/// That downgrade now **refuses** instead of silently weakening the
+/// caller's contract.
 ///
 /// **What actually happens at runtime**:
 ///

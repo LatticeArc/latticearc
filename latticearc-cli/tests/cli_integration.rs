@@ -4900,6 +4900,48 @@ fn legacy_sign_fixture(dir: &tempfile::TempDir, alg: &LegacyAlg) -> (PathBuf, Pa
     (msg_path, sig_path, pk_path)
 }
 
+/// SignedData sign fixture: `keygen <keygen_args>` → write msg → sign
+/// via `--key + --public-key` (the SignedData envelope path). Returns
+/// (msg_path, sig_path, sk_path, pk_path).
+///
+/// `keyfile_stem` is the filename prefix the CLI emits for the
+/// chosen algorithm/use-case (e.g. `"ml-dsa-65"` for `--algorithm
+/// ml-dsa65`, `"hybrid-ml-dsa-65-ed25519"` for `--use-case
+/// secure-messaging`).
+fn signed_data_sign_fixture(
+    dir: &tempfile::TempDir,
+    keygen_args: &[&str],
+    keyfile_stem: &str,
+    msg_bytes: &[u8],
+) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let d = dir.path().to_str().unwrap();
+    let mut keygen_cmd: Vec<&str> = vec!["keygen"];
+    keygen_cmd.extend(keygen_args);
+    keygen_cmd.extend(["--output", d]);
+    run_ok(&keygen_cmd);
+
+    let sk_path = dir.path().join(format!("{keyfile_stem}.sec.json"));
+    let pk_path = dir.path().join(format!("{keyfile_stem}.pub.json"));
+
+    let msg_path = dir.path().join("msg.txt");
+    std::fs::write(&msg_path, msg_bytes).unwrap();
+
+    let sig_path = dir.path().join("msg.sig");
+    run_ok(&[
+        "sign",
+        "--key",
+        sk_path.to_str().unwrap(),
+        "--public-key",
+        pk_path.to_str().unwrap(),
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--output",
+        sig_path.to_str().unwrap(),
+    ]);
+
+    (msg_path, sig_path, sk_path, pk_path)
+}
+
 #[test]
 fn test_pattern6_legacy_signature_bytes_tamper_collapses_invalid() {
     // Tamper the base64 `signature` field's bytes. This is the
@@ -5079,32 +5121,17 @@ fn test_pattern6_legacy_crypto_reject_collapses_invalid() {
 
 #[test]
 fn test_pattern6_signed_data_data_mismatch_collapses_invalid() {
-    // SignedData envelope: tamper the input file after signing.
-    // Round-41 H1: leaked "Signature was created over different data
-    // than the input." via `bail!(...)` at verify.rs:150.
+    // SignedData envelope: tamper the input file after signing. The
+    // distinguisher this pins is the embedded-data-vs-input-data
+    // mismatch path, which previously emitted a stricter error string
+    // than the Pattern-6 `print_invalid()` shape.
     let dir = temp_dir();
-    let d = dir.path().to_str().unwrap();
-    run_ok(&["keygen", "--use-case", "secure-messaging", "--output", d]);
-
-    let scheme = "hybrid-ml-dsa-65-ed25519";
-    let sk_path = dir.path().join(format!("{scheme}.sec.json"));
-    let pk_path = dir.path().join(format!("{scheme}.pub.json"));
-
-    let msg_path = dir.path().join("msg.txt");
-    std::fs::write(&msg_path, b"original signed bytes").unwrap();
-
-    let sig_path = dir.path().join("msg.sig");
-    run_ok(&[
-        "sign",
-        "--key",
-        sk_path.to_str().unwrap(),
-        "--public-key",
-        pk_path.to_str().unwrap(),
-        "--input",
-        msg_path.to_str().unwrap(),
-        "--output",
-        sig_path.to_str().unwrap(),
-    ]);
+    let (_msg_path, sig_path, _sk_path, _pk_path) = signed_data_sign_fixture(
+        &dir,
+        &["--use-case", "secure-messaging"],
+        "hybrid-ml-dsa-65-ed25519",
+        b"original signed bytes",
+    );
 
     // Tamper the input file to a different content; SignedData embeds
     // the original data, so the two bytes won't match.
@@ -5305,4 +5332,50 @@ fn test_pattern6_legacy_signature_tamper_per_algorithm_collapses_invalid() {
             &format!("legacy {} signature-bytes tamper", alg.cli_keygen),
         );
     }
+}
+
+#[test]
+fn test_pattern6_signed_data_key_substitution_collapses_invalid() {
+    // Pins the SignedData `--key` enforcement: when the operator
+    // passes `--key`, its bytes MUST match the envelope's embedded
+    // `signed.metadata.public_key`, otherwise the verdict collapses
+    // to INVALID. Without this contract, a SignedData envelope with
+    // an attacker's (key, sig, data) triple verifies against any
+    // operator-trusted `--key`.
+    let trusted_dir = temp_dir();
+    let evil_dir = temp_dir();
+
+    // Trusted side: keygen only (no sign — its pk is just the trust
+    // anchor the operator passes via `--key` to verify).
+    run_ok(&[
+        "keygen",
+        "--algorithm",
+        "ml-dsa65",
+        "--output",
+        trusted_dir.path().to_str().unwrap(),
+    ]);
+    let trusted_pk = trusted_dir.path().join("ml-dsa-65.pub.json");
+
+    // Evil side: full SignedData fixture — keygen, sign with evil key,
+    // embed evil pk in the envelope.
+    let (msg_path, sig_path, _evil_sk, _evil_pk) = signed_data_sign_fixture(
+        &evil_dir,
+        &["--algorithm", "ml-dsa65"],
+        "ml-dsa-65",
+        b"forged signature target",
+    );
+
+    // Verify with the operator's trusted `--key` (different keypair).
+    assert_verify_invalid_collapse(
+        &[
+            "verify",
+            "--input",
+            msg_path.to_str().unwrap(),
+            "--signature",
+            sig_path.to_str().unwrap(),
+            "--key",
+            trusted_pk.to_str().unwrap(),
+        ],
+        "SignedData --key substitution",
+    );
 }

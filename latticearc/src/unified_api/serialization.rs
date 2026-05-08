@@ -664,12 +664,11 @@ mod tests {
     // --- EncryptedOutput serialization ---
 
     fn make_encrypted_output_symmetric() -> EncryptedOutput {
-        // M5 (and+L2 tightening) require the
-        // top-level `nonce`/`tag` to match the embedded copies in
-        // `ciphertext` for symmetric schemes — wire layout is
-        // `nonce(12) || actual_ct || tag(16)`. Build the fixture
-        // ciphertext with that invariant so the deserializer's
-        // cross-check passes.
+        // The wire layout requires the top-level `nonce`/`tag` to
+        // match the embedded copies in `ciphertext` for symmetric
+        // schemes — wire layout is `nonce(12) || actual_ct || tag(16)`.
+        // Build the fixture ciphertext with that invariant so the
+        // deserializer's cross-check passes.
         let nonce: Vec<u8> = (1..=12).collect();
         let tag = vec![0xAA_u8; 16];
         let inner = vec![0xDE, 0xAD, 0xBE, 0xEF];

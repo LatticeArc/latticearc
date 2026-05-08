@@ -162,6 +162,35 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
             return Ok(print_invalid());
         }
 
+        // SECURITY: if the operator passed `--key`, ENFORCE that the
+        // embedded `signed.metadata.public_key` matches. Without this
+        // check, a SignedData envelope crafted with an attacker's own
+        // (key, sig, data) triple verifies against ANY operator-
+        // trusted `--key` because `latticearc::verify` uses the
+        // embedded public key. The user-facing contract "verify this
+        // signature against my trusted key" silently becomes "verify
+        // this signature against the key it carries".
+        //
+        // Mismatch is attacker-controllable and collapses to
+        // `print_invalid()` for Pattern-6 indistinguishability with
+        // crypto reject. Plain `==` is sufficient: both sides are
+        // public keys, not secret material, and the operator's key is
+        // fixed across the call so per-invocation timing cannot be
+        // amplified across runs.
+        //
+        // `--key` for SignedData remains optional: omitting it falls
+        // through to the embedded-key trust shape, appropriate when
+        // the operator has not asserted a specific trust anchor.
+        if let Some(key_path) = args.key.as_ref() {
+            let pk_bytes = load_operator_public_key(key_path)?;
+            if *pk_bytes != signed.metadata.public_key {
+                tracing::debug!(
+                    "verify (SignedData path) rejected: --key bytes do not match embedded public_key"
+                );
+                return Ok(print_invalid());
+            }
+        }
+
         let config =
             super::common::build_config(args.use_case, args.security_level, &args.compliance);
         // A `latticearc::verify(...)` Err (e.g. malformed public key)
@@ -244,7 +273,7 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
 /// helpful error messages and surface as exit ≥2. See `verify_legacy`
 /// docs for the boundary.
 ///
-/// # Tracing observability boundary
+/// # Tracing observability boundary (workspace-wide)
 ///
 /// `tracing::debug!` calls used as the safe alternative below ARE
 /// observable on stderr when the operator (or a CI runner) sets
@@ -273,14 +302,25 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
 /// - Raw signature bytes, key bytes, or any base64 thereof — even at
 ///   `RUST_LOG=debug`, plaintext key material in logs is a separate
 ///   incident class.
-/// - Errors via `error = ?e` (Debug) — Debug walks the full source
-///   chain. For wrapped `serde_json::Error` or `base64::DecodeError`,
-///   the chain includes attacker-controlled JSON snippets and byte
-///   offsets / values from the input. This re-introduces the echo-
-///   amplification distinguisher one log level down. Use `%e`
-///   instead.
+/// - `error = ?e` (Debug) where `e` is `anyhow::Error` or any error
+///   whose source chain reaches `serde_json::Error` /
+///   `base64::DecodeError`. Debug walks the full source chain, and
+///   those underlying errors carry attacker-controlled JSON snippets
+///   and byte offsets / values from the input. Use `%e` (Display)
+///   instead — Display shows only the outermost message, which is
+///   static text we author. This contract applies workspace-wide to
+///   every reject-collapse `tracing::debug!` call that handles an
+///   error potentially wrapping attacker-controlled parser output.
 /// - Attacker-controlled fields verbatim (the `algorithm` JSON
 ///   value, arbitrary error strings from the parsed signature).
+///
+/// **Narrow exception — `?e` IS safe when:**
+/// - `e` has a concrete typed `Debug` impl whose source chain does
+///   NOT reach `anyhow::Error` / `serde_json::Error` / `base64::Decode
+///   Error`. Closure parameters typed `&dyn std::fmt::Debug` whose
+///   producers are bounded internal crate enums fall into this
+///   category. New uses of this exception MUST cite the rationale at
+///   the call site (typed Debug, bounded producers, no chain walking).
 ///
 /// # When adding a new reject path
 ///
@@ -310,6 +350,32 @@ fn input_label(args: &VerifyArgs) -> String {
         .as_ref()
         .map(|p| format!("'{}'", p.display()))
         .unwrap_or_else(|| "<stdin>".to_string())
+}
+
+/// Load the operator's `--key` file and require it to be a public key.
+///
+/// Used by both the SignedData branch (to enforce that `--key`
+/// matches the embedded public key) and the legacy branch (Phase 1a)
+/// of `verify_legacy`. The `canonical_name()` form of the key-type
+/// rejection is used instead of `{:?}` Debug — the Debug repr of a
+/// `#[non_exhaustive]` enum is variant-fingerprintable across
+/// versions.
+fn read_operator_public_key_file(key_path: &std::path::Path) -> Result<KeyFile> {
+    let key_file = KeyFile::read_from(key_path)?;
+    if key_file.key_type != KeyType::Public {
+        bail!(
+            "Expected public key file for verification, got {}",
+            key_file.key_type.canonical_name()
+        );
+    }
+    Ok(key_file)
+}
+
+/// Load the operator's `--key` file and decode the raw public-key
+/// bytes. Combines `read_operator_public_key_file` + `key_bytes()`
+/// for callers that don't need the `KeyFile` itself.
+fn load_operator_public_key(key_path: &std::path::Path) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    read_operator_public_key_file(key_path)?.key_bytes()
 }
 
 /// The six non-hybrid `VerifyAlgorithm` variants, lifted into their
@@ -412,16 +478,7 @@ fn verify_legacy(
     // signature piped on stdin.
 
     // ── Phase 1a: read operator key file (helpful errors, exit ≥2) ──
-    let key_file = KeyFile::read_from(key_path)?;
-    if key_file.key_type != KeyType::Public {
-        // `canonical_name()` instead of `{:?}` Debug: the Debug repr
-        // of a `#[non_exhaustive]` enum is variant-fingerprintable
-        // across versions.
-        bail!(
-            "Expected public key file for verification, got {}",
-            key_file.key_type.canonical_name()
-        );
-    }
+    let key_file = read_operator_public_key_file(key_path)?;
     let pk_bytes = key_file.key_bytes()?;
 
     // ── Phase 1b: operator-picked algorithm vs key (helpful err) ──

@@ -442,7 +442,7 @@ pub fn pct_ed25519(keypair: &crate::primitives::ec::ed25519::Ed25519KeyPair) -> 
     let is_valid = match verify_result {
         Ok(()) => true,
         Err(e) => {
-            tracing::debug!(error = ?e, "Ed25519 PCT verify rejected");
+            tracing::debug!(error = %e, "Ed25519 PCT verify rejected");
             false
         }
     };
@@ -493,7 +493,7 @@ pub fn pct_secp256k1(
     let is_valid = match verify_result {
         Ok(()) => true,
         Err(e) => {
-            tracing::debug!(error = ?e, "secp256k1 PCT verify rejected");
+            tracing::debug!(error = %e, "secp256k1 PCT verify rejected");
             false
         }
     };

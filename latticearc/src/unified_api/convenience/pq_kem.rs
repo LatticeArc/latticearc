@@ -95,7 +95,7 @@ fn encrypt_pq_ml_kem_internal(
     // opaque ResourceExceeded.
     if let Err(e) = validate_encryption_size(data.len()) {
         log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "resource limit exceeded");
-        tracing::debug!(error = ?e, data_len = data.len(), "pq_kem encrypt rejected: plaintext exceeds resource limit");
+        tracing::debug!(error = %e, data_len = data.len(), "pq_kem encrypt rejected: plaintext exceeds resource limit");
         return Err(CoreError::ResourceExceeded("plaintext exceeds resource limit".to_string()));
     }
 

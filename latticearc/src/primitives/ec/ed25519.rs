@@ -70,7 +70,7 @@ impl EcKeyPair for Ed25519KeyPair {
         // upstream PctError -> opaque KeyGenerationError so that variant
         // wording from the `pct` module isn't relayed verbatim.
         crate::primitives::pct::pct_ed25519(&keypair).map_err(|e| {
-            tracing::debug!(error = ?e, "Ed25519 keygen PCT failed");
+            tracing::debug!(error = %e, "Ed25519 keygen PCT failed");
             LatticeArcError::KeyGenerationError("Ed25519 keypair PCT failed".to_string())
         })?;
 
@@ -101,7 +101,7 @@ impl EcKeyPair for Ed25519KeyPair {
         // detection.
         // opaque error string.
         crate::primitives::pct::pct_ed25519(&keypair).map_err(|e| {
-            tracing::debug!(error = ?e, "Ed25519 from_secret_key PCT failed");
+            tracing::debug!(error = %e, "Ed25519 from_secret_key PCT failed");
             LatticeArcError::KeyGenerationError("Ed25519 keypair PCT failed".to_string())
         })?;
 
@@ -142,7 +142,7 @@ impl EcSignature for Ed25519Signature {
         // entrypoint — same DoS shape closed for ML-DSA /
         // SLH-DSA / FN-DSA.
         if let Err(e) = validate_signature_size(message.len()) {
-            tracing::debug!(error = ?e, msg_len = message.len(), "Ed25519 verify rejected: message exceeds resource limit");
+            tracing::debug!(error = %e, msg_len = message.len(), "Ed25519 verify rejected: message exceeds resource limit");
             return Err(LatticeArcError::SignatureVerificationError(
                 "Ed25519 verification failed".to_string(),
             ));
@@ -161,7 +161,7 @@ impl EcSignature for Ed25519Signature {
         // verbatim is a side-channel into which check failed (off-curve
         // vs malformed encoding vs small-subgroup).
         let public_key = VerifyingKey::from_bytes(&pk_bytes).map_err(|e| {
-            tracing::debug!(error = ?e, "Ed25519 verify rejected: PK parse");
+            tracing::debug!(error = %e, "Ed25519 verify rejected: PK parse");
             LatticeArcError::InvalidKey("invalid public key".to_string())
         })?;
 
@@ -217,7 +217,7 @@ impl Ed25519KeyPair {
     /// the configured signature size limit.
     pub fn sign(&self, message: &[u8]) -> Result<Signature> {
         if let Err(e) = validate_signature_size(message.len()) {
-            tracing::debug!(error = ?e, msg_len = message.len(), "Ed25519 sign rejected: message exceeds resource limit");
+            tracing::debug!(error = %e, msg_len = message.len(), "Ed25519 sign rejected: message exceeds resource limit");
             return Err(LatticeArcError::MessageTooLong);
         }
         Ok(self.secret_key.sign(message))

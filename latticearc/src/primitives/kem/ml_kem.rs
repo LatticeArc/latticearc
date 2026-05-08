@@ -1148,7 +1148,7 @@ impl MlKem {
         // upstream `requested=N, limit=M` detail is logged at
         // `tracing::debug!` for operators.
         if let Err(e) = validate_encryption_size(public_key.as_bytes().len()) {
-            tracing::debug!(error = ?e, pk_len = public_key.as_bytes().len(), "ML-KEM encap rejected: PK exceeds resource limit");
+            tracing::debug!(error = %e, pk_len = public_key.as_bytes().len(), "ML-KEM encap rejected: PK exceeds resource limit");
             return Err(MlKemError::EncapsulationError("encapsulation failed".to_string()));
         }
 
@@ -1259,11 +1259,11 @@ impl MlKem {
         let algorithm = secret_key.security_level().as_aws_algorithm();
         let decaps_key =
             DecapsulationKey::new(algorithm, secret_key.expose_secret()).map_err(|e| {
-                tracing::debug!(error = ?e, "ML-KEM DecapsulationKey::new rejected secret key");
+                tracing::debug!(error = %e, "ML-KEM DecapsulationKey::new rejected secret key");
                 MlKemError::DecapsulationError("decapsulation failed".to_string())
             })?;
         let shared_secret = decaps_key.decapsulate(ciphertext.as_bytes().into()).map_err(|e| {
-            tracing::debug!(error = ?e, "ML-KEM decapsulate rejected ciphertext");
+            tracing::debug!(error = %e, "ML-KEM decapsulate rejected ciphertext");
             MlKemError::DecapsulationError("decapsulation failed".to_string())
         })?;
         let ss_bytes = shared_secret.as_ref();

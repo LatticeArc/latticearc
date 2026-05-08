@@ -73,7 +73,7 @@ pub fn sign_hybrid(
     // opaque ResourceExceeded — sign-side
     // resource-limit errors stay loud; caller controls input.
     if let Err(e) = validate_signature_size(message.len()) {
-        tracing::debug!(error = ?e, msg_len = message.len(), "hybrid sig rejected: message exceeds resource limit");
+        tracing::debug!(error = %e, msg_len = message.len(), "hybrid sig rejected: message exceeds resource limit");
         return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
     }
 
@@ -103,7 +103,7 @@ pub fn verify_hybrid_signature(
     // verify path so an adversary cannot binary-search the configured
     // cap from the Result variant.
     if let Err(e) = validate_signature_size(message.len()) {
-        tracing::debug!(error = ?e, msg_len = message.len(), "hybrid sig verify rejected: message exceeds resource limit");
+        tracing::debug!(error = %e, msg_len = message.len(), "hybrid sig verify rejected: message exceeds resource limit");
         return Ok(false);
     }
 
@@ -118,7 +118,7 @@ pub fn verify_hybrid_signature(
     match sig_hybrid::verify(pk, message, signature) {
         Ok(b) => Ok(b),
         Err(e) => {
-            tracing::debug!(error = ?e, "hybrid sig verify rejected (Err mapped to Ok(false))");
+            tracing::debug!(error = %e, "hybrid sig verify rejected (Err mapped to Ok(false))");
             Ok(false)
         }
     }
