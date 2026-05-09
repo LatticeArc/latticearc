@@ -530,7 +530,7 @@
 <a href=#530 id=530 data-nosnippet>530</a>                }
 <a href=#531 id=531 data-nosnippet>531</a>            }
 <a href=#532 id=532 data-nosnippet>532</a>        };
-<a href=#533 id=533 data-nosnippet>533</a>        CryptoPayload { data: ciphertext, metadata, scheme: scheme.to_string(), timestamp }
+<a href=#533 id=533 data-nosnippet>533</a>        CryptoPayload::new(ciphertext, metadata, scheme.to_string(), timestamp)
 <a href=#534 id=534 data-nosnippet>534</a>    }
 <a href=#535 id=535 data-nosnippet>535</a>}
 <a href=#536 id=536 data-nosnippet>536</a>
@@ -867,17 +867,17 @@
 <a href=#867 id=867 data-nosnippet>867</a>    <span class="attr">#[test]
 <a href=#868 id=868 data-nosnippet>868</a>    </span><span class="kw">fn </span>test_encrypted_data_to_output_rejects_shape_mismatch() {
 <a href=#869 id=869 data-nosnippet>869</a>        <span class="comment">// Hybrid scheme without ECDH PK in metadata is a contract violation.
-<a href=#870 id=870 data-nosnippet>870</a>        </span><span class="kw">let </span>mismatched = EncryptedData {
-<a href=#871 id=871 data-nosnippet>871</a>            data: <span class="macro">vec!</span>[<span class="number">0xAA</span>; <span class="number">32</span>],
-<a href=#872 id=872 data-nosnippet>872</a>            metadata: EncryptedMetadata::pq_only(
+<a href=#870 id=870 data-nosnippet>870</a>        </span><span class="kw">let </span>mismatched = EncryptedData::new(
+<a href=#871 id=871 data-nosnippet>871</a>            <span class="macro">vec!</span>[<span class="number">0xAA</span>; <span class="number">32</span>],
+<a href=#872 id=872 data-nosnippet>872</a>            EncryptedMetadata::pq_only(
 <a href=#873 id=873 data-nosnippet>873</a>                <span class="macro">vec!</span>[<span class="number">0xBB</span>; <span class="number">12</span>],
 <a href=#874 id=874 data-nosnippet>874</a>                <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="number">0xCC</span>; <span class="number">16</span>]),
 <a href=#875 id=875 data-nosnippet>875</a>                <span class="prelude-val">None</span>,
 <a href=#876 id=876 data-nosnippet>876</a>                <span class="macro">vec!</span>[<span class="number">0xDD</span>; <span class="number">1088</span>],
 <a href=#877 id=877 data-nosnippet>877</a>            ),
-<a href=#878 id=878 data-nosnippet>878</a>            scheme: <span class="string">"hybrid-ml-kem-768-aes-256-gcm"</span>.to_string(),
-<a href=#879 id=879 data-nosnippet>879</a>            timestamp: <span class="number">1_700_000_000</span>,
-<a href=#880 id=880 data-nosnippet>880</a>        };
+<a href=#878 id=878 data-nosnippet>878</a>            <span class="string">"hybrid-ml-kem-768-aes-256-gcm"</span>.to_string(),
+<a href=#879 id=879 data-nosnippet>879</a>            <span class="number">1_700_000_000</span>,
+<a href=#880 id=880 data-nosnippet>880</a>        );
 <a href=#881 id=881 data-nosnippet>881</a>        <span class="kw">let </span>err = EncryptedOutput::try_from(mismatched).expect_err(<span class="string">"must reject shape mismatch"</span>);
 <a href=#882 id=882 data-nosnippet>882</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(err, <span class="kw">crate</span>::types::error::TypeError::ConfigurationError(<span class="kw">_</span>)));
 <a href=#883 id=883 data-nosnippet>883</a>    }

@@ -177,17 +177,17 @@
 <a href=#177 id=177 data-nosnippet>177</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SerializationError(<span class="string">"SignedData metadata mismatch"</span>.to_string()));
 <a href=#178 id=178 data-nosnippet>178</a>        }
 <a href=#179 id=179 data-nosnippet>179</a>
-<a href=#180 id=180 data-nosnippet>180</a>        <span class="prelude-val">Ok</span>(SignedData {
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="prelude-val">Ok</span>(SignedData::new(
 <a href=#181 id=181 data-nosnippet>181</a>            data,
-<a href=#182 id=182 data-nosnippet>182</a>            metadata: <span class="kw">crate</span>::types::SignedMetadata {
+<a href=#182 id=182 data-nosnippet>182</a>            <span class="kw">crate</span>::types::SignedMetadata::new(
 <a href=#183 id=183 data-nosnippet>183</a>                signature,
-<a href=#184 id=184 data-nosnippet>184</a>                signature_algorithm: serializable.metadata.signature_algorithm,
+<a href=#184 id=184 data-nosnippet>184</a>                serializable.metadata.signature_algorithm,
 <a href=#185 id=185 data-nosnippet>185</a>                public_key,
-<a href=#186 id=186 data-nosnippet>186</a>                key_id: serializable.metadata.key_id,
-<a href=#187 id=187 data-nosnippet>187</a>            },
-<a href=#188 id=188 data-nosnippet>188</a>            scheme: serializable.scheme,
-<a href=#189 id=189 data-nosnippet>189</a>            timestamp: serializable.timestamp,
-<a href=#190 id=190 data-nosnippet>190</a>        })
+<a href=#186 id=186 data-nosnippet>186</a>                serializable.metadata.key_id,
+<a href=#187 id=187 data-nosnippet>187</a>            ),
+<a href=#188 id=188 data-nosnippet>188</a>            serializable.scheme,
+<a href=#189 id=189 data-nosnippet>189</a>            serializable.timestamp,
+<a href=#190 id=190 data-nosnippet>190</a>        ))
 <a href=#191 id=191 data-nosnippet>191</a>    }
 <a href=#192 id=192 data-nosnippet>192</a>}
 <a href=#193 id=193 data-nosnippet>193</a>
@@ -517,17 +517,17 @@
 <a href=#517 id=517 data-nosnippet>517</a>        // shape. The earlier test data here used a mismatched pair
 <a href=#518 id=518 data-nosnippet>518</a>        // (`"ML-DSA-65"` vs `"ML-DSA-65+Ed25519"`), which only
 <a href=#519 id=519 data-nosnippet>519</a>        // worked because the deserializer was previously a passthrough.
-<a href=#520 id=520 data-nosnippet>520</a>        </span>CryptoPayload {
-<a href=#521 id=521 data-nosnippet>521</a>            data: <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>],
-<a href=#522 id=522 data-nosnippet>522</a>            metadata: SignedMetadata {
-<a href=#523 id=523 data-nosnippet>523</a>                signature: <span class="macro">vec!</span>[<span class="number">0xBB</span>; <span class="number">64</span>],
-<a href=#524 id=524 data-nosnippet>524</a>                signature_algorithm: <span class="string">"ML-DSA-65+Ed25519"</span>.to_string(),
-<a href=#525 id=525 data-nosnippet>525</a>                public_key: <span class="macro">vec!</span>[<span class="number">0xCC</span>; <span class="number">32</span>],
-<a href=#526 id=526 data-nosnippet>526</a>                key_id: <span class="prelude-val">Some</span>(<span class="string">"sig-key-001"</span>.to_string()),
-<a href=#527 id=527 data-nosnippet>527</a>            },
-<a href=#528 id=528 data-nosnippet>528</a>            scheme: <span class="string">"ML-DSA-65+Ed25519"</span>.to_string(),
-<a href=#529 id=529 data-nosnippet>529</a>            timestamp: <span class="number">1700000002</span>,
-<a href=#530 id=530 data-nosnippet>530</a>        }
+<a href=#520 id=520 data-nosnippet>520</a>        </span>CryptoPayload::new(
+<a href=#521 id=521 data-nosnippet>521</a>            <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>],
+<a href=#522 id=522 data-nosnippet>522</a>            SignedMetadata::new(
+<a href=#523 id=523 data-nosnippet>523</a>                <span class="macro">vec!</span>[<span class="number">0xBB</span>; <span class="number">64</span>],
+<a href=#524 id=524 data-nosnippet>524</a>                <span class="string">"ML-DSA-65+Ed25519"</span>.to_string(),
+<a href=#525 id=525 data-nosnippet>525</a>                <span class="macro">vec!</span>[<span class="number">0xCC</span>; <span class="number">32</span>],
+<a href=#526 id=526 data-nosnippet>526</a>                <span class="prelude-val">Some</span>(<span class="string">"sig-key-001"</span>.to_string()),
+<a href=#527 id=527 data-nosnippet>527</a>            ),
+<a href=#528 id=528 data-nosnippet>528</a>            <span class="string">"ML-DSA-65+Ed25519"</span>.to_string(),
+<a href=#529 id=529 data-nosnippet>529</a>            <span class="number">1700000002</span>,
+<a href=#530 id=530 data-nosnippet>530</a>        )
 <a href=#531 id=531 data-nosnippet>531</a>    }
 <a href=#532 id=532 data-nosnippet>532</a>
 <a href=#533 id=533 data-nosnippet>533</a>    <span class="kw">fn </span>make_keypair() -&gt; KeyPair {
