@@ -949,12 +949,12 @@ fn test_encrypted_metadata_returns_expected_succeeds() {
 
 #[test]
 fn test_signed_metadata_returns_expected_succeeds() {
-    let meta = SignedMetadata {
-        signature: vec![1, 2, 3],
-        signature_algorithm: "ed25519".to_string(),
-        public_key: vec![4, 5, 6],
-        key_id: Some("sig-key-1".to_string()),
-    };
+    let meta = SignedMetadata::new(
+        vec![1, 2, 3],
+        "ed25519".to_string(),
+        vec![4, 5, 6],
+        Some("sig-key-1".to_string()),
+    );
     let meta2 = meta.clone();
     assert_eq!(meta.signature, meta2.signature);
     assert_eq!(meta.signature_algorithm, meta2.signature_algorithm);
@@ -964,12 +964,12 @@ fn test_signed_metadata_returns_expected_succeeds() {
 
 #[test]
 fn test_encrypted_data_type_alias_returns_expected_succeeds() {
-    let encrypted = EncryptedData {
-        data: vec![10, 20, 30],
-        metadata: EncryptedMetadata::symmetric(vec![1], None, None),
-        scheme: "aes-256-gcm".to_string(),
-        timestamp: 1234567890,
-    };
+    let encrypted = EncryptedData::new(
+        vec![10, 20, 30],
+        EncryptedMetadata::symmetric(vec![1], None, None),
+        "aes-256-gcm".to_string(),
+        1234567890,
+    );
     let encrypted2 = encrypted.clone();
     assert_eq!(encrypted, encrypted2);
     assert_eq!(encrypted.scheme, "aes-256-gcm");
@@ -1333,17 +1333,17 @@ fn test_sign_with_key_hybrid_87_wrong_key_lengths_returns_expected_fails() {
 
 #[test]
 fn test_verify_hybrid_44_short_signature_returns_expected_succeeds() {
-    let signed = SignedData {
-        data: b"test".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0u8; 10], // Too short for hybrid-44
-            signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
-            public_key: vec![0u8; 1344], // 1312 + 32
-            key_id: None,
-        },
-        scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
-        timestamp: 0,
-    };
+    let signed = SignedData::new(
+        b"test".to_vec(),
+        SignedMetadata::new(
+            vec![0u8; 10],
+            "hybrid-ml-dsa-44-ed25519".to_string(),
+            vec![0u8; 1344],
+            None,
+        ),
+        "hybrid-ml-dsa-44-ed25519".to_string(),
+        0,
+    );
 
     let result = verify(&signed, CryptoConfig::new());
     assert!(
@@ -1354,17 +1354,17 @@ fn test_verify_hybrid_44_short_signature_returns_expected_succeeds() {
 
 #[test]
 fn test_verify_hybrid_44_wrong_pk_length_returns_expected_fails() {
-    let signed = SignedData {
-        data: b"test".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0u8; 2500], // Long enough
-            signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
-            public_key: vec![0u8; 100], // Wrong length (should be 1312 + 32 = 1344)
-            key_id: None,
-        },
-        scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
-        timestamp: 0,
-    };
+    let signed = SignedData::new(
+        b"test".to_vec(),
+        SignedMetadata::new(
+            vec![0u8; 2500],
+            "hybrid-ml-dsa-44-ed25519".to_string(),
+            vec![0u8; 100],
+            None,
+        ),
+        "hybrid-ml-dsa-44-ed25519".to_string(),
+        0,
+    );
 
     let result = verify(&signed, CryptoConfig::new());
     assert!(
@@ -1375,17 +1375,17 @@ fn test_verify_hybrid_44_wrong_pk_length_returns_expected_fails() {
 
 #[test]
 fn test_verify_hybrid_87_short_signature_returns_expected_succeeds() {
-    let signed = SignedData {
-        data: b"test".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0u8; 10], // Too short for hybrid-87
-            signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
-            public_key: vec![0u8; 2624], // 2592 + 32
-            key_id: None,
-        },
-        scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
-        timestamp: 0,
-    };
+    let signed = SignedData::new(
+        b"test".to_vec(),
+        SignedMetadata::new(
+            vec![0u8; 10],
+            "hybrid-ml-dsa-87-ed25519".to_string(),
+            vec![0u8; 2624],
+            None,
+        ),
+        "hybrid-ml-dsa-87-ed25519".to_string(),
+        0,
+    );
 
     let result = verify(&signed, CryptoConfig::new());
     assert!(
@@ -1396,17 +1396,17 @@ fn test_verify_hybrid_87_short_signature_returns_expected_succeeds() {
 
 #[test]
 fn test_verify_hybrid_87_wrong_pk_length_returns_expected_fails() {
-    let signed = SignedData {
-        data: b"test".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0u8; 5000], // Long enough
-            signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
-            public_key: vec![0u8; 100], // Wrong length (should be 2592 + 32 = 2624)
-            key_id: None,
-        },
-        scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
-        timestamp: 0,
-    };
+    let signed = SignedData::new(
+        b"test".to_vec(),
+        SignedMetadata::new(
+            vec![0u8; 5000],
+            "hybrid-ml-dsa-87-ed25519".to_string(),
+            vec![0u8; 100],
+            None,
+        ),
+        "hybrid-ml-dsa-87-ed25519".to_string(),
+        0,
+    );
 
     let result = verify(&signed, CryptoConfig::new());
     assert!(
@@ -1461,17 +1461,17 @@ fn test_encrypt_empty_data_succeeds() {
 
 #[test]
 fn test_verify_hybrid_65_short_signature_returns_expected_succeeds() {
-    let signed = SignedData {
-        data: b"test".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0u8; 10], // Too short for hybrid-65
-            signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
-            public_key: vec![0u8; 1984], // 1952 + 32
-            key_id: None,
-        },
-        scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
-        timestamp: 0,
-    };
+    let signed = SignedData::new(
+        b"test".to_vec(),
+        SignedMetadata::new(
+            vec![0u8; 10],
+            "hybrid-ml-dsa-65-ed25519".to_string(),
+            vec![0u8; 1984],
+            None,
+        ),
+        "hybrid-ml-dsa-65-ed25519".to_string(),
+        0,
+    );
 
     let result = verify(&signed, CryptoConfig::new());
     assert!(
@@ -1482,17 +1482,17 @@ fn test_verify_hybrid_65_short_signature_returns_expected_succeeds() {
 
 #[test]
 fn test_verify_hybrid_65_wrong_pk_length_returns_expected_fails() {
-    let signed = SignedData {
-        data: b"test".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0u8; 4000], // Long enough
-            signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
-            public_key: vec![0u8; 100], // Wrong length (should be 1952 + 32 = 1984)
-            key_id: None,
-        },
-        scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
-        timestamp: 0,
-    };
+    let signed = SignedData::new(
+        b"test".to_vec(),
+        SignedMetadata::new(
+            vec![0u8; 4000],
+            "hybrid-ml-dsa-65-ed25519".to_string(),
+            vec![0u8; 100],
+            None,
+        ),
+        "hybrid-ml-dsa-65-ed25519".to_string(),
+        0,
+    );
 
     let result = verify(&signed, CryptoConfig::new());
     assert!(

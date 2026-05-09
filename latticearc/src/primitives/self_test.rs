@@ -705,10 +705,29 @@ impl rand_core_0_6::RngCore for FixedBytesRng {
         0
     }
     fn fill_bytes(&mut self, out: &mut [u8]) {
-        if let Some(bytes) = self.data.pop()
-            && bytes.len() == out.len()
-        {
-            out.copy_from_slice(&bytes);
+        // Both the underflow and the size-mismatch branches leave
+        // `out` zero-filled, which the downstream pk/sk comparison
+        // against the ACVP vector detects (a zero seed cannot derive
+        // the attested keypair). Surface the discriminator via
+        // tracing::debug! so a future upstream call-sequence change
+        // (e.g., fips204 bumps `try_keygen_with_rng` to do an extra
+        // fill) shows up as a "RNG stack underflow" log rather than
+        // a "wrong KAT output" mystery.
+        match self.data.pop() {
+            Some(bytes) if bytes.len() == out.len() => out.copy_from_slice(&bytes),
+            Some(bytes) => {
+                tracing::debug!(
+                    requested = out.len(),
+                    available = bytes.len(),
+                    "FixedBytesRng size mismatch — KAT vector format may have changed upstream"
+                );
+            }
+            None => {
+                tracing::debug!(
+                    requested = out.len(),
+                    "FixedBytesRng stack underflow — KAT vector exhausted, upstream call sequence likely changed"
+                );
+            }
         }
     }
     fn try_fill_bytes(&mut self, out: &mut [u8]) -> core::result::Result<(), rand_core_0_6::Error> {

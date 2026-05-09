@@ -9,6 +9,153 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-48 audit — public-API hardening + Pattern-6 follow-up + `#[non_exhaustive]` discipline (2026-05-09)
+
+External round-48 audit returned 7 findings (1 MED, 3 LOW, 3 DOC) plus 1 tracking-log nit; independent
+review surfaced 2 additional issues (`tracing::error!` macro leaking the L2 discriminator,
+deserializer-path test parity gap) plus a 28-site internal type-construction migration.
+All 9 confirmed findings fixed; 1 (D2) verified as a doctest-lint-policy
+inconsistency rather than a hard breakage.
+
+#### MED
+
+- **M1 — `latticearc/src/prelude/side_channel_analysis.rs:30`**:
+  `UtilityTimingAnalyzer::new(samples, _)` accepted `samples = 0` and panicked with
+  integer division-by-zero inside `calculate_mean` (the module's `#![deny(clippy::panic)]`
+  catches the `panic!` macro only, not arithmetic panics). Now returns
+  `Result<Self, LatticeArcError>` rejecting `samples < MIN_SAMPLES (= 2)` —
+  the empty / single-sample cases would panic in `calculate_mean` (div-by-zero)
+  or produce a degenerate std-dev that the CV calculation cannot consume.
+  Defense-in-depth `is_empty()` short-circuits added to `calculate_mean` /
+  `calculate_std_dev` so the panic cannot be reached even from a future internal
+  caller. Internal `UtilitySideChannelTester::new` constructs
+  `UtilityTimingAnalyzer` directly via field literal (1000 samples is statically
+  `≥ MIN_SAMPLES`), keeping that constructor infallible without an
+  `unwrap`/`expect` escape hatch.
+
+#### LOW
+
+- **L1 — `latticearc/src/types/key_lifecycle.rs::KeyLifecycleRecord::new`**:
+  the constructor accepted `security_level = 999` and `rotation_interval_days = 0`
+  without validation. Audit's framing "the deserializer re-validates" was
+  partially incorrect — the `TryFrom<KeyLifecycleRecordRaw>` deserializer
+  (round-32 M7 fix) re-validated *state-machine* invariants but left the
+  numeric ranges unchecked too. Now both paths share a single validation gate:
+  `validate_security_level` (reject outside 1-5) and `validate_rotation_interval`
+  (reject `0`, which makes `requires_rotation()` return `true` immediately on
+  activation — a configuration bug, not a real lifecycle policy).
+  `KeyLifecycleRecord::new` now returns `Result<Self, TypeError>`.
+  6 negative tests added — 3 for the constructor path
+  (security_level=0, =6, rotation_interval_days=0) and 3 for the deserializer
+  path with the same invalid inputs (parity per audit L1 ask).
+
+- **L2 — `latticearc/src/unified_api/zero_trust.rs:1641`**: `verify_response`
+  returned distinct typed-error strings (`"No active challenge"` vs
+  `"Challenge expired"`) for two protocol-state cases that sibling `verify_pop`
+  collapses to `Ok(false)` + `tracing::debug!`. Pattern-6 distinguisher across
+  protocol state machine, even if the discriminator is caller-protocol rather
+  than crypto-material. Collapsed to a single fixed
+  `"challenge verification failed"` constant in both the typed error and the
+  `log_zero_trust_session_verification_failed!` audit-log macro (which expands
+  to `tracing::error!` and would otherwise still surface the discriminator in
+  SIEM / log-aggregation pipelines that filter at WARN+ level — a leak channel
+  the original collapse missed). Discriminator goes to `tracing::debug!` for
+  operator visibility, mirroring `verify_pop`'s posture.
+
+- **L3 — `latticearc/src/prelude/cavp_compliance.rs::CryptoTestVector`**: the
+  `pub private_key: Vec<u8>` field name signaled "real secret" but the type
+  provides no zeroization on drop and `Debug` is derived (CAVP vectors are public
+  reference values; the harness needs `Debug` for failure reporting). A
+  downstream user wiring real keys through this struct would get full
+  `Debug`-printed key bytes in any log + zero zeroization. Renamed field
+  `private_key` → `kat_private_key_bytes` (22 internal sites); added
+  `#[non_exhaustive]` and a strong struct-level doc warning explicitly directing
+  callers to `PrivateKey` / `SecretVec` for real secret material.
+
+#### DOC
+
+- **D1 — `latticearc/src/types/types.rs::SignedMetadata` and
+  `CryptoPayload<T>`**: `DESIGN_PATTERNS.md` Pattern 9 mandates
+  `#[non_exhaustive]` on public enums; the same hazard exists for public structs
+  with all-`pub` fields where field-literal construction is a stable downstream
+  contract. Two structs lacked it (sibling `EncryptedMetadata` already carried
+  it with rationale). Now both have `#[non_exhaustive]` + `pub fn new()`
+  constructors. **65 field-literal sites migrated** to constructor calls:
+    - 37 external test sites in `tests/tests/{api_stability,schemes,serialization,
+      serialization_integration,version_compatibility}.rs` and
+      `latticearc/tests/audit_regression_zero_trust.rs`
+    - 28 internal sites in `latticearc/src/unified_api/{convenience/api.rs,
+      tests.rs,crypto_types.rs,serialization.rs}` and `types/types.rs`
+      (covers production sign paths + the `From<EncryptedOutput>` /
+      `TryFrom<SerializableSignedData>` impls + `From<&SignedData>` for
+      `Serializable*`)
+    - 1 doctest in `unified_api/convenience/api.rs:1037`
+    - 8 verbose call sites in `tests/tests/schemes.rs` deduplicated via
+      a new `make_signed(msg, sig, pk, scheme)` helper that encodes the
+      S4 invariant `metadata.signature_algorithm == scheme` in one place
+  Adding fields to `SignedMetadata` / `CryptoPayload` no longer requires
+  hunting field-literal sites across the workspace.
+
+  `Serializable*` types (internal serde shims, not `#[non_exhaustive]`) kept as
+  field-literal — they are deserializer destination types only and never grow
+  fields without a serde-version bump.
+
+  `KeyPair` retains a positional `pub fn new(public_key, private_key)`
+  constructor that is also a stability hazard (adding a field would break the
+  signature regardless of `#[non_exhaustive]`); not addressed in this round
+  because the fix would require a builder pattern. Tracked as a separate
+  follow-up if a third public field becomes necessary.
+
+- **D2 — doctest lint policy gap**: workspace `clippy::expect_used = "deny"`
+  is not enforced on doctests by `cargo test --doc`; doctests using
+  `.expect(...)` / `.unwrap()` compile cleanly even though production code
+  cannot. Verified empirically (138 doctests pass with the lint denied
+  everywhere in the workspace). Round-48 rewrites the two doctests cited by
+  the audit (`key_lifecycle.rs:14` + `config.rs:14`) from `.expect(...)` to
+  `?` propagation inside a `# fn main() -> Result<(), Box<dyn Error>>`
+  wrapper for consistency with the production lint stance, but does not
+  enable lint enforcement on doctests workspace-wide (rustdoc test
+  infrastructure does not currently respect crate-level lint attributes for
+  doctests in a way that would be ergonomic to enforce here; the remaining
+  `.expect(...)` / `.unwrap()` doctests in the codebase are compile-only
+  examples that don't exercise crypto paths).
+
+- **D3 — CHANGELOG round-47 wording on SLH-DSA SHAKE coverage**:
+  the round-47 note claimed "both share the same SHAKE-based code paths so
+  coverage is equivalent" for the SHAKE-192s ACVP KAT vs. SHAKE-128s
+  production default. Tightened: the SHAKE permutation primitive *is* shared
+  across all SHAKE parameter sets, but per-parameter dispatch in the wrapper
+  (`slh_dsa.rs:465/490/515` instantiates `shake_128s::` / `shake_192s::` /
+  `shake_256s::` separately) means a SHAKE-128s-specific wrapper bug would
+  not be caught by the SHAKE-192s KAT — only by the production-default
+  SHAKE-128s sign/verify roundtrip. Coverage is permutation-equivalent, not
+  dispatch-equivalent.
+
+#### Tracking nit
+
+- **T1 — `latticearc/src/primitives/self_test.rs::FixedBytesRng::fill_bytes`**:
+  the panic-free design (silent zero-fill on stack underflow / size mismatch,
+  caught downstream by the ACVP pk/sk byte comparison) made misuse hard to
+  diagnose. Both branches now emit `tracing::debug!` with structured
+  `requested` / `available` fields so a future upstream call-sequence change
+  in `fips204` / `fips205` (e.g., an extra `try_keygen_with_rng` fill) shows
+  up as a clear "FixedBytesRng stack underflow" log rather than a "wrong KAT
+  output" mystery.
+
+#### Code-quality follow-ups (independent review)
+
+- Stripped audit-round labels (`Round-48 L1`, `round-32 M7`) from the
+  `TryFrom<KeyLifecycleRecordRaw>` rationale comment per CLAUDE.md
+  ("audit-round labels live in CHANGELOG.md and commit messages only").
+  Functional rationale ("tampered persisted record could carry security_level
+  = 999...") preserved.
+- Aligned `validate_security_level` / `validate_rotation_interval` error
+  message format (both now use `format!` with the offending value).
+- Removed the `pub(crate) UtilityTimingAnalyzer::new_unchecked` escape hatch
+  that `/simplify` review flagged as a future-misuse trap; the only caller
+  (`UtilitySideChannelTester::new`) constructs the field literal directly with
+  a static-guarantee comment.
+
 ### Round-47 audit — Pattern-6 echo collapse, real ACVP KATs, ECDH/AEAD zeroize hardening (2026-05-08)
 
 External round-47 audit returned 14 findings (3 HIGH, 4 MED, 5 LOW, 2 DOC); independent
@@ -52,10 +199,16 @@ to real ACVP fixed-input KATs.
       and ACVP `keyGen` `tcId=21`'s `(sk_seed, sk_prf, pk_seed)` 24-byte
       seeds — full 48-byte `pk` and 96-byte `sk` byte-exact match.
       SHAKE-192s rather than SHAKE-128s because the latter is not in the
-      `fips205` crate's bundled ACVP vectors as of v0.4.1; both share the
-      same SHAKE-based code paths so coverage is equivalent. Production-
-      default SHAKE-128s sign/verify roundtrip remains. Renamed back to
-      `kat_slh_dsa()`.
+      `fips205` crate's bundled ACVP vectors as of v0.4.1. Coverage scope:
+      the SHAKE permutation primitive *is* shared across all SHAKE
+      parameter sets, so a regression in the underlying hash is caught;
+      per-parameter dispatch in our wrapper (`slh_dsa.rs:465/490/515`)
+      instantiates each `shake_128s::` / `shake_192s::` / `shake_256s::`
+      module separately, so a SHAKE-128s-specific dispatch bug would
+      *not* be caught by the SHAKE-192s KAT — only by the production-
+      default SHAKE-128s sign/verify roundtrip that runs on top. Add
+      bundled SHAKE-128s ACVP vectors when fips205 ships them upstream.
+      Renamed back to `kat_slh_dsa()`.
     - **ML-KEM-768**: stays `roundtrip_ml_kem_768()`. Real upstream block —
       `aws-lc-rs` ML-KEM uses its FIPS-approved internal DRBG which adds
       entropy regardless of caller-supplied seeds (verified by the existing

@@ -42,7 +42,24 @@ pub struct UtilityTestVector {
 ///
 /// Represents a single test case for validating cryptographic
 /// operations like signing and verification.
+///
+/// # ⚠️ KAT vectors only — do not wire real keys
+///
+/// This struct holds **published CAVP/ACVP test data only**. The
+/// `kat_private_key_bytes` field is intentionally a plain `Vec<u8>`
+/// with derived `Debug` + `Clone` because CAVP vectors are public
+/// reference values and the test harness needs to print them on
+/// failure. **Do not** populate this struct with real key material
+/// — the type provides no zeroization on drop and `Debug` will
+/// emit the bytes verbatim into any log or panic message. For real
+/// secrets use [`PrivateKey`](crate::types::PrivateKey) (zeroizes
+/// on drop, Debug-redacted) or
+/// [`SecretVec`](crate::types::SecretVec).
+///
+/// Marked `#[non_exhaustive]` so adding test-harness fields later
+/// is not a breaking change.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CryptoTestVector {
     /// Unique identifier for the test case.
     pub test_case_id: String,
@@ -50,8 +67,9 @@ pub struct CryptoTestVector {
     pub algorithm: String,
     /// Operation being tested ("sign" or "verify").
     pub operation: String,
-    /// Private key bytes (for signing operations).
-    pub private_key: Vec<u8>,
+    /// **KAT private-key BYTES — public CAVP test data, never a real secret.**
+    /// See struct-level doc warning above.
+    pub kat_private_key_bytes: Vec<u8>,
     /// Public key bytes (for verification operations).
     pub public_key: Vec<u8>,
     /// Message to sign or verify.
@@ -318,8 +336,8 @@ impl CryptoCavpTester {
         match vector.operation.as_str() {
             "sign" => {
                 // For signing tests, just verify that a signature can be generated
-                let keypair =
-                    Secp256k1KeyPair::from_secret_key(&vector.private_key).map_err(|e| {
+                let keypair = Secp256k1KeyPair::from_secret_key(&vector.kat_private_key_bytes)
+                    .map_err(|e| {
                         LatticeArcError::InvalidData(format!("Invalid ECDSA private key: {e}"))
                     })?;
 
@@ -366,8 +384,8 @@ impl CryptoCavpTester {
         match vector.operation.as_str() {
             "sign" => {
                 // For signing tests, just verify that a signature can be generated
-                let keypair =
-                    Ed25519KeyPair::from_secret_key(&vector.private_key).map_err(|e| {
+                let keypair = Ed25519KeyPair::from_secret_key(&vector.kat_private_key_bytes)
+                    .map_err(|e| {
                         LatticeArcError::InvalidData(format!("Invalid Ed25519 private key: {e}"))
                     })?;
 
@@ -498,7 +516,7 @@ pub fn load_sample_crypto_vectors() -> Result<Vec<CryptoTestVector>> {
         test_case_id: "ECDSA-SECP256K1-SIGN-001".to_string(),
         algorithm: "ECDSA-secp256k1".to_string(),
         operation: "sign".to_string(),
-        private_key: ecdsa_private_key.to_vec(),
+        kat_private_key_bytes: ecdsa_private_key.to_vec(),
         public_key: vec![], // Not needed for signing
         message: b"test message for ECDSA".to_vec(),
         signature: vec![], // Will be generated and compared
@@ -513,7 +531,7 @@ pub fn load_sample_crypto_vectors() -> Result<Vec<CryptoTestVector>> {
             test_case_id: "ED25519-SIGN-001".to_string(),
             algorithm: "Ed25519".to_string(),
             operation: "sign".to_string(),
-            private_key: private_key_bytes.to_vec(),
+            kat_private_key_bytes: private_key_bytes.to_vec(),
             public_key: vec![], // Not needed for signing
             message: message.clone(),
             signature: vec![], // Will be generated and compared
@@ -525,7 +543,7 @@ pub fn load_sample_crypto_vectors() -> Result<Vec<CryptoTestVector>> {
             test_case_id: "ED25519-VERIFY-001".to_string(),
             algorithm: "Ed25519".to_string(),
             operation: "verify".to_string(),
-            private_key: vec![], // Not needed for verification
+            kat_private_key_bytes: vec![], // Not needed for verification
             public_key: public_key_bytes_vec,
             message,
             signature: signature_bytes,
@@ -866,7 +884,7 @@ mod tests {
             test_case_id: "UNSUP-001".to_string(),
             algorithm: "RSA-2048".to_string(),
             operation: "sign".to_string(),
-            private_key: vec![],
+            kat_private_key_bytes: vec![],
             public_key: vec![],
             message: vec![],
             signature: vec![],
@@ -883,7 +901,7 @@ mod tests {
             test_case_id: "ECDSA-BAD-OP".to_string(),
             algorithm: "ECDSA-secp256k1".to_string(),
             operation: "encrypt".to_string(),
-            private_key: vec![0xC9; 32],
+            kat_private_key_bytes: vec![0xC9; 32],
             public_key: vec![],
             message: vec![],
             signature: vec![],
@@ -900,7 +918,7 @@ mod tests {
             test_case_id: "ED-BAD-OP".to_string(),
             algorithm: "Ed25519".to_string(),
             operation: "encrypt".to_string(),
-            private_key: vec![0x01; 32],
+            kat_private_key_bytes: vec![0x01; 32],
             public_key: vec![],
             message: vec![],
             signature: vec![],
@@ -917,7 +935,7 @@ mod tests {
             test_case_id: "ECDSA-BAD-KEY".to_string(),
             algorithm: "ECDSA-secp256k1".to_string(),
             operation: "sign".to_string(),
-            private_key: vec![0; 32], // all-zero key is invalid for ECDSA
+            kat_private_key_bytes: vec![0; 32], // all-zero key is invalid for ECDSA
             public_key: vec![],
             message: b"test".to_vec(),
             signature: vec![],
@@ -934,7 +952,7 @@ mod tests {
             test_case_id: "ED-BAD-LEN".to_string(),
             algorithm: "Ed25519".to_string(),
             operation: "sign".to_string(),
-            private_key: vec![1; 16], // wrong length
+            kat_private_key_bytes: vec![1; 16], // wrong length
             public_key: vec![],
             message: b"test".to_vec(),
             signature: vec![],
@@ -990,7 +1008,7 @@ mod tests {
             test_case_id: "ECDSA-VERIFY-001".to_string(),
             algorithm: "ECDSA-secp256k1".to_string(),
             operation: "verify".to_string(),
-            private_key: vec![],
+            kat_private_key_bytes: vec![],
             public_key: verifying_key,
             message: message.to_vec(),
             signature: TestSig::signature_bytes(&signature),
@@ -1023,7 +1041,7 @@ mod tests {
             test_case_id: "ECDSA-VERIFY-FAIL".to_string(),
             algorithm: "ECDSA-secp256k1".to_string(),
             operation: "verify".to_string(),
-            private_key: vec![],
+            kat_private_key_bytes: vec![],
             public_key: verifying_key,
             message: b"wrong message".to_vec(),
             signature: TestSig::signature_bytes(&signature),
@@ -1042,7 +1060,7 @@ mod tests {
             test_case_id: "ECDSA-BAD-PK".to_string(),
             algorithm: "ECDSA-secp256k1".to_string(),
             operation: "verify".to_string(),
-            private_key: vec![],
+            kat_private_key_bytes: vec![],
             public_key: vec![0xFF; 10], // Invalid SEC1 encoded public key
             message: b"test".to_vec(),
             signature: vec![0; 64],
@@ -1069,7 +1087,7 @@ mod tests {
             test_case_id: "ECDSA-BAD-SIG".to_string(),
             algorithm: "ECDSA-secp256k1".to_string(),
             operation: "verify".to_string(),
-            private_key: vec![],
+            kat_private_key_bytes: vec![],
             public_key: verifying_key.to_sec1_bytes().to_vec(),
             message: b"test".to_vec(),
             signature: vec![0xFF; 10], // Wrong length for ECDSA signature
@@ -1088,7 +1106,7 @@ mod tests {
             test_case_id: "ED-BAD-PK-LEN".to_string(),
             algorithm: "Ed25519".to_string(),
             operation: "verify".to_string(),
-            private_key: vec![],
+            kat_private_key_bytes: vec![],
             public_key: vec![1; 16], // Wrong length (not 32 bytes)
             message: b"test".to_vec(),
             signature: vec![0; 64],
@@ -1105,7 +1123,7 @@ mod tests {
             test_case_id: "ED-BAD-SIG-LEN".to_string(),
             algorithm: "Ed25519".to_string(),
             operation: "verify".to_string(),
-            private_key: vec![],
+            kat_private_key_bytes: vec![],
             public_key: vec![1; 32],
             message: b"test".to_vec(),
             signature: vec![0; 10], // Wrong length (not 64 bytes)
@@ -1139,7 +1157,7 @@ mod tests {
             test_case_id: "CRYPTO-001".to_string(),
             algorithm: "Ed25519".to_string(),
             operation: "sign".to_string(),
-            private_key: vec![1; 32],
+            kat_private_key_bytes: vec![1; 32],
             public_key: vec![],
             message: b"msg".to_vec(),
             signature: vec![],

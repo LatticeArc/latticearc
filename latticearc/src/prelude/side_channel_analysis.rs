@@ -25,10 +25,33 @@ pub struct UtilityTimingAnalyzer {
 }
 
 impl UtilityTimingAnalyzer {
+    /// Minimum sample count required for a meaningful timing analysis.
+    ///
+    /// `analyze_utility_timing` divides the sum of measured durations by
+    /// `samples` to compute the mean — `samples == 0` would panic with
+    /// integer division-by-zero before reaching the typed result.
+    /// `samples == 1` is mathematically valid but produces a zero
+    /// std-dev that the downstream CV calculation collapses to NaN.
+    /// Either is a programmer mistake, not a runtime condition.
+    pub const MIN_SAMPLES: usize = 2;
+
     /// Creates a new timing analyzer with the specified sample count and warmup.
-    #[must_use]
-    pub fn new(samples: usize, warmup_iterations: usize) -> Self {
-        Self { samples, warmup_iterations }
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LatticeArcError::InvalidInput`] if `samples` is below
+    /// [`Self::MIN_SAMPLES`]. The empty / single-sample cases would
+    /// either panic in `calculate_mean` (div-by-zero) or produce a
+    /// degenerate std-dev that the CV calculation cannot consume.
+    pub fn new(samples: usize, warmup_iterations: usize) -> Result<Self> {
+        if samples < Self::MIN_SAMPLES {
+            return Err(crate::prelude::LatticeArcError::InvalidInput(format!(
+                "UtilityTimingAnalyzer requires at least {} samples, got {}",
+                Self::MIN_SAMPLES,
+                samples
+            )));
+        }
+        Ok(Self { samples, warmup_iterations })
     }
 
     /// Analyze timing variations in utility operations.
@@ -234,13 +257,20 @@ pub enum Severity {
     Critical,
 }
 
-/// Calculate mean duration.
+/// Calculate mean duration. Returns `Duration::ZERO` for an empty
+/// slice — the public `UtilityTimingAnalyzer::new` rejects
+/// `samples == 0` so this branch is unreachable from the public API,
+/// but the guard is kept for defense-in-depth against any future
+/// internal caller.
 #[expect(
     clippy::cast_possible_truncation,
     clippy::arithmetic_side_effects,
     reason = "u128-to-u64 truncation on average nanos: a mean Duration that overflows u64 ns (~584 years) cannot occur on real timing samples; arithmetic on Duration::as_nanos() sums is bounded by the sample count"
 )]
 fn calculate_mean(durations: &[Duration]) -> Duration {
+    if durations.is_empty() {
+        return Duration::ZERO;
+    }
     let total_nanos: u128 = durations.iter().map(Duration::as_nanos).sum();
     Duration::from_nanos((total_nanos / durations.len() as u128) as u64)
 }
@@ -252,6 +282,9 @@ fn calculate_mean(durations: &[Duration]) -> Duration {
     reason = "f64-to-u64 cast on variance.sqrt(): a Duration std-dev exceeding u64 nanoseconds (~584 years) cannot occur on real timing samples; sign-loss is sound because variance is non-negative"
 )]
 fn calculate_std_dev(durations: &[Duration]) -> Duration {
+    if durations.is_empty() {
+        return Duration::ZERO;
+    }
     let mean = calculate_mean(durations);
     #[expect(
         clippy::cast_precision_loss,
@@ -304,9 +337,14 @@ impl Default for UtilitySideChannelTester {
 
 impl UtilitySideChannelTester {
     /// Creates a new side-channel tester with default settings.
+    ///
+    /// 1000 samples is statically `>= UtilityTimingAnalyzer::MIN_SAMPLES`
+    /// (= 2), so the `Result` arm of `UtilityTimingAnalyzer::new` is
+    /// unreachable here; we field-construct directly to keep this
+    /// `pub fn new() -> Self` infallible.
     #[must_use]
     pub fn new() -> Self {
-        Self { timing_analyzer: UtilityTimingAnalyzer::new(1000, 100) }
+        Self { timing_analyzer: UtilityTimingAnalyzer { samples: 1000, warmup_iterations: 100 } }
     }
 
     /// Run comprehensive side-channel analysis for utilities.
@@ -418,7 +456,7 @@ mod tests {
     #[test]
     fn test_timing_analyzer_produces_valid_statistics_succeeds()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let analyzer = UtilityTimingAnalyzer::new(10, 5);
+        let analyzer = UtilityTimingAnalyzer::new(10, 5)?;
 
         // Test with a simple operation
         let analysis = analyzer.analyze_utility_timing(|| {
@@ -436,7 +474,7 @@ mod tests {
     #[test]
     fn test_hex_timing_analysis_has_no_critical_issues_succeeds()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let analyzer = UtilityTimingAnalyzer::new(10, 5);
+        let analyzer = UtilityTimingAnalyzer::new(10, 5)?;
         let assessments = analyzer.test_hex_timing_succeeds()?;
         // Should not have critical issues
         assert!(assessments.iter().all(|a| a.severity != Severity::Critical));
@@ -446,7 +484,7 @@ mod tests {
     #[test]
     fn test_uuid_timing_analysis_has_no_critical_issues_succeeds()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let analyzer = UtilityTimingAnalyzer::new(10, 5);
+        let analyzer = UtilityTimingAnalyzer::new(10, 5)?;
         let assessments = analyzer.test_uuid_timing_succeeds()?;
         // Should not have critical issues
         assert!(assessments.iter().all(|a| a.severity != Severity::Critical));

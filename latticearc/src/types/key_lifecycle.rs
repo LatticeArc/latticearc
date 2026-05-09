@@ -16,13 +16,14 @@
 //! ```
 //! use latticearc::types::key_lifecycle::{KeyLifecycleRecord, KeyLifecycleState};
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut record = KeyLifecycleRecord::new(
 //!     "key-123".to_string(),
 //!     "ML-KEM-768".to_string(),
-//!     3,   // security level
-//!     365, // rotation interval (days)
+//!     3,   // security level (1-5, NIST PQC categories)
+//!     365, // rotation interval (days, > 0)
 //!     30,  // overlap period (days)
-//! );
+//! )?;
 //!
 //! // Activate the key
 //! record.transition(
@@ -30,9 +31,11 @@
 //!     "alice".to_string(),
 //!     "Key generation complete".to_string(),
 //!     Some("approval-123".to_string()),
-//! ).expect("Valid transition");
+//! )?;
 //!
 //! assert!(record.is_valid_for_use());
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::types::error::{Result, TypeError};
@@ -434,6 +437,15 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
             }
         }
 
+        // Re-validate the numeric-bound invariants that
+        // `KeyLifecycleRecord::new` enforces on construction. The
+        // state-machine-invariant pass above does not cover these,
+        // so without this gate a tampered persisted record could
+        // carry security_level = 999 or rotation_interval_days = 0
+        // past the round-trip.
+        validate_security_level(raw.security_level)?;
+        validate_rotation_interval(raw.rotation_interval_days)?;
+
         Ok(KeyLifecycleRecord {
             key_id: raw.key_id,
             key_type: raw.key_type,
@@ -452,6 +464,33 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
             overlap_period_days: raw.overlap_period_days,
         })
     }
+}
+
+/// Reject `security_level` outside the documented 1-5 range. Used by
+/// both `KeyLifecycleRecord::new` and the deserializer so the in-memory
+/// and on-disk paths share one gate.
+fn validate_security_level(security_level: u32) -> Result<()> {
+    if !(1..=5).contains(&security_level) {
+        return Err(TypeError::InvalidAuditInput(format!(
+            "security_level {} outside documented range 1-5",
+            security_level
+        )));
+    }
+    Ok(())
+}
+
+/// Reject `rotation_interval_days == 0`. A zero interval makes
+/// `requires_rotation()` return `true` immediately on activation, so
+/// every key would be flagged for rotation at the moment it goes live —
+/// almost certainly a configuration bug, not a real lifecycle policy.
+fn validate_rotation_interval(rotation_interval_days: u32) -> Result<()> {
+    if rotation_interval_days == 0 {
+        return Err(TypeError::InvalidAuditInput(format!(
+            "rotation_interval_days {} is zero; would force immediate rotation on activation",
+            rotation_interval_days
+        )));
+    }
+    Ok(())
 }
 
 /// Record of a state transition
@@ -478,18 +517,27 @@ impl KeyLifecycleRecord {
     ///
     /// * `key_id` - Unique identifier for the key
     /// * `key_type` - Algorithm/key type (e.g., "ML-KEM-768")
-    /// * `security_level` - Security level (1-5)
-    /// * `rotation_interval_days` - How often to rotate the key
+    /// * `security_level` - Security level (1-5, NIST PQC categories)
+    /// * `rotation_interval_days` - How often to rotate the key (must be > 0)
     /// * `overlap_period_days` - Overlap period during rotation
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TypeError::InvalidAuditInput`] if `security_level` is
+    /// outside the documented 1-5 range, or if `rotation_interval_days`
+    /// is zero (forcing immediate rotation on activation). The
+    /// deserializer applies the same checks so in-memory and on-disk
+    /// records share one validation gate.
     pub fn new(
         key_id: String,
         key_type: String,
         security_level: u32,
         rotation_interval_days: u32,
         overlap_period_days: u32,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        validate_security_level(security_level)?;
+        validate_rotation_interval(rotation_interval_days)?;
+        Ok(Self {
             key_id,
             key_type,
             security_level,
@@ -505,7 +553,7 @@ impl KeyLifecycleRecord {
             destroyed_at: None,
             rotation_interval_days,
             overlap_period_days,
-        }
+        })
     }
 
     /// Transition key to new state with custodianship tracking
@@ -875,6 +923,67 @@ mod tests {
     }
 
     #[test]
+    fn test_new_rejects_security_level_below_range_fails() {
+        let err = KeyLifecycleRecord::new("k".to_string(), "ML-KEM-768".to_string(), 0, 365, 30)
+            .unwrap_err();
+        assert!(matches!(err, TypeError::InvalidAuditInput(_)), "got {:?}", err);
+        assert!(err.to_string().contains("security_level 0"));
+    }
+
+    #[test]
+    fn test_new_rejects_security_level_above_range_fails() {
+        let err = KeyLifecycleRecord::new("k".to_string(), "ML-KEM-768".to_string(), 6, 365, 30)
+            .unwrap_err();
+        assert!(matches!(err, TypeError::InvalidAuditInput(_)), "got {:?}", err);
+        assert!(err.to_string().contains("security_level 6"));
+    }
+
+    #[test]
+    fn test_new_rejects_zero_rotation_interval_fails() {
+        let err = KeyLifecycleRecord::new("k".to_string(), "ML-KEM-768".to_string(), 3, 0, 30)
+            .unwrap_err();
+        assert!(matches!(err, TypeError::InvalidAuditInput(_)), "got {:?}", err);
+        assert!(err.to_string().contains("rotation_interval_days 0"));
+    }
+
+    /// Build a JSON document that bypasses `KeyLifecycleRecord::new`'s
+    /// numeric-bounds gate (the constructor's `Result` arm is never
+    /// reached) so the deserializer's parity-with-`new` validation is
+    /// the only thing that can catch the invalid value.
+    fn build_record_json(security_level: u32, rotation_interval_days: u32) -> String {
+        format!(
+            r#"{{"key_id":"k","key_type":"ML-KEM-768","security_level":{security_level},"current_state":"Generation","state_history":[],"generator":null,"approvers":[],"destroyer":null,"generated_at":"2026-01-01T00:00:00Z","activated_at":null,"rotated_at":null,"retired_at":null,"destroyed_at":null,"rotation_interval_days":{rotation_interval_days},"overlap_period_days":30}}"#
+        )
+    }
+
+    #[test]
+    fn test_deserialize_rejects_security_level_below_range_fails() {
+        let json = build_record_json(0, 365);
+        let err = serde_json::from_str::<KeyLifecycleRecord>(&json).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("security_level 0"), "deserializer should echo rejection: got {msg}");
+    }
+
+    #[test]
+    fn test_deserialize_rejects_security_level_above_range_fails() {
+        let json = build_record_json(6, 365);
+        let err = serde_json::from_str::<KeyLifecycleRecord>(&json).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("security_level 6"), "deserializer should echo rejection: got {msg}");
+    }
+
+    #[test]
+    fn test_deserialize_rejects_zero_rotation_interval_fails() {
+        let json = build_record_json(3, 0);
+        let err = serde_json::from_str::<KeyLifecycleRecord>(&json).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("rotation_interval_days 0"),
+            "deserializer should echo rejection: got {msg}"
+        );
+    }
+
+    #[test]
     fn test_key_lifecycle_record_succeeds() {
         let mut record = KeyLifecycleRecord::new(
             "test-key-123".to_string(),
@@ -882,7 +991,8 @@ mod tests {
             3,
             365,
             30,
-        );
+        )
+        .unwrap();
 
         assert_eq!(record.current_state, KeyLifecycleState::Generation);
         assert!(!record.is_valid_for_use());
@@ -914,7 +1024,8 @@ mod tests {
             3,
             90, // 90 day rotation
             7,
-        );
+        )
+        .unwrap();
 
         // Drive through the state machine before back-dating, so that
         // `state_history` and `generator` are populated. A future
@@ -942,7 +1053,8 @@ mod tests {
             3,
             365,
             30,
-        );
+        )
+        .unwrap();
 
         // Invalid transition should fail
         let result = record.transition(
@@ -963,7 +1075,8 @@ mod tests {
             3,
             365,
             30,
-        );
+        )
+        .unwrap();
 
         assert!(record.add_approver("alice".to_string()));
         assert!(record.add_approver("bob".to_string()));

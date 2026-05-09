@@ -718,12 +718,12 @@ fn test_encrypted_metadata_field_accessibility_is_stable() {
 /// Test 2.18: Struct field accessibility - SignedMetadata
 #[test]
 fn test_signed_metadata_field_accessibility_is_stable() {
-    let metadata = SignedMetadata {
-        signature: vec![0u8; 64],
-        signature_algorithm: "ML-DSA-65".to_string(),
-        public_key: vec![0u8; 32],
-        key_id: Some("key-123".to_string()),
-    };
+    let metadata = SignedMetadata::new(
+        vec![0u8; 64],
+        "ML-DSA-65".to_string(),
+        vec![0u8; 32],
+        Some("key-123".to_string()),
+    );
 
     // Fields should be accessible
     assert_eq!(metadata.signature.len(), 64);
@@ -1282,7 +1282,8 @@ fn test_challenge_structure_is_stable() {
 #[test]
 fn test_key_lifecycle_record_is_stable() {
     let record =
-        KeyLifecycleRecord::new("key-123".to_string(), "ML-KEM-768".to_string(), 3, 365, 30);
+        KeyLifecycleRecord::new("key-123".to_string(), "ML-KEM-768".to_string(), 3, 365, 30)
+            .expect("security_level=3 is within 1-5 and rotation_interval=365 > 0");
 
     // Fields should be accessible
     assert_eq!(record.key_id, "key-123");

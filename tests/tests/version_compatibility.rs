@@ -35,17 +35,12 @@ fn create_signed_data(
     scheme: &str,
     timestamp: u64,
 ) -> SignedData {
-    SignedData {
+    SignedData::new(
         data,
-        metadata: SignedMetadata {
-            signature,
-            signature_algorithm: algorithm.to_string(),
-            public_key,
-            key_id: None,
-        },
-        scheme: scheme.to_string(),
+        SignedMetadata::new(signature, algorithm.to_string(), public_key, None),
+        scheme.to_string(),
         timestamp,
-    }
+    )
 }
 
 /// Creates a test keypair with specified key sizes.

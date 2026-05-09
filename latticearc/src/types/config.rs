@@ -24,18 +24,21 @@ use crate::types::{
 /// use latticearc::types::config::CoreConfig;
 /// use latticearc::types::types::{SecurityLevel, PerformancePreference};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create a high-security configuration
 /// let config = CoreConfig::new()
 ///     .with_security_level(SecurityLevel::High)
 ///     .with_performance_preference(PerformancePreference::Balanced)
-///     .build()
-///     .expect("Failed to build config");
+///     .build()?;
 ///
 /// // Use for development with relaxed settings
 /// let dev_config = CoreConfig::for_development();
 ///
 /// // Use for production with maximum security
 /// let prod_config = CoreConfig::for_production();
+/// # let _ = (config, dev_config, prod_config);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CoreConfig {

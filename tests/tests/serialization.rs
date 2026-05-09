@@ -18,31 +18,26 @@ fn create_test_signed_data() -> SignedData {
     // sign-side guarantee to a deserializer invariant. The fields
     // must match in every fixture because the production sign path
     // sets them via `signature_algorithm: scheme.clone()`.
-    SignedData {
-        data: b"Hello, World!".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0xDE; 64],
-            signature_algorithm: "ML-DSA-65".to_string(),
-            public_key: vec![0xCA; 32],
-            key_id: Some("signer-key-id".to_string()),
-        },
-        scheme: "ML-DSA-65".to_string(),
-        timestamp: 1706745602,
-    }
+    SignedData::new(
+        b"Hello, World!".to_vec(),
+        SignedMetadata::new(
+            vec![0xDE; 64],
+            "ML-DSA-65".to_string(),
+            vec![0xCA; 32],
+            Some("signer-key-id".to_string()),
+        ),
+        "ML-DSA-65".to_string(),
+        1706745602,
+    )
 }
 
 fn create_test_signed_data_no_key_id() -> SignedData {
-    SignedData {
-        data: b"Test message".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0x11; 48],
-            signature_algorithm: "Ed25519".to_string(),
-            public_key: vec![0x55; 32],
-            key_id: None,
-        },
-        scheme: "Ed25519".to_string(),
-        timestamp: 1706745603,
-    }
+    SignedData::new(
+        b"Test message".to_vec(),
+        SignedMetadata::new(vec![0x11; 48], "Ed25519".to_string(), vec![0x55; 32], None),
+        "Ed25519".to_string(),
+        1706745603,
+    )
 }
 
 fn create_test_keypair() -> KeyPair {
@@ -82,17 +77,12 @@ fn test_serialize_signed_data_no_key_id_roundtrip() -> Result<()> {
 
 #[test]
 fn test_serialize_signed_data_empty_data_roundtrip() -> Result<()> {
-    let original = SignedData {
-        data: vec![],
-        metadata: SignedMetadata {
-            signature: vec![0; 64],
-            signature_algorithm: "EMPTY".to_string(),
-            public_key: vec![0; 32],
-            key_id: None,
-        },
-        scheme: "EMPTY".to_string(),
-        timestamp: 0,
-    };
+    let original = SignedData::new(
+        vec![],
+        SignedMetadata::new(vec![0; 64], "EMPTY".to_string(), vec![0; 32], None),
+        "EMPTY".to_string(),
+        0,
+    );
 
     let json = serialize_signed_data(&original)?;
     let deserialized = deserialize_signed_data(&json)?;
@@ -103,17 +93,17 @@ fn test_serialize_signed_data_empty_data_roundtrip() -> Result<()> {
 
 #[test]
 fn test_serialize_signed_data_large_signature_roundtrip() -> Result<()> {
-    let original = SignedData {
-        data: b"Large signature test".to_vec(),
-        metadata: SignedMetadata {
-            signature: vec![0xAB; 4096], // Large signature (SLH-DSA)
-            signature_algorithm: "SLH-DSA-256s".to_string(),
-            public_key: vec![0xCD; 64],
-            key_id: Some("slh-dsa-key".to_string()),
-        },
-        scheme: "SLH-DSA-256s".to_string(),
-        timestamp: 9999999999,
-    };
+    let original = SignedData::new(
+        b"Large signature test".to_vec(),
+        SignedMetadata::new(
+            vec![0xAB; 4096], // Large signature (SLH-DSA)
+            "SLH-DSA-256s".to_string(),
+            vec![0xCD; 64],
+            Some("slh-dsa-key".to_string()),
+        ),
+        "SLH-DSA-256s".to_string(),
+        9999999999,
+    );
 
     let json = serialize_signed_data(&original)?;
     let deserialized = deserialize_signed_data(&json)?;

@@ -27,19 +27,14 @@ fn create_test_signed_data(
     public_key: Vec<u8>,
     key_id: Option<String>,
 ) -> SignedData {
-    SignedData {
+    // S4: deserializer requires `scheme == signature_algorithm`,
+    // mirroring the production sign path (`signature_algorithm: scheme.clone()`).
+    SignedData::new(
         data,
-        metadata: SignedMetadata {
-            signature,
-            signature_algorithm: "ML-DSA-65".to_string(),
-            public_key,
-            key_id,
-        },
-        // S4: deserializer requires `scheme == signature_algorithm`,
-        // mirroring the production sign path (`signature_algorithm: scheme.clone()`).
-        scheme: "ML-DSA-65".to_string(),
-        timestamp: 1706745600,
-    }
+        SignedMetadata::new(signature, "ML-DSA-65".to_string(), public_key, key_id),
+        "ML-DSA-65".to_string(),
+        1706745600,
+    )
 }
 
 /// Creates a test KeyPair instance

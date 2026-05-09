@@ -1015,17 +1015,12 @@ pub fn sign_with_key(
 
     log_crypto_operation_complete!(op::SIGN_WITH_KEY, signature_size = signature.len(), scheme = %scheme);
 
-    Ok(SignedData {
-        data: message.to_vec(),
-        metadata: SignedMetadata {
-            signature,
-            signature_algorithm: scheme.clone(),
-            public_key: result_pk,
-            key_id: None,
-        },
+    Ok(SignedData::new(
+        message.to_vec(),
+        SignedMetadata::new(signature, scheme.clone(), result_pk, None),
         scheme,
         timestamp,
-    })
+    ))
 }
 
 /// Verify a signed message.
@@ -1037,17 +1032,12 @@ pub fn sign_with_key(
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use latticearc::unified_api::{verify, CryptoConfig, VerifiedSession, SignedData, SignedMetadata};
-/// # let signed = SignedData {
-/// #     data: vec![],
-/// #     metadata: SignedMetadata {
-/// #         signature: vec![],
-/// #         signature_algorithm: "ed25519".to_string(),
-/// #         public_key: vec![],
-/// #         key_id: None
-/// #     },
-/// #     scheme: "ed25519".to_string(),
-/// #     timestamp: 0,
-/// # };
+/// # let signed = SignedData::new(
+/// #     vec![],
+/// #     SignedMetadata::new(vec![], "ed25519".to_string(), vec![], None),
+/// #     "ed25519".to_string(),
+/// #     0,
+/// # );
 /// # let pk = [0u8; 32];
 /// # let sk = [0u8; 32];
 ///
@@ -1651,17 +1641,12 @@ mod tests {
 
     #[test]
     fn test_verify_rejects_empty_signature_fails() {
-        let signed = SignedData {
-            data: b"Test message".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![], // Empty signature
-                signature_algorithm: "ml-dsa-44".to_string(),
-                public_key: vec![0u8; 1312],
-                key_id: None,
-            },
-            scheme: "ml-dsa-44".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"Test message".to_vec(),
+            SignedMetadata::new(vec![], "ml-dsa-44".to_string(), vec![0u8; 1312], None),
+            "ml-dsa-44".to_string(),
+            0,
+        );
 
         let result = verify(&signed, CryptoConfig::new());
         assert!(result.is_err() || (result.is_ok() && !result.unwrap()));
@@ -1669,17 +1654,12 @@ mod tests {
 
     #[test]
     fn test_verify_rejects_empty_public_key_fails() {
-        let signed = SignedData {
-            data: b"Test message".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 2420],
-                signature_algorithm: "ml-dsa-44".to_string(),
-                public_key: vec![], // Empty public key
-                key_id: None,
-            },
-            scheme: "ml-dsa-44".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"Test message".to_vec(),
+            SignedMetadata::new(vec![0u8; 2420], "ml-dsa-44".to_string(), vec![], None),
+            "ml-dsa-44".to_string(),
+            0,
+        );
 
         let result = verify(&signed, CryptoConfig::new());
         assert!(result.is_err() || (result.is_ok() && !result.unwrap()));
@@ -1745,17 +1725,17 @@ mod tests {
                 )
                 .unwrap();
 
-                let signed_data = SignedData {
-                    data: message.to_vec(),
-                    metadata: SignedMetadata {
+                let signed_data = SignedData::new(
+                    message.to_vec(),
+                    SignedMetadata::new(
                         signature,
-                        signature_algorithm: "slh-dsa-shake-128s".to_string(),
-                        public_key: pk.into_bytes(),
-                        key_id: None,
-                    },
-                    scheme: "slh-dsa-shake-128s".to_string(),
-                    timestamp: 0,
-                };
+                        "slh-dsa-shake-128s".to_string(),
+                        pk.into_bytes(),
+                        None,
+                    ),
+                    "slh-dsa-shake-128s".to_string(),
+                    0,
+                );
 
                 let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
                 assert!(verified, "SLH-DSA-128s signature should verify");
@@ -1783,17 +1763,17 @@ mod tests {
                 )
                 .unwrap();
 
-                let signed_data = SignedData {
-                    data: message.to_vec(),
-                    metadata: SignedMetadata {
+                let signed_data = SignedData::new(
+                    message.to_vec(),
+                    SignedMetadata::new(
                         signature,
-                        signature_algorithm: "slh-dsa-shake-192s".to_string(),
-                        public_key: pk.into_bytes(),
-                        key_id: None,
-                    },
-                    scheme: "slh-dsa-shake-192s".to_string(),
-                    timestamp: 0,
-                };
+                        "slh-dsa-shake-192s".to_string(),
+                        pk.into_bytes(),
+                        None,
+                    ),
+                    "slh-dsa-shake-192s".to_string(),
+                    0,
+                );
 
                 let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
                 assert!(verified, "SLH-DSA-192s signature should verify");
@@ -1821,17 +1801,17 @@ mod tests {
                 )
                 .unwrap();
 
-                let signed_data = SignedData {
-                    data: message.to_vec(),
-                    metadata: SignedMetadata {
+                let signed_data = SignedData::new(
+                    message.to_vec(),
+                    SignedMetadata::new(
                         signature,
-                        signature_algorithm: "slh-dsa-shake-256s".to_string(),
-                        public_key: pk.into_bytes(),
-                        key_id: None,
-                    },
-                    scheme: "slh-dsa-shake-256s".to_string(),
-                    timestamp: 0,
-                };
+                        "slh-dsa-shake-256s".to_string(),
+                        pk.into_bytes(),
+                        None,
+                    ),
+                    "slh-dsa-shake-256s".to_string(),
+                    0,
+                );
 
                 let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
                 assert!(verified, "SLH-DSA-256s signature should verify");
@@ -1861,17 +1841,12 @@ mod tests {
                 )
                 .unwrap();
 
-                let signed_data = SignedData {
-                    data: message.to_vec(),
-                    metadata: SignedMetadata {
-                        signature,
-                        signature_algorithm: "fn-dsa".to_string(),
-                        public_key: pk.into_bytes(),
-                        key_id: None,
-                    },
-                    scheme: "fn-dsa".to_string(),
-                    timestamp: 0,
-                };
+                let signed_data = SignedData::new(
+                    message.to_vec(),
+                    SignedMetadata::new(signature, "fn-dsa".to_string(), pk.into_bytes(), None),
+                    "fn-dsa".to_string(),
+                    0,
+                );
 
                 let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
                 assert!(verified, "FN-DSA signature should verify");
@@ -1957,17 +1932,17 @@ mod tests {
                 // Try to sign with keys that are too short for any hybrid scheme
                 let _short_key = vec![1u8; 10];
                 let short_pk = vec![2u8; 10];
-                let signed = SignedData {
-                    data: message.to_vec(),
-                    metadata: SignedMetadata {
-                        signature: vec![0u8; 10],
-                        signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
-                        public_key: short_pk,
-                        key_id: None,
-                    },
-                    scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
-                    timestamp: 0,
-                };
+                let signed = SignedData::new(
+                    message.to_vec(),
+                    SignedMetadata::new(
+                        vec![0u8; 10],
+                        "hybrid-ml-dsa-65-ed25519".to_string(),
+                        short_pk,
+                        None,
+                    ),
+                    "hybrid-ml-dsa-65-ed25519".to_string(),
+                    0,
+                );
 
                 // Verification should fail because the keys/signature are too short
                 let result = verify(&signed, CryptoConfig::new());
@@ -1982,17 +1957,17 @@ mod tests {
 
     #[test]
     fn test_verify_with_unsupported_scheme_rejected_fails() {
-        let signed = SignedData {
-            data: b"test".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 64],
-                signature_algorithm: "unsupported-scheme".to_string(),
-                public_key: vec![0u8; 32],
-                key_id: None,
-            },
-            scheme: "unsupported-scheme".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"test".to_vec(),
+            SignedMetadata::new(
+                vec![0u8; 64],
+                "unsupported-scheme".to_string(),
+                vec![0u8; 32],
+                None,
+            ),
+            "unsupported-scheme".to_string(),
+            0,
+        );
 
         // Unsupported schemes are explicitly rejected
         let result = verify(&signed, CryptoConfig::new());
@@ -2047,17 +2022,17 @@ mod tests {
 
     #[test]
     fn test_verify_hybrid_44_signature_too_short_returns_error() {
-        let signed = SignedData {
-            data: b"test".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 100], // Too short for hybrid-44
-                signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
-                public_key: vec![0u8; 1344], // 1312 + 32
-                key_id: None,
-            },
-            scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"test".to_vec(),
+            SignedMetadata::new(
+                vec![0u8; 100],
+                "hybrid-ml-dsa-44-ed25519".to_string(),
+                vec![0u8; 1344],
+                None,
+            ),
+            "hybrid-ml-dsa-44-ed25519".to_string(),
+            0,
+        );
         let result = verify(&signed, CryptoConfig::new());
         // Pattern 6 (TOFU follow-up): shape failures (sig too short, PK
         // wrong length) collapse into `Ok(false)` so they are
@@ -2069,85 +2044,85 @@ mod tests {
 
     #[test]
     fn test_verify_hybrid_44_invalid_pk_length_returns_error() {
-        let signed = SignedData {
-            data: b"test".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 3000], // Long enough
-                signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
-                public_key: vec![0u8; 100], // Wrong PK length
-                key_id: None,
-            },
-            scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"test".to_vec(),
+            SignedMetadata::new(
+                vec![0u8; 3000],
+                "hybrid-ml-dsa-44-ed25519".to_string(),
+                vec![0u8; 100],
+                None,
+            ),
+            "hybrid-ml-dsa-44-ed25519".to_string(),
+            0,
+        );
         let result = verify(&signed, CryptoConfig::new());
         assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
     fn test_verify_hybrid_65_signature_too_short_returns_error() {
-        let signed = SignedData {
-            data: b"test".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 100], // Too short for hybrid-65
-                signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
-                public_key: vec![0u8; 1984], // 1952 + 32
-                key_id: None,
-            },
-            scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"test".to_vec(),
+            SignedMetadata::new(
+                vec![0u8; 100],
+                "hybrid-ml-dsa-65-ed25519".to_string(),
+                vec![0u8; 1984],
+                None,
+            ),
+            "hybrid-ml-dsa-65-ed25519".to_string(),
+            0,
+        );
         let result = verify(&signed, CryptoConfig::new());
         assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
     fn test_verify_hybrid_65_invalid_pk_length_returns_error() {
-        let signed = SignedData {
-            data: b"test".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 4000], // Long enough
-                signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
-                public_key: vec![0u8; 100], // Wrong PK length
-                key_id: None,
-            },
-            scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"test".to_vec(),
+            SignedMetadata::new(
+                vec![0u8; 4000],
+                "hybrid-ml-dsa-65-ed25519".to_string(),
+                vec![0u8; 100],
+                None,
+            ),
+            "hybrid-ml-dsa-65-ed25519".to_string(),
+            0,
+        );
         let result = verify(&signed, CryptoConfig::new());
         assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
     fn test_verify_hybrid_87_signature_too_short_returns_error() {
-        let signed = SignedData {
-            data: b"test".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 100], // Too short for hybrid-87
-                signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
-                public_key: vec![0u8; 2624], // 2592 + 32
-                key_id: None,
-            },
-            scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"test".to_vec(),
+            SignedMetadata::new(
+                vec![0u8; 100],
+                "hybrid-ml-dsa-87-ed25519".to_string(),
+                vec![0u8; 2624],
+                None,
+            ),
+            "hybrid-ml-dsa-87-ed25519".to_string(),
+            0,
+        );
         let result = verify(&signed, CryptoConfig::new());
         assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
     fn test_verify_hybrid_87_invalid_pk_length_returns_error() {
-        let signed = SignedData {
-            data: b"test".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 5000], // Long enough
-                signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
-                public_key: vec![0u8; 100], // Wrong PK length
-                key_id: None,
-            },
-            scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"test".to_vec(),
+            SignedMetadata::new(
+                vec![0u8; 5000],
+                "hybrid-ml-dsa-87-ed25519".to_string(),
+                vec![0u8; 100],
+                None,
+            ),
+            "hybrid-ml-dsa-87-ed25519".to_string(),
+            0,
+        );
         let result = verify(&signed, CryptoConfig::new());
         assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
@@ -2257,17 +2232,17 @@ mod tests {
                 let bad_sk = vec![0u8; 10]; // Wrong length
                 let pk = vec![0u8; pq_pk_len + 32]; // Correct PK length
 
-                let signed = SignedData {
-                    data: message.to_vec(),
-                    metadata: SignedMetadata {
-                        signature: vec![],
-                        signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
-                        public_key: pk.clone(),
-                        key_id: None,
-                    },
-                    scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
-                    timestamp: 0,
-                };
+                let signed = SignedData::new(
+                    message.to_vec(),
+                    SignedMetadata::new(
+                        vec![],
+                        "hybrid-ml-dsa-44-ed25519".to_string(),
+                        pk.clone(),
+                        None,
+                    ),
+                    "hybrid-ml-dsa-44-ed25519".to_string(),
+                    0,
+                );
 
                 // Direct call to sign_with_key with wrong SK length
                 let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
@@ -2679,17 +2654,17 @@ mod tests {
 
                 // Need to manually construct SignedData with hybrid-87 scheme
                 // to test the verify error path
-                let signed = SignedData {
-                    data: message.to_vec(),
-                    metadata: SignedMetadata {
-                        signature: vec![0u8; 100], // Too short
-                        signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
-                        public_key: pk,
-                        key_id: None,
-                    },
-                    scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
-                    timestamp: 0,
-                };
+                let signed = SignedData::new(
+                    message.to_vec(),
+                    SignedMetadata::new(
+                        vec![0u8; 100],
+                        "hybrid-ml-dsa-87-ed25519".to_string(),
+                        pk,
+                        None,
+                    ),
+                    "hybrid-ml-dsa-87-ed25519".to_string(),
+                    0,
+                );
                 let result = verify(&signed, CryptoConfig::new());
                 // Pattern 6 (TOFU follow-up): see comment on
                 // `test_verify_hybrid_44_signature_too_short_returns_error`.
@@ -2940,17 +2915,12 @@ mod tests {
     #[test]
     fn test_cnsa_verify_rejects_standalone_ed25519_signature_fails() -> Result<()> {
         // Manually construct a SignedData with ed25519 scheme
-        let signed = SignedData {
-            data: b"test data".to_vec(),
-            metadata: SignedMetadata {
-                signature: vec![0u8; 64],
-                signature_algorithm: "ed25519".to_string(),
-                public_key: vec![0u8; 32],
-                key_id: None,
-            },
-            scheme: "ed25519".to_string(),
-            timestamp: 0,
-        };
+        let signed = SignedData::new(
+            b"test data".to_vec(),
+            SignedMetadata::new(vec![0u8; 64], "ed25519".to_string(), vec![0u8; 32], None),
+            "ed25519".to_string(),
+            0,
+        );
 
         let cnsa_config = CryptoConfig::new()
             .security_level(SecurityLevel::Maximum)

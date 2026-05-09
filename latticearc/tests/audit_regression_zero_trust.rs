@@ -186,7 +186,8 @@ fn key_lifecycle_record_state_only_advances_through_transition() {
     use latticearc::types::key_lifecycle::{KeyLifecycleRecord, KeyLifecycleState};
 
     let mut record =
-        KeyLifecycleRecord::new("test-key".to_string(), "ML-KEM-768".to_string(), 3, 365, 30);
+        KeyLifecycleRecord::new("test-key".to_string(), "ML-KEM-768".to_string(), 3, 365, 30)
+            .unwrap();
 
     assert_eq!(record.current_state(), KeyLifecycleState::Generation);
     assert!(record.activated_at().is_none());
@@ -248,7 +249,8 @@ fn key_lifecycle_record_rejects_every_illegal_transition() {
             3,
             365,
             30,
-        );
+        )
+        .unwrap();
         for step in &valid_path {
             if record.current_state() == start {
                 break;

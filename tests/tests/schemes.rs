@@ -514,6 +514,19 @@ mod direct {
     };
     use latticearc::unified_api::types::{CryptoConfig, SignedData, SignedMetadata};
 
+    /// Build a `SignedData` for direct-dispatch tests. Encodes the S4
+    /// invariant `metadata.signature_algorithm == scheme` so a single
+    /// scheme string can never drift between the two fields across
+    /// the 8 call sites in this module.
+    fn make_signed(msg: &[u8], sig: Vec<u8>, pk: Vec<u8>, scheme: &str) -> SignedData {
+        SignedData::new(
+            msg.to_vec(),
+            SignedMetadata::new(sig, scheme.to_string(), pk, None),
+            scheme.to_string(),
+            0,
+        )
+    }
+
     // ============================================================
     // verify() with SLH-DSA schemes (unreachable via selector)
     // ============================================================
@@ -526,17 +539,7 @@ mod direct {
             sign_pq_slh_dsa_unverified(msg, sk.expose_secret(), SlhDsaSecurityLevel::Shake128s)
                 .unwrap();
 
-        let signed = SignedData {
-            data: msg.to_vec(),
-            metadata: SignedMetadata {
-                signature: sig,
-                signature_algorithm: "slh-dsa-shake-128s".to_string(),
-                public_key: pk.into_bytes(),
-                key_id: None,
-            },
-            scheme: "slh-dsa-shake-128s".to_string(),
-            timestamp: 0,
-        };
+        let signed = make_signed(msg, sig, pk.into_bytes(), "slh-dsa-shake-128s");
 
         let config = CryptoConfig::new();
         let valid = verify(&signed, config).unwrap();
@@ -551,17 +554,7 @@ mod direct {
             sign_pq_slh_dsa_unverified(msg, sk.expose_secret(), SlhDsaSecurityLevel::Shake192s)
                 .unwrap();
 
-        let signed = SignedData {
-            data: msg.to_vec(),
-            metadata: SignedMetadata {
-                signature: sig,
-                signature_algorithm: "slh-dsa-shake-192s".to_string(),
-                public_key: pk.into_bytes(),
-                key_id: None,
-            },
-            scheme: "slh-dsa-shake-192s".to_string(),
-            timestamp: 0,
-        };
+        let signed = make_signed(msg, sig, pk.into_bytes(), "slh-dsa-shake-192s");
 
         let config = CryptoConfig::new();
         let valid = verify(&signed, config).unwrap();
@@ -576,17 +569,7 @@ mod direct {
             sign_pq_slh_dsa_unverified(msg, sk.expose_secret(), SlhDsaSecurityLevel::Shake256s)
                 .unwrap();
 
-        let signed = SignedData {
-            data: msg.to_vec(),
-            metadata: SignedMetadata {
-                signature: sig,
-                signature_algorithm: "slh-dsa-shake-256s".to_string(),
-                public_key: pk.into_bytes(),
-                key_id: None,
-            },
-            scheme: "slh-dsa-shake-256s".to_string(),
-            timestamp: 0,
-        };
+        let signed = make_signed(msg, sig, pk.into_bytes(), "slh-dsa-shake-256s");
 
         let config = CryptoConfig::new();
         let valid = verify(&signed, config).unwrap();
@@ -604,17 +587,7 @@ mod direct {
         let sig = sign_pq_fn_dsa_unverified(msg, sk.expose_secret(), FnDsaSecurityLevel::Level512)
             .unwrap();
 
-        let signed = SignedData {
-            data: msg.to_vec(),
-            metadata: SignedMetadata {
-                signature: sig,
-                signature_algorithm: "fn-dsa".to_string(),
-                public_key: pk.into_bytes(),
-                key_id: None,
-            },
-            scheme: "fn-dsa".to_string(),
-            timestamp: 0,
-        };
+        let signed = make_signed(msg, sig, pk.into_bytes(), "fn-dsa");
 
         let config = CryptoConfig::new();
         let valid = verify(&signed, config).unwrap();
@@ -632,17 +605,7 @@ mod direct {
         let sig =
             sign_pq_ml_dsa_unverified(msg, sk.expose_secret(), MlDsaParameterSet::MlDsa44).unwrap();
 
-        let signed = SignedData {
-            data: msg.to_vec(),
-            metadata: SignedMetadata {
-                signature: sig,
-                signature_algorithm: "pq-ml-dsa-44".to_string(),
-                public_key: pk.into_bytes(),
-                key_id: None,
-            },
-            scheme: "pq-ml-dsa-44".to_string(),
-            timestamp: 0,
-        };
+        let signed = make_signed(msg, sig, pk.into_bytes(), "pq-ml-dsa-44");
 
         let config = CryptoConfig::new();
         let valid = verify(&signed, config).unwrap();
@@ -656,17 +619,7 @@ mod direct {
         let sig =
             sign_pq_ml_dsa_unverified(msg, sk.expose_secret(), MlDsaParameterSet::MlDsa65).unwrap();
 
-        let signed = SignedData {
-            data: msg.to_vec(),
-            metadata: SignedMetadata {
-                signature: sig,
-                signature_algorithm: "pq-ml-dsa-65".to_string(),
-                public_key: pk.into_bytes(),
-                key_id: None,
-            },
-            scheme: "pq-ml-dsa-65".to_string(),
-            timestamp: 0,
-        };
+        let signed = make_signed(msg, sig, pk.into_bytes(), "pq-ml-dsa-65");
 
         let config = CryptoConfig::new();
         let valid = verify(&signed, config).unwrap();
@@ -691,17 +644,7 @@ mod direct {
         let msg = b"Ed25519 verify test";
         let sig = sign_ed25519_unverified(msg, sk.expose_secret()).unwrap();
 
-        let signed = SignedData {
-            data: msg.to_vec(),
-            metadata: SignedMetadata {
-                signature: sig,
-                signature_algorithm: "ed25519".to_string(),
-                public_key: pk.into_bytes(),
-                key_id: None,
-            },
-            scheme: "ed25519".to_string(),
-            timestamp: 0,
-        };
+        let signed = make_signed(msg, sig, pk.into_bytes(), "ed25519");
 
         let config = CryptoConfig::new();
         let valid = verify(&signed, config).unwrap();
@@ -813,17 +756,7 @@ mod direct {
             *byte ^= 0xFF;
         }
 
-        let signed = SignedData {
-            data: msg.to_vec(),
-            metadata: SignedMetadata {
-                signature: sig,
-                signature_algorithm: "slh-dsa-shake-128s".to_string(),
-                public_key: pk.into_bytes(),
-                key_id: None,
-            },
-            scheme: "slh-dsa-shake-128s".to_string(),
-            timestamp: 0,
-        };
+        let signed = make_signed(msg, sig, pk.into_bytes(), "slh-dsa-shake-128s");
 
         let config = CryptoConfig::new();
         let result = verify(&signed, config);

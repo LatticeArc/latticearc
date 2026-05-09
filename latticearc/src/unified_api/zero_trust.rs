@@ -1639,14 +1639,26 @@ impl ZeroTrustSession {
     ///
     /// Returns `CoreError::InvalidKeyLength` if the public key has incorrect length.
     pub fn verify_response(&mut self, proof: &ZeroKnowledgeProof) -> Result<bool> {
+        // Pattern-6: collapse the "no active challenge" and "challenge
+        // expired" cases to a single fixed string in the typed error
+        // AND in the `tracing::error!`-level audit log. Both are
+        // caller-protocol mistakes (not adversary-controllable crypto
+        // material), but distinct strings let an attacker mapping the
+        // protocol state machine fingerprint which check tripped. The
+        // discriminator goes to `tracing::debug!` for operator
+        // visibility, mirroring `verify_pop`'s posture.
+        const VERIFY_RESPONSE_FAILED: &str = "challenge verification failed";
+
         let challenge = self.challenge.as_ref().ok_or_else(|| {
-            log_zero_trust_session_verification_failed!("pending", "No active challenge");
-            CoreError::AuthenticationFailed("No active challenge".to_string())
+            log_zero_trust_session_verification_failed!("pending", VERIFY_RESPONSE_FAILED);
+            tracing::debug!("verify_response rejected: no active challenge");
+            CoreError::AuthenticationFailed(VERIFY_RESPONSE_FAILED.to_string())
         })?;
 
         if challenge.is_expired() {
-            log_zero_trust_session_verification_failed!("pending", "Challenge expired");
-            return Err(CoreError::AuthenticationFailed("Challenge expired".to_string()));
+            log_zero_trust_session_verification_failed!("pending", VERIFY_RESPONSE_FAILED);
+            tracing::debug!("verify_response rejected: challenge expired");
+            return Err(CoreError::AuthenticationFailed(VERIFY_RESPONSE_FAILED.to_string()));
         }
 
         let verified = self.auth.verify_proof(proof, challenge.data())?;

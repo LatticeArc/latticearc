@@ -285,7 +285,12 @@ impl EncryptedMetadata {
 }
 
 /// Metadata associated with signed data.
+///
+/// Marked `#[non_exhaustive]` so that adding further metadata-bound fields
+/// later is not a breaking change for downstream consumers. External
+/// callers must construct via [`SignedMetadata::new`].
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct SignedMetadata {
     /// The signature bytes.
     pub signature: Vec<u8>,
@@ -297,8 +302,26 @@ pub struct SignedMetadata {
     pub key_id: Option<String>,
 }
 
+impl SignedMetadata {
+    /// Construct a new `SignedMetadata`.
+    #[must_use]
+    pub fn new(
+        signature: Vec<u8>,
+        signature_algorithm: String,
+        public_key: Vec<u8>,
+        key_id: Option<String>,
+    ) -> Self {
+        Self { signature, signature_algorithm, public_key, key_id }
+    }
+}
+
 /// A generic cryptographic payload with metadata.
+///
+/// Marked `#[non_exhaustive]` so that adding further payload-bound fields
+/// later is not a breaking change for downstream consumers. External
+/// callers must construct via [`CryptoPayload::new`].
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct CryptoPayload<T> {
     /// The encrypted or signed data.
     pub data: Vec<u8>,
@@ -308,6 +331,14 @@ pub struct CryptoPayload<T> {
     pub scheme: String,
     /// Unix timestamp when the operation was performed.
     pub timestamp: u64,
+}
+
+impl<T> CryptoPayload<T> {
+    /// Construct a new `CryptoPayload`.
+    #[must_use]
+    pub fn new(data: Vec<u8>, metadata: T, scheme: String, timestamp: u64) -> Self {
+        Self { data, metadata, scheme, timestamp }
+    }
 }
 
 /// Encrypted data with associated metadata.
@@ -912,12 +943,12 @@ mod tests {
 
     #[test]
     fn test_signed_metadata_clone_debug_work_correctly_succeeds() {
-        let meta = SignedMetadata {
-            signature: vec![0xBB; 64],
-            signature_algorithm: "ML-DSA-65".to_string(),
-            public_key: vec![0xCC; 32],
-            key_id: Some("sig-key-001".to_string()),
-        };
+        let meta = SignedMetadata::new(
+            vec![0xBB; 64],
+            "ML-DSA-65".to_string(),
+            vec![0xCC; 32],
+            Some("sig-key-001".to_string()),
+        );
         let cloned = meta.clone();
         assert_eq!(cloned.signature_algorithm, "ML-DSA-65");
         assert_eq!(cloned.public_key.len(), 32);
@@ -930,12 +961,12 @@ mod tests {
 
     #[test]
     fn test_crypto_payload_clone_eq_work_correctly_succeeds() {
-        let payload: CryptoPayload<EncryptedMetadata> = CryptoPayload {
-            data: vec![1, 2, 3],
-            metadata: EncryptedMetadata::symmetric(vec![0u8; 12], None, None),
-            scheme: "AES-256-GCM".to_string(),
-            timestamp: 1234567890,
-        };
+        let payload: CryptoPayload<EncryptedMetadata> = CryptoPayload::new(
+            vec![1, 2, 3],
+            EncryptedMetadata::symmetric(vec![0u8; 12], None, None),
+            "AES-256-GCM".to_string(),
+            1234567890,
+        );
         let cloned = payload.clone();
         assert_eq!(payload, cloned);
         assert_eq!(payload.scheme, "AES-256-GCM");

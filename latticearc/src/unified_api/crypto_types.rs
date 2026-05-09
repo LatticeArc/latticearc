@@ -530,7 +530,7 @@ impl From<EncryptedOutput> for EncryptedData {
                 }
             }
         };
-        CryptoPayload { data: ciphertext, metadata, scheme: scheme.to_string(), timestamp }
+        CryptoPayload::new(ciphertext, metadata, scheme.to_string(), timestamp)
     }
 }
 
@@ -867,17 +867,17 @@ mod tests {
     #[test]
     fn test_encrypted_data_to_output_rejects_shape_mismatch() {
         // Hybrid scheme without ECDH PK in metadata is a contract violation.
-        let mismatched = EncryptedData {
-            data: vec![0xAA; 32],
-            metadata: EncryptedMetadata::pq_only(
+        let mismatched = EncryptedData::new(
+            vec![0xAA; 32],
+            EncryptedMetadata::pq_only(
                 vec![0xBB; 12],
                 Some(vec![0xCC; 16]),
                 None,
                 vec![0xDD; 1088],
             ),
-            scheme: "hybrid-ml-kem-768-aes-256-gcm".to_string(),
-            timestamp: 1_700_000_000,
-        };
+            "hybrid-ml-kem-768-aes-256-gcm".to_string(),
+            1_700_000_000,
+        );
         let err = EncryptedOutput::try_from(mismatched).expect_err("must reject shape mismatch");
         assert!(matches!(err, crate::types::error::TypeError::ConfigurationError(_)));
     }

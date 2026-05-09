@@ -177,17 +177,17 @@ impl TryFrom<SerializableSignedData> for SignedData {
             return Err(CoreError::SerializationError("SignedData metadata mismatch".to_string()));
         }
 
-        Ok(SignedData {
+        Ok(SignedData::new(
             data,
-            metadata: crate::types::SignedMetadata {
+            crate::types::SignedMetadata::new(
                 signature,
-                signature_algorithm: serializable.metadata.signature_algorithm,
+                serializable.metadata.signature_algorithm,
                 public_key,
-                key_id: serializable.metadata.key_id,
-            },
-            scheme: serializable.scheme,
-            timestamp: serializable.timestamp,
-        })
+                serializable.metadata.key_id,
+            ),
+            serializable.scheme,
+            serializable.timestamp,
+        ))
     }
 }
 
@@ -517,17 +517,17 @@ mod tests {
         // shape. The earlier test data here used a mismatched pair
         // (`"ML-DSA-65"` vs `"ML-DSA-65+Ed25519"`), which only
         // worked because the deserializer was previously a passthrough.
-        CryptoPayload {
-            data: vec![1, 2, 3, 4],
-            metadata: SignedMetadata {
-                signature: vec![0xBB; 64],
-                signature_algorithm: "ML-DSA-65+Ed25519".to_string(),
-                public_key: vec![0xCC; 32],
-                key_id: Some("sig-key-001".to_string()),
-            },
-            scheme: "ML-DSA-65+Ed25519".to_string(),
-            timestamp: 1700000002,
-        }
+        CryptoPayload::new(
+            vec![1, 2, 3, 4],
+            SignedMetadata::new(
+                vec![0xBB; 64],
+                "ML-DSA-65+Ed25519".to_string(),
+                vec![0xCC; 32],
+                Some("sig-key-001".to_string()),
+            ),
+            "ML-DSA-65+Ed25519".to_string(),
+            1700000002,
+        )
     }
 
     fn make_keypair() -> KeyPair {
