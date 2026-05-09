@@ -55,8 +55,13 @@ env:
   OTEL_TRACES_EXPORTER: otlp
   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_ENDPOINT || 'http://localhost:4318' }}
   OTEL_EXPORTER_OTLP_PROTOCOL: grpc
-  # Prometheus metrics
-  PROMETHEUS_PUSHGATEWAY: ${{ secrets.PROMETHEUS_PUSHGATEWAY || 'http://localhost:9091' }}
+  # Prometheus metrics. Empty fallback for fork PRs so the
+  # observability-metrics curl POSTs no-op (the per-site `|| true`
+  # tolerates the empty URL). Previously fell back to
+  # `http://localhost:9091` which caused 15 failed POSTs per fork-PR
+  # run; the `secrets.X || 'literal'` shape was also a future
+  # regression vector for secret-when-on-fork-PR exfil.
+  PROMETHEUS_PUSHGATEWAY: ${{ github.event.pull_request.head.repo.fork && '' || (secrets.PROMETHEUS_PUSHGATEWAY || 'http://localhost:9091') }}
 
 jobs:
   # =============================================================================

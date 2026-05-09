@@ -637,6 +637,8 @@ impl FipsError for crate::primitives::kem::ml_kem::MlKemError {
             Self::DecapsulationError(_) => FipsErrorCode::DecapsulationFailed,
             Self::InvalidKeyLength { .. } => FipsErrorCode::InvalidKeyLength,
             Self::InvalidKeyFormat(_) => FipsErrorCode::InvalidParameter,
+            Self::InvalidPublicKeyFormat(_) => FipsErrorCode::InvalidPublicKey,
+            Self::InvalidSecretKeyFormat(_) => FipsErrorCode::InvalidSecretKey,
             Self::InvalidCiphertextLength { .. } => FipsErrorCode::InvalidCiphertext,
             Self::UnsupportedSecurityLevel(_) => FipsErrorCode::UnsupportedAlgorithm,
             // route upstream crypto-primitive
@@ -984,6 +986,17 @@ mod tests {
                 FipsErrorCode::UnsupportedAlgorithm,
             ),
             (MlKemError::CryptoError("test".into()), FipsErrorCode::CryptoFailure),
+            // Key-format variants — the generic falls back to
+            // `InvalidParameter`; the dedicated public/secret variants
+            // distinguish for FIPS audit-trail granularity (FIPS
+            // 0x010B / 0x010C). `MlKemError` is `#[non_exhaustive]`
+            // so the compiler does NOT enforce exhaustive coverage
+            // here — these three rows are the regression net for
+            // accidental swaps in the mapping at
+            // `impl FipsError for MlKemError`.
+            (MlKemError::InvalidKeyFormat("test".into()), FipsErrorCode::InvalidParameter),
+            (MlKemError::InvalidPublicKeyFormat("test".into()), FipsErrorCode::InvalidPublicKey),
+            (MlKemError::InvalidSecretKeyFormat("test".into()), FipsErrorCode::InvalidSecretKey),
         ];
 
         for (error, expected_code) in &cases {

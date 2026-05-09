@@ -1285,10 +1285,12 @@ fn test_key_lifecycle_record_is_stable() {
         KeyLifecycleRecord::new("key-123".to_string(), "ML-KEM-768".to_string(), 3, 365, 30)
             .expect("security_level=3 is within 1-5 and rotation_interval=365 > 0");
 
-    // Fields should be accessible
-    assert_eq!(record.key_id, "key-123");
-    assert_eq!(record.key_type, "ML-KEM-768");
-    assert_eq!(record.security_level, 3);
+    // Construction-time fields are private — read via getters so
+    // direct assignment can't bypass the numeric-bound validators
+    // that `KeyLifecycleRecord::new` enforces.
+    assert_eq!(record.key_id(), "key-123");
+    assert_eq!(record.key_type(), "ML-KEM-768");
+    assert_eq!(record.security_level(), 3);
     // Lifecycle state-machine fields are private; read via accessors.
     assert_eq!(record.current_state(), KeyLifecycleState::Generation);
 }

@@ -18,6 +18,19 @@ use zeroize::Zeroizing;
 
 /// secp256k1 key pair implementation.
 ///
+/// # Public-key wire format
+///
+/// [`public_key_bytes`](crate::primitives::ec::traits::EcKeyPair::public_key_bytes)
+/// emits exactly the **65-byte uncompressed SEC1** form (`0x04 || X || Y`).
+/// [`Secp256k1Signature::verify`] **rejects everything else** — compressed
+/// (33-byte, `0x02`/`0x03` prefix) and the legacy hybrid (65-byte,
+/// `0x06`/`0x07` prefix) forms are both refused, because the same key under
+/// different encodings produces distinct PK-byte identities for downstream
+/// consumers that hash or address-derive over the public key. Callers that
+/// derive bytes from `k256::VerifyingKey::to_encoded_point(true)`
+/// (compressed) must re-encode to uncompressed before passing them to this
+/// type.
+///
 /// # Zeroization strategy
 ///
 /// `k256 v0.13` does not expose a `zeroize` feature, so `k256::ecdsa::SigningKey`

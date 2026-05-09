@@ -64,7 +64,7 @@ use latticearc::primitives::kem::ml_kem::{
 // cleanup — it duplicated `hybrid::kem_hybrid::HybridKemPublicKey`/
 // `HybridKemSecretKey`. The two tests that exercised its Debug redaction were
 // removed together with the module.
-use latticearc::primitives::security::secure_compare;
+use latticearc::primitives::security::secure_compare_equal_length;
 use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaSecretKey, generate_keypair as mldsa_generate_keypair,
 };
@@ -159,7 +159,11 @@ fn test_secret_vec_constant_time_comparison_succeeds() {
     assert!(!bool::from(sv1.ct_eq(&sv3)));
 }
 
-/// Test secure_compare uses subtle::ConstantTimeEq
+/// Test secure_compare_equal_length uses subtle::ConstantTimeEq.
+///
+/// The function's contract requires equal-length inputs; the prior
+/// "different lengths" assertions exercised a defensive fallback that
+/// is now a `debug_assert!` misuse signal, so they are removed.
 #[test]
 fn test_secure_compare_constant_time_succeeds() {
     let a = b"hello world";
@@ -169,17 +173,13 @@ fn test_secure_compare_constant_time_succeeds() {
     let e = b"hello worlx"; // differs at end
 
     // All comparisons should be constant-time
-    assert!(secure_compare(a, b));
-    assert!(!secure_compare(a, c));
-    assert!(!secure_compare(a, d));
-    assert!(!secure_compare(a, e));
-
-    // Different lengths
-    assert!(!secure_compare(a, b"hello"));
-    assert!(!secure_compare(b"", a));
+    assert!(secure_compare_equal_length(a, b));
+    assert!(!secure_compare_equal_length(a, c));
+    assert!(!secure_compare_equal_length(a, d));
+    assert!(!secure_compare_equal_length(a, e));
 
     // Empty comparison
-    assert!(secure_compare(b"", b""));
+    assert!(secure_compare_equal_length(b"", b""));
 }
 
 /// Test AES-GCM tag verification uses constant-time comparison

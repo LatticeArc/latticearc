@@ -185,22 +185,23 @@ pub enum CustodianRole {
 
 /// Key lifecycle record with audit trail.
 ///
-/// State-machine fields are private so the only way to mutate
-/// `current_state`, `state_history`, the per-state timestamps, or
-/// custodianship is through [`Self::transition`] /
-/// [`Self::add_approver`]. Construction-time fields (`key_id`,
-/// `key_type`, `security_level`, `generated_at`,
-/// `rotation_interval_days`, `overlap_period_days`) stay public — they
-/// are set in [`Self::new`] and never reassigned.
+/// All fields are private — read access is via getters. Construction is
+/// via [`Self::new`] (validated) or via `serde::Deserialize` through the
+/// [`KeyLifecycleRecordRaw`] try_from path (also validated). The
+/// construction-time fields (`key_id`, `key_type`, `security_level`,
+/// `generated_at`, `rotation_interval_days`, `overlap_period_days`)
+/// are private specifically so the numeric-bound validators
+/// ([`validate_security_level`], [`validate_rotation_interval`])
+/// cannot be bypassed by direct field assignment after construction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "KeyLifecycleRecordRaw")]
 pub struct KeyLifecycleRecord {
-    /// Unique key identifier
-    pub key_id: String,
-    /// Algorithm/key type (e.g., "ML-KEM-768", "ML-DSA-65")
-    pub key_type: String,
-    /// Security level (1-5)
-    pub security_level: u32,
+    // Construction-time identity & policy (set in `new`, never
+    // reassigned). Private so the numeric-bound validators cannot be
+    // bypassed by direct field assignment.
+    key_id: String,
+    key_type: String,
+    security_level: u32,
 
     // State management — private so transitions only happen via `transition()`
     current_state: KeyLifecycleState,
@@ -212,8 +213,8 @@ pub struct KeyLifecycleRecord {
     approvers: Vec<String>,
     destroyer: Option<String>,
 
-    /// When the key was generated
-    pub generated_at: chrono::DateTime<chrono::Utc>,
+    // When the key was generated.
+    generated_at: chrono::DateTime<chrono::Utc>,
 
     // Per-state timestamps — private so they can only be set by
     // `transition()`
@@ -222,11 +223,11 @@ pub struct KeyLifecycleRecord {
     retired_at: Option<chrono::DateTime<chrono::Utc>>,
     destroyed_at: Option<chrono::DateTime<chrono::Utc>>,
 
-    // SP 800-57 requirements
-    /// How often the key should be rotated (days)
-    pub rotation_interval_days: u32,
-    /// Overlap period during rotation (days)
-    pub overlap_period_days: u32,
+    // SP 800-57 rotation policy (private — the numeric-bound
+    // validators would otherwise be bypassable via direct field
+    // assignment).
+    rotation_interval_days: u32,
+    overlap_period_days: u32,
 }
 
 /// Wire-shape mirror of `KeyLifecycleRecord` used by the serde
@@ -708,6 +709,42 @@ impl KeyLifecycleRecord {
     // External callers go through these so the lifecycle invariants
     // stay enforced by `transition()`.
     // ----------------------------------------------------------------
+
+    /// Unique key identifier.
+    #[must_use]
+    pub fn key_id(&self) -> &str {
+        &self.key_id
+    }
+
+    /// Algorithm / key-type identifier (e.g. `"ML-KEM-768"`).
+    #[must_use]
+    pub fn key_type(&self) -> &str {
+        &self.key_type
+    }
+
+    /// NIST PQC security level (1-5).
+    #[must_use]
+    pub fn security_level(&self) -> u32 {
+        self.security_level
+    }
+
+    /// Timestamp the record was generated.
+    #[must_use]
+    pub fn generated_at(&self) -> chrono::DateTime<chrono::Utc> {
+        self.generated_at
+    }
+
+    /// Configured rotation interval (days, > 0).
+    #[must_use]
+    pub fn rotation_interval_days(&self) -> u32 {
+        self.rotation_interval_days
+    }
+
+    /// Configured overlap period during rotation (days).
+    #[must_use]
+    pub fn overlap_period_days(&self) -> u32 {
+        self.overlap_period_days
+    }
 
     /// Current lifecycle state.
     #[must_use]

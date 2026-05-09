@@ -9,6 +9,247 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-49 audit — type-design hardening + DoS-amplification + Pattern-6 sweep #2 (2026-05-09)
+
+External round-49 audit returned 28 findings (7 HIGH, 10 MED, 8 LOW, 3 DOC).
+27 fixed; 1 (L7) noted as a defense-in-depth gap retained per maintainer call.
+
+#### HIGH
+
+- **H1 — `latticearc/src/unified_api/audit.rs::AuditEvent`**: 5 `pub` fields
+  (`actor`, `resource`, `action`, `metadata`, `integrity_hash`) allowed direct
+  field-mutation that bypassed the `with_*` builder sanitizers + `MAX_*_LEN`
+  caps. Now private; existing getters (`actor()` / `resource()` / etc.) keep
+  external read access; mutation goes through the sanitized builders.
+
+- **H2 — `latticearc/src/unified_api/key_format.rs::PortableKey::read_from_file`
+  and `read_cbor_from_file`**: previously `std::fs::read_to_string` /
+  `std::fs::read` allocated full file contents BEFORE the `MAX_KEY_*_SIZE`
+  caps fired in `from_json` / `from_cbor`. A symlink to `/dev/zero` or a
+  multi-GB attacker file would OOM the process. Switched to bounded
+  `File::open(...).take(MAX + 1).read_to_*` so the cap fires at read time;
+  matches the CLI's `read_file_with_cap` shape.
+
+- **H3 — `latticearc/src/unified_api/convenience/pq_sig.rs:184, 351`**:
+  ML-DSA and FN-DSA verify paths echoed upstream signature-parse errors via
+  `format!("Invalid ML-DSA signature: {e}")`, while sibling pk parses at
+  `:179, 346` correctly used fixed strings. The asymmetry was the smoking gun
+  this was a missed Pattern-6 site. Both sig-parse sites now use fixed
+  `"Invalid ML-DSA signature format"` / `"Invalid FN-DSA signature format"`.
+
+- **H4 — `latticearc/src/types/key_lifecycle.rs::KeyLifecycleRecord`**: round-48
+  L1 added `validate_security_level` (1-5) and `validate_rotation_interval`
+  (>0) to `new` and the deserializer, but `pub` fields let external callers
+  bypass via `record.security_level = 999`. Now private; getters
+  (`security_level()`, `rotation_interval_days()`, `key_id()`, `key_type()`,
+  `generated_at()`, `overlap_period_days()`) provide read access. Construction
+  goes only through `new` (validated) or `serde::Deserialize` via
+  `KeyLifecycleRecordRaw::TryFrom` (also validated). D2 disappears with H4.
+
+- **H5 — `latticearc/src/unified_api/key_format.rs::KeyData`,
+  `PortableKey`**: both derived `Clone` despite `KeyData::Single` /
+  `KeyData::Composite` carrying base64 of secret-key bytes when
+  `key_type == Secret`. Pattern 5 anti-pattern 2 violation. `derive(Clone)`
+  removed; explicit
+  [`PortableKey::clone_for_transmission`] /
+  [`KeyData::clone_for_transmission`] methods added per the audit's
+  prescribed escape hatch.
+
+- **H6 — `latticearc/src/unified_api/logging.rs:1702, 1750`**:
+  `log_zero_trust_auth_failure!` and `log_zero_trust_session_verification_failed!`
+  expanded to `tracing::error!`, while the analogous
+  `log_crypto_operation_error!:1613` was deliberately downgraded to
+  `tracing::debug!` with the explicit Pattern-6 / DoS-amplification rationale.
+  Adversary-reachable verify endpoints could flood SIEMs at line rate under
+  WARN+ filters. Both Zero Trust failure macros now `tracing::debug!`.
+
+- **H7 — `latticearc/src/primitives/security.rs::secure_compare`**: workspace's
+  named CT primitive doc-claimed length-not-secret but the function signature
+  didn't enforce the equal-length contract. No production callers (only tests),
+  so this was a future-misuse trap. Renamed to `secure_compare_equal_length`
+  with a strong contract doc and a `debug_assert!` that fires on
+  length mismatch in debug builds (release keeps the safe `false`-fallback).
+  Test sites that exercised the unequal-length defensive fallback removed —
+  that path is now contractually unreachable.
+
+#### MED
+
+- **M1 — `latticearc/src/unified_api/convenience/api.rs:683, 711`**:
+  decrypt path returned distinct strings (`"Hybrid scheme but no
+  hybrid_data..."` / `"PQ-only scheme but no hybrid_data..."`) when an
+  attacker tampered the wire-format scheme tag. Different from the canonical
+  `"decryption failed"` AEAD-fail string at `:707` — gives an attacker a
+  scheme-tag-mismatch-vs-AEAD-reject oracle. Both arms now collapse to
+  `"decryption failed"`; discriminator routes to `tracing::debug!`.
+
+- **M2 — `latticearc/src/unified_api/key_format.rs:2473, 2511, 2718`**:
+  `from_json`, `from_cbor`, and `from_legacy_json` echoed serde / ciborium
+  parse errors at the top-level deserializer entry points — round-47's
+  `decode_json_opaque` helper sweep had covered the inner base64 decodes but
+  not these. Two `from_json`/`from_legacy_json` sites switched to
+  `decode_json_opaque(input, "key.json")`; CBOR site got an inline analogue
+  (helper is JSON-specific).
+
+- **M3 — `latticearc/src/unified_api/key_format.rs:1303, 1306, 1322`**:
+  plaintext-keyfile hybrid-secret-key reconstruction echoed
+  `MlKemSecretKey::new` / `embedded_public_key_bytes` /
+  `HybridKemSecretKey::from_serialized` errors. This path is reachable
+  without AEAD authentication (plaintext keyfiles), so attacker-tamperable.
+  Collapsed to fixed strings + `tracing::debug!`.
+
+- **M4 — `latticearc/src/unified_api/audit.rs:1583-1605`
+  (`write_event_to_file`)**: the in-memory `previous_hash` advanced BEFORE
+  `state.writer.write_all(line_bytes)`. ENOSPC mid-write would leave the
+  chain ahead of disk → next event chains from a hash whose corresponding
+  line never made it to disk → `verify_chain` reports phantom tampering.
+  Refactored to write-then-advance: hash advance only after `write_all`
+  succeeds.
+
+- **M5 — `latticearc/src/unified_api/key_format.rs:2255`**: post-decrypt
+  `serde_json::from_slice` echoed serde error display. AEAD-authenticated so
+  attacker can't reach without the passphrase, but defense-in-depth: route
+  through `decode_json_opaque(plaintext_str, "decrypt.plaintext")` for
+  consistency with the rest of the deserializer surface. UTF-8 conversion
+  (the new helper takes `&str`) collapses non-UTF-8 plaintext to the same
+  fixed-string posture.
+
+- **M6 — `.github/workflows/release.yml:54`** (cargo publish exit-code
+  semantics): captured cargo's exit code in a dedicated variable BEFORE
+  matching the output, so a real failure whose stderr happens to contain
+  "already exists" cannot be silently treated as a successful idempotent
+  re-run. Previous shape used `OUTPUT=$(...) && exit 0` followed by a
+  substring grep. Token expression also moved to an `env:` block per the
+  workflow security guide.
+
+- **M7 — `hooks/pre-commit:194, 210`**: TLS-sandbox-failure filter used
+  `grep -v "PermissionDenied|Os { code: 1|TcpListener"` against FAILED
+  summary lines. A legitimate test whose name or output contained any of
+  those substrings (e.g. a future `test_permission_denied_returns_error`)
+  would have been silently masked. New filter uses a more specific regex
+  anchored on the actual sandbox-bind error pattern.
+
+- **M8 — `latticearc/src/primitives/{kem/ml_kem.rs,fips_error.rs}`**:
+  `MlKemError::InvalidKeyFormat` covered both public- and secret-key parse
+  failures, mapping to the generic `FipsErrorCode::InvalidParameter
+  (0x0102)`. Dedicated FIPS variants `InvalidPublicKey (0x010B)` and
+  `InvalidSecretKey (0x010C)` existed but were unused. Added
+  `MlKemError::InvalidPublicKeyFormat(String)` and `InvalidSecretKeyFormat(String)`
+  variants; migrated `MlKemPublicKey::new` / `MlKemSecretKey::new` call
+  sites; updated FIPS code mapping. Tests and doctests that matched on the
+  old generic variant updated to the specific public/secret variants.
+  Code-review follow-up extended `test_fips_error_trait_all_ml_kem_variants_map_correctly_fails`
+  to cover all three key-format variants — `MlKemError` is `#[non_exhaustive]`
+  so the compiler does not enforce exhaustive coverage at the test site,
+  and the prior cases vec was missing all three; a future code-mapping swap
+  would have passed silently.
+
+- **M9 — `latticearc/src/primitives/security.rs:284
+  (`generate_secure_random_bytes`)**: zero-length requests returned
+  `Ok(empty)`, masking caller bugs that propagated empty "keys" into AEAD
+  constructors. Sibling `allocate_secure_buffer:64-68` already rejects
+  zero. Now rejects too. Tests that asserted the buggy `Ok(empty)` shape
+  updated to assert rejection.
+
+- **M10 — `.github/workflows/ci.yml:59`**: `PROMETHEUS_PUSHGATEWAY` env
+  fallback `secrets.X || 'http://localhost:9091'` caused 15 wasted curl
+  POSTs per fork-PR run (each `|| true`-tolerated but still a bandwidth +
+  log-noise leak). Re-cast as `${{ github.event.pull_request.head.repo.fork
+  && '' || (secrets.X || 'http://localhost:9091') }}` so forks get an empty
+  URL — every per-site `|| true` then no-ops. Also removes the
+  `secret-or-literal-fallback` shape that's a future-regression vector for
+  secret-when-on-fork-PR exfil.
+
+#### LOW
+
+- **L1 — `latticearc/src/unified_api/audit.rs::verify_chain`**: read audit
+  files without holding the writer mutex; a verify concurrent with a write
+  could see a partially-written line through the BufWriter. Now takes the
+  `file_state` lock and flushes defensively at the start of verification.
+
+- **L2** (round-48 CHANGELOG amendment): clarified that `verify_pop` returns
+  `Ok(false)` for staleness while `verify_response` (after round-48 L2)
+  returns `Err(opaque)` for protocol-state branches. Both opaque-string,
+  different return shapes for different threat-model reasons.
+
+- **L3 — `scripts/audit.sh:147, 168`**: `for f in $VAR` word-splitting on
+  file paths. Repo paths are safe today; future paths with spaces would
+  silently break the loop. Switched to `find -print0 | while IFS= read -r
+  -d ''` shape (via `grep -lZ`).
+
+- **L4 — `latticearc/src/unified_api/logging.rs::log_security_event!`**:
+  `#[macro_export]` macro with no callers anywhere in the workspace. Public-
+  API dead-weight + future-misuse magnet (the Level::ERROR forwarding
+  pattern was the gateway through which H6 became a real concern). Deleted.
+
+- **L5 — `latticearc/src/unified_api/logging.rs::op::*`**: 32 string
+  constants used as SIEM rule keys had no compile-time round-trip test
+  pinning constant value to expected literal. A search-replace that touched
+  the constant value but not the SIEM rule would be unrecoverable post-deploy.
+  Added an exhaustive `op_constants_pin` test module covering every
+  category (AEAD / KEM / signature / MAC+KDF / unified entry points).
+
+- **L6 — `latticearc/src/primitives/ec/secp256k1.rs:30 (Secp256k1KeyPair)`**:
+  the type accepts only 65-byte uncompressed SEC1 wire format on verify,
+  but the contract was documented only at the verify call site, not the
+  type. Added a "Public-key wire format" doc section on the type itself
+  with explicit examples showing the rejection of compressed (33-byte) and
+  hybrid (65-byte) prefixes.
+
+- **L7 — `.github/workflows/dependabot-automerge.yml`**: noted as a defense-
+  in-depth gap (no human-review checkpoint between the actor gate and the
+  auto-merge). Maintainer call: keep auto-approve; the actor + label gates
+  remain the primary defense.
+
+- **L8 — `.github/workflows/release.yml:120-121` (SBOM generation)**:
+  `cargo cyclonedx ... && mv -f bom.json sbom.cdx.json || echo '{}' >
+  sbom.cdx.json` — `A && B || C` evaluates as `(A && B) || C`, so a
+  successful generate followed by a failed mv would have overwritten the
+  just-generated SBOM with the empty fallback. Refactored to explicit
+  if/then/else.
+
+#### DOC
+
+- **D1 — `audit.rs::AuditEvent`**: H1 fixed structurally, so the field-
+  mutation hazard doc warning is no longer needed (it was conditional on
+  H1 not being fixed).
+
+- **D2 — `key_lifecycle.rs::KeyLifecycleRecord`**: H4 fixed structurally,
+  so the "set in `new` and never reassigned" doc-comment-as-convention
+  warning is no longer needed; the doc now describes the actual private-
+  field invariant.
+
+- **D3 — `latticearc/src/unified_api/atomic_write.rs::set_local_admin_dacl`
+  failure-block scrub**: added a source-shape regression test
+  (`regression_tests::test_dacl_failure_scrub_seeks_before_writing_zeros`)
+  that pins the seek-before-write-zero ordering. A future refactor that
+  reorders these would otherwise silently regress the "don't append zeros
+  to plaintext" invariant — `write_all` from the current cursor would
+  extend the file from N to 2N bytes, then `set_len(0)` would release the
+  ORIGINAL N bytes of plaintext to the free-cluster pool.
+
+#### Code-quality / review follow-ups
+
+- Stripped 18 audit-round labels (`Round-49 H#/M#/L#/D#`) from source
+  comments across `audit.rs`, `key_lifecycle.rs`, `key_format.rs`,
+  `security.rs`, `atomic_write.rs`, `logging.rs`, `ml_kem.rs`,
+  `api_stability.rs`, `primitives_security.rs`,
+  `primitives_negative_tests_kem.rs`, `primitives_ml_kem.rs`,
+  `hooks/pre-commit`, `scripts/audit.sh`, `release.yml`, `ci.yml`. WHY
+  rationale preserved at every site. Per CLAUDE.md, audit-round labels
+  live in CHANGELOG.md and commit messages only — `git blame` recovers
+  the round context for free, and labels in source rot when prose stops
+  matching the code.
+- Extracted `decode_cbor_opaque(data, field)` helper in
+  `serialization.rs` mirroring `decode_b64_opaque` /
+  `decode_json_opaque`. Replaces the inline 4-line CBOR collapse in
+  `from_cbor` with a one-line helper call.
+- Added a sentence to `AuditEvent`'s struct doc explaining why the
+  4 remaining `pub` fields (`id`, `timestamp`, `event_type`, `outcome`)
+  stay public after H1 — they carry no attacker-amplifiable free-form
+  bytes and are immutable-by-convention with no setters.
+- Stripped one orphan `M6:` round-46 survivor label from
+  `security.rs::generate_secure_random_bytes`.
+
 ### Round-48 audit — public-API hardening + Pattern-6 follow-up + `#[non_exhaustive]` discipline (2026-05-09)
 
 External round-48 audit returned 7 findings (1 MED, 3 LOW, 3 DOC) plus 1 tracking-log nit; independent
@@ -51,16 +292,18 @@ inconsistency rather than a hard breakage.
 
 - **L2 — `latticearc/src/unified_api/zero_trust.rs:1641`**: `verify_response`
   returned distinct typed-error strings (`"No active challenge"` vs
-  `"Challenge expired"`) for two protocol-state cases that sibling `verify_pop`
-  collapses to `Ok(false)` + `tracing::debug!`. Pattern-6 distinguisher across
-  protocol state machine, even if the discriminator is caller-protocol rather
-  than crypto-material. Collapsed to a single fixed
+  `"Challenge expired"`) for two protocol-state cases. Pattern-6 distinguisher
+  across protocol state machine, even if the discriminator is caller-protocol
+  rather than crypto-material. Collapsed to a single fixed
   `"challenge verification failed"` constant in both the typed error and the
   `log_zero_trust_session_verification_failed!` audit-log macro (which expands
   to `tracing::error!` and would otherwise still surface the discriminator in
   SIEM / log-aggregation pipelines that filter at WARN+ level — a leak channel
   the original collapse missed). Discriminator goes to `tracing::debug!` for
-  operator visibility, mirroring `verify_pop`'s posture.
+  operator visibility — matching `verify_pop`'s opaque-string discipline (note:
+  `verify_pop` returns `Ok(false)` for staleness because its discriminator
+  could fingerprint server clock skew; `verify_response`'s state branches do
+  not depend on attacker-controlled bytes, so `Err(opaque)` is appropriate).
 
 - **L3 — `latticearc/src/prelude/cavp_compliance.rs::CryptoTestVector`**: the
   `pub private_key: Vec<u8>` field name signaled "real secret" but the type

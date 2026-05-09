@@ -141,6 +141,72 @@ pub mod op {
     pub const VERIFY: &str = "verify";
 }
 
+#[cfg(test)]
+mod op_constants_pin {
+    //! Pin every `op::*` constant value to its expected literal. The
+    //! constants are SIEM rule keys — a search-replace that touches a
+    //! constant value but not the corresponding rule is unrecoverable
+    //! post-deploy. This test fails loudly if any constant drifts
+    //! from its documented string.
+    //!
+    //! When adding a new `op::*` constant, also add its expected
+    //! literal here.
+
+    use super::op;
+
+    #[test]
+    fn op_aead_constants_match_expected_literals() {
+        assert_eq!(op::AES_GCM_DECRYPT_AAD, "aes_gcm_decrypt_aad");
+        assert_eq!(op::AES_GCM_ENCRYPT_AAD, "aes_gcm_encrypt_aad");
+        assert_eq!(op::CHACHA20_DECRYPT, "chacha20_decrypt");
+    }
+
+    #[test]
+    fn op_kem_constants_match_expected_literals() {
+        assert_eq!(op::ML_KEM_ENCAP, "ml_kem_encap");
+        assert_eq!(op::HYBRID_KEM_DERIVE, "hybrid_kem_derive");
+        assert_eq!(op::HYBRID_KEM_ENCAPSULATE, "hybrid_kem_encapsulate");
+        assert_eq!(op::HYBRID_KEM_DECAPSULATE, "hybrid_kem_decapsulate");
+        assert_eq!(op::HYBRID_ENCRYPT, "hybrid_encrypt");
+        assert_eq!(op::HYBRID_DECRYPT, "hybrid_decrypt");
+        assert_eq!(op::HYBRID_DERIVE_KEY, "hybrid_derive_key");
+        assert_eq!(op::PQ_ONLY_ENCRYPT, "pq_only_encrypt");
+        assert_eq!(op::PQ_ONLY_DECRYPT, "pq_only_decrypt");
+        assert_eq!(op::ENCRYPT_PQ_ML_KEM, "encrypt_pq_ml_kem");
+        assert_eq!(op::DECRYPT_PQ_ML_KEM, "decrypt_pq_ml_kem");
+    }
+
+    #[test]
+    fn op_sig_constants_match_expected_literals() {
+        assert_eq!(op::HYBRID_SIGN, "hybrid_sign");
+        assert_eq!(op::HYBRID_VERIFY, "hybrid_verify");
+        assert_eq!(op::ML_DSA_SIGN, "ml_dsa_sign");
+        assert_eq!(op::ML_DSA_VERIFY, "ml_dsa_verify");
+        assert_eq!(op::SLH_DSA_SIGN, "slh_dsa_sign");
+        assert_eq!(op::SLH_DSA_VERIFY, "slh_dsa_verify");
+        assert_eq!(op::FN_DSA_SIGN, "fn_dsa_sign");
+        assert_eq!(op::FN_DSA_VERIFY, "fn_dsa_verify");
+        assert_eq!(op::ED25519_SIGN, "ed25519_sign");
+        assert_eq!(op::ED25519_VERIFY, "ed25519_verify");
+    }
+
+    #[test]
+    fn op_mac_kdf_constants_match_expected_literals() {
+        assert_eq!(op::HMAC, "hmac");
+        assert_eq!(op::HMAC_VERIFY, "hmac_verify");
+        assert_eq!(op::KEY_DERIVATION, "key_derivation");
+        assert_eq!(op::KEY_DERIVATION_INFO, "key_derivation_info");
+    }
+
+    #[test]
+    fn op_unified_constants_match_expected_literals() {
+        assert_eq!(op::ENCRYPT, "encrypt");
+        assert_eq!(op::DECRYPT, "decrypt");
+        assert_eq!(op::SIGN_WITH_KEY, "sign_with_key");
+        assert_eq!(op::VERIFY, "verify");
+    }
+}
+
 // ============================================================================
 // Key Lifecycle Event Types for Audit Logging
 // ============================================================================
@@ -1150,18 +1216,6 @@ macro_rules! log_verification {
     };
 }
 
-/// Log security event (always logged, never filtered)
-#[doc(hidden)]
-#[macro_export]
-macro_rules! log_security_event {
-    ($event:expr) => {
-        tracing::event!(Level::ERROR, security_event = true, "{}", $event);
-    };
-    ($event:expr, $($field:tt)*) => {
-        tracing::event!(Level::ERROR, security_event = true, "{} {}", $event, format_args!($($field)*));
-    };
-}
-
 /// Log performance metrics
 #[doc(hidden)]
 #[macro_export]
@@ -1701,7 +1755,13 @@ macro_rules! log_zero_trust_auth_success {
 #[macro_export]
 macro_rules! log_zero_trust_auth_failure {
     ($session_id_hex:expr, $reason:expr) => {
-        tracing::error!(
+        // Adversary-reachable: a remote prober can trigger this branch
+        // at line rate; emitting at `error!` (most aggregator default
+        // forwarders ship at WARN+) lets a flooder DoS the SIEM. Same
+        // rationale as `log_crypto_operation_error!` (Pattern-6 plus
+        // observability budget — see that macro's doc comment for the
+        // rustls/aws-lc precedent).
+        tracing::debug!(
             target: "zero_trust::auth",
             session_id = %$session_id_hex,
             reason = %$reason,
@@ -1749,7 +1809,11 @@ macro_rules! log_zero_trust_session_verified {
 #[macro_export]
 macro_rules! log_zero_trust_session_verification_failed {
     ($session_id_hex:expr, $reason:expr) => {
-        tracing::error!(
+        // Adversary-reachable: see `log_zero_trust_auth_failure!` for
+        // the same DoS-amplification rationale. A remote prober can
+        // flood verify endpoints; emitting at `error!` would forward
+        // every miss to the SIEM under typical WARN+ filters.
+        tracing::debug!(
             target: "zero_trust::session",
             session_id = %$session_id_hex,
             reason = %$reason,

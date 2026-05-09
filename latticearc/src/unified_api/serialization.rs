@@ -50,6 +50,22 @@ pub(crate) fn decode_json_opaque<T: serde::de::DeserializeOwned>(
     })
 }
 
+/// Decode CBOR bytes into `T`, collapsing the error to a fixed message.
+///
+/// `ciborium::Error::Display` includes byte offset and type-mismatch
+/// detail, both attacker-controllable for a deserialized envelope.
+/// Same Pattern-6 reasoning as [`decode_b64_opaque`] /
+/// [`decode_json_opaque`].
+pub(crate) fn decode_cbor_opaque<T: serde::de::DeserializeOwned>(
+    data: &[u8],
+    field: &'static str,
+) -> Result<T> {
+    ciborium::from_reader(data).map_err(|e| {
+        tracing::debug!(error = %e, field = field, "CBOR decode rejected");
+        CoreError::SerializationError("CBOR decode failed".to_string())
+    })
+}
+
 /// Serializable form of signed data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerializableSignedData {

@@ -47,17 +47,37 @@ jobs:
       - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
 
-      # Single crate publish (all sub-crates consolidated into latticearc)
-      # Tolerate "already uploaded/exists" so workflow re-runs don't fail
+      # Single crate publish (all sub-crates consolidated into latticearc).
+      # Tolerate "already uploaded/exists" so workflow re-runs don't fail.
+      #
+      # Capture cargo's exit code in a dedicated variable BEFORE
+      # matching on the output, so a real failure (network drop, auth,
+      # etc.) whose stderr happens to contain the substring "already
+      # exists" cannot be silently treated as a successful idempotent
+      # re-run. The previous shape used `OUTPUT=$(...) && exit 0`
+      # followed by a substring grep — fine on success, but fragile
+      # because the grep ran on output text without checking whether
+      # cargo actually exited cleanly.
       - name: Publish latticearc
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          OUTPUT=$(cargo publish -p latticearc --token ${{ secrets.CARGO_REGISTRY_TOKEN }} 2>&1) && exit 0
+          set -uo pipefail
+          OUTPUT=$(cargo publish -p latticearc --token "$CARGO_REGISTRY_TOKEN" 2>&1)
+          PUBLISH_EXIT=$?
           echo "$OUTPUT"
+          if [ "$PUBLISH_EXIT" -eq 0 ]; then
+            echo "::notice::Crate published successfully"
+            exit 0
+          fi
+          # Non-zero exit. The only tolerated failure is "version already
+          # published" on a workflow re-run.
           if echo "$OUTPUT" | grep -qE "already (uploaded|exists)"; then
             echo "::warning::Crate version already published — skipping"
-          else
-            exit 1
+            exit 0
           fi
+          echo "::error::cargo publish failed with exit $PUBLISH_EXIT"
+          exit "$PUBLISH_EXIT"
 
   # Create GitHub release
   release:
@@ -116,9 +136,21 @@ jobs:
         continue-on-error: true
       - name: Generate SBOM (CycloneDX)
         run: |
-          # cargo-cyclonedx writes to bom.json/bom.xml in the project dir, not stdout
-          cargo cyclonedx --all --format json && mv -f bom.json sbom.cdx.json || echo '{}' > sbom.cdx.json
-          cargo cyclonedx --all --format xml && mv -f bom.xml sbom.cdx.xml || echo '<bom/>' > sbom.cdx.xml
+          # cargo-cyclonedx writes to bom.json/bom.xml in the project dir, not stdout.
+          # Use explicit if/then/else — `A && B || C` evaluates as
+          # `(A && B) || C`, so a successful generate followed by a
+          # failed mv would have overwritten the just-generated SBOM
+          # with the empty fallback.
+          if cargo cyclonedx --all --format json; then
+            mv -f bom.json sbom.cdx.json || echo '{}' > sbom.cdx.json
+          else
+            echo '{}' > sbom.cdx.json
+          fi
+          if cargo cyclonedx --all --format xml; then
+            mv -f bom.xml sbom.cdx.xml || echo '<bom/>' > sbom.cdx.xml
+          else
+            echo '<bom/>' > sbom.cdx.xml
+          fi
         continue-on-error: true
       - name: Generate hash
         id: hash

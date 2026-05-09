@@ -206,8 +206,18 @@ if [ "$CARGO_TEST_EXIT" -ne 0 ] && [ "$TEST_FAILED" -eq 0 ]; then
 fi
 
 if [ "$TEST_FAILED" -gt 0 ]; then
-    # Filter out known sandbox failures (only PermissionDenied/TcpListener bind errors)
-    REAL_FAILURES=$(echo "$TEST_OUTPUT" | grep "test result: FAILED" | grep -v "PermissionDenied\|Os { code: 1\|TcpListener" || true)
+    # Filter only known TLS-sandbox bind/listener failures. Previous
+    # shape used `grep -v "PermissionDenied|Os { code: 1|TcpListener"`
+    # against the FAILED summary lines, which would silently mask a
+    # legitimate test whose name or output contained any of those
+    # substrings (e.g. a future `test_permission_denied_returns_error`).
+    # New filter: detect the specific stdout pattern emitted by the
+    # `tests/tests/secret_isolation*.rs` and `tests/tests/networking*.rs`
+    # tests when the macOS sandbox blocks `bind()`. Falls through to
+    # the failure path for anything else.
+    SANDBOX_FAILURE_PATTERN='(failures:.*tests::.*::.*sandbox|TcpListener::bind.*Os \{ code: 1, kind: PermissionDenied)'
+    REAL_FAILURES=$(echo "$TEST_OUTPUT" | grep "test result: FAILED" | \
+        grep -v -E "$SANDBOX_FAILURE_PATTERN" || true)
 
     if [ -z "$REAL_FAILURES" ]; then
         TOTAL_PASSED=$(echo "$TEST_OUTPUT" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}')

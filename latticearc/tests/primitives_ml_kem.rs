@@ -942,10 +942,12 @@ fn test_empty_secret_key_construction_succeeds() {
     assert!(result.is_err(), "Empty secret key should be rejected");
 
     match result {
-        Err(MlKemError::InvalidKeyFormat(_)) => {
-            // Expected
+        Err(MlKemError::InvalidSecretKeyFormat(_)) => {
+            // Expected — `InvalidKeyFormat` was split into public /
+            // secret variants for FIPS audit-trail granularity (FIPS
+            // 0x010B / 0x010C respectively).
         }
-        _ => panic!("Expected InvalidKeyFormat error"),
+        _ => panic!("Expected InvalidSecretKeyFormat error"),
     }
 }
 

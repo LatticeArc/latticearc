@@ -114,7 +114,9 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use crate::unified_api::error::{CoreError, Result};
-use crate::unified_api::serialization::decode_b64_opaque;
+use crate::unified_api::serialization::{
+    decode_b64_opaque, decode_cbor_opaque, decode_json_opaque,
+};
 
 /// Pair of zeroizing byte buffers returned by [`KeyData::decode_composite_zeroized`].
 ///
@@ -500,8 +502,17 @@ pub enum KeyType {
 /// `"enc"` (with KDF metadata) → [`KeyData::Encrypted`], `"raw"` → [`KeyData::Single`],
 /// `"pq"` + `"classical"` → [`KeyData::Composite`]. `Encrypted` is listed first
 /// so serde matches it before falling back to Single/Composite.
+/// `derive(Clone)` is intentionally NOT implemented. When this variant
+/// is `Single` or `Composite` for a secret-key payload, the base64
+/// string holds secret-key bytes; an implicit clone would silently
+/// duplicate secret material on the heap. Public-key variants are
+/// safe to duplicate but the type erases that distinction at
+/// construction (`key_type` lives on `PortableKey`, not on
+/// `KeyData`), so the conservative choice is no `Clone` for the whole
+/// enum. External callers that genuinely need duplication go through
+/// [`PortableKey::clone_for_transmission`].
 #[non_exhaustive]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum KeyData {
     /// Passphrase-encrypted key material.
@@ -596,6 +607,31 @@ impl Drop for KeyData {
 }
 
 impl KeyData {
+    /// Audited duplication path. See
+    /// [`PortableKey::clone_for_transmission`] for the rationale —
+    /// `derive(Clone)` is intentionally not implemented because
+    /// variants can hold base64 of secret-key bytes.
+    #[must_use]
+    pub fn clone_for_transmission(&self) -> Self {
+        match self {
+            Self::Single { raw } => Self::Single { raw: raw.clone() },
+            Self::Composite { pq, classical } => {
+                Self::Composite { pq: pq.clone(), classical: classical.clone() }
+            }
+            Self::Encrypted { enc, kdf, kdf_iterations, kdf_salt, aead, nonce, ciphertext } => {
+                Self::Encrypted {
+                    enc: *enc,
+                    kdf: kdf.clone(),
+                    kdf_iterations: *kdf_iterations,
+                    kdf_salt: kdf_salt.clone(),
+                    aead: aead.clone(),
+                    nonce: nonce.clone(),
+                    ciphertext: ciphertext.clone(),
+                }
+            }
+        }
+    }
+
     /// Decode the single raw key bytes (returns error if composite or encrypted).
     ///
     /// # Security
@@ -772,7 +808,12 @@ impl KeyData {
 ///     .to_hybrid_public_key()
 ///     .expect("extract");
 /// ```
-#[derive(Clone, Serialize, Deserialize)]
+/// `derive(Clone)` is intentionally NOT implemented. When
+/// `key_type == Secret`, the inner [`KeyData`] holds base64 of
+/// secret-key bytes; an implicit clone would silently double the heap
+/// regions holding secret material. Use [`Self::clone_for_transmission`]
+/// for the audited, explicit duplication path.
+#[derive(Serialize, Deserialize)]
 pub struct PortableKey {
     /// Format version (currently `1`).
     version: u32,
@@ -958,6 +999,31 @@ fn resolve_security_level_algorithm(level: crate::types::types::SecurityLevel) -
 impl PortableKey {
     /// Current format version.
     pub const CURRENT_VERSION: u32 = 1;
+
+    /// Audited, explicit duplication for transmission / persistence
+    /// flows that genuinely need a second instance.
+    ///
+    /// `derive(Clone)` is intentionally NOT implemented (Pattern 5
+    /// anti-pattern 2: secret types must not silently duplicate via
+    /// the standard `Clone` trait). When `key_type == Secret`, the
+    /// inner `KeyData` holds base64 of secret-key bytes; the
+    /// duplicated `String` lands in a fresh heap region that the
+    /// custom `Drop` impl below will zeroize, but the duplication
+    /// itself is a real moment in the lifetime of the secret and
+    /// callers must be deliberate about it.
+    #[must_use]
+    pub fn clone_for_transmission(&self) -> Self {
+        Self {
+            version: self.version,
+            use_case: self.use_case,
+            security_level: self.security_level,
+            algorithm: self.algorithm,
+            key_type: self.key_type,
+            key_data: self.key_data.clone_for_transmission(),
+            metadata: self.metadata.clone(),
+            created: self.created,
+        }
+    }
 
     /// Create a key identified by use case. Algorithm is auto-derived.
     ///
@@ -1298,12 +1364,20 @@ impl PortableKey {
         // AAD when the SK file is passphrase-encrypted (see test at
         // line 2980). Plaintext-stored SKs had no integrity binding
         // for that field, so a file-write attacker could swap it.
+        // Pattern-6: plaintext-keyfile path is reachable without AEAD,
+        // so the upstream `MlKemSecretKey::new` / `embedded_public_key_bytes`
+        // errors are attacker-touchable. Collapse to a fixed string and
+        // route the raw error to tracing::debug! for operator visibility.
         let parsed_sk =
             crate::primitives::kem::ml_kem::MlKemSecretKey::new(level, ml_kem_sk.to_vec())
-                .map_err(|e| CoreError::InvalidKey(format!("Invalid ML-KEM SK: {e}")))?;
-        let ml_kem_pk_slice = parsed_sk
-            .embedded_public_key_bytes()
-            .map_err(|e| CoreError::InvalidKey(format!("ML-KEM SK does not embed PK: {e}")))?;
+                .map_err(|e| {
+                    tracing::debug!(error = %e, "plaintext keyfile: ML-KEM SK parse rejected");
+                    CoreError::InvalidKey("Invalid ML-KEM secret key".to_string())
+                })?;
+        let ml_kem_pk_slice = parsed_sk.embedded_public_key_bytes().map_err(|e| {
+            tracing::debug!(error = %e, "plaintext keyfile: ML-KEM SK pk-extract rejected");
+            CoreError::InvalidKey("Invalid ML-KEM secret key".to_string())
+        })?;
         let ml_kem_pk: Vec<u8> = ml_kem_pk_slice.to_vec();
 
         if ecdh_seed_vec.len() != 32 {
@@ -1319,7 +1393,10 @@ impl PortableKey {
         crate::hybrid::kem_hybrid::HybridKemSecretKey::from_serialized(
             level, &ml_kem_sk, &ml_kem_pk, &ecdh_seed,
         )
-        .map_err(|e| CoreError::InvalidKey(format!("Secret key reconstruction: {e}")))
+        .map_err(|e| {
+            tracing::debug!(error = %e, "plaintext keyfile: hybrid SK reconstruction rejected");
+            CoreError::InvalidKey("Hybrid secret key reconstruction failed".to_string())
+        })
     }
 
     // --- Bridge: Hybrid signature keypair ---
@@ -2252,9 +2329,16 @@ impl PortableKey {
             })?;
 
         // Deserialize the plaintext bytes back into a KeyData variant.
-        let new_key_data: KeyData = serde_json::from_slice(&plaintext).map_err(|e| {
-            CoreError::SerializationError(format!("Failed to deserialize decrypted key data: {e}"))
+        // Defense-in-depth: AEAD authentication has already passed by
+        // this point, so an attacker cannot reach this branch without
+        // the passphrase — but a corrupted between-sessions disk write
+        // could surface attacker-controlled token detail through
+        // serde_json's error display. Route through the opaque helper.
+        let plaintext_str = std::str::from_utf8(&plaintext).map_err(|e| {
+            tracing::debug!(error = %e, "decrypted keyfile: non-UTF8 plaintext");
+            CoreError::SerializationError("decrypted plaintext is not UTF-8".to_string())
         })?;
+        let new_key_data: KeyData = decode_json_opaque(plaintext_str, "decrypt.plaintext")?;
         // Reject nested encryption (prevents re-wrap confusion).
         if matches!(new_key_data, KeyData::Encrypted { .. }) {
             return Err(CoreError::InvalidKey(
@@ -2470,8 +2554,7 @@ impl PortableKey {
                 Self::MAX_KEY_JSON_SIZE
             )));
         }
-        let key: Self = serde_json::from_str(json)
-            .map_err(|e| CoreError::SerializationError(format!("JSON parse failed: {e}")))?;
+        let key: Self = decode_json_opaque(json, "key.json")?;
         key.validate()?;
         key.check_use_case_or_security_level_invariant()?;
         Ok(key)
@@ -2507,8 +2590,7 @@ impl PortableKey {
                 Self::MAX_KEY_CBOR_SIZE
             )));
         }
-        let key: Self = ciborium::from_reader(data)
-            .map_err(|e| CoreError::SerializationError(format!("CBOR parse failed: {e}")))?;
+        let key: Self = decode_cbor_opaque(data, "key.cbor")?;
         key.validate()?;
         key.check_use_case_or_security_level_invariant()?;
         Ok(key)
@@ -2658,22 +2740,48 @@ impl PortableKey {
         self.make_atomic_writer(&cbor, overwrite).write(path)
     }
 
-    /// Read from a JSON file.
+    /// Read from a JSON file with a bounded read.
+    ///
+    /// Reads at most [`Self::MAX_KEY_JSON_SIZE`] + 1 bytes via a
+    /// `Read::take` adapter so a symlink to `/dev/zero`, a pathological
+    /// attacker file, or any path whose `metadata().len()` is unreliable
+    /// (FIFOs, `/proc/*`) cannot OOM the process before the size cap
+    /// fires inside [`Self::from_json`].
     ///
     /// # Errors
-    /// Returns an error if file reading or JSON parsing fails.
+    /// Returns an error if file reading, the size cap, or JSON parsing fails.
     pub fn read_from_file(path: &std::path::Path) -> Result<Self> {
-        let contents = std::fs::read_to_string(path)?;
-        Self::from_json(&contents)
+        use std::io::Read;
+        // +1 so anything longer than the cap reads as MAX+1 and is
+        // rejected by `from_json`'s length check rather than silently
+        // truncating to MAX.
+        const READ_CAP: u64 = (PortableKey::MAX_KEY_JSON_SIZE as u64).saturating_add(1);
+        let file = std::fs::File::open(path)?;
+        let mut buf = String::new();
+        file.take(READ_CAP).read_to_string(&mut buf).map_err(|e| {
+            tracing::debug!(error = %e, "key JSON file read rejected");
+            CoreError::SerializationError("key JSON file read failed".to_string())
+        })?;
+        Self::from_json(&buf)
     }
 
-    /// Read from a CBOR file.
+    /// Read from a CBOR file with a bounded read.
+    ///
+    /// Reads at most [`Self::MAX_KEY_CBOR_SIZE`] + 1 bytes — see
+    /// [`Self::read_from_file`] for the OOM-resistance rationale.
     ///
     /// # Errors
-    /// Returns an error if file reading or CBOR parsing fails.
+    /// Returns an error if file reading, the size cap, or CBOR parsing fails.
     pub fn read_cbor_from_file(path: &std::path::Path) -> Result<Self> {
-        let contents = std::fs::read(path)?;
-        Self::from_cbor(&contents)
+        use std::io::Read;
+        const READ_CAP: u64 = (PortableKey::MAX_KEY_CBOR_SIZE as u64).saturating_add(1);
+        let file = std::fs::File::open(path)?;
+        let mut buf = Vec::new();
+        file.take(READ_CAP).read_to_end(&mut buf).map_err(|e| {
+            tracing::debug!(error = %e, "key CBOR file read rejected");
+            CoreError::SerializationError("key CBOR file read failed".to_string())
+        })?;
+        Self::from_cbor(&buf)
     }
 
     // --- Legacy CLI format ---
@@ -2714,8 +2822,7 @@ impl PortableKey {
             label: Option<String>,
         }
 
-        let legacy: LegacyKeyFile = serde_json::from_str(json)
-            .map_err(|e| CoreError::SerializationError(format!("Legacy JSON parse failed: {e}")))?;
+        let legacy: LegacyKeyFile = decode_json_opaque(json, "key.legacy_json")?;
 
         let algorithm = parse_legacy_algorithm(&legacy.algorithm)?;
         let key_type = match legacy.key_type.to_lowercase().as_str() {
@@ -2921,7 +3028,7 @@ mod tests {
         let mut key = sample_single_key();
         key.encrypt_with_passphrase(b"aad binding").unwrap();
 
-        let tampered_data = key.key_data.clone();
+        let tampered_data = key.key_data.clone_for_transmission();
         let mut tampered =
             PortableKey::new(KeyAlgorithm::ChaCha20, KeyType::Symmetric, tampered_data);
 
@@ -2936,7 +3043,7 @@ mod tests {
         let mut key = sample_single_key();
         key.encrypt_with_passphrase(b"aad binding").unwrap();
 
-        let tampered_data = key.key_data.clone();
+        let tampered_data = key.key_data.clone_for_transmission();
         // Swap Symmetric → Secret. `Aes256` isn't a valid algorithm for a
         // Secret key at load time, but `decrypt_with_passphrase` runs the
         // AEAD check before any such validation, so the test still exercises

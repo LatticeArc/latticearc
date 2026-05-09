@@ -143,10 +143,13 @@ START_TIME=$(date +%s)
 if [ "$QUICK" = false ]; then
     section "Dim 1" "Cryptographic Correctness"
 
-    # 1.5: No thread_rng in production code
-    THREAD_RNG_FILES=$(grep -rl 'thread_rng' --include="*.rs" $SRC/ 2>/dev/null || true)
+    # 1.5: No thread_rng in production code.
+    # Iterate via `find -print0 | while IFS= read -r -d ''` so paths
+    # with spaces don't word-split silently. Repo-controlled today,
+    # but future `tests/foo bar/baz.rs` would have broken the loop
+    # unnoticed.
     THREAD_RNG_PROD=""
-    for f in $THREAD_RNG_FILES; do
+    while IFS= read -r -d '' f; do
         LINES=$(grep -n 'thread_rng' "$f" | cut -d: -f1)
         TEST_START=$(grep -n '#\[cfg(test)\]' "$f" 2>/dev/null | head -1 | cut -d: -f1)
         for line in $LINES; do
@@ -154,7 +157,7 @@ if [ "$QUICK" = false ]; then
                 THREAD_RNG_PROD="$THREAD_RNG_PROD\n$f:$line"
             fi
         done
-    done
+    done < <(grep -rlZ 'thread_rng' --include="*.rs" "$SRC"/ 2>/dev/null)
     if [ -z "$THREAD_RNG_PROD" ]; then
         pass "1.5 No thread_rng() in production code"
     else
@@ -163,14 +166,13 @@ if [ "$QUICK" = false ]; then
     fi
 
     # 1.2: KAT test vector sources documented (heuristic: hex strings in tests without source comment)
-    KAT_FILES=$(grep -rl 'hex!\|from_hex\|hex::decode' --include="*.rs" tests/ $SRC/ 2>/dev/null || true)
     UNDOCUMENTED_VECS=""
-    for f in $KAT_FILES; do
+    while IFS= read -r -d '' f; do
         HITS=$(grep -n 'hex!\|from_hex\|hex::decode' "$f" 2>/dev/null | grep -v 'NIST\|RFC\|CAVP\|Wycheproof\|test vector\|Known Answer' | head -3 || true)
         if [ -n "$HITS" ]; then
             UNDOCUMENTED_VECS="$UNDOCUMENTED_VECS$f\n"
         fi
-    done
+    done < <(grep -rlZ 'hex!\|from_hex\|hex::decode' --include="*.rs" tests/ "$SRC"/ 2>/dev/null)
     UNDOCUMENTED_VECS=$(echo -en "$UNDOCUMENTED_VECS" | sed '/^$/d')
     if [ -z "$UNDOCUMENTED_VECS" ]; then
         pass "1.2 All test vector files have source documentation"

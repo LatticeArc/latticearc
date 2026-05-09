@@ -12,37 +12,33 @@
 use latticearc::primitives::security::{
     RngHandle, allocate_secure_buffer, generate_secure_random_bytes, generate_secure_random_u32,
     generate_secure_random_u64, get_global_secure_rng, initialize_global_secure_rng,
-    secure_compare, secure_zeroize,
+    secure_compare_equal_length, secure_zeroize,
 };
 
 // ============================================================================
-// secure_compare tests
+// secure_compare_equal_length tests
+//
+// Note: this function's contract requires equal-length inputs (the name
+// encodes it). Mismatched-length tests previously asserted a defensive
+// `false`-return behaviour; that path now trips a `debug_assert!` and
+// is contractually unreachable, so those tests are removed rather than
+// converted to `#[should_panic]` (the panic is a misuse signal, not a
+// behaviour to lock in).
 // ============================================================================
 
 #[test]
 fn test_secure_compare_equal_slices_succeeds() {
-    assert!(secure_compare(b"hello", b"hello"));
+    assert!(secure_compare_equal_length(b"hello", b"hello"));
 }
 
 #[test]
 fn test_secure_compare_different_content_succeeds() {
-    assert!(!secure_compare(b"hello", b"world"));
-}
-
-#[test]
-fn test_secure_compare_different_lengths_has_correct_size() {
-    assert!(!secure_compare(b"hello", b"hi"));
+    assert!(!secure_compare_equal_length(b"hello", b"world"));
 }
 
 #[test]
 fn test_secure_compare_empty_succeeds() {
-    assert!(secure_compare(b"", b""));
-}
-
-#[test]
-fn test_secure_compare_one_empty_succeeds() {
-    assert!(!secure_compare(b"", b"a"));
-    assert!(!secure_compare(b"a", b""));
+    assert!(secure_compare_equal_length(b"", b""));
 }
 
 // ============================================================================
@@ -158,9 +154,12 @@ fn test_generate_secure_random_bytes_succeeds() {
 }
 
 #[test]
-fn test_generate_secure_random_bytes_zero_length_has_correct_size() {
-    let bytes = generate_secure_random_bytes(0).unwrap();
-    assert!(bytes.is_empty());
+fn test_generate_secure_random_bytes_zero_length_rejected_fails() {
+    // Zero-length is rejected so a buggy caller can't propagate an
+    // empty "key" into a downstream AEAD constructor. Mirrors the
+    // sibling `allocate_secure_buffer(0)` rejection.
+    let err = generate_secure_random_bytes(0).unwrap_err();
+    assert!(format!("{err}").contains("zero-length"), "expected zero-length rejection: {err}");
 }
 
 #[test]

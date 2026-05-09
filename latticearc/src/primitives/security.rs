@@ -15,22 +15,45 @@ use crate::types::SecretVec;
 // storage now uses [`SecretVec`] (see `docs/SECRET_TYPE_INVARIANTS.md`).
 // `MemoryPool` below is the sole former consumer; it holds `SecretVec` values.
 
-/// Constant-time comparison function
+/// Constant-time equality check for byte slices of **the caller-known
+/// equal length**.
 ///
-/// This function compares two byte slices in constant time to prevent
-/// timing attacks that could leak information about the contents.
+/// # Contract
+///
+/// The caller is responsible for ensuring `a.len() == b.len()`. The
+/// function name encodes this — passing slices of different lengths
+/// returns `false` via a non-CT early branch on the length comparison,
+/// which is acceptable here because *this function does not promise CT
+/// over variable-length inputs*. A caller that compares e.g. a trimmed
+/// MAC or a variable-length signature against a known reference must
+/// not use this function — the length difference would leak through
+/// the early branch.
+///
+/// In debug builds the length mismatch trips a `debug_assert!` to
+/// surface misuse early; in release builds it returns `false` rather
+/// than panicking.
+///
+/// For the type-enforced equal-length case, prefer
+/// `subtle::ConstantTimeEq::ct_eq` directly on `&[u8; N]`.
 #[must_use]
-pub fn secure_compare(a: &[u8], b: &[u8]) -> bool {
+pub fn secure_compare_equal_length(a: &[u8], b: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
 
-    // reject mismatched lengths early. The
-    // previous shape allocated `max(a.len(), b.len())` zeroized buffers
-    // even on the inevitable-Err path, which an attacker controlling
-    // one input length could amplify into MB-sized allocations per
-    // call. Length is structurally not secret here (the caller knows
-    // both lengths), so the early return is constant-time relative to
-    // each fixed-length comparison; comparisons across messages of
-    // *different* declared lengths are all rejected at the same cost.
+    debug_assert_eq!(
+        a.len(),
+        b.len(),
+        "secure_compare_equal_length called with mismatched lengths {} vs {} — \
+         this function's CT contract requires equal-length inputs; if your \
+         use case has variable-length comparison, length itself is leaking",
+        a.len(),
+        b.len()
+    );
+
+    // Release-mode safety fallback: prior shape allocated max-length
+    // zeroized buffers on mismatch, an attacker-amplifiable foot-gun.
+    // Returning `false` here is the safe default that does not
+    // allocate; a caller that relies on this branch in production has
+    // already violated the contract above.
     if a.len() != b.len() {
         return false;
     }
@@ -282,12 +305,23 @@ pub fn initialize_global_secure_rng() -> Result<()> {
 /// 1 MiB cap (rejects `usize::MAX` before it can OOM the allocator).
 /// Returns an error if random generation fails.
 pub fn generate_secure_random_bytes(len: usize) -> Result<zeroize::Zeroizing<Vec<u8>>> {
-    // M6: cap matches `allocate_secure_buffer` so both
-    // sibling helpers refuse the same `usize::MAX → 18 EiB
-    // allocation` foot-gun. Any legitimate caller stays well under
-    // 1 MiB (typical sizes: 16-byte salts, 32-byte keys, 96-byte
-    // material). A `usize::MAX` request previously aborted the
-    // process via OOM before any error path ran.
+    // Reject `len == 0` — a zero-byte randomness request is always a
+    // caller bug (downstream consumers expect a key / nonce / salt of
+    // documented length). Returning Ok(empty) propagates an empty
+    // "key" into AEAD constructors that may treat it as a degenerate
+    // all-zero key. The sibling `allocate_secure_buffer` already
+    // rejects zero — match that posture.
+    if len == 0 {
+        return Err(crate::prelude::LatticeArcError::InvalidParameter(
+            "generate_secure_random_bytes: zero-length requests are rejected".to_string(),
+        ));
+    }
+    // Cap matches `allocate_secure_buffer` so both sibling helpers
+    // refuse the same `usize::MAX → 18 EiB allocation` foot-gun. Any
+    // legitimate caller stays well under 1 MiB (typical sizes:
+    // 16-byte salts, 32-byte keys, 96-byte material). A `usize::MAX`
+    // request previously aborted the process via OOM before any
+    // error path ran.
     const MAX_RANDOM_BYTES: usize = 1024 * 1024;
     if len > MAX_RANDOM_BYTES {
         return Err(crate::prelude::LatticeArcError::InvalidParameter(format!(
@@ -325,41 +359,31 @@ pub fn generate_secure_random_u32() -> Result<u32> {
 mod tests {
     use super::*;
 
-    // === secure_compare tests ===
+    // === secure_compare_equal_length tests ===
+    //
+    // The mismatched-length tests previously here exercised a
+    // defensive fallback that is now a `debug_assert!` misuse signal
+    // (the function's name encodes the equal-length contract).
 
     #[test]
     fn test_secure_compare_equal_is_secure_succeeds() {
         let a = b"hello world";
         let b = b"hello world";
-        assert!(secure_compare(a, b));
+        assert!(secure_compare_equal_length(a, b));
     }
 
     #[test]
     fn test_secure_compare_different_is_secure_succeeds() {
         let a = b"hello world";
         let b = b"hello xorld";
-        assert!(!secure_compare(a, b));
-    }
-
-    #[test]
-    fn test_secure_compare_different_lengths_is_secure_has_correct_size() {
-        let a = b"hello";
-        let b = b"hello world";
-        assert!(!secure_compare(a, b));
+        assert!(!secure_compare_equal_length(a, b));
     }
 
     #[test]
     fn test_secure_compare_empty_is_secure_succeeds() {
         let a = b"";
         let b = b"";
-        assert!(secure_compare(a, b));
-    }
-
-    #[test]
-    fn test_secure_compare_empty_vs_nonempty_is_secure_succeeds() {
-        let a = b"";
-        let b = b"hello";
-        assert!(!secure_compare(a, b));
+        assert!(secure_compare_equal_length(a, b));
     }
 
     #[test]
@@ -368,7 +392,7 @@ mod tests {
         let b = b"hello xorld";
 
         for _ in 0..100 {
-            assert!(!secure_compare(a, b));
+            assert!(!secure_compare_equal_length(a, b));
         }
     }
 
@@ -495,9 +519,11 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_secure_random_bytes_zero_len_succeeds() {
-        let bytes = generate_secure_random_bytes(0).unwrap();
-        assert!(bytes.is_empty());
+    fn test_generate_secure_random_bytes_zero_len_fails() {
+        // Zero-length is rejected — an empty "key" propagating to
+        // AEAD constructors is always a caller bug.
+        let err = generate_secure_random_bytes(0).unwrap_err();
+        assert!(format!("{err}").contains("zero-length"), "expected zero-length rejection: {err}");
     }
 
     #[test]

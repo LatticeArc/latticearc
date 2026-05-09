@@ -141,8 +141,23 @@ pub enum MlKemError {
     /// rejected by aws-lc-rs `EncapsulationKey::new`). Distinct from
     /// `InvalidKeyLength` so callers can tell "wrong size" from
     /// "right size, malformed bytes".
+    ///
+    /// Prefer the dedicated [`Self::InvalidPublicKeyFormat`] /
+    /// [`Self::InvalidSecretKeyFormat`] variants when the call site
+    /// knows whether the parsed key is public or secret — they map to
+    /// distinct FIPS error codes (`0x010B` / `0x010C`) for audit-trail
+    /// granularity. This variant remains for paths that don't have the
+    /// distinction.
     #[error("Invalid key format: {0}")]
     InvalidKeyFormat(String),
+    /// Public-key bytes failed structural validation. Maps to FIPS
+    /// `InvalidPublicKey (0x010B)`.
+    #[error("Invalid public key format: {0}")]
+    InvalidPublicKeyFormat(String),
+    /// Secret-key bytes failed structural validation. Maps to FIPS
+    /// `InvalidSecretKey (0x010C)`.
+    #[error("Invalid secret key format: {0}")]
+    InvalidSecretKeyFormat(String),
     /// Invalid ciphertext length
     #[error("Invalid ciphertext length for {variant}: expected {expected}, got {actual}")]
     InvalidCiphertextLength {
@@ -312,7 +327,7 @@ impl MlKemPublicKey {
         // self-contradictory (`size == actual`).
         let algorithm = security_level.as_aws_algorithm();
         EncapsulationKey::new(algorithm, &data).map_err(|_e| {
-            MlKemError::InvalidKeyFormat(format!(
+            MlKemError::InvalidPublicKeyFormat(format!(
                 "ML-KEM-{} public key bytes failed structural validation",
                 security_level.name()
             ))
@@ -485,7 +500,7 @@ impl MlKemSecretKey {
                 actual = data.len(),
                 "MlKemSecretKey::new rejected: SK length mismatch"
             );
-            return Err(MlKemError::InvalidKeyFormat(format!(
+            return Err(MlKemError::InvalidSecretKeyFormat(format!(
                 "ML-KEM-{} secret key bytes failed validation",
                 security_level.name()
             )));
@@ -493,7 +508,7 @@ impl MlKemSecretKey {
         let algorithm = security_level.as_aws_algorithm();
         DecapsulationKey::new(algorithm, &data).map_err(|_e| {
             tracing::debug!("MlKemSecretKey::new rejected: aws-lc-rs SK parse failed");
-            MlKemError::InvalidKeyFormat(format!(
+            MlKemError::InvalidSecretKeyFormat(format!(
                 "ML-KEM-{} secret key bytes failed validation",
                 security_level.name()
             ))
@@ -1804,15 +1819,15 @@ mod tests {
 
     #[test]
     fn test_secret_key_new_wrong_length_fails() {
-        // L7: SK::new now returns the SAME variant
-        // (`InvalidKeyFormat`) for both length-mismatch and
-        // structural-validation paths, removing the Pattern-6
-        // distinguisher introduced.
+        // SK::new returns the same variant for both length-mismatch
+        // and structural-validation paths (Pattern-6 collapse).
+        // `InvalidSecretKeyFormat` maps to FIPS 0x010C (vs PK's
+        // 0x010B) for audit-trail granularity.
         let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0u8; 100]);
         assert!(result.is_err());
         assert!(
-            matches!(result.unwrap_err(), MlKemError::InvalidKeyFormat(_)),
-            "wrong-length SK must return InvalidKeyFormat (Pattern-6 collapse)"
+            matches!(result.unwrap_err(), MlKemError::InvalidSecretKeyFormat(_)),
+            "wrong-length SK must return InvalidSecretKeyFormat (Pattern-6 collapse)"
         );
     }
 

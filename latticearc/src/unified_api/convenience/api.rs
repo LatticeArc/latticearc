@@ -680,10 +680,16 @@ pub fn decrypt_with_aad(
         }
         // Hybrid ML-KEM + X25519 + HKDF + AES-256-GCM
         (DecryptKey::Hybrid(sk), scheme) if scheme.requires_hybrid_key() => {
+            // Pattern-6: `encrypted.scheme` is wire-format adversary
+            // input. A distinct "scheme says hybrid but no hybrid_data"
+            // string vs the canonical "decryption failed" below would
+            // give an attacker a wrong-tag-vs-AEAD-reject oracle.
             let hybrid_data = encrypted.hybrid_data().ok_or_else(|| {
-                CoreError::DecryptionFailed(
-                    "Hybrid scheme but no hybrid_data in EncryptedOutput".to_string(),
-                )
+                tracing::debug!(
+                    scheme = ?scheme,
+                    "decrypt rejected: hybrid scheme tag but EncryptedOutput.hybrid_data is None"
+                );
+                CoreError::DecryptionFailed("decryption failed".to_string())
             })?;
 
             let ct = HybridCiphertext::new(
@@ -708,10 +714,13 @@ pub fn decrypt_with_aad(
         }
         // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
         (DecryptKey::PqOnly(sk), scheme) if scheme.requires_pq_key() => {
+            // Pattern-6: see hybrid arm above for rationale.
             let hybrid_data = encrypted.hybrid_data().ok_or_else(|| {
-                CoreError::DecryptionFailed(
-                    "PQ-only scheme but no hybrid_data in EncryptedOutput".to_string(),
-                )
+                tracing::debug!(
+                    scheme = ?scheme,
+                    "decrypt rejected: PQ-only scheme tag but EncryptedOutput.hybrid_data is None"
+                );
+                CoreError::DecryptionFailed("decryption failed".to_string())
             })?;
 
             let (nonce, tag) = extract_nonce_tag(encrypted)?;

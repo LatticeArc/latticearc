@@ -60,6 +60,18 @@ use crate::unified_api::error::{CoreError, Result};
 ///
 /// Each event captures a single auditable action with full context
 /// for compliance and forensic analysis.
+///
+/// Caller-supplied free-form fields (`actor`, `resource`, `action`,
+/// `metadata`) and the chain-derived `integrity_hash` are private.
+/// External callers must construct via [`Self::new`] +
+/// [`Self::with_actor`] / [`Self::with_resource`] /
+/// [`Self::with_metadata`], which run sanitizers and enforce the
+/// `MAX_*_LEN` / `MAX_METADATA_ENTRIES` caps. Direct field assignment
+/// would otherwise re-open the cap-amplification surface those
+/// builders close. The remaining `pub` fields (`id`, `timestamp`,
+/// `event_type`, `outcome`) carry no attacker-amplifiable free-form
+/// bytes and are immutable-by-convention — they have no setters and
+/// need no sanitization for direct read access.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
     /// Unique identifier for this event (UUID v4).
@@ -68,18 +80,26 @@ pub struct AuditEvent {
     pub timestamp: DateTime<Utc>,
     /// Category of the audit event.
     pub event_type: AuditEventType,
-    /// Identity of the actor performing the action (optional).
-    pub actor: Option<String>,
-    /// Resource being acted upon (optional).
-    pub resource: Option<String>,
-    /// Specific action performed.
-    pub action: String,
+    // Identity of the actor performing the action (optional).
+    // Private — set via `with_actor`, which sanitizes & caps.
+    actor: Option<String>,
+    // Resource being acted upon (optional).
+    // Private — set via `with_resource`, which sanitizes & caps.
+    resource: Option<String>,
+    // Specific action performed.
+    // Private — set via `new`, which routes through `sanitize_action_field`.
+    action: String,
     /// Outcome of the action.
     pub outcome: AuditOutcome,
-    /// Additional key-value metadata.
-    pub metadata: HashMap<String, String>,
-    /// SHA-256 hash for tamper detection (includes previous event hash).
-    pub integrity_hash: String,
+    // Additional key-value metadata.
+    // Private — entries added via `with_metadata`, which truncates and
+    // enforces `MAX_METADATA_ENTRIES`.
+    metadata: HashMap<String, String>,
+    // SHA-256 hash for tamper detection (includes previous event hash).
+    // Private — set internally by `FileAuditStorage::write_event_to_file`
+    // after `compute_integrity_hash`. External assignment would
+    // invalidate the on-disk chain.
+    integrity_hash: String,
 }
 
 impl AuditEvent {
@@ -1254,6 +1274,22 @@ impl FileAuditStorage {
     /// log file cannot be opened, a line cannot be parsed as JSON, or
     /// the hash recomputation fails.
     pub fn verify_chain(&self) -> Result<ChainVerificationReport> {
+        // Hold the writer lock across directory enumeration
+        // AND file reads so a concurrent `write_event_to_file`'s
+        // `BufWriter` cannot leave a half-written line in our scan
+        // window. Flush defensively so the on-disk view is consistent
+        // with the in-memory chain hash. The lock is held for the
+        // entire chain replay — verify_chain is a maintenance
+        // operation, not a per-request hot path, so the latency hit on
+        // concurrent writers is acceptable.
+        let mut file_state = self.file_state.lock();
+        if let Some(state) = file_state.as_mut() {
+            state
+                .writer
+                .flush()
+                .map_err(|e| CoreError::AuditError(format!("verify_chain flush failed: {}", e)))?;
+        }
+
         let mut log_files: Vec<PathBuf> = Vec::new();
         let entries = fs::read_dir(&self.config.storage_path)
             .map_err(|e| CoreError::AuditError(format!("Failed to read audit dir: {}", e)))?;
@@ -1580,22 +1616,22 @@ impl FileAuditStorage {
             .as_mut()
             .ok_or_else(|| CoreError::AuditError("No active audit file".to_string()))?;
 
-        // Compute integrity hash with chain
+        // Compute integrity hash with chain.
         let previous_hash = self.previous_hash.read().clone();
         event.integrity_hash = Self::compute_integrity_hash(event, &previous_hash)?;
 
-        // Update previous hash for next event
-        {
-            let mut prev = self.previous_hash.write();
-            prev.clone_from(&event.integrity_hash);
-        }
-
-        // Serialize event to JSON
+        // Serialize event to JSON.
         let json = serde_json::to_string(event).map_err(|e| {
             CoreError::AuditError(format!("Failed to serialize audit event: {}", e))
         })?;
 
-        // Write JSON line
+        // Write JSON line BEFORE advancing the in-memory chain hash.
+        // If `write_all` fails (ENOSPC, EIO, etc.), `previous_hash`
+        // must NOT advance — otherwise the next successfully-written
+        // event would chain from a hash whose corresponding line is
+        // missing on disk, and a subsequent `verify_chain()` would
+        // report it as tampering. Write-then-advance, not
+        // advance-then-write.
         let line = format!("{}\n", json);
         let line_bytes = line.as_bytes();
 
@@ -1603,6 +1639,12 @@ impl FileAuditStorage {
             .writer
             .write_all(line_bytes)
             .map_err(|e| CoreError::AuditError(format!("Failed to write audit event: {}", e)))?;
+
+        // Disk-write succeeded — now safe to advance the chain.
+        {
+            let mut prev = self.previous_hash.write();
+            prev.clone_from(&event.integrity_hash);
+        }
 
         // Update size tracking. `usize → u64` is widening on 64-bit and
         // equal on 32-bit, so the conversion is always lossless — but

@@ -86,12 +86,10 @@ fn test_ml_kem_1024_public_key_oversized_succeeds() {
 // Secret Key Construction Negative Tests
 // ============================================================================
 
-// Round-35 L7: `MlKemSecretKey::new` collapses both length-mismatch
-// and structural-validation paths to `MlKemError::InvalidKeyFormat`
-// (Pattern-6 sibling — round-34 M7 had introduced two distinct
-// variants). The PK-side keeps `InvalidKeyLength` (constructor for
-// public material; structured errors aid diagnostics). The three
-// SK-side tests below were updated to assert on the new variant.
+// `MlKemSecretKey::new` collapses both length-mismatch and structural
+// validation paths to `InvalidSecretKeyFormat` (Pattern-6 collapse;
+// also maps to FIPS 0x010C, distinct from public-key parse failures
+// which map to 0x010B).
 
 #[test]
 fn test_ml_kem_512_secret_key_empty_bytes_succeeds() {
@@ -100,10 +98,10 @@ fn test_ml_kem_512_secret_key_empty_bytes_succeeds() {
     assert!(result.is_err(), "Should fail with empty secret key bytes");
 
     match result {
-        Err(MlKemError::InvalidKeyFormat(_)) => {
+        Err(MlKemError::InvalidSecretKeyFormat(_)) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyFormat error, got {:?}", result),
+        _ => panic!("Expected InvalidSecretKeyFormat error, got {:?}", result),
     }
 }
 
@@ -115,8 +113,8 @@ fn test_ml_kem_768_secret_key_wrong_length_fails() {
     assert!(result.is_err(), "Should fail with wrong secret key length");
 
     assert!(
-        matches!(result, Err(MlKemError::InvalidKeyFormat(_))),
-        "Expected InvalidKeyFormat error, got {:?}",
+        matches!(result, Err(MlKemError::InvalidSecretKeyFormat(_))),
+        "Expected InvalidSecretKeyFormat error, got {:?}",
         result
     );
 }
@@ -129,8 +127,8 @@ fn test_ml_kem_1024_secret_key_truncated_succeeds() {
     assert!(result.is_err(), "Should fail with truncated secret key");
 
     assert!(
-        matches!(result, Err(MlKemError::InvalidKeyFormat(_))),
-        "Expected InvalidKeyFormat error, got {:?}",
+        matches!(result, Err(MlKemError::InvalidSecretKeyFormat(_))),
+        "Expected InvalidSecretKeyFormat error, got {:?}",
         result
     );
 }

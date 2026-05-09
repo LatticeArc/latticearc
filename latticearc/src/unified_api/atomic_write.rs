@@ -313,3 +313,54 @@ impl<'a> AtomicWrite<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, reason = "test scaffolding: source-shape regression assertions")]
+mod regression_tests {
+    //! Source-text regression for the Windows DACL-failure
+    //! plaintext-scrub sequence. The current logic at the
+    //! `set_local_admin_dacl` failure block calls `seek(SeekFrom::Start(0))`
+    //! BEFORE the `write_all(zero)` loop and `set_len(0)` truncate. A
+    //! future refactor that reorders seek and write_all would silently
+    //! regress the "don't append zeros to plaintext" invariant —
+    //! `write_all` from the current cursor position would extend the
+    //! file from N to 2N bytes, then `set_len(0)` would release the
+    //! ORIGINAL N bytes of plaintext to the free-cluster pool.
+    //!
+    //! This isn't a behavioural test — it's a source-shape assertion
+    //! that runs on every `cargo test`. The cost is one `include_str!`
+    //! and a substring-position comparison. The benefit is a loud
+    //! signal if the ordering ever drifts.
+
+    const SRC: &str = include_str!("atomic_write.rs");
+
+    /// The seek-to-start MUST appear before the zero-write loop in the
+    /// DACL-failure scrub block. Without this ordering, plaintext is
+    /// appended to (not overwritten) before the truncate releases
+    /// clusters back to the free pool.
+    #[test]
+    fn test_dacl_failure_scrub_seeks_before_writing_zeros() {
+        // Anchor on the unique block-opening comment so we don't match
+        // unrelated `seek(SeekFrom::Start(0))` calls elsewhere.
+        let block_anchor = "Best-effort secret-bytes scrub before `tmp` drops and";
+        let block_start = SRC.find(block_anchor).expect(
+            "scrub-block anchor comment moved or removed — update this test \
+             to anchor on the new comment OR review the change for the \
+             ordering invariant before adjusting the anchor.",
+        );
+
+        let block = &SRC[block_start..];
+        let seek_pos = block
+            .find("f.seek(SeekFrom::Start(0))")
+            .expect("seek-to-start call missing from scrub block");
+        let write_pos =
+            block.find("f.write_all(chunk)").expect("zero-write loop missing from scrub block");
+
+        assert!(
+            seek_pos < write_pos,
+            "DACL-scrub ordering regressed: seek(SeekFrom::Start(0)) MUST appear \
+             before write_all(chunk) so plaintext is overwritten, not appended. \
+             seek_pos={seek_pos}, write_pos={write_pos}"
+        );
+    }
+}

@@ -182,8 +182,12 @@ fn verify_pq_ml_dsa_internal(
     })?;
 
     let sig = MlDsaSignature::new(parameter_set, signature.to_vec()).map_err(|e| {
+        // Pattern-6: signature bytes are adversary-controlled; the
+        // upstream parse error includes length/format detail that
+        // fingerprints the structural-parse-fail path. Sibling pk
+        // parse above uses a fixed string for the same reason.
         log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
-        CoreError::InvalidInput(format!("Invalid ML-DSA signature: {}", e))
+        CoreError::InvalidInput("Invalid ML-DSA signature format".to_string())
     })?;
 
     let result = map_verify_result(pk.verify(message, &sig, &[]), "ML-DSA");
@@ -349,8 +353,9 @@ fn verify_pq_fn_dsa_internal(
     })?;
 
     let sig = FnDsaSignature::from_bytes(signature).map_err(|e| {
+        // Pattern-6: see ML-DSA verify above for rationale.
         log_crypto_operation_error!(op::FN_DSA_VERIFY, e);
-        CoreError::InvalidInput(format!("Invalid FN-DSA signature: {}", e))
+        CoreError::InvalidInput("Invalid FN-DSA signature format".to_string())
     })?;
 
     let result = map_verify_result(pk.verify(message, &sig), "FN-DSA");
