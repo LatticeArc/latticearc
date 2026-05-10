@@ -1641,12 +1641,12 @@
 <a href=#1641 id=1641 data-nosnippet>1641</a>    </span><span class="kw">pub fn </span>verify_response(<span class="kw-2">&amp;mut </span><span class="self">self</span>, proof: <span class="kw-2">&amp;</span>ZeroKnowledgeProof) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
 <a href=#1642 id=1642 data-nosnippet>1642</a>        <span class="comment">// Pattern-6: collapse the "no active challenge" and "challenge
 <a href=#1643 id=1643 data-nosnippet>1643</a>        // expired" cases to a single fixed string in the typed error
-<a href=#1644 id=1644 data-nosnippet>1644</a>        // AND in the `tracing::error!`-level audit log. Both are
-<a href=#1645 id=1645 data-nosnippet>1645</a>        // caller-protocol mistakes (not adversary-controllable crypto
-<a href=#1646 id=1646 data-nosnippet>1646</a>        // material), but distinct strings let an attacker mapping the
-<a href=#1647 id=1647 data-nosnippet>1647</a>        // protocol state machine fingerprint which check tripped. The
-<a href=#1648 id=1648 data-nosnippet>1648</a>        // discriminator goes to `tracing::debug!` for operator
-<a href=#1649 id=1649 data-nosnippet>1649</a>        // visibility, mirroring `verify_pop`'s posture.
+<a href=#1644 id=1644 data-nosnippet>1644</a>        // AND in the SIEM audit log. Both are caller-protocol mistakes
+<a href=#1645 id=1645 data-nosnippet>1645</a>        // (not adversary-controllable crypto material), but distinct
+<a href=#1646 id=1646 data-nosnippet>1646</a>        // strings let an attacker mapping the protocol state machine
+<a href=#1647 id=1647 data-nosnippet>1647</a>        // fingerprint which check tripped. The discriminator goes to
+<a href=#1648 id=1648 data-nosnippet>1648</a>        // `tracing::debug!` for operator visibility, mirroring
+<a href=#1649 id=1649 data-nosnippet>1649</a>        // `verify_pop`'s posture.
 <a href=#1650 id=1650 data-nosnippet>1650</a>        </span><span class="kw">const </span>VERIFY_RESPONSE_FAILED: <span class="kw-2">&amp;</span>str = <span class="string">"challenge verification failed"</span>;
 <a href=#1651 id=1651 data-nosnippet>1651</a>
 <a href=#1652 id=1652 data-nosnippet>1652</a>        <span class="kw">let </span>challenge = <span class="self">self</span>.challenge.as_ref().ok_or_else(|| {
