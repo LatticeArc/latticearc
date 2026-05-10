@@ -270,7 +270,7 @@
 <a href=#270 id=270 data-nosnippet>270</a>        <span class="comment">// PQ-only or classical signing scheme — concatenated bytes are the
 <a href=#271 id=271 data-nosnippet>271</a>        // entire key and should be written as a Single KeyData.
 <a href=#272 id=272 data-nosnippet>272</a>        </span><span class="kw">let </span>alg = parse_scheme_to_algorithm(<span class="kw-2">&amp;</span>scheme)<span class="question-mark">?</span>;
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="comment">// SK first — see SK-first-ordering rationale above.
 <a href=#274 id=274 data-nosnippet>274</a>        </span>keyfile::write_key_protected(
 <a href=#275 id=275 data-nosnippet>275</a>            <span class="kw-2">&amp;</span>sk_path,
 <a href=#276 id=276 data-nosnippet>276</a>            alg,
@@ -310,7 +310,7 @@
 <a href=#310 id=310 data-nosnippet>310</a>
 <a href=#311 id=311 data-nosnippet>311</a>    <span class="kw">let </span>enc_pk_path = args.output.join(<span class="string">"encryption.pub.json"</span>);
 <a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">let </span>enc_sk_path = args.output.join(<span class="string">"encryption.sec.json"</span>);
-<a href=#313 id=313 data-nosnippet>313</a>    <span class="comment">// SK first — see fix #4 explanation in the signing-keypair branch.
+<a href=#313 id=313 data-nosnippet>313</a>    <span class="comment">// SK first — same SK-first-ordering rationale as the signing-keypair branch.
 <a href=#314 id=314 data-nosnippet>314</a>    </span>portable_sk
 <a href=#315 id=315 data-nosnippet>315</a>        .write_to_file_with_overwrite(<span class="kw-2">&amp;</span>enc_sk_path, args.force)
 <a href=#316 id=316 data-nosnippet>316</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Failed to write {}: {e}"</span>, enc_sk_path.display()))<span class="question-mark">?</span>;
@@ -382,7 +382,7 @@
 <a href=#382 id=382 data-nosnippet>382</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.pub.json"</span>));
 <a href=#383 id=383 data-nosnippet>383</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.sec.json"</span>));
 <a href=#384 id=384 data-nosnippet>384</a>
-<a href=#385 id=385 data-nosnippet>385</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#385 id=385 data-nosnippet>385</a>    <span class="comment">// SK first — see SK-first-ordering rationale above.
 <a href=#386 id=386 data-nosnippet>386</a>    //
 <a href=#387 id=387 data-nosnippet>387</a>    // The PQ-only decryption path requires the recipient's ML-KEM
 <a href=#388 id=388 data-nosnippet>388</a>    // public key at HKDF-info construction time (HPKE / RFC 9180 §5.1
@@ -438,7 +438,7 @@
 <a href=#438 id=438 data-nosnippet>438</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.pub.json"</span>));
 <a href=#439 id=439 data-nosnippet>439</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="macro">format!</span>(<span class="string">"{alg_name}.sec.json"</span>));
 <a href=#440 id=440 data-nosnippet>440</a>
-<a href=#441 id=441 data-nosnippet>441</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#441 id=441 data-nosnippet>441</a>    <span class="comment">// SK first — see SK-first-ordering rationale above.
 <a href=#442 id=442 data-nosnippet>442</a>    </span>keyfile::write_key_protected(
 <a href=#443 id=443 data-nosnippet>443</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#444 id=444 data-nosnippet>444</a>        alg,
@@ -470,7 +470,7 @@
 <a href=#470 id=470 data-nosnippet>470</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"slh-dsa-shake-128s.pub.json"</span>);
 <a href=#471 id=471 data-nosnippet>471</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"slh-dsa-shake-128s.sec.json"</span>);
 <a href=#472 id=472 data-nosnippet>472</a>
-<a href=#473 id=473 data-nosnippet>473</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#473 id=473 data-nosnippet>473</a>    <span class="comment">// SK first — see SK-first-ordering rationale above.
 <a href=#474 id=474 data-nosnippet>474</a>    </span>keyfile::write_key_protected(
 <a href=#475 id=475 data-nosnippet>475</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#476 id=476 data-nosnippet>476</a>        KeyAlgorithm::SlhDsaShake128s,
@@ -501,7 +501,7 @@
 <a href=#501 id=501 data-nosnippet>501</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"fn-dsa-512.pub.json"</span>);
 <a href=#502 id=502 data-nosnippet>502</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"fn-dsa-512.sec.json"</span>);
 <a href=#503 id=503 data-nosnippet>503</a>
-<a href=#504 id=504 data-nosnippet>504</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#504 id=504 data-nosnippet>504</a>    <span class="comment">// SK first — see SK-first-ordering rationale above.
 <a href=#505 id=505 data-nosnippet>505</a>    </span>keyfile::write_key_protected(
 <a href=#506 id=506 data-nosnippet>506</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#507 id=507 data-nosnippet>507</a>        KeyAlgorithm::FnDsa512,
@@ -532,7 +532,7 @@
 <a href=#532 id=532 data-nosnippet>532</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"ed25519.pub.json"</span>);
 <a href=#533 id=533 data-nosnippet>533</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"ed25519.sec.json"</span>);
 <a href=#534 id=534 data-nosnippet>534</a>
-<a href=#535 id=535 data-nosnippet>535</a>    <span class="comment">// SK first — see fix #1/#4 explanation above.
+<a href=#535 id=535 data-nosnippet>535</a>    <span class="comment">// SK first — see SK-first-ordering rationale above.
 <a href=#536 id=536 data-nosnippet>536</a>    </span>keyfile::write_key_protected(
 <a href=#537 id=537 data-nosnippet>537</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#538 id=538 data-nosnippet>538</a>        KeyAlgorithm::Ed25519,
@@ -577,7 +577,7 @@
 <a href=#577 id=577 data-nosnippet>577</a>    <span class="kw">let </span>pk_path = args.output.join(<span class="string">"hybrid-kem.pub.json"</span>);
 <a href=#578 id=578 data-nosnippet>578</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"hybrid-kem.sec.json"</span>);
 <a href=#579 id=579 data-nosnippet>579</a>
-<a href=#580 id=580 data-nosnippet>580</a>    <span class="comment">// SK first — see fix #4 explanation in `generate_signing` above.
+<a href=#580 id=580 data-nosnippet>580</a>    <span class="comment">// SK first — same SK-first-ordering rationale as `generate_signing`.
 <a href=#581 id=581 data-nosnippet>581</a>    </span>portable_sk
 <a href=#582 id=582 data-nosnippet>582</a>        .write_to_file_with_overwrite(<span class="kw-2">&amp;</span>sk_path, args.force)
 <a href=#583 id=583 data-nosnippet>583</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Write SK: {e}"</span>))<span class="question-mark">?</span>;
@@ -599,7 +599,7 @@
 <a href=#599 id=599 data-nosnippet>599</a>    </span><span class="kw">let </span>pk_path = args.output.join(<span class="string">"hybrid-sign.pub.json"</span>);
 <a href=#600 id=600 data-nosnippet>600</a>    <span class="kw">let </span>sk_path = args.output.join(<span class="string">"hybrid-sign.sec.json"</span>);
 <a href=#601 id=601 data-nosnippet>601</a>
-<a href=#602 id=602 data-nosnippet>602</a>    <span class="comment">// SK first — (extending fix #4 to the
+<a href=#602 id=602 data-nosnippet>602</a>    <span class="comment">// SK first — applying SK-first-ordering to the
 <a href=#603 id=603 data-nosnippet>603</a>    // 4th keygen site that was missed). SK-write failure no longer
 <a href=#604 id=604 data-nosnippet>604</a>    // orphans a PK on disk that retry would refuse-to-overwrite.
 <a href=#605 id=605 data-nosnippet>605</a>    </span>keyfile::write_composite_key_protected(

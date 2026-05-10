@@ -30,10 +30,9 @@ no base64 encoding, no string overhead. See <a href="struct.PortableKey.html#met
 Enterprise crates add dimensions, key expiry,
 hardware binding, etc. via extension traits — the base library preserves
 unknown metadata keys during roundtrips without modification:</p>
-
-<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// Enterprise crate — typed accessors over the metadata map
-</span><span class="kw">impl </span>EnterpriseKeyExt <span class="kw">for </span>PortableKey {
-    <span class="kw">fn </span>dimensions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt; { ... }
-    <span class="kw">fn </span>key_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt; { ... }
-    <span class="kw">fn </span>hsm_binding(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;HsmSlot&gt; { ... }
+<div class="example-wrap"><pre class="language-text"><code>// Enterprise crate — typed accessors over the metadata map (pseudocode)
+impl EnterpriseKeyExt for PortableKey {
+    fn dimensions(&amp;self) -&gt; Option&lt;Vec&lt;String&gt;&gt; { ... }
+    fn key_expiry(&amp;self) -&gt; Option&lt;DateTime&lt;Utc&gt;&gt; { ... }
+    fn hsm_binding(&amp;self) -&gt; Option&lt;HsmSlot&gt; { ... }
 }</code></pre></div></div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.PortableKey.html" title="struct latticearc::unified_api::key_format::PortableKey">Portable<wbr>Key</a></dt><dd>Portable, versioned key container for all LatticeArc key types.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.KeyAlgorithm.html" title="enum latticearc::unified_api::key_format::KeyAlgorithm">KeyAlgorithm</a></dt><dd>Cryptographic algorithm identifier for portable keys.</dd><dt><a class="enum" href="enum.KeyData.html" title="enum latticearc::unified_api::key_format::KeyData">KeyData</a></dt><dd>Key material container — single, composite (hybrid), or passphrase-encrypted.</dd><dt><a class="enum" href="enum.KeyType.html" title="enum latticearc::unified_api::key_format::KeyType">KeyType</a></dt><dd>Key type classifier.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.ZeroizingKeyPair.html" title="type latticearc::unified_api::key_format::ZeroizingKeyPair">Zeroizing<wbr>KeyPair</a></dt><dd>Pair of zeroizing byte buffers returned by <a href="enum.KeyData.html#method.decode_composite_zeroized" title="method latticearc::unified_api::key_format::KeyData::decode_composite_zeroized"><code>KeyData::decode_composite_zeroized</code></a>.</dd></dl></section></div></main></body></html>

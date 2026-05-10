@@ -16,7 +16,7 @@ cryptographic material is logged.</p>
 not the library’s). The doctest below is <code>ignore</code>d so it doesn’t
 force the feature on every test config.</p>
 
-<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// Requires `latticearc = { ..., features = ["tracing-init"] }`
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Requires `latticearc = { ..., features = ["tracing-init"] }`
 </span><span class="kw">use </span>latticearc::unified_api::logging::{init_tracing, sanitize_data};
 
 <span class="comment">// Initialize logging (sets global tracing subscriber — call once per process)
