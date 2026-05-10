@@ -9,7 +9,7 @@
 #![allow(clippy::expect_used)]
 
 // ============================================================================
-// H1: HkdfResult.key field is private, accessed only via key() accessor
+// HkdfResult.key field is private, accessed only via key() accessor
 // ============================================================================
 
 mod h1_hkdf_result_field_protection {
@@ -70,7 +70,7 @@ mod h1_hkdf_result_field_protection {
 }
 
 // ============================================================================
-// H2: IKM buffer in derive_hybrid_shared_secret is Zeroizing
+// IKM buffer in derive_hybrid_shared_secret is Zeroizing
 // ============================================================================
 
 mod h2_ikm_zeroization {
@@ -99,7 +99,7 @@ mod h2_ikm_zeroization {
 }
 
 // ============================================================================
-// H3: derive_encryption_key returns Zeroizing<[u8; 32]>
+// derive_encryption_key returns Zeroizing<[u8; 32]>
 // ============================================================================
 
 mod h3_encryption_key_zeroization {
@@ -121,7 +121,7 @@ mod h3_encryption_key_zeroization {
 }
 
 // ============================================================================
-// H5: ChaCha20-Poly1305 ciphers have ZeroizeOnDrop via key_bytes storage
+// ChaCha20-Poly1305 ciphers have ZeroizeOnDrop via key_bytes storage
 // ============================================================================
 
 #[cfg(not(feature = "fips"))]
@@ -202,7 +202,7 @@ mod h5_chacha20_zeroize_on_drop {
 }
 
 // ============================================================================
-// M2: ZKP constant-time verification (Schnorr + DlogEquality)
+// ZKP constant-time verification (Schnorr + DlogEquality)
 // ============================================================================
 
 #[cfg(not(feature = "fips"))]
@@ -278,7 +278,7 @@ mod m2_zkp_constant_time {
 }
 
 // ============================================================================
-// M4: Secret key to_bytes() returns Zeroizing<Vec<u8>>
+// Secret key to_bytes() returns Zeroizing<Vec<u8>>
 // ============================================================================
 
 mod m4_secret_key_to_bytes_zeroizing {
@@ -312,7 +312,7 @@ mod m4_secret_key_to_bytes_zeroizing {
 }
 
 // ============================================================================
-// M5: All-zero key warning (not rejection) in AEAD constructors
+// All-zero key warning (not rejection) in AEAD constructors
 // ============================================================================
 
 mod m5_all_zero_key_rejection {
@@ -371,7 +371,7 @@ mod m5_all_zero_key_rejection {
 // hybrid KEM public key is covered by `hybrid_kem_hybrid_coverage.rs`.
 
 // ============================================================================
-// M7: X25519 low-order point rejection (all-zero public key)
+// X25519 low-order point rejection (all-zero public key)
 // ============================================================================
 
 mod m7_x25519_zero_key_rejection {
@@ -406,7 +406,7 @@ mod m7_x25519_zero_key_rejection {
 }
 
 // ============================================================================
-// M9: EC keypair Drop impl for zeroization
+// EC keypair Drop impl for zeroization
 // ============================================================================
 
 #[cfg(not(feature = "fips"))]
@@ -463,7 +463,7 @@ mod m9_ec_keypair_drop {
 }
 
 // ============================================================================
-// M10: DlogEqualityProof Debug redaction
+// DlogEqualityProof Debug redaction
 // ============================================================================
 
 #[cfg(not(feature = "fips"))]
@@ -530,7 +530,7 @@ mod m10_dlog_equality_debug_redaction {
 }
 
 // ============================================================================
-// L4: Serialization size limit (10 MiB)
+// Serialization size limit (10 MiB)
 // ============================================================================
 
 mod l4_serialization_size_limit {

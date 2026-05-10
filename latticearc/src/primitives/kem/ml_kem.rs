@@ -306,7 +306,7 @@ impl MlKemPublicKey {
     /// Returns `MlKemError::InvalidKeyLength` if `data.len()` does not
     /// match `security_level.public_key_size()`.
     ///
-    /// Returns `MlKemError::InvalidKeyFormat` if the length is correct
+    /// Returns `MlKemError::InvalidPublicKeyFormat` if the length is correct
     /// but the bytes fail aws-lc-rs structural validation.
     pub fn new(security_level: MlKemSecurityLevel, data: Vec<u8>) -> Result<Self, MlKemError> {
         let expected_size = security_level.public_key_size();
@@ -321,7 +321,7 @@ impl MlKemPublicKey {
         // Structural validation: ensure aws-lc-rs accepts these bytes
         // as a parseable encapsulation key. Without this, an all-zeros
         // (or otherwise malformed) PK loaded from a key file passes
-        // here and only fails at first encap. Use `InvalidKeyFormat`
+        // here and only fails at first encap. Use `InvalidPublicKeyFormat`
         // (not `InvalidKeyLength`) — the length pre-check above
         // already passed, so a length-shaped error here would be
         // self-contradictory (`size == actual`).
@@ -474,26 +474,25 @@ impl MlKemSecretKey {
     /// Returns `MlKemError::InvalidKeyLength` if `data.len()` does not
     /// match `security_level.secret_key_size()`.
     ///
-    /// Returns `MlKemError::InvalidKeyFormat` if the length is correct
-    /// but aws-lc-rs `DecapsulationKey::new` rejects the bytes
-    /// structurally. Symmetric with `MlKemPublicKey::new`.
+    /// Returns `MlKemError::InvalidSecretKeyFormat` for both
+    /// length-mismatch and structural-rejection paths. The two paths are
+    /// deliberately collapsed to the same variant on the secret-bearing
+    /// construction path — the asymmetry-vs-PK is intentional (see
+    /// inline comment).
     pub fn new(security_level: MlKemSecurityLevel, data: Vec<u8>) -> Result<Self, MlKemError> {
         // wrap on entry so the
         // moved-in `Vec` is zeroized on the length-validation error
         // path too.
         let data = Zeroizing::new(data);
         let expected_size = security_level.secret_key_size();
-        // L7: collapse the length-mismatch and structural-
-        // validation paths to the SAME error variant
-        // (`InvalidKeyFormat`). M7 introduced a two-variant
-        // distinguisher (`InvalidKeyLength` vs `InvalidKeyFormat`)
-        // — Pattern-6 shape on the construction path of a
-        // *secret-bearing* type. Secret keys are not adversary-
-        // probed in the same way public keys are (the caller already
-        // has the bytes), but we don't gain diagnostic value from
-        // distinguishing here either; one variant keeps the surface
-        // tighter without losing useful operator info (the
-        // tracing::debug! captures the actual cause).
+        // Collapse the length-mismatch and structural-validation paths
+        // to the SAME error variant (`InvalidSecretKeyFormat`).
+        // Pattern-6 shape on the construction path of a *secret-bearing*
+        // type: secret keys are not adversary-probed the way public keys
+        // are (the caller already has the bytes), and there's no
+        // diagnostic value in distinguishing the two paths at the type
+        // level — one variant keeps the surface tighter; the
+        // tracing::debug! captures the actual cause.
         if data.len() != expected_size {
             tracing::debug!(
                 expected = expected_size,

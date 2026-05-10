@@ -55,8 +55,8 @@ fn main() {
     let _roundtrip_keygen = start.elapsed() / roundtrip_iterations;
 
     // Measure ML-KEM decapsulate via the typed-API decapsulation
-    // keypair (round-32 M3 wired up the production decap path
-    // through `MlKem::generate_decapsulation_keypair`). Round-35 D1
+    // keypair (wired up the production decap path
+    // through `MlKem::generate_decapsulation_keypair`).
     // replaces the previous `decaps_time = encaps_time` fabrication,
     // which was wrong: ML-KEM decaps includes implicit-rejection
     // hashing on top of the basic decode and is NOT symmetric with

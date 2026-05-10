@@ -355,7 +355,7 @@ mod pedersen_commitment_tests {
         assert_eq!(c_sum.commitment().len(), 33, "Sum commitment should be 33 bytes");
     }
 
-    /// Pedersen commit determinism + wire-format check (round-11 audit
+    /// Pedersen commit determinism + wire-format check (an earlier audit
     /// rename of the round-10b `*_kat_byte_stable` test).
     ///
     /// This is **not** a Known-Answer Test — a true KAT would pin the
@@ -709,7 +709,7 @@ mod error_tests {
     }
 
     // ------------------------------------------------------------------
-    // Pattern 14 negative path coverage — round-10 audit follow-up #9.
+    // Pattern 14 negative path coverage — an earlier audit follow-up #9.
     //
     // Each test below targets a specific `ZkpError` variant on the
     // `SchnorrVerifier::verify` path, verifying that malformed bytes

@@ -1641,12 +1641,12 @@ impl ZeroTrustSession {
     pub fn verify_response(&mut self, proof: &ZeroKnowledgeProof) -> Result<bool> {
         // Pattern-6: collapse the "no active challenge" and "challenge
         // expired" cases to a single fixed string in the typed error
-        // AND in the `tracing::error!`-level audit log. Both are
-        // caller-protocol mistakes (not adversary-controllable crypto
-        // material), but distinct strings let an attacker mapping the
-        // protocol state machine fingerprint which check tripped. The
-        // discriminator goes to `tracing::debug!` for operator
-        // visibility, mirroring `verify_pop`'s posture.
+        // AND in the SIEM audit log. Both are caller-protocol mistakes
+        // (not adversary-controllable crypto material), but distinct
+        // strings let an attacker mapping the protocol state machine
+        // fingerprint which check tripped. The discriminator goes to
+        // `tracing::debug!` for operator visibility, mirroring
+        // `verify_pop`'s posture.
         const VERIFY_RESPONSE_FAILED: &str = "challenge verification failed";
 
         let challenge = self.challenge.as_ref().ok_or_else(|| {

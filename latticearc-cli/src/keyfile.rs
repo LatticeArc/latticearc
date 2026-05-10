@@ -124,7 +124,7 @@ impl KeyFile {
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
 
-        // H5: open with `O_NOFOLLOW` (Unix) so the
+        // open with `O_NOFOLLOW` (Unix) so the
         // symlink check is atomic with the open. The previous form
         // did `symlink_metadata(path)` then a separate
         // `File::open(path)` — TOCTOU race window. This site reads

@@ -289,7 +289,7 @@ fn test_decapsulation_roundtrip_all_levels_roundtrip() {
 ///
 /// FIPS 203 §6.3 implicit-rejection contract: the failure path on
 /// adversary-reachable input must surface the same opaque error string as
-/// the constant-time decap rejection itself. Round-10 audit collapsed the
+/// the constant-time decap rejection itself. an earlier audit collapsed the
 /// pre-check, so this test asserts only that the operation rejects — it
 /// does NOT inspect the error string.
 #[test]
@@ -932,9 +932,9 @@ fn test_empty_public_key_construction_succeeds() {
     }
 }
 
-/// Test empty secret key construction fails. Round-35 L7: SK::new
+/// Test empty secret key construction fails. SK::new
 /// collapses both length-mismatch and structural-validation paths
-/// to `InvalidKeyFormat` (Pattern-6 sibling — round-34 M7 had
+/// to `InvalidKeyFormat` (Pattern-6 sibling — had
 /// introduced two distinct variants).
 #[test]
 fn test_empty_secret_key_construction_succeeds() {

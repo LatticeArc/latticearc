@@ -51,7 +51,7 @@ fn test_sign_rejects_empty_ed25519_sk_fails() {
 
 #[test]
 fn test_new_rejects_wrong_ed25519_pk_length_fails() {
-    // Round-34 L4: HybridSigPublicKey::new now validates lengths at
+    // HybridSigPublicKey::new now validates lengths at
     // construction. The previous "verify rejects" test is no longer
     // reachable through the public API; this asserts the
     // construction-time gate.

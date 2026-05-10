@@ -1123,6 +1123,225 @@ if [ "$QUICK" = false ]; then
 fi
 
 # =============================================================================
+# Dimension 14: Structural Pattern Drift (DESIGN_PATTERNS.md cross-reference)
+#
+# Each check below cites the relevant rule in `docs/DESIGN_PATTERNS.md` so a
+# failure carries its own remediation pointer. Patterns referenced as P-N
+# come from Section 1 (Config); AP-N come from Anti-Patterns; CT-N from
+# Section 2 (Crypto Safety).
+# =============================================================================
+if [ "$QUICK" = false ]; then
+    section "Dim 14" "Structural Pattern Drift"
+
+    # 14.1 [P-6] format!("{e}") echoes in CoreError construction.
+    # Adversary-reachable error sites must not echo upstream library
+    # errors via Display — that re-opens the oracle channel Pattern-6
+    # exists to close. Approved escape hatch: opaque helpers
+    # (decode_b64_opaque / decode_json_opaque / decode_cbor_opaque).
+    ECHO_HITS=$(grep -rnE 'CoreError::[A-Z][a-zA-Z]+\([^)]*format!\("\{e[^"]*"' \
+        --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -v '/tests/' | grep -v 'cavp_compliance' || true)
+    if [ -z "$ECHO_HITS" ]; then
+        pass "14.1 [P-6] No CoreError format!(\"{e}\") echoes in production"
+    else
+        ECHO_COUNT=$(echo "$ECHO_HITS" | wc -l | tr -d ' ')
+        warn "14.1 [P-6] $ECHO_COUNT format!(\"{e}\") echo(es) — collapse to fixed string + tracing::debug!:"
+        echo "$ECHO_HITS" | head -5
+    fi
+
+    # 14.2 [P-9 / AP-5] Public structs with pub fields lacking #[non_exhaustive].
+    # Public types with bare `pub field` invite breakage every time a
+    # field is added; #[non_exhaustive] forces external callers to use
+    # constructors / builders, which is also where invariant validation
+    # lives.
+    NEX_HITS=$(python3 -c "
+import re, os, sys
+hits = []
+for root, _, files in os.walk('$SRC'):
+    if '/target/' in root or '/tests/' in root:
+        continue
+    for f in files:
+        if not f.endswith('.rs'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            text = open(path).read()
+        except Exception:
+            continue
+        # Find pub struct declarations
+        for m in re.finditer(r'(?:^|\n)((?:#\[[^\]]+\]\n)*)pub struct (\w+)\s*[\{<]', text):
+            attrs = m.group(1)
+            name = m.group(2)
+            if '#[non_exhaustive]' in attrs:
+                continue
+            # Find struct body
+            start = m.end()
+            depth = 1 if text[m.end()-1] == '{' else 0
+            if depth == 0:
+                # Generic, find body
+                idx = text.find('{', start)
+                if idx == -1: continue
+                start = idx + 1
+                depth = 1
+            i = start
+            while i < len(text) and depth > 0:
+                if text[i] == '{': depth += 1
+                elif text[i] == '}': depth -= 1
+                i += 1
+            body = text[start:i-1]
+            # Check for any pub field
+            if re.search(r'\n\s*pub\s+\w', body):
+                line_no = text[:m.start()].count('\n') + 1
+                hits.append(f'{path}:{line_no}:{name}')
+print('\n'.join(hits))
+" 2>/dev/null || true)
+    if [ -z "$NEX_HITS" ]; then
+        pass "14.2 [P-9 / AP-5] All pub-field public structs have #[non_exhaustive]"
+    else
+        NEX_COUNT=$(echo "$NEX_HITS" | wc -l | tr -d ' ')
+        warn "14.2 [P-9 / AP-5] $NEX_COUNT public struct(s) with pub fields lack #[non_exhaustive]:"
+        echo "$NEX_HITS" | head -8
+    fi
+
+    # 14.3 [CLAUDE.md] Audit-finding labels in source comments.
+    # CLAUDE.md "Audit-round markers" rule: audit-round labels live in
+    # CHANGELOG.md and commit messages only. Source comments must explain
+    # the WHY (a non-obvious invariant), never historical "added in
+    # round-N". Patterns caught (comment contexts only; CHANGELOG,
+    # TRACKING, docs/audit/, DESIGN_PATTERNS exempt as canonical history):
+    #   - `// L1:` / `// M3:` / `// H4:` / `// D2:` (bare-prefix labels)
+    #   - `// fix #4` (commit-style fix references)
+    #   - `// Round-49 H7:` (full-prefix labels)
+    #   - `// round-32 M3 wired up...` (prose references)
+    #   - any line containing `\bround-?\d+\b` not in an exempted file
+    # Self-exempt: this audit script's own comment block lists the patterns
+    # it catches; those literal examples must not trip the check itself.
+    LABEL_HITS=$(grep -rnE '^\s*(//|#)\s*(Round-[0-9]+\s+)?[HMLD][0-9]+[a-z]?:|^\s*(//|#)\s*fix #[0-9]+|\b[Rr]ound-?[0-9]+\b' \
+        --include="*.rs" --include="*.sh" --include="*.yml" --include="*.toml" 2>/dev/null \
+        | grep -v 'CHANGELOG\|self_test_conditional_kats\|TRACKING\|docs/audit/\|docs/DESIGN_PATTERNS\|scripts/audit.sh' || true)
+    if [ -z "$LABEL_HITS" ]; then
+        pass "14.3 [CLAUDE.md] No audit-finding labels in source comments"
+    else
+        LABEL_COUNT=$(echo "$LABEL_HITS" | wc -l | tr -d ' ')
+        fail "14.3 [CLAUDE.md] $LABEL_COUNT audit-finding / round reference(s) in source — strip per CLAUDE.md \"Audit-round markers\" rule:"
+        echo "$LABEL_HITS" | head -8
+    fi
+
+    # 14.4 [AP-3] Legacy secure_compare() regression. The CT helper was
+    # renamed to secure_compare_equal_length() so the equal-length
+    # contract is enforced in the type signature (debug_assert + caller
+    # discipline). Anyone reintroducing the unequal-length-tolerant
+    # variant has reopened the misuse surface.
+    LEGACY_CMP=$(grep -rn 'fn secure_compare\b\|secure_compare(' \
+        --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -v 'secure_compare_equal_length' \
+        | grep -v '/tests/' || true)
+    if [ -z "$LEGACY_CMP" ]; then
+        pass "14.4 [AP-3] No legacy secure_compare() (use secure_compare_equal_length)"
+    else
+        warn "14.4 [AP-3] Legacy secure_compare() — use secure_compare_equal_length():"
+        echo "$LEGACY_CMP" | head -5
+    fi
+
+    # 14.5 [SECURITY.md] Unbounded std::fs::read{_to_string}() reads.
+    # Attacker-controlled paths (config files, key files, /dev/zero
+    # symlinks) can OOM the process. Use bounded readers:
+    # File::open(...).take(MAX+1).read_to_*().
+    UNBOUNDED_FS=$(grep -rnE 'std::fs::(read|read_to_string)\(' \
+        --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -v '/tests/' | grep -v '/// ' | grep -v '//!' || true)
+    if [ -z "$UNBOUNDED_FS" ]; then
+        pass "14.5 [SECURITY.md] No unbounded std::fs::read* in production"
+    else
+        UNB_COUNT=$(echo "$UNBOUNDED_FS" | wc -l | tr -d ' ')
+        warn "14.5 [SECURITY.md] $UNB_COUNT unbounded std::fs::read* in production — bound with File::open(...).take():"
+        echo "$UNBOUNDED_FS" | head -5
+    fi
+
+    # 14.6 [P-8] Stale rustdoc references to renamed/removed error variants.
+    # When a public error variant is renamed (e.g., MlKemError::InvalidKeyFormat
+    # → InvalidPublicKeyFormat), rustdoc references at unrelated sites
+    # silently rot. They aren't checked by the compiler. Constructor calls
+    # (`Variant("..."`) are legitimate backwards-compat usage of the
+    # retained variant and are excluded.
+    STALE_DOC=$(grep -rnE 'MlKemError::InvalidKeyFormat\b[^(]' \
+        --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -v '/tests/' || true)
+    if [ -z "$STALE_DOC" ]; then
+        pass "14.6 [P-8] No stale MlKemError::InvalidKeyFormat references"
+    else
+        warn "14.6 [P-8] Stale MlKemError::InvalidKeyFormat reference(s) — variant was renamed:"
+        echo "$STALE_DOC" | head -5
+    fi
+
+    # 14.7 [P-6] tracing::error! on adversary-reachable Zero Trust /
+    # crypto verify paths. error!-level emission per inbound auth
+    # rejection lets a remote attacker flood SIEMs at line rate. Sibling
+    # crypto-error sites use tracing::debug! intentionally; the
+    # asymmetry is the smoking gun.
+    ZT_ERROR=$(grep -rn 'tracing::error!' --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -E 'zero_trust|verify|auth' \
+        | grep -v '/tests/' \
+        | grep -v 'verify_pop' || true)
+    if [ -z "$ZT_ERROR" ]; then
+        pass "14.7 [P-6] No tracing::error! on adversary-reachable verify paths"
+    else
+        warn "14.7 [P-6] tracing::error! on adversary-reachable site(s) — downgrade to debug!:"
+        echo "$ZT_ERROR" | head -5
+    fi
+
+    # 14.8 [AP-1] #[derive(Debug)] on secret-bearing types. Secrets must
+    # have a manual Debug impl that redacts contents — the derived impl
+    # leaks bytes through any println!/dbg!/log message that includes
+    # the type.
+    DEBUG_DERIVES=$(grep -rnE 'derive\([^)]*\bDebug\b[^)]*\)' \
+        --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -E 'SecretKey|PrivateKey|Passphrase|MasterKey|EncryptionKey|Nonce(?!Set)|SeedBytes' \
+        | grep -v '/tests/' \
+        | grep -v 'Public' || true)
+    if [ -z "$DEBUG_DERIVES" ]; then
+        pass "14.8 [AP-1] No #[derive(Debug)] on secret-bearing types"
+    else
+        warn "14.8 [AP-1] #[derive(Debug)] on secret-bearing type(s) — write manual redacted impl:"
+        echo "$DEBUG_DERIVES" | head -5
+    fi
+
+    # 14.9 [AP-2] #[derive(Clone)] on secret-bearing types. Implicit
+    # cloning of secret material is a footgun — duplicates secret bytes
+    # silently across the heap. Use clone_for_transmission() (audited
+    # escape hatch) where genuine duplication is needed.
+    CLONE_DERIVES=$(grep -rnE 'derive\([^)]*\bClone\b[^)]*\)' \
+        --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -E 'SecretKey|PrivateKey|Passphrase|MasterKey|EncryptionKey' \
+        | grep -v '/tests/' \
+        | grep -v 'Public' || true)
+    if [ -z "$CLONE_DERIVES" ]; then
+        pass "14.9 [AP-2] No #[derive(Clone)] on secret-bearing types"
+    else
+        warn "14.9 [AP-2] #[derive(Clone)] on secret-bearing type(s) — use clone_for_transmission():"
+        echo "$CLONE_DERIVES" | head -5
+    fi
+
+    # 14.10 [META] Pattern parity meta-check. Every check above maps to
+    # a numbered pattern in DESIGN_PATTERNS.md. If DESIGN_PATTERNS.md
+    # introduces a new pattern but no audit check is added, the script's
+    # coverage drifts behind the doc.
+    PATTERN_DOC="docs/DESIGN_PATTERNS.md"
+    if [ -f "$REPO_ROOT/$PATTERN_DOC" ]; then
+        DOC_PATTERNS=$(grep -cE '^### Pattern [0-9]+:|^### Anti-?Pattern [0-9]+:' \
+            "$REPO_ROOT/$PATTERN_DOC" 2>/dev/null || echo 0)
+        SCRIPT_REFS=$(grep -cE '\[P-[0-9]+\]|\[AP-[0-9]+\]' "$0" 2>/dev/null || echo 0)
+        if [ "$DOC_PATTERNS" -gt 0 ] && [ "$SCRIPT_REFS" -lt "$DOC_PATTERNS" ]; then
+            warn "14.10 [META] Pattern doc has $DOC_PATTERNS patterns; script references only $SCRIPT_REFS — coverage drift"
+        else
+            pass "14.10 [META] Pattern parity — script references match design doc"
+        fi
+    else
+        warn "14.10 [META] $PATTERN_DOC not found — pattern parity check skipped"
+    fi
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 END_TIME=$(date +%s)

@@ -85,8 +85,8 @@ kat-test-vectors = []
 # (e.g. `SigmaProof::challenge_mut`) and FIPS module-error-state recovery
 # helpers (`clear_error_state`, `restore_operational_state`). These items
 # bypass soundness or FIPS 140-3 §9.6 state-machine invariants, so they
-# MUST NOT be reachable from production builds — round-10 audit fix #11
-# and round-26 audit fix C1. Test crates that need to mount tamper-
+# MUST NOT be reachable from production builds —
+# and C1. Test crates that need to mount tamper-
 # detection assertions enable this feature explicitly. Distinct from
 # `kat-replay` below, which is for legitimate KAT-replay entry points and
 # does NOT bypass any soundness check.
@@ -100,7 +100,7 @@ test-utils = []
 # the operator floor is replaced with an absolute minimum of 1. The CLI
 # enables this feature so `latticearc kdf --allow-weak-iterations` can
 # reproduce published vectors without inheriting the soundness-bypassing
-# surface of `test-utils`. Round-26 audit fix (C1).
+# surface of `test-utils`.
 kat-replay = []
 
 [dependencies]
@@ -261,7 +261,7 @@ name = "test_ml_kem"
 # Integration tests
 # =============================================================================
 
-# Round-34 N1: `MlDsaSignature::from_bytes_unchecked` is gated behind
+# `MlDsaSignature::from_bytes_unchecked` is gated behind
 # `test-utils`. The three integration tests below construct
 # truncated / zero / ones signatures via that helper to exercise
 # verify-side rejection. Mark them as requiring `test-utils` so a
@@ -281,7 +281,7 @@ required-features = ["test-utils"]
 name = "primitives_side_channel"
 required-features = ["test-utils"]
 
-# Round-36 H3: file-level `#![cfg(all(feature = "fips-self-test",
+# file-level `#![cfg(all(feature = "fips-self-test",
 # feature = "test-utils"))]` previously made the entire FIPS power-up
 # KAT suite invisible to default `cargo test -p latticearc` runs —
 # the file compiled to nothing and gave no signal that 13 tests had

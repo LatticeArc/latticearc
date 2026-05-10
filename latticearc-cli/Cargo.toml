@@ -22,7 +22,7 @@ path = "src/main.rs"
 # We deliberately do NOT enable `test-utils`: that feature gates
 # soundness-bypassing items (`SigmaProof::challenge_mut`,
 # `clear_error_state`, `restore_operational_state`) which must never be
-# reachable from a production CLI build. Round-26 audit fix C1.
+# reachable from a production CLI build. C1.
 latticearc = { path = "../latticearc", version = "0.8", features = ["tracing-init", "kat-replay"] }
 clap = { workspace = true }
 serde = { workspace = true }
@@ -34,7 +34,7 @@ anyhow = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
 rpassword = { workspace = true }
-# Round-21 audit fix #14/#20: CLI commands route diagnostic info
+# /#20: CLI commands route diagnostic info
 # (paths, algorithm names) through `tracing::debug!` instead of
 # `eprintln!` to avoid leaking onto stderr by default.
 tracing = { workspace = true }

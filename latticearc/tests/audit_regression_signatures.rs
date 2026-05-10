@@ -39,7 +39,7 @@ fn aes_gcm_encrypt_rejects_oversized_aad() {
     assert!(result.is_err(), "AAD over the cap must be rejected by AEAD encrypt");
 }
 
-// Round-36 H6: deleted dead `primitives::polynomial` module — the
+// deleted dead `primitives::polynomial` module — the
 // NTT/Montgomery code wasn't called from any production path
 // (FIPS 203/204/205/206 all delegate to aws-lc-rs / fips204 / fips205
 // / fn-dsa). The two regression tests that referenced it
@@ -48,7 +48,7 @@ fn aes_gcm_encrypt_rejects_oversized_aad() {
 // module.
 
 /// convenience-layer verify must return `Ok(false)` on
-/// adversary-reachable failure (not `Err`). Reverting the round-26
+/// adversary-reachable failure (not `Err`). Reverting the an earlier audit
 /// `Err → Ok(false)` mapping in `verify_with_key` would surface as an
 /// `Err(InvalidInput(...))` here.
 #[test]
@@ -67,10 +67,10 @@ fn pq_sig_verify_with_malformed_signature_returns_ok_false() {
     // Verify must reject — `Ok(false)` (proper-shape rejection) OR
     // `Err` (per FIPS 204 unforgeability). The previous mapper
     // returned a string-leaking InvalidInput variant on parse failure;
-    // round-26 H10 collapsed that. Either Err or Ok(false) is
-    // acceptable. Round-36 C1: assert that the result actually falls
+    // collapsed that. Either Err or Ok(false) is
+    // acceptable. an earlier audit C1: assert that the result actually falls
     // into one of those buckets — the previous `let _ = ...` form
-    // discarded the result, so reverting the round-26 fix wouldn't
+    // discarded the result, so reverting the an earlier audit fix wouldn't
     // have tripped this regression test.
     let result = pk.verify(msg, &corrupted, b"");
     assert!(
@@ -80,7 +80,7 @@ fn pq_sig_verify_with_malformed_signature_returns_ok_false() {
     );
 }
 
-// Round-36 C2: deleted the empty `signing_keypair_debug_redaction_documented_in_inline_tests`
+// an earlier audit C2: deleted the empty `signing_keypair_debug_redaction_documented_in_inline_tests`
 // `#[test]` marker. An empty `#[test]` body registers as a passing
 // test in CI but verifies nothing — the docstring's claim that the
 // inline test is the "regression blocker" is fine, but a marker
@@ -114,12 +114,12 @@ fn aes_gcm_decrypt_failure_strings_are_uniform() {
     assert_eq!(
         mac_err, other_err,
         "AES-GCM decrypt error strings must be uniform across stages \
-         (round-27 H2 opacity sweep)"
+         (opacity sweep)"
     );
 }
 
 /// secp256k1 high-S signatures must be rejected at
-/// `signature_from_bytes` (BIP-146 / EIP-2). Without round-27 H3, a
+/// `signature_from_bytes` (BIP-146 / EIP-2). Without , a
 /// caller could parse a high-S signature and verify would also reject —
 /// but the parse-time gate is the wire-format guard.
 ///
@@ -161,8 +161,7 @@ fn secp256k1_high_s_signature_rejected_at_parse() {
     let parsed = Secp256k1Signature::signature_from_bytes(&sig_bytes);
     assert!(
         parsed.is_err(),
-        "round-27 H3: secp256k1 high-S signature must be rejected at parse \
-         (BIP-146 / EIP-2)"
+        "secp256k1 high-S signature must be rejected at parse (BIP-146 / EIP-2)"
     );
 }
 
@@ -192,7 +191,7 @@ fn slh_dsa_error_does_not_have_deserialization_variant() {
         assert_ne!(
             e.to_string(),
             "Deserialization failed",
-            "round-27 M4: DeserializationError variant must remain absent"
+            "DeserializationError variant must remain absent"
         );
     }
 }
@@ -241,7 +240,7 @@ fn ml_dsa_sign_error_does_not_leak_fips204_string() {
     );
 }
 
-// Round-36 H6: `ntt_rejects_modulus_above_i32_max` removed alongside
+// `ntt_rejects_modulus_above_i32_max` removed alongside
 // the `primitives::polynomial` module deletion.
 
 #[cfg(not(feature = "fips"))]

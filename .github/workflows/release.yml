@@ -29,8 +29,8 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Security audit
-        # Round-13 audit fix (L-E): stale comment about a four-advisory
-        # list and per-workflow sync rules removed. After round-12 #H-4
+        # stale comment about a four-advisory
+        # list and per-workflow sync rules removed. After an earlier audit #H-4
         # the single source of truth is `.cargo/audit.toml` (mirrored
         # by `deny.toml`); cargo-audit auto-discovers it. No CLI flags.
         run: |
@@ -303,7 +303,7 @@ jobs:
           echo "Signing artifacts with Sigstore Cosign..."
 
           # Sign library artifacts
-          # Round-20 audit fix #2: sign-or-fail. Previously this step
+          # sign-or-fail. Previously this step
           # had three layers of failure-swallowing — `2>/dev/null`,
           # `|| echo "Warning..."`, and `continue-on-error: true` —
           # which let releases ship unsigned. cosign exit codes now
@@ -342,7 +342,7 @@ jobs:
           path: |
             artifacts/**/*.sig
             artifacts/**/*.crt
-          # Round-20 audit fix #2: error if signatures are missing.
+          # error if signatures are missing.
           # `warn` previously masked the unsigned-release failure mode.
           if-no-files-found: error
 

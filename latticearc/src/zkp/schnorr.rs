@@ -306,7 +306,7 @@ impl SchnorrProver {
             let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
             let candidate: Option<Scalar> =
                 Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
-            // L1: use ct_eq instead of `!=`. `Scalar::PartialEq`
+            // use ct_eq instead of `!=`. `Scalar::PartialEq`
             // is not documented constant-time, and the challenge-side
             // already uses ct_eq — this restores symmetry.
             if let Some(s) = candidate

@@ -186,9 +186,9 @@ fn regression_hkdf_empty_salt() {
 
     let ikm = b"input key material";
 
-    // `Some(&[])` is rejected outright (round-30 L5).
+    // `Some(&[])` is rejected outright ().
     let result_empty = hkdf(ikm, Some(&[]), None, 32);
-    assert!(result_empty.is_err(), "HKDF with explicit empty salt must be rejected (round-30 L5)");
+    assert!(result_empty.is_err(), "HKDF with explicit empty salt must be rejected");
 
     // `None` (RFC default) still succeeds.
     let result_none = hkdf(ikm, None, None, 32);

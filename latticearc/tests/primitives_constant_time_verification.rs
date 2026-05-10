@@ -474,7 +474,7 @@ fn test_intermediate_value_cleanup_succeeds() {
 
 /// Verify ML-KEM secret key Debug actually redacts sensitive bytes.
 ///
-/// Round-35 D4: the prior version of this test asserted only that
+/// the prior version of this test asserted only that
 /// the type name appeared in the Debug output, with a comment
 /// claiming `#[derive(Debug)]` exposed the data. That comment was
 /// stale: the actual implementation has a custom `Debug` impl that
@@ -483,7 +483,7 @@ fn test_intermediate_value_cleanup_succeeds() {
 /// CI rather than silently shipping plaintext keys to logs.
 #[test]
 fn test_mlkem_secret_key_debug_redacts_succeeds() {
-    // Use a real generated SK — round-35 L7 made `MlKemSecretKey::new`
+    // Use a real generated SK — made `MlKemSecretKey::new`
     // structural-validation-strict, so an arbitrary 0xAB-pattern
     // buffer no longer passes construction.
     let (_pk, sk) =
@@ -504,7 +504,7 @@ fn test_mlkem_secret_key_debug_redacts_succeeds() {
 }
 
 /// Verify ML-KEM shared secret Debug actually redacts. See the
-/// rationale on the SK test above (round-35 D4).
+/// rationale on the SK test above ().
 #[test]
 fn test_mlkem_shared_secret_debug_redacts_succeeds() {
     let ss = MlKemSharedSecret::new([0xCDu8; 32]);

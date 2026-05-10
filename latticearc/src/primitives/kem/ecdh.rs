@@ -724,7 +724,7 @@ impl EcdhP256PublicKey {
     /// # Errors
     /// Returns an error if point validation fails.
     pub fn validate(&self) -> Result<(), EcdhError> {
-        // L18: reject the all-zero coordinate form as defense
+        // reject the all-zero coordinate form as defense
         // in depth. aws-lc-rs's `agree_ephemeral` would also reject it
         // during agreement, but failing here surfaces operator misuse
         // with a clearer, version-stable error.

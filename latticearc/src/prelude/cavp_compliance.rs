@@ -581,7 +581,7 @@ impl UtilityValidator {
     /// Returns an error if utility function validation fails.
     pub fn validate_utilities(&self) -> Result<()> {
         tracing::info!("Validating utility functions");
-        // M4: replace the stub body with real structural
+        // replace the stub body with real structural
         // checks. The full CAVP suite is driven through
         // `cargo test --package latticearc-tests`; this in-library
         // validator runs a small subset so a

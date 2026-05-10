@@ -184,7 +184,7 @@ jobs:
       run: bash scripts/ci/resource_limits_coverage.sh
 
   # === MSRV (Minimum Supported Rust Version) ===
-  # Round-13 audit fix (L-A): pin to the exact version declared in
+  # pin to the exact version declared in
   # `[workspace.package].rust-version` (1.93). Without this, every
   # other job uses `dtolnay/rust-toolchain@stable`, so a future stable
   # accepting code that 1.93 rejects would silently raise our effective
@@ -217,7 +217,7 @@ jobs:
       run: cargo +1.93 check --workspace --all-features
 
   # === SemVer surface check ===
-  # Round-13 audit fix (L-B): the `tests/tests/api_stability.rs` doc
+  # the `tests/tests/api_stability.rs` doc
   # comment claimed cargo-semver-checks "runs separately" — but no job
   # actually ran it. This job runs `cargo semver-checks` against the
   # last released `latticearc` on crates.io and surfaces breaking
@@ -241,7 +241,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Run cargo-semver-checks
-      # Round-14 audit fix: SHA-pin to match the workflow's strict
+      # SHA-pin to match the workflow's strict
       # action-pinning policy. Floating tags can be moved to point at
       # arbitrary commits (including malicious code) by the action's
       # owner — every other action in this file uses a 40-char SHA
@@ -329,7 +329,7 @@ jobs:
 
     - name: Run cargo-audit (enhanced vulnerability scanning)
       run: |
-        # Round-12 audit fix (H-4): the per-advisory `--ignore` flags
+        # the per-advisory `--ignore` flags
         # were the source of suppression drift across rounds (only one
         # had a justification comment, two were stale). The single
         # source of truth is now `.cargo/audit.toml [advisories].ignore`
@@ -352,7 +352,7 @@ jobs:
         directory: target/release
 
   # === Testing (Apache-focused) ===
-  # Default-debug parity — round-19 audit takeaway: H4 (FN-DSA convenience
+  # Default-debug parity — H4 (FN-DSA convenience
   # test stack overflow) hid for 18 audit rounds because the main `test:`
   # matrix below runs only release. Debug builds use ~32 MB of stack for
   # FN-DSA Level1024 keygen vs ~5 MB in release, so a release-only suite
@@ -397,7 +397,7 @@ jobs:
         # No `--release`, no `--all-features`. Mirrors what a downstream
         # consumer running `cargo test` against a default `cargo add`
         # would execute. Catches default-stack / default-feature foot-guns
-        # like round-19 H4.
+        # like
         cargo test --lib -p latticearc
 
   test:
@@ -733,7 +733,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Round-15 audit fix: 7 of 9 prior matrix entries were fictional
+        # 7 of 9 prior matrix entries were fictional
         # target names (decrypt_fuzz, kem_fuzz, signature_fuzz,
         # hybrid_fuzz, kdf_fuzz, hash_fuzz, serialization_fuzz) — none
         # declared in fuzz/Cargo.toml. They `cargo fuzz run`-failed
@@ -778,7 +778,7 @@ jobs:
           # DoS / resource bounds
           - fuzz_dos_alloc_bounded
           - fuzz_random
-          # Round-21 audit fix #2: three targets declared in
+          # three targets declared in
           # `fuzz/Cargo.toml` were absent from this matrix —
           # `constant_time_fuzz` (CT discipline for a crypto library),
           # `hybrid_encrypt_fuzz` (e2e hybrid path), and
@@ -859,20 +859,20 @@ jobs:
         key: ${{ runner.os }}-fuzz-smoke-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run quick fuzz smoke test (30s each)
-      # Round-13 audit fix (H-A): the previous `continue-on-error: true`
+      # the previous `continue-on-error: true`
       # kept the run step's outcome green even on a fuzzer crash, which
-      # defeated round-12's H-5 promotion of `fuzz-smoke` to PR-blocking
+      # defeated an earlier audit's H-5 promotion of `fuzz-smoke` to PR-blocking
       # (the `failed_jobs` gate watched `needs.fuzz-smoke.result` but
       # that result was always 'success'). The flag was originally there
       # to keep `if: failure()`-gated upload steps reachable; we now
       # gate uploads on `if: ${{ failure() || cancelled() }}` instead so
       # crashes both fail the job AND surface artifacts.
       run: |
-        # Round-15 audit fix: `kem_fuzz` was a fictional target name —
+        # `kem_fuzz` was a fictional target name —
         # never declared in fuzz/Cargo.toml. The real KEM target is
         # `hybrid_kem_fuzz` (encap + decap roundtrip via the hybrid
-        # path). Until round-12 this typo was masked by `continue-on-error:
-        # true`; round-13 H-A removed that flag so the typo would have
+        # path). Until an earlier audit this typo was masked by `continue-on-error:
+        # true`; an earlier audit H-A removed that flag so the typo would have
         # blocked every PR on a fictional-target build error rather
         # than a real fuzz crash.
         cd fuzz
@@ -880,7 +880,7 @@ jobs:
         cargo +nightly fuzz run hybrid_kem_fuzz -- -max_total_time=30
 
     - name: Upload crash artifacts (smoke)
-      # Round-14 audit fix: gate matches the round-13 H-A rationale on
+      # gate matches the an earlier audit H-A rationale on
       # the run step above — `failure() || cancelled()` so a job
       # cancellation (timeout, manual cancel during a long fuzz run)
       # also surfaces any partial corpus / crash artifacts the fuzzer
@@ -1206,7 +1206,7 @@ jobs:
         # Check core jobs (always required)
         [[ "${{ needs.quality.result }}" == "failure" ]] && failed_jobs="$failed_jobs quality"
         [[ "${{ needs.msrv.result }}" == "failure" ]] && failed_jobs="$failed_jobs msrv"
-        # Round-14 audit fix: semver-checks added to `needs` so the
+        # semver-checks added to `needs` so the
         # eventual promotion (drop `continue-on-error: true` on the
         # job, drop the soft-fail comment) becomes a single-line
         # change rather than three coordinated edits. Today this is
@@ -1217,7 +1217,7 @@ jobs:
         [[ "${{ needs.semver-checks.result }}" == "failure" ]] && failed_jobs="$failed_jobs semver-checks"
         [[ "${{ needs.build.result }}" == "failure" ]] && failed_jobs="$failed_jobs build"
         [[ "${{ needs.test.result }}" == "failure" ]] && failed_jobs="$failed_jobs test"
-        # Round-20 audit fix #9: default-debug-parity is the round-19 H4
+        # default-debug-parity is the
         # regression blocker. Adding it to `needs:` alone wasn't
         # enough — `result` had to be checked here too, otherwise its
         # failure was invisible to the gate.
@@ -1232,9 +1232,9 @@ jobs:
         [[ "${{ needs.concurrency-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs concurrency-tests"
         [[ "${{ needs.api-stability-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs api-stability-tests"
         [[ "${{ needs.cli-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs cli-tests"
-        # Round-21 audit fix #18: kat-integrity is in `needs:` (line 1180)
+        # kat-integrity is in `needs:` (line 1180)
         # but the inner result-check loop was missing the corresponding
-        # `[[ … failure ]]` line. Same shape as round-19 H4
+        # `[[ … failure ]]` line. Same shape as
         # default-debug-parity. The new lint v3 rule
         # (status-check-result-coverage in lint-extras.yml) detects this
         # mismatch — adding it here closes the actual bug; the lint rule
@@ -1243,14 +1243,14 @@ jobs:
         [[ "${{ needs.feature-powerset.result }}" == "failure" ]] && failed_jobs="$failed_jobs feature-powerset"
         [[ "${{ needs.performance.result }}" == "failure" ]] && failed_jobs="$failed_jobs performance"
 
-        # Round-12 audit fix (H-5), corrected by round-15: fuzz-smoke
+        # , corrected by fuzz-smoke
         # is the ~30s every-PR job and MUST block merge — a live crash
         # in encrypt_fuzz / hybrid_kem_fuzz was previously silently
         # warned-and-merged. fuzz-nightly / fuzz-weekly remain non-
         # blocking because they run multi-hour campaigns and their
         # flakes shouldn't gate cryptographic-bugfix PRs that haven't
-        # yet had time to fix every old finding. (Round-15 fixed
-        # `kem_fuzz` typo here — the round-12 H-5 comment named a
+        # yet had time to fix every old finding. (an earlier audit fixed
+        # `kem_fuzz` typo here — the an earlier audit H-5 comment named a
         # target that didn't exist.)
         [[ "${{ needs.fuzz-smoke.result }}" == "failure" ]] && failed_jobs="$failed_jobs fuzz-smoke"
 

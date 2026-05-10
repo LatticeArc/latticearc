@@ -32,7 +32,7 @@ jobs:
 
     - name: Run security audit
       run: |
-        # Round-12 audit fix (H-4): single source of truth is
+        # single source of truth is
         # `.cargo/audit.toml`; CLI flags removed.
         cargo audit --deny warnings
 

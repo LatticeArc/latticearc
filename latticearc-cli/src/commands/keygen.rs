@@ -107,11 +107,10 @@ pub(crate) struct KeygenArgs {
     /// Overwrite existing key files at the destination paths.
     ///
     /// Without this flag, keygen refuses to clobber an existing key file.
-    // keygen previously
-    // had no escape hatch, so re-running over a stale keypair failed on
-    // the first SK-write (SK is written first to avoid orphan PKs from
-    // fix #4); the inverse failure mode still bit users running
-    // keygen twice. `--force` plumbs through to
+    // keygen previously had no escape hatch, so re-running over a stale
+    // keypair failed on the first SK-write (SK is written first to avoid
+    // orphan public-key files); the inverse failure mode still bit users
+    // running keygen twice. `--force` plumbs through to
     // `PortableKey::write_to_file_with_overwrite` at all 4 write sites.
     #[arg(long)]
     pub force: bool,

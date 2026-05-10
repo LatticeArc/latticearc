@@ -33,7 +33,7 @@ fn auth_at(complexity: ProofComplexity) -> ZeroTrustAuth {
 }
 
 /// Same key, but a fresh `ZeroTrustAuth` built around different config.
-/// Pre-round-20, signed-message bytes for Low and Medium were
+/// Pre-an earlier audit, signed-message bytes for Low and Medium were
 /// byte-identical, so a Low proof verified as Medium and vice versa.
 fn paired_auths(low: ProofComplexity, hi: ProofComplexity) -> (ZeroTrustAuth, ZeroTrustAuth) {
     use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
@@ -58,15 +58,15 @@ fn paired_auths(low: ProofComplexity, hi: ProofComplexity) -> (ZeroTrustAuth, Ze
 
 /// a Low proof must NOT verify as Medium.
 ///
-/// This test fails on pre-round-20 code because Low and Medium produced
+/// This test fails on pre-an earlier audit code because Low and Medium produced
 /// byte-identical signed messages (`challenge || timestamp`). With the
-/// round-20 domain tag, Low signs `challenge || timestamp` while Medium
+/// an earlier audit domain tag, Low signs `challenge || timestamp` while Medium
 /// signs `0x02 || challenge || timestamp`, so the Ed25519 signature does
 /// not validate when the verifier reconstructs the Medium message.
 #[test]
 fn low_proof_does_not_verify_as_medium() {
     let (auth_low, auth_medium) = paired_auths(ProofComplexity::Low, ProofComplexity::Medium);
-    let challenge = b"round20-domain-tag-low-vs-medium";
+    let challenge = b"domain-tag-low-vs-medium";
 
     let proof_low = auth_low.generate_proof(challenge).expect("Low generate");
     // Cross-level verification must reject. The API may return either
@@ -80,7 +80,7 @@ fn low_proof_does_not_verify_as_medium() {
     assert!(
         !accepted,
         "Low proof verified as Medium — domain-tag separation is missing. \
-         Round-20 fix #6 must distinguish Low (challenge||ts) from \
+         The fix must distinguish Low (challenge||ts) from \
          Medium (0x02||challenge||ts) so cross-level verification fails. \
          Got: {outcome:?}"
     );
@@ -90,7 +90,7 @@ fn low_proof_does_not_verify_as_medium() {
 #[test]
 fn medium_proof_does_not_verify_as_high() {
     let (auth_medium, auth_high) = paired_auths(ProofComplexity::Medium, ProofComplexity::High);
-    let challenge = b"round20-domain-tag-medium-vs-high";
+    let challenge = b"domain-tag-medium-vs-high";
 
     let proof_medium = auth_medium.generate_proof(challenge).expect("Medium generate");
     let outcome = auth_high.verify_proof(&proof_medium, challenge);
@@ -106,7 +106,7 @@ fn medium_proof_does_not_verify_as_high() {
 #[test]
 fn medium_self_roundtrip_succeeds() {
     let auth = auth_at(ProofComplexity::Medium);
-    let challenge = b"round20-medium-self-roundtrip";
+    let challenge = b"medium-self-roundtrip";
     let proof = auth.generate_proof(challenge).expect("Medium generate");
     let valid = auth.verify_proof(&proof, challenge).expect("verify_proof returns Ok(_)");
     assert!(valid, "Medium proof must verify against Medium config");
@@ -116,7 +116,7 @@ fn medium_self_roundtrip_succeeds() {
 #[test]
 fn high_self_roundtrip_succeeds() {
     let auth = auth_at(ProofComplexity::High);
-    let challenge = b"round20-high-self-roundtrip";
+    let challenge = b"high-self-roundtrip";
     let proof = auth.generate_proof(challenge).expect("High generate");
     let valid = auth.verify_proof(&proof, challenge).expect("verify_proof returns Ok(_)");
     assert!(valid, "High proof must verify against High config");
@@ -370,7 +370,7 @@ fn key_algorithm_canonical_name_round_trips_through_from_canonical_name() {
     }
 }
 
-/// Pre-round-21 callers may still tag keys with `"fn-dsa"` (no level
+/// Pre-an earlier audit callers may still tag keys with `"fn-dsa"` (no level
 /// suffix). Confirm that `from_canonical_name` accepts the bare alias
 /// and maps it to `FnDsa512` so legacy keyfiles continue to load.
 #[test]
@@ -384,7 +384,7 @@ fn key_algorithm_from_canonical_name_accepts_fn_dsa_legacy_alias() {
 
 /// FN-DSA-1024 must be reachable end-to-end through the unified API.
 /// The canonical_name "fn-dsa-1024" is wired into the keygen, sign, and
-/// verify dispatch tables (round-21 audit fix H3). Without this test, a
+/// verify dispatch tables (H3). Without this test, a
 /// silent revert of any of the three arms would not surface in CI.
 #[test]
 fn fn_dsa_1024_unified_api_keygen_sign_verify_round_trips() {

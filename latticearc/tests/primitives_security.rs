@@ -4,7 +4,7 @@
 //! Coverage tests for security.rs
 //!
 //! Targets `allocate_secure_buffer`, `RngHandle`, and convenience RNG
-//! functions. Round-26 audit fix (M26) removed the `MemoryPool` type
+//! functions. removed the `MemoryPool` type
 //! (the no-op pool was pure mutex-contention overhead) — the
 //! corresponding tests now exercise `allocate_secure_buffer`, the
 //! direct replacement.
@@ -53,7 +53,7 @@ fn test_secure_zeroize_succeeds() {
 }
 
 // ============================================================================
-// allocate_secure_buffer tests (round-26 audit fix M26: replaces MemoryPool)
+// allocate_secure_buffer tests (M26: replaces MemoryPool)
 // ============================================================================
 
 #[test]

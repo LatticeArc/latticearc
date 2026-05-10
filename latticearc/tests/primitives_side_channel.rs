@@ -1768,7 +1768,7 @@ fn test_chacha20poly1305_tag_verification_constant_time_succeeds() {
     let ratio2 = timing_ratio(&equal_timing, &almost_equal_timing);
 
     // 100 iterations + 10 warmup is below the noise floor on shared-
-    // CPU CI runners (round-21 follow-up after CI 25191633413 hit
+    // CPU CI runners (an earlier audit follow-up after CI 25191633413 hit
     // ratio 22.07). Same rationale as
     // `test_chacha20poly1305_decryption_failure_timing_fails` below:
     // a real timing leak in `aws-lc-rs` ChaCha20-Poly1305 (hardware-

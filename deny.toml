@@ -34,11 +34,11 @@ ignore = [
     # paste 1.0.15 flagged as unmaintained (not a CVE). Pulled in transitively
     # by pqcrypto-mldsa dev-dep used in cross-impl validation tests only; does
     # not affect the published latticearc runtime. Revisit when pqcrypto-mldsa
-    # drops the dep upstream. Tracked in TRACKING.md (round-20 audit fix #19).
+    # drops the dep upstream. Tracked in TRACKING.md ().
     "RUSTSEC-2024-0436",
     # ansi_term 0.12.1 unmaintained. Pulled in transitively by clap 2.x via
     # dudect-bencher 0.7 (dev-dep powering examples/dudect_ct.rs). No runtime
-    # impact on published crates. Round-20 audit fix #19: dudect-bencher 0.8+
+    # impact on published crates. dudect-bencher 0.8+
     # supports clap 4; the migration is genuinely overdue. Tracked in
     # TRACKING.md with target removal date 2026-Q3.
     "RUSTSEC-2021-0139",
@@ -58,7 +58,7 @@ ignore = [
 # Allow or deny multiple versions of the same crate
 multiple-versions = "warn"
 
-# Wildcard dependencies. Round-20 audit fix #20: promoted from
+# Wildcard dependencies. promoted from
 # "warn" to "deny" — the workspace policy is exact-pin (= "X.Y.Z")
 # for all RustCrypto deps; a `*` dep silently bypasses that
 # protection because Cargo treats it as "any version" and resolves

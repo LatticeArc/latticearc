@@ -20,13 +20,8 @@ fn test_scheme_selector_select_encryption_scheme_succeeds() {
     // `hardware_acceleration = false` only succeeds at `Standard`;
     // higher levels refuse the symmetric-only fallback.
     let engine = CryptoPolicyEngine::new();
-    let ctx = CryptoContext {
-        security_level: SecurityLevel::Standard,
-        performance_preference: PerformancePreference::Balanced,
-        use_case: None,
-        hardware_acceleration: false,
-        timestamp: chrono::Utc::now(),
-    };
+    let ctx = CryptoContext::new(SecurityLevel::Standard, PerformancePreference::Balanced, None)
+        .with_hardware_acceleration(false);
     let result = engine.select_encryption_scheme(b"test data", &ctx);
     assert!(result.is_ok());
     let scheme = result.unwrap();
@@ -36,13 +31,12 @@ fn test_scheme_selector_select_encryption_scheme_succeeds() {
 #[test]
 fn test_scheme_selector_select_encryption_scheme_with_use_case_succeeds() {
     let engine = CryptoPolicyEngine::new();
-    let ctx = CryptoContext {
-        security_level: SecurityLevel::Maximum,
-        performance_preference: PerformancePreference::Balanced,
-        use_case: Some(UseCase::SecureMessaging),
-        hardware_acceleration: false,
-        timestamp: chrono::Utc::now(),
-    };
+    let ctx = CryptoContext::new(
+        SecurityLevel::Maximum,
+        PerformancePreference::Balanced,
+        Some(UseCase::SecureMessaging),
+    )
+    .with_hardware_acceleration(false);
     let result = engine.select_encryption_scheme(b"important message", &ctx);
     assert!(result.is_ok());
 }
@@ -50,13 +44,7 @@ fn test_scheme_selector_select_encryption_scheme_with_use_case_succeeds() {
 #[test]
 fn test_scheme_selector_select_encryption_scheme_speed_succeeds() {
     let engine = CryptoPolicyEngine::new();
-    let ctx = CryptoContext {
-        security_level: SecurityLevel::Standard,
-        performance_preference: PerformancePreference::Speed,
-        use_case: None,
-        hardware_acceleration: true,
-        timestamp: chrono::Utc::now(),
-    };
+    let ctx = CryptoContext::new(SecurityLevel::Standard, PerformancePreference::Speed, None);
     let result = engine.select_encryption_scheme(b"fast", &ctx);
     assert!(result.is_ok());
 }
@@ -64,13 +52,8 @@ fn test_scheme_selector_select_encryption_scheme_speed_succeeds() {
 #[test]
 fn test_scheme_selector_select_signature_scheme_succeeds() {
     let engine = CryptoPolicyEngine::new();
-    let ctx = CryptoContext {
-        security_level: SecurityLevel::High,
-        performance_preference: PerformancePreference::Balanced,
-        use_case: None,
-        hardware_acceleration: false,
-        timestamp: chrono::Utc::now(),
-    };
+    let ctx = CryptoContext::new(SecurityLevel::High, PerformancePreference::Balanced, None)
+        .with_hardware_acceleration(false);
     let result = engine.select_signature_scheme(&ctx);
     assert!(result.is_ok());
     let scheme = result.unwrap();
@@ -80,13 +63,11 @@ fn test_scheme_selector_select_signature_scheme_succeeds() {
 #[test]
 fn test_scheme_selector_select_signature_scheme_maximum_succeeds() {
     let engine = CryptoPolicyEngine::new();
-    let ctx = CryptoContext {
-        security_level: SecurityLevel::Maximum,
-        performance_preference: PerformancePreference::Balanced,
-        use_case: Some(UseCase::GovernmentClassified),
-        hardware_acceleration: true,
-        timestamp: chrono::Utc::now(),
-    };
+    let ctx = CryptoContext::new(
+        SecurityLevel::Maximum,
+        PerformancePreference::Balanced,
+        Some(UseCase::GovernmentClassified),
+    );
     let result = engine.select_signature_scheme(&ctx);
     assert!(result.is_ok());
 }
@@ -94,13 +75,8 @@ fn test_scheme_selector_select_signature_scheme_maximum_succeeds() {
 #[test]
 fn test_scheme_selector_select_signature_scheme_maximum_no_usecase_memory_succeeds() {
     let engine = CryptoPolicyEngine::new();
-    let ctx = CryptoContext {
-        security_level: SecurityLevel::Maximum,
-        performance_preference: PerformancePreference::Memory,
-        use_case: None,
-        hardware_acceleration: false,
-        timestamp: chrono::Utc::now(),
-    };
+    let ctx = CryptoContext::new(SecurityLevel::Maximum, PerformancePreference::Memory, None)
+        .with_hardware_acceleration(false);
     let result = engine.select_signature_scheme(&ctx);
     assert!(result.is_ok());
 }

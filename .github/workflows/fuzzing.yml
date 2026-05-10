@@ -43,7 +43,7 @@ jobs:
           - fuzz_ml_kem_encaps
           - fuzz_ml_kem_decaps
           - hybrid_kem_fuzz
-          # Round-15 audit fix: `fuzz_hybrid_encrypt` /
+          # `fuzz_hybrid_encrypt` /
           # `fuzz_hybrid_decrypt` were fictional names; the real
           # target is `hybrid_encrypt_fuzz` (one binary, exercises
           # both directions via roundtrip) — see fuzz/Cargo.toml.
@@ -65,10 +65,10 @@ jobs:
           # Key exchange
           - fuzz_x25519
           - fuzz_ecdh_p256
-          # Hybrid (round-15 audit fix moved `hybrid_encrypt_fuzz` up
+          # Hybrid (moved `hybrid_encrypt_fuzz` up
           # to the KEM section as the canonical replacement for the
           # fictional `fuzz_hybrid_encrypt` / `fuzz_hybrid_decrypt`;
-          # round-16 removes this duplicate). `hybrid_kem_fuzz` and
+          # an earlier audit removes this duplicate). `hybrid_kem_fuzz` and
           # `hybrid_sign_fuzz` are listed separately below in their
           # respective sections.
           - hash_data_fuzz
@@ -104,7 +104,7 @@ jobs:
           target
         key: ${{ runner.os }}-fuzz-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    # Round-28 follow-up: build only the matrix target (was `cargo
+    # an earlier audit follow-up: build only the matrix target (was `cargo
     # fuzz build` with no arg, which built all 35+ targets but didn't
     # share artifacts cleanly with the per-target `cargo fuzz run` —
     # the run step then re-built incrementally and ate 1m+ of the
@@ -124,7 +124,7 @@ jobs:
         # 300s — the gap accommodates cargo-fuzz's incremental
         # rebuild check (~80s on cold cache even after the prior
         # build step) plus libfuzzer cleanup, with 200s headroom.
-        # Round-28 follow-up: bumped from 360s after slow runners hit
+        # an earlier audit follow-up: bumped from 360s after slow runners hit
         # 4m+ of build/init time.
         timeout 600s cargo fuzz run "${{ matrix.target }}" -- -max_total_time=300
 
@@ -145,7 +145,7 @@ jobs:
       matrix:
         target:
           # Priority targets for extended fuzzing (attacker-controlled inputs).
-          # Round-15 audit fix: `fuzz_hybrid_decrypt` was fictional; the
+          # `fuzz_hybrid_decrypt` was fictional; the
           # real target `hybrid_encrypt_fuzz` exercises both directions
           # via roundtrip.
           - hybrid_encrypt_fuzz
@@ -183,7 +183,7 @@ jobs:
           target
         key: ${{ runner.os }}-extended-fuzz-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    # Round-27 follow-up: pre-build the target so the outer `timeout`
+    # an earlier audit follow-up: pre-build the target so the outer `timeout`
     # only governs the actual fuzz execution, not the cold-cache rebuild
     # that `cargo fuzz run` performs on every invocation. With cache
     # misses the build can eat 30+ min of the 60-min budget and the
@@ -244,7 +244,7 @@ jobs:
           target
         key: ${{ runner.os }}-fuzz-coverage-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    # Round-27 follow-up: pre-build before applying the timeout, mirroring
+    # an earlier audit follow-up: pre-build before applying the timeout, mirroring
     # the extended-fuzz job. Cold-cache builds can exceed the 60s budget
     # if the timeout governs the build phase too; splitting fixes that.
     - name: Build fuzz coverage target

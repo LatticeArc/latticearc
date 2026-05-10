@@ -239,6 +239,7 @@ pub trait SchemeSelector: sealed::Sealed {
 
 /// Characteristics of data for scheme selection.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct DataCharacteristics {
     /// Size of the data in bytes.
     pub size: usize,

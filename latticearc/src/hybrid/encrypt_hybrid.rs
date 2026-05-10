@@ -311,6 +311,7 @@ impl HybridEncryptionContext {
 /// production callers (`encrypt_hybrid` / `decrypt_hybrid`) MUST
 /// populate all three.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct DerivationBinding<'a> {
     /// Recipient's static X25519 public key (the classical leg of the
     /// hybrid PK).

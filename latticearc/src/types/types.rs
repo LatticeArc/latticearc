@@ -771,6 +771,7 @@ impl std::str::FromStr for SignatureScheme {
 /// Carries configuration and metadata that influences scheme selection
 /// and operation behavior.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CryptoContext {
     /// Security level for operations.
     ///
@@ -795,15 +796,43 @@ pub struct CryptoContext {
     pub timestamp: DateTime<Utc>,
 }
 
-impl Default for CryptoContext {
-    fn default() -> Self {
+impl CryptoContext {
+    /// Constructor for external callers; required because the type is
+    /// `#[non_exhaustive]`. Sets `hardware_acceleration = true` and
+    /// `timestamp = Utc::now()`; use `with_*` methods to override.
+    #[must_use]
+    pub fn new(
+        security_level: SecurityLevel,
+        performance_preference: PerformancePreference,
+        use_case: Option<UseCase>,
+    ) -> Self {
         Self {
-            security_level: SecurityLevel::default(),
-            performance_preference: PerformancePreference::default(),
-            use_case: None,
+            security_level,
+            performance_preference,
+            use_case,
             hardware_acceleration: true,
             timestamp: Utc::now(),
         }
+    }
+
+    /// Override the timestamp (mainly for replay-test reproducibility).
+    #[must_use]
+    pub fn with_timestamp(mut self, timestamp: DateTime<Utc>) -> Self {
+        self.timestamp = timestamp;
+        self
+    }
+
+    /// Override the hardware-acceleration toggle.
+    #[must_use]
+    pub fn with_hardware_acceleration(mut self, enabled: bool) -> Self {
+        self.hardware_acceleration = enabled;
+        self
+    }
+}
+
+impl Default for CryptoContext {
+    fn default() -> Self {
+        Self::new(SecurityLevel::default(), PerformancePreference::default(), None)
     }
 }
 

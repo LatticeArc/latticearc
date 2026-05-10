@@ -59,7 +59,7 @@ fuzz_target!(|data: &[u8]| {
     // Test 2: Multiple key generations should produce structurally-
     // valid keys. The previous assert_ne! on bytes was technically
     // correct (collision is ~2⁻²⁵⁶) but is the same bug-class as
-    // round-31's `fuzz_hkdf` determinism assertion: a fuzz harness
+    // an earlier audit's `fuzz_hkdf` determinism assertion: a fuzz harness
     // should encode invariants the implementation can violate, not
     // probabilistic facts that depend on RNG state. If anything in
     // the harness ever routes fuzz bytes into the keygen RNG, the

@@ -1,7 +1,7 @@
 # Lint extras — CI grep rules that catch context-specific anti-patterns
 # clippy can't express.
 #
-# Round-19 audit takeaway: 18 of 24 findings were patterns that mechanical
+# 18 of 24 findings were patterns that mechanical
 # rules at PR-time would catch. clippy.toml covers what it can; this file
 # covers the rest. Each rule below corresponds to a concrete audit finding
 # (cited inline) and to a `MUST USE / NEVER USE` entry in
@@ -56,7 +56,7 @@ jobs:
       - name: M6 — no `expose_secret().to_vec()` (escapes Zeroizing)
         run: |
           set -e
-          # Round-19 M6: `.expose_secret().to_vec()` clones secret bytes into
+          # `.expose_secret().to_vec()` clones secret bytes into
           # a Vec<u8> that is not zeroized on drop. Either borrow via
           # `as_slice()` or wrap the clone in `Zeroizing::new(...)` immediately.
           if rg --type rust -n '\.expose_secret\(\)\.to_vec\(\)' \
@@ -68,7 +68,7 @@ jobs:
       - name: M3 — audit.rs OpenOptions::open must set .mode(0o600) on Unix
         run: |
           set -e
-          # Round-19 M3: audit log files must be 0o600 on Unix. The bare
+          # audit log files must be 0o600 on Unix. The bare
           # `OpenOptions::new()...open()` path inherits umask, often
           # world-readable.
           #
@@ -104,7 +104,7 @@ jobs:
       - name: H3 — audit.rs raw metadata.insert outside with_metadata is forbidden
         run: |
           set -e
-          # Round-19 H3: AuditEventBuilder::metadata bypassed the caps that
+          # AuditEventBuilder::metadata bypassed the caps that
           # AuditEvent::with_metadata enforces. All metadata writes must go
           # through `with_metadata` or `compute_integrity_hash` reads.
           #
@@ -126,13 +126,13 @@ jobs:
       - name: H1/H2 — CLI must size-gate file reads
         run: |
           set -e
-          # Round-19 H1: signature path skipped enforce_input_size_limit.
-          # Round-20 audit fix #10/#14:
+          # signature path skipped enforce_input_size_limit.
+          # /#14:
           #   (a) promoted from `::warning::` to `exit 1` — the regression
           #       class this rule prevents is HIGH-severity, downgrading
           #       to a warning meant the rule couldn't actually enforce.
           #   (b) expanded scope from `latticearc-cli/src/commands/` to
-          #       all of `latticearc-cli/src/` — round-20 #14 caught
+          #       all of `latticearc-cli/src/` — an earlier audit #14 caught
           #       `keyfile.rs` (which lives at the crate root, not
           #       under commands/) doing an ungated `std::fs::read`.
           # Allowlist sites are tagged with `// LINT-OK: size-gated-by-…`
@@ -163,10 +163,10 @@ jobs:
       - name: M3-secret-mode — AtomicWrite of secret material must use .secret_mode()
         run: |
           set -e
-          # Round-20 audit fix #5: decrypt.rs writes plaintext via
+          # decrypt.rs writes plaintext via
           # AtomicWrite without .secret_mode(), inheriting umask 0o644.
           # MODULE_PATTERNS.md mandates secret_mode() for files holding
-          # secret material. The lint suite (round-19 Step-2) shipped
+          # secret material. The lint suite (an earlier audit Step-2) shipped
           # the doc but no CI rule.
           #
           # Heuristic: every AtomicWrite::new(...).write(...) call in CLI
@@ -207,13 +207,13 @@ jobs:
       - name: status-check-coverage — every CI job must appear in status-check.needs
         run: |
           set -e
-          # Round-20 audit fix #9: round-19 added `default-debug-parity`
+          # an earlier audit added `default-debug-parity`
           # job specifically to catch H4-class regressions, but forgot to
           # include it in `status-check.needs:`, so its failure didn't
           # block merge. Generalize: every job defined under `jobs:` in
           # ci.yml must appear in `status-check.needs:`.
           #
-          # Round-21 audit fix #4: the previous version of this rule had
+          # the previous version of this rule had
           # a false positive on `changes`, `docs-deploy`, and
           # `release-validation` — three jobs intentionally NOT gated by
           # status-check (changes is a path filter, docs-deploy publishes
@@ -265,7 +265,7 @@ jobs:
       - name: status-check-result-coverage — every needs[] entry must have inner result-check
         run: |
           set -e
-          # Round-21 audit fix #18: round-20 added `default-debug-parity`
+          # an earlier audit added `default-debug-parity`
           # to `needs:` AND to the inner result-check loop, but
           # `kat-integrity` had been in `needs:` since earlier rounds
           # without a corresponding inner check. The old lint rule only
@@ -278,7 +278,7 @@ jobs:
           #      a failed dependency into a failed gate
           # Both are required for a job's failure to actually block merge.
           # `fuzz-nightly` and `fuzz-weekly` are intentionally
-          # warning-only (round-12 H-5 rationale) and use `if [[ ...
+          # warning-only (an earlier audit H-5 rationale) and use `if [[ ...
           # failure ]]; then echo Warning` instead — exempted by
           # presence of "Warning" in the same line.
           CI_YML=".github/workflows/ci.yml"
@@ -313,16 +313,16 @@ jobs:
           done <<< "$NEEDS"
           if [ -n "$MISSING" ]; then
             echo "::error::needs[] entries with no inner result-check (failure does not block merge): $MISSING"
-            echo "Each entry in status-check.needs[] must have a matching needs.X.result==failure line in the same job body, OR the corresponding echo-Warning / non-blocking branch (fuzz-nightly / fuzz-weekly pattern). Round-19 H4 + round-21 #18."
+            echo "Each entry in status-check.needs[] must have a matching needs.X.result==failure line in the same job body, OR the corresponding echo-Warning / non-blocking branch (fuzz-nightly / fuzz-weekly pattern)."
             exit 1
           fi
 
       - name: fuzz-matrix-coverage — every fuzz_targets/*.rs binary must appear in fuzz-weekly matrix
         run: |
           set -e
-          # Round-21 audit fix #2: 3 of 31 fuzz targets declared in
+          # 3 of 31 fuzz targets declared in
           # fuzz/Cargo.toml were absent from the fuzz-weekly matrix.
-          # Round-15 fixed the inverse (matrix entries with no binary).
+          # an earlier audit fixed the inverse (matrix entries with no binary).
           # This rule closes the gap in both directions: every binary
           # in `[[bin]]` blocks of fuzz/Cargo.toml must appear in the
           # fuzz-weekly target list, and every matrix entry must
@@ -362,21 +362,21 @@ jobs:
           done <<< "$MATRIX"
           if [ -n "$MISSING_FROM_MATRIX" ]; then
             echo "::error::fuzz binaries declared in fuzz/Cargo.toml but missing from ci.yml fuzz-weekly matrix:$MISSING_FROM_MATRIX"
-            echo "Add the missing entries to .github/workflows/ci.yml fuzz-weekly.matrix.fuzz-target. Round-21 audit fix #2."
+            echo "Add the missing entries to .github/workflows/ci.yml fuzz-weekly.matrix.fuzz-target."
             exit 1
           fi
           if [ -n "$MISSING_BINS" ]; then
             echo "::error::fuzz-weekly matrix entries with no matching [[bin]] in fuzz/Cargo.toml:$MISSING_BINS"
-            echo "These targets will fail at runtime. Round-15 reversal."
+            echo "These targets will fail at runtime."
             exit 1
           fi
 
       - name: fips-policy-version — FIPS_SECURITY_POLICY.md Module Version must match workspace
         run: |
           set -e
-          # Round-21 audit fix #13: FIPS policy doc lagged the workspace
+          # FIPS policy doc lagged the workspace
           # version by two majors (0.6.0 vs 0.8.0). The same drift class
-          # as round-19 D1 (README claim vs implementation). The
+          # as (README claim vs implementation). The
           # security policy doc is shown to FIPS submission reviewers;
           # a stale version is a credibility failure.
           WORKSPACE_VER=$(awk '/^\[workspace\.package\]/{in_w=1; next} in_w && /^version[ ]*=/{ split($0, a, /"/); print a[2]; exit}' Cargo.toml)
@@ -387,7 +387,7 @@ jobs:
             echo "  Cargo.toml workspace.package.version: $WORKSPACE_VER"
             echo "  docs/FIPS_SECURITY_POLICY.md header:    $POLICY_VER"
             echo "  docs/FIPS_SECURITY_POLICY.md table row: $POLICY_TABLE_VER"
-            echo "Update both sites in docs/FIPS_SECURITY_POLICY.md to match the workspace version. Round-21 audit fix #13."
+            echo "Update both sites in docs/FIPS_SECURITY_POLICY.md to match the workspace version."
             exit 1
           fi
 
@@ -434,7 +434,7 @@ jobs:
       - name: M9 — establish path must call verify_challenge_age
         run: |
           set -e
-          # Round-19 M9: VerifiedSession::establish skipped verify_challenge_age.
+          # VerifiedSession::establish skipped verify_challenge_age.
           # Whenever generate_proof or verify_response is called from establish,
           # the immediately preceding lines must call verify_challenge_age.
           # Heuristic: search for `establish` blocks lacking the helper.
@@ -451,7 +451,7 @@ jobs:
       - name: D1 — README SHA-2 row must not claim aws-lc-rs
         run: |
           set -e
-          # Round-19 D1: README claimed SHA-2 routes through aws-lc-rs under
+          # README claimed SHA-2 routes through aws-lc-rs under
           # --features fips, but primitives/hash/sha2.rs uses the RustCrypto
           # `sha2` crate. The grep below catches future regressions.
           if rg -n '\| \*\*Hash\*\* \| SHA-2.*aws-lc-rs.*FIPS 140-3' README.md; then

@@ -884,7 +884,7 @@ fn test_rfc5869_hkdf_test_case_1_succeeds() {
 /// Test RFC 5869 HKDF test case 3 (salt absent — RFC §A.3 specifies
 /// "salt absent", which our API encodes as `None`, NOT `Some(&[])`).
 ///
-/// Round-30 L5 added an explicit rejection of `Some(&[])` empty salt
+/// added an explicit rejection of `Some(&[])` empty salt
 /// because it silently collapsed to the default zero-salt and erased
 /// caller intent. The previous version of this test passed
 /// `Some(&[])` and started failing once L5 landed; the fix is to

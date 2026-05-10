@@ -60,7 +60,7 @@ jobs:
             ~/.cargo/bin/kani-driver
             ~/.kani
           key: ${{ runner.os }}-kani-pr-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
-          # Round-20 audit fix #11: scope cache restore to the same
+          # scope cache restore to the same
           # branch/ref so a PR cache cannot contaminate main-branch
           # runs (the Kani binary is the verification authority — a
           # poisoned binary produces false SUCCESSFUL proofs). With
@@ -152,7 +152,7 @@ jobs:
             ~/.cargo/bin/kani-driver
             ~/.kani
           key: ${{ runner.os }}-kani-verified-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
-          # Round-20 audit fix #11: scope cache restore to the same
+          # scope cache restore to the same
           # branch/ref. See the kani-pr- block above for rationale.
           restore-keys: |
             ${{ runner.os }}-kani-verified-${{ github.ref_name }}-

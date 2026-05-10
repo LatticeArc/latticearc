@@ -345,7 +345,7 @@ fn test_encapsulated_key_shared_secret_length_has_correct_size() {
 }
 
 // ============================================================================
-// Public-API roundtrip — round-10 audit follow-up #12.
+// Public-API roundtrip — an earlier audit follow-up #12.
 //
 // kem_hybrid had a roundtrip test at `latticearc/src/hybrid/kem_hybrid.rs`
 // inside `#[cfg(test)] mod tests` — that exercises the *internal* call

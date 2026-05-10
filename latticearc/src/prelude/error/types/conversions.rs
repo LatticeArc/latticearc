@@ -18,7 +18,7 @@ impl From<std::io::Error> for LatticeArcError {
 
 impl From<getrandom::Error> for LatticeArcError {
     fn from(err: getrandom::Error) -> Self {
-        // M3: surface the upstream error in tracing logs
+        // surface the upstream error in tracing logs
         // so operators investigating entropy-failure incidents see
         // the underlying cause (e.g. `Error::UNSUPPORTED`,
         // `Error::UNEXPECTED`, or a custom code) instead of just
@@ -69,7 +69,7 @@ impl From<uuid::Error> for LatticeArcError {
 
 impl From<aws_lc_rs::error::KeyRejected> for LatticeArcError {
     fn from(err: aws_lc_rs::error::KeyRejected) -> Self {
-        // M4: route through `InvalidInput` with a stable
+        // route through `InvalidInput` with a stable
         // string format instead of the previous
         // `EncryptionError(format!("{:?}"))`. `KeyRejected` is a
         // key-parsing failure, not a runtime encryption failure;
@@ -93,7 +93,7 @@ impl From<std::alloc::LayoutError> for LatticeArcError {
     }
 }
 
-// M2: deleted the blanket `From<&str>` for
+// deleted the blanket `From<&str>` for
 // `LatticeArcError`. It fired automatically on `?` for any
 // `Result<_, &str>`, silently coercing string errors into
 // `InvalidInput` and erasing the original error type. No production
@@ -199,7 +199,7 @@ mod tests {
         }
     }
 
-    // M2: deleted `test_from_str_produces_invalid_input_variant_fails`
+    // deleted `test_from_str_produces_invalid_input_variant_fails`
     // alongside the `From<&str>` impl removal.
 
     #[test]
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_from_key_rejected_produces_invalid_input_variant() {
-        // M4: assertion updated to match the new mapping —
+        // assertion updated to match the new mapping —
         // `KeyRejected` now produces `InvalidInput` (it's a parse
         // failure, not a runtime encryption failure).
         use aws_lc_rs::signature;

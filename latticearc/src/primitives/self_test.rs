@@ -1393,11 +1393,27 @@ pub fn integrity_test() -> Result<()> {
         });
     }
 
-    // Read the module binary
-    let module_bytes =
-        std::fs::read(&module_path).map_err(|e| LatticeArcError::ValidationError {
-            message: format!("Integrity test: cannot read module binary: {}", e),
-        })?;
+    // Read the module binary with an explicit upper bound. The path is
+    // `current_exe()` (not adversary-controlled), but a runaway binary
+    // size or a /dev/* substitution could still OOM the process. 512 MB
+    // is well above any realistic statically-linked LatticeArc binary
+    // and well below the smallest deployment target's RAM ceiling.
+    const MAX_MODULE_SIZE: u64 = 512 * 1024 * 1024;
+    use std::io::Read;
+    let f = std::fs::File::open(&module_path).map_err(|e| LatticeArcError::ValidationError {
+        message: format!("Integrity test: cannot open module binary: {e}"),
+    })?;
+    let mut module_bytes = Vec::new();
+    f.take(MAX_MODULE_SIZE + 1).read_to_end(&mut module_bytes).map_err(|e| {
+        LatticeArcError::ValidationError {
+            message: format!("Integrity test: cannot read module binary: {e}"),
+        }
+    })?;
+    if module_bytes.len() as u64 > MAX_MODULE_SIZE {
+        return Err(LatticeArcError::ValidationError {
+            message: format!("Integrity test: module binary exceeds {MAX_MODULE_SIZE}-byte cap"),
+        });
+    }
 
     // Compute HMAC-SHA256 over the module binary via the primitives wrapper
     // (FIPS-validated aws-lc-rs backend).
@@ -1645,7 +1661,7 @@ pub fn get_module_error_state() -> ModuleErrorState {
 /// ```
 #[must_use]
 pub fn is_module_operational() -> bool {
-    // M1: use SeqCst loads to match the SeqCst stores in
+    // use SeqCst loads to match the SeqCst stores in
     // `set_module_error`. Acquire-only loads synchronize with each
     // location's own Release store but do NOT preserve a single
     // total order across MODULE_ERROR_CODE and SELF_TEST_PASSED;

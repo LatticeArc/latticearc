@@ -1,6 +1,6 @@
 name: Dependabot Auto-Merge
 
-# Round-35 M8: switched from `pull_request` (which executes in the
+# switched from `pull_request` (which executes in the
 # PR HEAD context with elevated tokens for same-repo PRs) to
 # `pull_request_target` (which executes in the BASE branch context).
 # This workflow only calls `gh pr merge` / `gh pr review` against

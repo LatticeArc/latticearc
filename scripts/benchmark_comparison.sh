@@ -8,7 +8,7 @@
 #
 # Usage: ./scripts/benchmark_comparison.sh
 
-# Round-35 L8: stricter shell hygiene. `-u` rejects unset variables
+# stricter shell hygiene. `-u` rejects unset variables
 # (catches typos that previously expanded to empty strings), `-o
 # pipefail` propagates failures through pipelines, and `LIBOQS_DIR`
 # is now an `mktemp` directory instead of a hardcoded `/tmp/liboqs`
@@ -62,7 +62,7 @@ echo ""
 
 echo "=== Running LatticeArc Benchmarks ==="
 cd "$(dirname "$0")/.."
-# Round-20 audit fix #18: package was `arc-primitives` historically;
+# package was `arc-primitives` historically;
 # renamed to `latticearc` during the workspace consolidation. The script
 # silently failed for every run between the rename and now.
 cargo run --package latticearc --example crypto_timing --release 2>/dev/null | tee "$RESULTS_DIR/latticearc.txt"

@@ -606,13 +606,11 @@ fn test_crypto_context_default_has_expected_values_succeeds() {
 
 #[test]
 fn test_crypto_context_with_use_case_has_expected_values_succeeds() {
-    let ctx = CryptoContext {
-        security_level: SecurityLevel::Maximum,
-        performance_preference: PerformancePreference::Speed,
-        use_case: Some(UseCase::VpnTunnel),
-        hardware_acceleration: true,
-        timestamp: chrono::Utc::now(),
-    };
+    let ctx = CryptoContext::new(
+        SecurityLevel::Maximum,
+        PerformancePreference::Speed,
+        Some(UseCase::VpnTunnel),
+    );
 
     assert_eq!(ctx.security_level, SecurityLevel::Maximum);
     assert_eq!(ctx.use_case, Some(UseCase::VpnTunnel));

@@ -7,7 +7,7 @@
 # canonical entry points see the `CLAUDE.md` files placed alongside each
 # module.
 #
-# Round-19 audit takeaway: prose patterns in `docs/DESIGN_PATTERNS.md` are
+# prose patterns in `docs/DESIGN_PATTERNS.md` are
 # unenforced — the compiler doesn't check them. Every entry here was added
 # in response to a specific audit finding that mechanical lints could have
 # caught at PR time.
@@ -42,7 +42,7 @@ disallowed-types = [
     # in most modules but is *not* deterministic across runs. We use it
     # widely; nothing to ban here today.
 
-    # `rand::thread_rng()` was the source of the round-9 unsoundness
+    # `rand::thread_rng()` was the source of the an earlier audit unsoundness
     # (RUSTSEC-2026-0097). Replaced workspace-wide with `OsRng` (via
     # `csprng::secure_rng()`); the type ban is noted but `rand` may not
     # expose `ThreadRng` as a stable path — keep this as a CI grep.

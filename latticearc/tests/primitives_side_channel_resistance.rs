@@ -190,7 +190,7 @@ fn test_aes_gcm_encrypt_timing_consistency_succeeds() {
 
     // CV threshold matches the project-wide convention documented
     // in CLAUDE.md ("CV threshold: 2000%, real leaks show >5x").
-    // Round-36 attempted to tighten this to 200% on the assumption
+    // an earlier audit attempted to tighten this to 200% on the assumption
     // that AES-NI would deliver tighter timing — but observed local
     // CV runs ~1100% on AES-GCM-encrypt-64B (mean ~1µs, where any
     // OS scheduling jitter dominates), so 200% would false-fail

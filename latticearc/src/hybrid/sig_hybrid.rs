@@ -473,7 +473,7 @@ pub fn generate_keypair_with_parameter_set(
     // into the HybridSigSecretKey so the wrapping Zeroizing is preserved.
     let ed25519_sk_zeroizing = ed25519_kp.secret_key_bytes();
 
-    // H4: route construction through the validating
+    // route construction through the validating
     // `HybridSigPublicKey::new` instead of building
     // the struct literal directly. Direct construction here
     // bypassed the length-check L4 added — the production keygen

@@ -155,7 +155,7 @@ fn run_ok(args: &[&str]) -> String {
 
 /// Run a CLI command, assert success, return stdout + stderr concatenated.
 ///
-/// Use this for tests that check status messages — round-7 audit fix #6
+/// Use this for tests that check status messages —
 /// moved keygen / encrypt / decrypt / sign "Written to: ..." style
 /// messages from stdout to stderr (UNIX convention: data on stdout,
 /// status on stderr). Tests that pre-date that move and assert on
@@ -288,7 +288,7 @@ fn test_ed25519_keygen_sign_verify_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
-    // Keygen — round-7 audit fix #6 moved status messages to stderr,
+    // Keygen — moved status messages to stderr,
     // so capture both streams when checking "Generated ... keypair".
     let out = run_ok_combined(&["keygen", "--algorithm", "ed25519", "--output", d]);
     assert!(out.contains("Generated Ed25519 signing keypair"));
@@ -1309,7 +1309,7 @@ fn test_kdf_deterministic_output_is_deterministic() {
         "1000",
         // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
         "--allow-weak-iterations",
-        // M4 (round-19): KAT bypass for argv-passed PBKDF2 password.
+        // KAT bypass for argv-passed PBKDF2 password.
         "--allow-argv-secret",
     ];
 
@@ -2809,7 +2809,7 @@ fn test_large_message_sign_verify_roundtrip() {
     run_ok(&["keygen", "--algorithm", "ed25519", "--output", d]);
 
     // 50 KiB of pseudo-random data — under the 64 KiB ML-DSA / SLH-DSA
-    // / FN-DSA / Ed25519 sign-side resource-limit cap (round-26 H4).
+    // / FN-DSA / Ed25519 sign-side resource-limit cap ().
     let large_data: Vec<u8> = (0..50u32 * 1024).map(|i| (i % 256) as u8).collect();
     let msg_path = dir.path().join("large.bin");
     std::fs::write(&msg_path, &large_data).unwrap();
@@ -4603,17 +4603,17 @@ fn test_cli_reads_cbor_encoded_symmetric_key() {
 }
 
 // ============================================================================
-// Round-20 audit behavioral regression tests.
+// an earlier audit behavioral regression tests.
 //
-// Each test asserts a user-visible property the corresponding round-20 fix
+// Each test asserts a user-visible property the corresponding an earlier audit fix
 // is supposed to provide. To be a genuine regression blocker, each test
-// must (a) PASS against round-20-fixed code, and (b) FAIL when the fix is
+// must (a) PASS against an earlier audit-fixed code, and (b) FAIL when the fix is
 // reverted. The second property is what makes these tests useful — coverage
 // that still passes after the fix is gone is theatre.
 // ============================================================================
 
 /// `KeyFile::read_from` must reject files larger
-/// than `MAX_KEYFILE_BYTES` (1 MiB). Pre-round-20, an oversized key file
+/// than `MAX_KEYFILE_BYTES` (1 MiB). Pre-an earlier audit, an oversized key file
 /// (e.g., a symlink to /dev/zero, a sparse file, or a malicious 2 GiB
 /// file at a path the user thought was a key) was read into memory in
 /// full, causing OOM.
@@ -4655,7 +4655,7 @@ fn round20_fix14_keyfile_size_cap_rejects_oversized_input() {
     // Either the CLI's own `MAX_KEYFILE_BYTES` (1 MiB) gate fires,
     // OR (without the fix) the library's downstream JSON-parser size
     // limit fires. Both reject the oversized input — but only the
-    // CLI gate is round-20 fix #14. We assert on the CLI's specific
+    // CLI gate is an earlier audit fix. We assert on the CLI's specific
     // error string so reverting the fix actually fails this test
     // (the library message is "exceeds limit", the CLI's is
     // "maximum supported size").
@@ -4671,7 +4671,7 @@ fn round20_fix14_keyfile_size_cap_rejects_oversized_input() {
 /// write the decrypted plaintext with mode 0o600 — owner read+write
 /// only, never world-readable.
 ///
-/// Note on the audit: round-20 #5 stated the file would inherit umask
+/// Note on the audit: an earlier audit #5 stated the file would inherit umask
 /// (typically 0o644). In practice `tempfile::NamedTempFile::new_in`
 /// already creates files with mode 0o600 and `persist()` preserves
 /// that, so the audit's stated risk doesn't materialize. Our fix
@@ -4697,7 +4697,7 @@ fn round20_fix5_decrypt_output_is_chmod_0o600() {
 
     // Plaintext + roundtrip.
     let pt_path = dir.path().join("plaintext.txt");
-    std::fs::write(&pt_path, b"round20 fix #5 plaintext").unwrap();
+    std::fs::write(&pt_path, b"sample plaintext").unwrap();
     let ct_path = dir.path().join("ciphertext.json");
     run_ok(&[
         "encrypt",
@@ -4711,7 +4711,7 @@ fn round20_fix5_decrypt_output_is_chmod_0o600() {
         key_path.to_str().unwrap(),
     ]);
 
-    // Decrypt → output file. THIS is the path the round-20 fix gates.
+    // Decrypt → output file. THIS is the path the an earlier audit fix gates.
     let dec_path = dir.path().join("decrypted.txt");
     run_ok(&[
         "decrypt",
@@ -4735,7 +4735,7 @@ fn round20_fix5_decrypt_output_is_chmod_0o600() {
 }
 
 // ============================================================================
-// S99: Pattern-6 reject-path indistinguishability (round-42 H1/L1/L2/M1/M3)
+// S99: Pattern-6 reject-path indistinguishability (/L1/L2/M1/M3)
 // ============================================================================
 //
 // Every reject path triggered by attacker-controllable signature-file content
@@ -4744,12 +4744,12 @@ fn round20_fix5_decrypt_output_is_chmod_0o600() {
 //   2. Exit code is exactly 1 (the "invalid signature" class), not ≥2 (the
 //      "operational error" class)
 //
-// Without these tests the audit table from round-41 reappears the next time a
+// Without these tests the audit table from an earlier audit reappears the next time a
 // new error path is added: the per-axis tests (legacy-only or per-algorithm)
 // would each pass while the cross-product reveals the leak.
 //
-// The leak strings tested below are the literal substrings that round-41
-// audit found in the round-41 binary's stderr — adding a new substring here
+// The leak strings tested below are the literal substrings that an earlier audit
+// audit found in the an earlier audit binary's stderr — adding a new substring here
 // when a new audit round finds another distinguisher is the intended way to
 // extend the contract.
 
@@ -4958,7 +4958,7 @@ fn signed_data_sign_fixture(
 #[test]
 fn test_pattern6_legacy_signature_bytes_tamper_collapses_invalid() {
     // Tamper the base64 `signature` field's bytes. This is the
-    // already-collapsed baseline ("Signature is INVALID.") that round-41
+    // already-collapsed baseline ("Signature is INVALID.") that an earlier audit
     // recorded as `(collapsed)`; the test pins it so a future regression
     // can't silently un-collapse it.
     let dir = temp_dir();
@@ -4987,7 +4987,7 @@ fn test_pattern6_legacy_signature_bytes_tamper_collapses_invalid() {
 #[test]
 fn test_pattern6_legacy_bad_base64_collapses_invalid() {
     // Replace the base64 signature with a string that fails base64
-    // decoding (invalid padding). Round-41 H1 found this leaked
+    // decoding (invalid padding). found this leaked
     // "Invalid padding" / "Invalid base64 in signature".
     let dir = temp_dir();
     let (msg, sig, pk) = legacy_sign_fixture(&dir, &ED25519_ALG);
@@ -5014,7 +5014,7 @@ fn test_pattern6_legacy_bad_base64_collapses_invalid() {
 
 #[test]
 fn test_pattern6_legacy_missing_signature_field_collapses_invalid() {
-    // Strip the entire `"signature"` field. Round-41 H1: reachable via
+    // Strip the entire `"signature"` field. reachable via
     // tampered JSON, leaked "Missing 'signature' field".
     let dir = temp_dir();
     let (msg, sig, pk) = legacy_sign_fixture(&dir, &ED25519_ALG);
@@ -5043,7 +5043,7 @@ fn test_pattern6_legacy_missing_signature_field_collapses_invalid() {
 #[test]
 fn test_pattern6_legacy_unknown_algorithm_collapses_invalid() {
     // Replace the algorithm field with an attacker-controlled string.
-    // Round-41 L2: leaked the algorithm string back into stderr
+    // leaked the algorithm string back into stderr
     // ("Unknown algorithm in signature file: '<attacker-string>'") with
     // length-amplification.
     let dir = temp_dir();
@@ -5105,7 +5105,7 @@ fn test_pattern6_legacy_missing_algorithm_field_collapses_invalid() {
 
 #[test]
 fn test_pattern6_legacy_crypto_reject_collapses_invalid() {
-    // Crypto-side reject (signature verifies false). Round-41 H1
+    // Crypto-side reject (signature verifies false).
     // recorded this as leaking "Verification failed" via
     // `.map_err(|_| anyhow!("Verification failed"))`.
     //
@@ -5165,7 +5165,7 @@ fn test_pattern6_signed_data_data_mismatch_collapses_invalid() {
 
 #[test]
 fn test_pattern6_hybrid_legacy_crypto_reject_collapses_invalid() {
-    // Hybrid path crypto reject. Round-41 M1: leaked structured
+    // Hybrid path crypto reject. leaked structured
     // upstream error via `anyhow!("Hybrid verification failed: {e}")`,
     // which on a half-pair rejection (ML-DSA OK, Ed25519 rejected, or
     // vice versa) revealed which half failed. Sign with one hybrid
@@ -5320,7 +5320,7 @@ fn test_pattern6_legacy_crypto_reject_per_algorithm_collapses_invalid() {
 fn test_pattern6_legacy_signature_tamper_per_algorithm_collapses_invalid() {
     // Cross-product: for each algorithm, tamper the signature bytes
     // and confirm collapse. This is the "tamper × algorithm" axis the
-    // round-41 H1 audit used to find that 5 reject messages remained
+    // audit used to find that 5 reject messages remained
     // distinguishable (one per algorithm path through verify_standard).
     for alg in LEGACY_ALGS {
         let dir = temp_dir();

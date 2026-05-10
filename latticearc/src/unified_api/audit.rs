@@ -817,7 +817,7 @@ impl FileAuditStorage {
                 }
                 #[cfg(not(unix))]
                 {
-                    // M9: on Windows, use `OpenOptions` with
+                    // on Windows, use `OpenOptions` with
                     // `share_mode(0)` (deny share) and explicit
                     // `create_new(true)` so the genesis file is
                     // exclusive to this process while the handle is

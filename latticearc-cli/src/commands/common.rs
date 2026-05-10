@@ -181,7 +181,7 @@ pub(crate) fn read_file_with_cap(
     let allow_symlinks = std::env::var("LATTICEARC_ALLOW_SYMLINK_INPUT")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
-    // M10: open with `O_NOFOLLOW` (when symlinks are
+    // open with `O_NOFOLLOW` (when symlinks are
     // disallowed) so the symlink check happens atomically at open
     // time. The previous form did `symlink_metadata`
     // followed by a separate `File::open` — a swap on /tmp between
