@@ -239,28 +239,29 @@
 <a href=#239 id=239 data-nosnippet>239</a>
 <a href=#240 id=240 data-nosnippet>240</a><span class="doccomment">/// Characteristics of data for scheme selection.
 <a href=#241 id=241 data-nosnippet>241</a></span><span class="attr">#[derive(Debug, Clone)]
-<a href=#242 id=242 data-nosnippet>242</a></span><span class="kw">pub struct </span>DataCharacteristics {
-<a href=#243 id=243 data-nosnippet>243</a>    <span class="doccomment">/// Size of the data in bytes.
-<a href=#244 id=244 data-nosnippet>244</a>    </span><span class="kw">pub </span>size: usize,
-<a href=#245 id=245 data-nosnippet>245</a>    <span class="doccomment">/// Estimated entropy (0.0 to 8.0 bits per byte).
-<a href=#246 id=246 data-nosnippet>246</a>    </span><span class="kw">pub </span>entropy: f64,
-<a href=#247 id=247 data-nosnippet>247</a>    <span class="doccomment">/// Detected pattern type.
-<a href=#248 id=248 data-nosnippet>248</a>    </span><span class="kw">pub </span>pattern_type: PatternType,
-<a href=#249 id=249 data-nosnippet>249</a>}
-<a href=#250 id=250 data-nosnippet>250</a>
-<a href=#251 id=251 data-nosnippet>251</a><span class="doccomment">/// Type of pattern detected in data.
-<a href=#252 id=252 data-nosnippet>252</a></span><span class="attr">#[non_exhaustive]
-<a href=#253 id=253 data-nosnippet>253</a>#[derive(Debug, Clone, PartialEq)]
-<a href=#254 id=254 data-nosnippet>254</a></span><span class="kw">pub enum </span>PatternType {
-<a href=#255 id=255 data-nosnippet>255</a>    <span class="doccomment">/// High-entropy random data.
-<a href=#256 id=256 data-nosnippet>256</a>    </span>Random,
-<a href=#257 id=257 data-nosnippet>257</a>    <span class="doccomment">/// Data with detectable structure.
-<a href=#258 id=258 data-nosnippet>258</a>    </span>Structured,
-<a href=#259 id=259 data-nosnippet>259</a>    <span class="doccomment">/// Data with repetitive patterns.
-<a href=#260 id=260 data-nosnippet>260</a>    </span>Repetitive,
-<a href=#261 id=261 data-nosnippet>261</a>    <span class="doccomment">/// Human-readable text.
-<a href=#262 id=262 data-nosnippet>262</a>    </span>Text,
-<a href=#263 id=263 data-nosnippet>263</a>    <span class="doccomment">/// Binary data without clear patterns.
-<a href=#264 id=264 data-nosnippet>264</a>    </span>Binary,
-<a href=#265 id=265 data-nosnippet>265</a>}
+<a href=#242 id=242 data-nosnippet>242</a>#[non_exhaustive]
+<a href=#243 id=243 data-nosnippet>243</a></span><span class="kw">pub struct </span>DataCharacteristics {
+<a href=#244 id=244 data-nosnippet>244</a>    <span class="doccomment">/// Size of the data in bytes.
+<a href=#245 id=245 data-nosnippet>245</a>    </span><span class="kw">pub </span>size: usize,
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="doccomment">/// Estimated entropy (0.0 to 8.0 bits per byte).
+<a href=#247 id=247 data-nosnippet>247</a>    </span><span class="kw">pub </span>entropy: f64,
+<a href=#248 id=248 data-nosnippet>248</a>    <span class="doccomment">/// Detected pattern type.
+<a href=#249 id=249 data-nosnippet>249</a>    </span><span class="kw">pub </span>pattern_type: PatternType,
+<a href=#250 id=250 data-nosnippet>250</a>}
+<a href=#251 id=251 data-nosnippet>251</a>
+<a href=#252 id=252 data-nosnippet>252</a><span class="doccomment">/// Type of pattern detected in data.
+<a href=#253 id=253 data-nosnippet>253</a></span><span class="attr">#[non_exhaustive]
+<a href=#254 id=254 data-nosnippet>254</a>#[derive(Debug, Clone, PartialEq)]
+<a href=#255 id=255 data-nosnippet>255</a></span><span class="kw">pub enum </span>PatternType {
+<a href=#256 id=256 data-nosnippet>256</a>    <span class="doccomment">/// High-entropy random data.
+<a href=#257 id=257 data-nosnippet>257</a>    </span>Random,
+<a href=#258 id=258 data-nosnippet>258</a>    <span class="doccomment">/// Data with detectable structure.
+<a href=#259 id=259 data-nosnippet>259</a>    </span>Structured,
+<a href=#260 id=260 data-nosnippet>260</a>    <span class="doccomment">/// Data with repetitive patterns.
+<a href=#261 id=261 data-nosnippet>261</a>    </span>Repetitive,
+<a href=#262 id=262 data-nosnippet>262</a>    <span class="doccomment">/// Human-readable text.
+<a href=#263 id=263 data-nosnippet>263</a>    </span>Text,
+<a href=#264 id=264 data-nosnippet>264</a>    <span class="doccomment">/// Binary data without clear patterns.
+<a href=#265 id=265 data-nosnippet>265</a>    </span>Binary,
+<a href=#266 id=266 data-nosnippet>266</a>}
 </code></pre></div></section></main></body></html>

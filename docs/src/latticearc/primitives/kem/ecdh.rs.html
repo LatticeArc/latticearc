@@ -724,7 +724,7 @@
 <a href=#724 id=724 data-nosnippet>724</a>    /// # Errors
 <a href=#725 id=725 data-nosnippet>725</a>    /// Returns an error if point validation fails.
 <a href=#726 id=726 data-nosnippet>726</a>    </span><span class="kw">pub fn </span>validate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), EcdhError&gt; {
-<a href=#727 id=727 data-nosnippet>727</a>        <span class="comment">// L18: reject the all-zero coordinate form as defense
+<a href=#727 id=727 data-nosnippet>727</a>        <span class="comment">// reject the all-zero coordinate form as defense
 <a href=#728 id=728 data-nosnippet>728</a>        // in depth. aws-lc-rs's `agree_ephemeral` would also reject it
 <a href=#729 id=729 data-nosnippet>729</a>        // during agreement, but failing here surfaces operator misuse
 <a href=#730 id=730 data-nosnippet>730</a>        // with a clearer, version-stable error.
