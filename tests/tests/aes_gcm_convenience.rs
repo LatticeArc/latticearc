@@ -796,7 +796,7 @@ fn test_aes_gcm_all_zero_key_rejected_at_construction() {
     match result.unwrap_err() {
         // `AesGcm256::new` returns `AeadError::WeakKey`, which the convenience
         // wrapper now maps to `CoreError::InvalidKey` with an actionable
-        // remediation hint (audit-batch fix #10).
+        // remediation hint.
         CoreError::InvalidKey(msg) => {
             assert!(
                 msg.contains("All-zero key rejected"),

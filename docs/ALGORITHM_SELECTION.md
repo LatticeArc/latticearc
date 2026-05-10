@@ -210,15 +210,15 @@ flowchart TB
 
 | Algorithm | Backend | Version | Status |
 |-----------|---------|---------|--------|
-| **ML-KEM** | aws-lc-rs | 1.16.0 | FIPS 140-3 validated (with `--features fips`) |
+| **ML-KEM** | aws-lc-rs | 1.16.3 | FIPS 140-3 validated (with `--features fips`) |
 | **ML-DSA** | fips204 | 0.4.6 | NIST-compliant, awaiting aws-lc-rs stabilization |
 | **SLH-DSA** | fips205 | 0.4.1 | NIST-compliant (not FIPS-validated) |
 | **FN-DSA** | fn-dsa | 0.3.0 | draft FIPS 206 compliant (not FIPS-validated) |
 | **Ed25519** | ed25519-dalek | 2.1.1 | Audited, constant-time |
-| **X25519** | aws-lc-rs | 1.16.0 | FIPS 140-3 validated (with `--features fips`) |
-| **AES-GCM** | aws-lc-rs | 1.16.0 | FIPS 140-3 validated (with `--features fips`) |
+| **X25519** | aws-lc-rs | 1.16.3 | FIPS 140-3 validated (with `--features fips`) |
+| **AES-GCM** | aws-lc-rs | 1.16.3 | FIPS 140-3 validated (with `--features fips`) |
 | **ChaCha20-Poly1305** | chacha20poly1305 | 0.10.1 | RustCrypto audited |
-| **HKDF** | aws-lc-rs (HMAC-based) | 1.16.0 | FIPS 140-3 validated (with `--features fips`) |
+| **HKDF** | aws-lc-rs (HMAC-based) | 1.16.3 | FIPS 140-3 validated (with `--features fips`) |
 
 > With `--features fips`, aws-lc-rs operations run through the FIPS 140-3 validated module. Without the flag, the same algorithms run through the default (non-FIPS) backend. See [Compliance Modes](#compliance-modes).
 

@@ -61,25 +61,36 @@ use crate::unified_api::error::{CoreError, Result};
 /// Each event captures a single auditable action with full context
 /// for compliance and forensic analysis.
 ///
-/// Caller-supplied free-form fields (`actor`, `resource`, `action`,
-/// `metadata`) and the chain-derived `integrity_hash` are private.
-/// External callers must construct via [`Self::new`] +
-/// [`Self::with_actor`] / [`Self::with_resource`] /
-/// [`Self::with_metadata`], which run sanitizers and enforce the
-/// `MAX_*_LEN` / `MAX_METADATA_ENTRIES` caps. Direct field assignment
-/// would otherwise re-open the cap-amplification surface those
-/// builders close. The remaining `pub` fields (`id`, `timestamp`,
-/// `event_type`, `outcome`) carry no attacker-amplifiable free-form
-/// bytes and are immutable-by-convention — they have no setters and
-/// need no sanitization for direct read access.
+/// All fields are private. External callers must construct via
+/// [`Self::new`] / [`AuditEventBuilder`] (caller-supplied fields are
+/// sanitized + capped at construction) and read via the typed
+/// accessors below. Privatization closes four post-construction
+/// mutation hazards that were previously exposed:
+///
+///   - `id: String` is free-form bytes (no length cap on direct
+///     mutation; a 10-MiB id propagates into the integrity-hash
+///     chain payload).
+///   - `timestamp` mutation enables backdating after the chain hash
+///     has bound the original value.
+///   - `event_type` and `outcome` flip event semantics
+///     (`Success ↔ Failure`) post-hash; `compute_integrity_hash`
+///     binds all four into the chain so post-hash mutation leaves the
+///     in-memory record disagreeing with the on-disk record that
+///     produced it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
-    /// Unique identifier for this event (UUID v4).
-    pub id: String,
-    /// Timestamp when the event occurred.
-    pub timestamp: DateTime<Utc>,
-    /// Category of the audit event.
-    pub event_type: AuditEventType,
+    // Unique identifier for this event (UUID v4).
+    // Private — set internally by `new`. Free-form `String`; mutation
+    // would amplify the chain-payload size unboundedly.
+    id: String,
+    // Timestamp when the event occurred.
+    // Private — set internally by `new` via `Utc::now()`. Mutation
+    // enables backdating after the chain hash has bound the value.
+    timestamp: DateTime<Utc>,
+    // Category of the audit event.
+    // Private — set internally by `new`. Mutation flips event
+    // semantics post-chain-hash.
+    event_type: AuditEventType,
     // Identity of the actor performing the action (optional).
     // Private — set via `with_actor`, which sanitizes & caps.
     actor: Option<String>,
@@ -89,8 +100,10 @@ pub struct AuditEvent {
     // Specific action performed.
     // Private — set via `new`, which routes through `sanitize_action_field`.
     action: String,
-    /// Outcome of the action.
-    pub outcome: AuditOutcome,
+    // Outcome of the action.
+    // Private — set internally. Mutation flips Success ↔ Failure
+    // post-chain-hash.
+    outcome: AuditOutcome,
     // Additional key-value metadata.
     // Private — entries added via `with_metadata`, which truncates and
     // enforces `MAX_METADATA_ENTRIES`.

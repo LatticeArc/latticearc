@@ -15,54 +15,6 @@ use crate::types::SecretVec;
 // storage now uses [`SecretVec`] (see `docs/SECRET_TYPE_INVARIANTS.md`).
 // `MemoryPool` below is the sole former consumer; it holds `SecretVec` values.
 
-/// Constant-time equality check for byte slices of **the caller-known
-/// equal length**.
-///
-/// # Contract
-///
-/// The caller is responsible for ensuring `a.len() == b.len()`. The
-/// function name encodes this — passing slices of different lengths
-/// returns `false` via a non-CT early branch on the length comparison,
-/// which is acceptable here because *this function does not promise CT
-/// over variable-length inputs*. A caller that compares e.g. a trimmed
-/// MAC or a variable-length signature against a known reference must
-/// not use this function — the length difference would leak through
-/// the early branch.
-///
-/// In debug builds the length mismatch trips a `debug_assert!` to
-/// surface misuse early; in release builds it returns `false` rather
-/// than panicking.
-///
-/// For the type-enforced equal-length case, prefer
-/// `subtle::ConstantTimeEq::ct_eq` directly on `&[u8; N]`.
-#[must_use]
-pub fn secure_compare_equal_length(a: &[u8], b: &[u8]) -> bool {
-    use subtle::ConstantTimeEq;
-
-    debug_assert_eq!(
-        a.len(),
-        b.len(),
-        "secure_compare_equal_length called with mismatched lengths {} vs {} — \
-         this function's CT contract requires equal-length inputs; if your \
-         use case has variable-length comparison, length itself is leaking",
-        a.len(),
-        b.len()
-    );
-
-    // Release-mode safety fallback: prior shape allocated max-length
-    // zeroized buffers on mismatch, an attacker-amplifiable foot-gun.
-    // Returning `false` here is the safe default that does not
-    // allocate; a caller that relies on this branch in production has
-    // already violated the contract above.
-    if a.len() != b.len() {
-        return false;
-    }
-
-    // Equal-length case: standard `ct_eq` over the borrowed slices is
-    // already constant-time and allocates nothing.
-    a.ct_eq(b).into()
-}
-
 /// Securely zeroize memory to prevent data recovery
 pub fn secure_zeroize(data: &mut [u8]) {
     use zeroize::Zeroize;
@@ -358,43 +310,6 @@ pub fn generate_secure_random_u32() -> Result<u32> {
 )]
 mod tests {
     use super::*;
-
-    // === secure_compare_equal_length tests ===
-    //
-    // The mismatched-length tests previously here exercised a
-    // defensive fallback that is now a `debug_assert!` misuse signal
-    // (the function's name encodes the equal-length contract).
-
-    #[test]
-    fn test_secure_compare_equal_is_secure_succeeds() {
-        let a = b"hello world";
-        let b = b"hello world";
-        assert!(secure_compare_equal_length(a, b));
-    }
-
-    #[test]
-    fn test_secure_compare_different_is_secure_succeeds() {
-        let a = b"hello world";
-        let b = b"hello xorld";
-        assert!(!secure_compare_equal_length(a, b));
-    }
-
-    #[test]
-    fn test_secure_compare_empty_is_secure_succeeds() {
-        let a = b"";
-        let b = b"";
-        assert!(secure_compare_equal_length(a, b));
-    }
-
-    #[test]
-    fn test_secure_compare_constant_time_is_secure_succeeds() {
-        let a = b"hello world";
-        let b = b"hello xorld";
-
-        for _ in 0..100 {
-            assert!(!secure_compare_equal_length(a, b));
-        }
-    }
 
     // === secure_zeroize tests ===
 

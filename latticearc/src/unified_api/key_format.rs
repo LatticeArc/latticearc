@@ -48,8 +48,8 @@
 //! hardware binding, etc. via extension traits — the base library preserves
 //! unknown metadata keys during roundtrips without modification:
 //!
-//! ```rust,ignore
-//! // Enterprise crate — typed accessors over the metadata map
+//! ```text
+//! // Enterprise crate — typed accessors over the metadata map (pseudocode)
 //! impl EnterpriseKeyExt for PortableKey {
 //!     fn dimensions(&self) -> Option<Vec<String>> { ... }
 //!     fn key_expiry(&self) -> Option<DateTime<Utc>> { ... }

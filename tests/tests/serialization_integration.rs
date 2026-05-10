@@ -490,7 +490,7 @@ fn test_signed_data_zero_timestamp_roundtrip_succeeds() {
 
 // ============================================================================
 // EncryptedOutput round-trip — `to_json` / `from_json` and `to_bytes` /
-// `from_bytes` ergonomic methods (audit-batch fix #11).
+// `from_bytes` ergonomic methods.
 //
 // The original free-function path (`serialize_encrypted_output` /
 // `deserialize_encrypted_output`) has its own roundtrip coverage in

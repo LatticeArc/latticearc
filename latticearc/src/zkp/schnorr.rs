@@ -306,9 +306,9 @@ impl SchnorrProver {
             let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
             let candidate: Option<Scalar> =
                 Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
-            // use ct_eq instead of `!=`. `Scalar::PartialEq`
-            // is not documented constant-time, and the challenge-side
-            // already uses ct_eq — this restores symmetry.
+            // Compare via `ct_eq`, not `!=`. `Scalar::PartialEq` is not
+            // documented constant-time, and the challenge-side already
+            // uses ct_eq — this keeps the comparison symmetric.
             if let Some(s) = candidate
                 && !bool::from(s.ct_eq(&Scalar::ZERO))
             {

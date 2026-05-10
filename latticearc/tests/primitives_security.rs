@@ -12,34 +12,8 @@
 use latticearc::primitives::security::{
     RngHandle, allocate_secure_buffer, generate_secure_random_bytes, generate_secure_random_u32,
     generate_secure_random_u64, get_global_secure_rng, initialize_global_secure_rng,
-    secure_compare_equal_length, secure_zeroize,
+    secure_zeroize,
 };
-
-// ============================================================================
-// secure_compare_equal_length tests
-//
-// Note: this function's contract requires equal-length inputs (the name
-// encodes it). Mismatched-length tests previously asserted a defensive
-// `false`-return behaviour; that path now trips a `debug_assert!` and
-// is contractually unreachable, so those tests are removed rather than
-// converted to `#[should_panic]` (the panic is a misuse signal, not a
-// behaviour to lock in).
-// ============================================================================
-
-#[test]
-fn test_secure_compare_equal_slices_succeeds() {
-    assert!(secure_compare_equal_length(b"hello", b"hello"));
-}
-
-#[test]
-fn test_secure_compare_different_content_succeeds() {
-    assert!(!secure_compare_equal_length(b"hello", b"world"));
-}
-
-#[test]
-fn test_secure_compare_empty_succeeds() {
-    assert!(secure_compare_equal_length(b"", b""));
-}
 
 // ============================================================================
 // secure_zeroize tests

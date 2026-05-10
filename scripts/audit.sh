@@ -1216,7 +1216,12 @@ print('\n'.join(hits))
     #   - any line containing `\bround-?\d+\b` not in an exempted file
     # Self-exempt: this audit script's own comment block lists the patterns
     # it catches; those literal examples must not trip the check itself.
-    LABEL_HITS=$(grep -rnE '^\s*(//|#)\s*(Round-[0-9]+\s+)?[HMLD][0-9]+[a-z]?:|^\s*(//|#)\s*fix #[0-9]+|\b[Rr]ound-?[0-9]+\b' \
+    # Pattern alternatives:
+    #   (a) line-start audit-finding label: `// L1:` / `// Round-49 H7:`
+    #   (b) line-start commit-style: `// fix #N`
+    #   (c) inline commit-style: `// SK first — see fix #4 explanation above`
+    #   (d) any line containing `\b[Rr]ound-?\d+\b`
+    LABEL_HITS=$(grep -rnE '^\s*(//|#)\s*(Round-[0-9]+\s+)?[HMLD][0-9]+[a-z]?:|^\s*(//|#)\s*fix #[0-9]+|\bfix #[0-9]+\b|\b[Rr]ound-?[0-9]+\b' \
         --include="*.rs" --include="*.sh" --include="*.yml" --include="*.toml" 2>/dev/null \
         | grep -v 'CHANGELOG\|self_test_conditional_kats\|TRACKING\|docs/audit/\|docs/DESIGN_PATTERNS\|scripts/audit.sh' || true)
     if [ -z "$LABEL_HITS" ]; then
@@ -1227,19 +1232,19 @@ print('\n'.join(hits))
         echo "$LABEL_HITS" | head -8
     fi
 
-    # 14.4 [AP-3] Legacy secure_compare() regression. The CT helper was
-    # renamed to secure_compare_equal_length() so the equal-length
-    # contract is enforced in the type signature (debug_assert + caller
-    # discipline). Anyone reintroducing the unequal-length-tolerant
-    # variant has reopened the misuse surface.
-    LEGACY_CMP=$(grep -rn 'fn secure_compare\b\|secure_compare(' \
+    # 14.4 [AP-3] Project-named CT helpers must not exist without
+    # production callers. `secure_compare_equal_length` was deleted in
+    # an earlier round when audit found it had only test callers — a
+    # debug_assert+release-fallback shape that was a future-misuse
+    # trap. Direct `subtle::ConstantTimeEq::ct_eq` is preferred. This
+    # check guards against accidental reintroduction.
+    LEGACY_CMP=$(grep -rn 'fn secure_compare\b\|secure_compare_equal_length\b\|secure_compare(' \
         --include="*.rs" $SRC/ 2>/dev/null \
-        | grep -v 'secure_compare_equal_length' \
         | grep -v '/tests/' || true)
     if [ -z "$LEGACY_CMP" ]; then
-        pass "14.4 [AP-3] No legacy secure_compare() (use secure_compare_equal_length)"
+        pass "14.4 [AP-3] No project-named CT helper wrappers (use subtle::ct_eq directly)"
     else
-        warn "14.4 [AP-3] Legacy secure_compare() — use secure_compare_equal_length():"
+        warn "14.4 [AP-3] Project-named CT helper wrapper — use subtle::ConstantTimeEq::ct_eq directly:"
         echo "$LEGACY_CMP" | head -5
     fi
 
@@ -1293,10 +1298,13 @@ print('\n'.join(hits))
     # 14.8 [AP-1] #[derive(Debug)] on secret-bearing types. Secrets must
     # have a manual Debug impl that redacts contents — the derived impl
     # leaks bytes through any println!/dbg!/log message that includes
-    # the type.
+    # the type. NOTE: BSD grep (macOS default) does not support PCRE
+    # lookaheads, so we use post-filter grep -v rather than `Nonce(?!Set)`
+    # negative-lookahead to exclude `NonceSet`.
     DEBUG_DERIVES=$(grep -rnE 'derive\([^)]*\bDebug\b[^)]*\)' \
         --include="*.rs" $SRC/ 2>/dev/null \
-        | grep -E 'SecretKey|PrivateKey|Passphrase|MasterKey|EncryptionKey|Nonce(?!Set)|SeedBytes' \
+        | grep -E 'SecretKey|PrivateKey|Passphrase|MasterKey|EncryptionKey|\bNonce\b|SeedBytes' \
+        | grep -v 'NonceSet\|NonceSequence\|NonceReuse' \
         | grep -v '/tests/' \
         | grep -v 'Public' || true)
     if [ -z "$DEBUG_DERIVES" ]; then
@@ -1320,6 +1328,96 @@ print('\n'.join(hits))
     else
         warn "14.9 [AP-2] #[derive(Clone)] on secret-bearing type(s) — use clone_for_transmission():"
         echo "$CLONE_DERIVES" | head -5
+    fi
+
+    # 14.11 [DOC] aws-lc-rs version drift — covered by Dim 7.14 (kept
+    # as a comment so future audit-doc readers see the cross-reference).
+
+    # 14.12 [DOC] Kani proof count claimed in docs vs `#[kani::proof]`
+    # markers in source. Only the MAX claimed count is compared — sub-
+    # tallies like "5 proofs in key_lifecycle.rs" are file-level counts,
+    # not claims about the workspace total. CHANGELOG.md is exempt
+    # (historical record). FIPS_SECURITY_POLICY.md version-history rows
+    # are exempt (historical row format `| ... | N Kani proofs |`).
+    ACTUAL_PROOFS=$(grep -rE '#\[kani::proof\]' --include="*.rs" "$REPO_ROOT" 2>/dev/null \
+        | grep -v '/target/' | wc -l | tr -d ' ')
+    if [ "$ACTUAL_PROOFS" -gt 0 ]; then
+        MAX_DOC_CLAIM=$(grep -hE '\b[0-9]+ (Kani )?proofs\b' \
+            "$REPO_ROOT/README.md" "$REPO_ROOT/SECURITY.md" \
+            "$REPO_ROOT"/docs/*.md 2>/dev/null \
+            | grep -vE '\| [0-9]+ \| [0-9]{4}-' \
+            | grep -oE '\b[0-9]+ (Kani )?proofs\b' \
+            | grep -oE '^[0-9]+' | sort -rn | head -1)
+        if [ "$MAX_DOC_CLAIM" = "$ACTUAL_PROOFS" ]; then
+            pass "14.12 [DOC] Max Kani proof claim ($MAX_DOC_CLAIM) matches #[kani::proof] count ($ACTUAL_PROOFS)"
+        elif [ -z "$MAX_DOC_CLAIM" ]; then
+            warn "14.12 [DOC] No proof-count claim found in docs (actual: $ACTUAL_PROOFS)"
+        else
+            warn "14.12 [DOC] Max doc claim $MAX_DOC_CLAIM ≠ actual $ACTUAL_PROOFS proofs"
+        fi
+    fi
+
+    # 14.13 [DOC] FIPS_SECURITY_POLICY.md "Last Reviewed" freshness.
+    # The policy is a normative reference for the FIPS boundary; date
+    # freshness signals the doc has been re-verified recently. Threshold:
+    # 30 days (matches the doc-version-drift sibling check Dim 12.19).
+    POLICY="$REPO_ROOT/docs/FIPS_SECURITY_POLICY.md"
+    if [ -f "$POLICY" ]; then
+        LAST_REVIEW=$(grep -m1 -E '^\*\*Last Reviewed\*\*:' "$POLICY" \
+            | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || true)
+        if [ -z "$LAST_REVIEW" ]; then
+            warn "14.13 [DOC] FIPS_SECURITY_POLICY.md missing **Last Reviewed**: line"
+        else
+            # Cross-platform 30-day check via Python (date -v / date -d differ)
+            STALE=$(python3 -c "
+from datetime import date, timedelta, datetime
+last = datetime.strptime('$LAST_REVIEW', '%Y-%m-%d').date()
+print('stale' if (date.today() - last).days > 30 else 'fresh')
+" 2>/dev/null || echo "unknown")
+            if [ "$STALE" = "fresh" ]; then
+                pass "14.13 [DOC] FIPS_SECURITY_POLICY.md last reviewed $LAST_REVIEW"
+            else
+                warn "14.13 [DOC] FIPS_SECURITY_POLICY.md last reviewed $LAST_REVIEW (stale or unparsable)"
+            fi
+        fi
+    fi
+
+    # 14.14 [P-6] debug_assert + release-mode silent-fallback shape on
+    # public functions. Patterns like `debug_assert_eq!(a.len, b.len);
+    # if a.len != b.len { return false; }` strip the misuse signal in
+    # release. Either enforce the contract at the type level (const
+    # generics, &[u8; N]) or delete the wrapper if it has no callers.
+    # Python implementation because BSD grep handles multi-line and
+    # brace contexts inconsistently.
+    DEBUG_ASSERT_FALLBACK=$(python3 -c "
+import os, re
+hits = []
+for root, _, files in os.walk('$SRC'):
+    if '/target/' in root or '/tests/' in root:
+        continue
+    for f in files:
+        if not f.endswith('.rs'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            text = open(path).read()
+        except Exception:
+            continue
+        # Find debug_assert! / debug_assert_eq! followed within ~10
+        # lines by an early-return on the same condition pattern
+        for m in re.finditer(r'debug_assert(_eq)?!', text):
+            line_no = text[:m.start()].count('\n') + 1
+            window = '\n'.join(text.split('\n')[line_no-1:line_no+12])
+            if re.search(r'if [^{]+!= [^{]+\{[^}]*return\s+(false|None|Err)', window):
+                hits.append(f'{path}:{line_no}')
+print('\n'.join(hits))
+" 2>/dev/null || true)
+    if [ -z "$DEBUG_ASSERT_FALLBACK" ]; then
+        pass "14.14 [P-6] No debug_assert + release-fallback shape in production"
+    else
+        DCOUNT=$(echo "$DEBUG_ASSERT_FALLBACK" | wc -l | tr -d ' ')
+        warn "14.14 [P-6] $DCOUNT debug_assert + release-fallback site(s) — enforce at type level or delete:"
+        echo "$DEBUG_ASSERT_FALLBACK" | head -5
     fi
 
     # 14.10 [META] Pattern parity meta-check. Every check above maps to

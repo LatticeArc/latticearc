@@ -88,7 +88,7 @@ graph TB
 ```
 
 **Key architectural properties (v0.2.0):**
-- **`latticearc::types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (29 proofs)
+- **`latticearc::types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (30 proofs)
 - All modules consolidated into single `latticearc` crate (was 8 separate crates)
 - **`latticearc-tests`** consolidates all integration tests, CAVP validation, and NIST KAT vectors
 
@@ -460,7 +460,7 @@ flowchart LR
     subgraph "Correctness"
         UNIT[Unit + Integration]
         PROP[Proptest\n40+ properties]
-        KANI[Kani\n29 proofs]
+        KANI[Kani\n30 proofs]
     end
 
     subgraph "Robustness"

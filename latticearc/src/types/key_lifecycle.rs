@@ -155,18 +155,67 @@ impl KeyStateMachine {
 }
 
 /// SP 800-57 Custodianship (Section 5)
+///
+/// Fields are private so a future `is_currently_authorized()` predicate
+/// reading `approved_until` cannot be silently bypassed by external
+/// post-construction mutation. Callers construct via [`Self::new`] and
+/// read via the typed accessors below.
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyCustodian {
-    /// Unique identifier for the custodian
-    pub custodian_id: String,
-    /// Human-readable name
-    pub name: String,
-    /// Role in key management
-    pub role: CustodianRole,
-    /// List of responsibilities
-    pub responsibilities: Vec<String>,
-    /// Approval expiration date
-    pub approved_until: chrono::DateTime<chrono::Utc>,
+    custodian_id: String,
+    name: String,
+    role: CustodianRole,
+    responsibilities: Vec<String>,
+    approved_until: chrono::DateTime<chrono::Utc>,
+}
+
+impl KeyCustodian {
+    /// Construct a new custodian record. `approved_until` is auth-relevant —
+    /// future predicates (e.g., `is_currently_authorized()`) must read it
+    /// rather than allowing external mutation.
+    #[must_use]
+    pub fn new(
+        custodian_id: String,
+        name: String,
+        role: CustodianRole,
+        responsibilities: Vec<String>,
+        approved_until: chrono::DateTime<chrono::Utc>,
+    ) -> Self {
+        Self { custodian_id, name, role, responsibilities, approved_until }
+    }
+
+    /// Unique identifier for the custodian.
+    #[must_use]
+    pub fn custodian_id(&self) -> &str {
+        &self.custodian_id
+    }
+
+    /// Human-readable name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Role in key management.
+    #[must_use]
+    pub fn role(&self) -> CustodianRole {
+        self.role
+    }
+
+    /// List of responsibilities.
+    #[must_use]
+    pub fn responsibilities(&self) -> &[String] {
+        &self.responsibilities
+    }
+
+    /// Approval expiration date — auth-relevant. A predicate that
+    /// validates "currently authorized" must read this through the
+    /// accessor (mutation is closed by the privatized field).
+    #[must_use]
+    pub fn approved_until(&self) -> chrono::DateTime<chrono::Utc> {
+        self.approved_until
+    }
 }
 
 /// Roles for key custodians
@@ -494,21 +543,74 @@ fn validate_rotation_interval(rotation_interval_days: u32) -> Result<()> {
     Ok(())
 }
 
-/// Record of a state transition
+/// Record of a state transition.
+///
+/// Fields are private — once a transition is recorded into
+/// `KeyLifecycleRecord::state_history`, mutation of any field would
+/// invalidate the audit trail. Construction goes through
+/// [`Self::new`]; external code reads via typed accessors.
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateTransition {
-    /// Previous state (None if initial)
-    pub from_state: Option<KeyLifecycleState>,
-    /// New state
-    pub to_state: KeyLifecycleState,
-    /// When the transition occurred
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-    /// ID of the custodian who performed the transition
-    pub custodian_id: String,
-    /// Reason for the transition
-    pub justification: String,
-    /// Approval reference (if applicable)
-    pub approval_id: Option<String>,
+    from_state: Option<KeyLifecycleState>,
+    to_state: KeyLifecycleState,
+    timestamp: chrono::DateTime<chrono::Utc>,
+    custodian_id: String,
+    justification: String,
+    approval_id: Option<String>,
+}
+
+impl StateTransition {
+    /// Construct a new state-transition record. Internal callers (the
+    /// `transition_to` driver) capture `now` once and pass it in so the
+    /// transition timestamp matches sibling per-state timestamps.
+    #[must_use]
+    pub fn new(
+        from_state: Option<KeyLifecycleState>,
+        to_state: KeyLifecycleState,
+        timestamp: chrono::DateTime<chrono::Utc>,
+        custodian_id: String,
+        justification: String,
+        approval_id: Option<String>,
+    ) -> Self {
+        Self { from_state, to_state, timestamp, custodian_id, justification, approval_id }
+    }
+
+    /// Previous state (None if initial).
+    #[must_use]
+    pub fn from_state(&self) -> Option<KeyLifecycleState> {
+        self.from_state
+    }
+
+    /// New state.
+    #[must_use]
+    pub fn to_state(&self) -> KeyLifecycleState {
+        self.to_state
+    }
+
+    /// When the transition occurred.
+    #[must_use]
+    pub fn timestamp(&self) -> chrono::DateTime<chrono::Utc> {
+        self.timestamp
+    }
+
+    /// ID of the custodian who performed the transition.
+    #[must_use]
+    pub fn custodian_id(&self) -> &str {
+        &self.custodian_id
+    }
+
+    /// Reason for the transition.
+    #[must_use]
+    pub fn justification(&self) -> &str {
+        &self.justification
+    }
+
+    /// Approval reference, if applicable.
+    #[must_use]
+    pub fn approval_id(&self) -> Option<&str> {
+        self.approval_id.as_deref()
+    }
 }
 
 impl KeyLifecycleRecord {
@@ -599,14 +701,14 @@ impl KeyLifecycleRecord {
         // `state_history[i].timestamp` against `activated_at` (etc.)
         // would otherwise see sub-tick skew on every transition.
         let now = chrono::Utc::now();
-        let transition = StateTransition {
-            from_state: Some(self.current_state),
+        let transition = StateTransition::new(
+            Some(self.current_state),
             to_state,
-            timestamp: now,
-            custodian_id: custodian_id.clone(),
+            now,
+            custodian_id.clone(),
             justification,
             approval_id,
-        };
+        );
 
         if self.state_history.len() >= MAX_STATE_HISTORY {
             return Err(TypeError::InvalidAuditInput(format!(

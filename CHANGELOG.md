@@ -9,6 +9,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### External audit follow-up — type-design hardening + doc-drift catchers (2026-05-10)
+
+External audit returned 10 findings (2 HIGH, 5 MED, 3 LOW, 2 DOC).
+8 fixed; M3 rejected (wire-protocol label, not stale); D1 subsumed by H1.
+
+#### HIGH
+
+- **H1 — `AuditEvent` 4 remaining `pub` fields privatized.** `id`,
+  `timestamp`, `event_type`, `outcome` were left public after an earlier
+  round, defended in the doc as "no attacker-amplifiable bytes." That
+  was wrong for `id: String` (free-form, no length cap on direct
+  mutation), and `timestamp` / `event_type` / `outcome` mutation flips
+  event semantics post-chain-hash so the in-memory record disagrees
+  with the on-disk record `compute_integrity_hash` produced. All 9
+  fields now private; the existing 9 getters cover external read.
+  Doc paragraph rewritten to name the actual hazards.
+- **H2 — `KeyCustodian` and `StateTransition` privatized.** Both had
+  all-`pub` fields, no `#[non_exhaustive]`, and `KeyCustodian.approved_until`
+  is auth-relevant: any future `is_currently_authorized()` predicate
+  would read it, and external mutation would silently bypass the
+  predicate. KeyCustodian had zero field-literal callers in the
+  workspace; StateTransition had 1 (its own module's `transition_to`)
+  which now uses `StateTransition::new`. Added `#[non_exhaustive]` +
+  builders (`KeyCustodian::new`, `StateTransition::new`) + 11 typed
+  accessors.
+
+#### MED
+
+- **M1 — `secure_compare_equal_length` deleted.** Per CLAUDE.md
+  "no speculative code": the function had only test callers (5
+  in-file + 7 across two integration tests). Its `debug_assert!` +
+  release-mode `if a.len != b.len { return false }` shape was a
+  future-misuse trap that compiled the misuse signal out in release
+  builds. Deleted the function and the 12 tests that exercised it;
+  callers wanting CT use `subtle::ConstantTimeEq::ct_eq` directly.
+- **M2 — Doc claim drift fixes.** aws-lc-rs `1.16.0` → `1.16.3` in
+  3 doc sites (`ALGORITHM_SELECTION.md` 4 cells in the version
+  table, `FIPS_SECURITY_POLICY.md` 1 mention, `DEPENDENCY_JUSTIFICATION.md`
+  diagram + section header). DESIGN.md Kani proof count `29` → `30`
+  in 2 places to match the workspace's actual `#[kani::proof]` count.
+- **M3 — REJECTED.** Audit flagged `arc-zkp/*` reference in
+  `DESIGN_PATTERNS.md:707` as a stale crate name. Verified: those
+  are wire-protocol labels hashed into Fiat-Shamir challenges
+  (`commitment.rs:151`, `sigma.rs:743`, `schnorr.rs:80`). Renaming
+  would be a wire-format break; the doc correctly describes what the
+  code does.
+- **M4 — Inline `fix #N` references in keygen.rs rewritten.** 9 sites
+  used `// SK first — see fix #1/#4 explanation above` style
+  cross-references that survived the prior strip because the audit
+  script's regex required `fix #N` immediately after the comment
+  marker. Comments rewritten to `// SK first — see SK-first-ordering
+  rationale above` (no audit-finding numbers); audit script regex
+  now matches `\bfix #[0-9]+\b` anywhere on the line.
+- **M5 — `audit.sh` Dim 14.8 BSD-grep compat.** The pattern
+  `Nonce(?!Set)` used PCRE negative-lookahead, which BSD grep (macOS
+  default) doesn't support. The script printed `grep:
+  repetition-operator operand invalid` and the affected check passed
+  silently. Replaced with a post-filter `grep -v 'NonceSet'` chain
+  so the check actually runs on macOS.
+
+#### LOW
+
+- **L1 — TRACKED.** 37 public structs still missing `#[non_exhaustive]`
+  (down from 40 after H1+H2). The auth-relevant ones are now closed;
+  the remainder are non-trivial refactor for a future round.
+- **L2 — `FIPS_SECURITY_POLICY.md` `**Last Reviewed**:` line added.**
+  Date freshness signal for the FIPS-boundary normative reference.
+- **L3 — `schnorr.rs:309` sentence-fragment fix.** Earlier strip pass
+  removed the `L1:` prefix but left the comment starting mid-sentence
+  ("use ct_eq instead of `!=`. `Scalar::PartialEq`..."). Rewritten
+  with restored subject ("Compare via `ct_eq`, not `!=`...").
+
+#### DOC
+
+- **D1 — Subsumed by H1** (rewrote the AuditEvent paragraph that
+  defended the now-privatized `pub` fields).
+- **D2 — Doctest format upgrade.** `logging.rs:21`
+  `rust,ignore` → `rust,no_run` (real code, just gated behind
+  `tracing-init` feature; verified compiles under doctest harness).
+  `key_format.rs:51` `rust,ignore` → `text` (the example uses
+  `{ ... }` pseudocode placeholders that won't typecheck under
+  `no_run`; `text` correctly signals it's illustrative).
+
+#### `scripts/audit.sh` — 4 new pattern checks
+
+Each cites the relevant Pattern (P-N) or Anti-Pattern (AP-N) per the
+Dim 14 cross-reference convention:
+
+- **14.4 reframed** [AP-3] — was "no legacy `secure_compare()` helper",
+  now "no project-named CT-helper wrappers" (use `subtle::ct_eq`
+  directly). Rationale: M1's deletion showed the wrapper class is the
+  pattern, not just one specific name.
+- **14.12** [DOC] — Kani proof count: max claimed in docs vs actual
+  `#[kani::proof]` markers. Sub-tallies (per-file proof counts) and
+  CHANGELOG / version-history rows are exempt.
+- **14.13** [DOC] — `FIPS_SECURITY_POLICY.md` `**Last Reviewed**:`
+  line freshness (30-day threshold). Cross-platform via Python
+  date arithmetic (BSD `date -v` vs GNU `date -d` differ).
+- **14.14** [P-6] — `debug_assert + release-fallback` shape detection.
+  Patterns where `debug_assert_eq!` is followed within ~10 lines by
+  an `if cond != cond { return false/None/Err }` early branch. The
+  `debug_assert` compiles out in release; the early branch silently
+  returns the wrong-shaped result. Either enforce at the type level
+  (const generics, `&[u8; N]`) or delete if no callers.
+
+aws-lc-rs version drift left to existing Dim 7.14 (already covers
+README + SECURITY.md + docs); 14.11 slot kept as a comment cross-ref.
+
 ### Self-audit sweep — round-NN label strip + audit.sh Dim 14 + macOS perf-flake fix (2026-05-09)
 
 User feedback after round-49 ("why do we still have so many issues after so

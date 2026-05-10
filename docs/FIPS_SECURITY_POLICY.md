@@ -4,6 +4,7 @@
 **Module Version**: 0.8.0
 **Module Type**: Software (FIPS 140-3 Level 1)
 **Date**: 2026-04-09
+**Last Reviewed**: 2026-05-10
 **Status**: Pre-submission draft — not yet CMVP validated
 
 > **IMPORTANT**: LatticeArc is NOT FIPS 140-3 certified. Only the aws-lc-rs
@@ -235,7 +236,7 @@ On any self-test failure:
 
 - No persistent key storage in the module
 - Keys exist only in volatile memory during process lifetime
-- ML-KEM `DecapsulationKey` serialization supported via aws-lc-rs v1.16.0+ for migration scenarios
+- ML-KEM `DecapsulationKey` serialization supported via aws-lc-rs v1.16.3+ for migration scenarios
 - Applications should implement key persistence using HSM/KMS for production deployments
 
 ---

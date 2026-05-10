@@ -270,7 +270,7 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
         // PQ-only or classical signing scheme — concatenated bytes are the
         // entire key and should be written as a Single KeyData.
         let alg = parse_scheme_to_algorithm(&scheme)?;
-        // SK first — see fix #1/#4 explanation above.
+        // SK first — see SK-first-ordering rationale above.
         keyfile::write_key_protected(
             &sk_path,
             alg,
@@ -310,7 +310,7 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
 
     let enc_pk_path = args.output.join("encryption.pub.json");
     let enc_sk_path = args.output.join("encryption.sec.json");
-    // SK first — see fix #4 explanation in the signing-keypair branch.
+    // SK first — same SK-first-ordering rationale as the signing-keypair branch.
     portable_sk
         .write_to_file_with_overwrite(&enc_sk_path, args.force)
         .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_sk_path.display()))?;
@@ -382,7 +382,7 @@ fn generate_ml_kem(
     let pk_path = args.output.join(format!("{alg_name}.pub.json"));
     let sk_path = args.output.join(format!("{alg_name}.sec.json"));
 
-    // SK first — see fix #1/#4 explanation above.
+    // SK first — see SK-first-ordering rationale above.
     //
     // The PQ-only decryption path requires the recipient's ML-KEM
     // public key at HKDF-info construction time (HPKE / RFC 9180 §5.1
@@ -438,7 +438,7 @@ fn generate_ml_dsa(
     let pk_path = args.output.join(format!("{alg_name}.pub.json"));
     let sk_path = args.output.join(format!("{alg_name}.sec.json"));
 
-    // SK first — see fix #1/#4 explanation above.
+    // SK first — see SK-first-ordering rationale above.
     keyfile::write_key_protected(
         &sk_path,
         alg,
@@ -470,7 +470,7 @@ fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("slh-dsa-shake-128s.pub.json");
     let sk_path = args.output.join("slh-dsa-shake-128s.sec.json");
 
-    // SK first — see fix #1/#4 explanation above.
+    // SK first — see SK-first-ordering rationale above.
     keyfile::write_key_protected(
         &sk_path,
         KeyAlgorithm::SlhDsaShake128s,
@@ -501,7 +501,7 @@ fn generate_fn_dsa(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("fn-dsa-512.pub.json");
     let sk_path = args.output.join("fn-dsa-512.sec.json");
 
-    // SK first — see fix #1/#4 explanation above.
+    // SK first — see SK-first-ordering rationale above.
     keyfile::write_key_protected(
         &sk_path,
         KeyAlgorithm::FnDsa512,
@@ -532,7 +532,7 @@ fn generate_ed25519(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("ed25519.pub.json");
     let sk_path = args.output.join("ed25519.sec.json");
 
-    // SK first — see fix #1/#4 explanation above.
+    // SK first — see SK-first-ordering rationale above.
     keyfile::write_key_protected(
         &sk_path,
         KeyAlgorithm::Ed25519,
@@ -577,7 +577,7 @@ fn generate_hybrid_kem(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("hybrid-kem.pub.json");
     let sk_path = args.output.join("hybrid-kem.sec.json");
 
-    // SK first — see fix #4 explanation in `generate_signing` above.
+    // SK first — same SK-first-ordering rationale as `generate_signing`.
     portable_sk
         .write_to_file_with_overwrite(&sk_path, args.force)
         .map_err(|e| anyhow::anyhow!("Write SK: {e}"))?;
@@ -599,7 +599,7 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("hybrid-sign.pub.json");
     let sk_path = args.output.join("hybrid-sign.sec.json");
 
-    // SK first — (extending fix #4 to the
+    // SK first — applying SK-first-ordering to the
     // 4th keygen site that was missed). SK-write failure no longer
     // orphans a PK on disk that retry would refuse-to-overwrite.
     keyfile::write_composite_key_protected(

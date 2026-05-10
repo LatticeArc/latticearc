@@ -16,7 +16,7 @@ flowchart TB
     end
 
     subgraph "FIPS-Validated"
-        AWSLC["aws-lc-rs 1.16.0\nML-KEM · AES-GCM · HKDF · X25519"]
+        AWSLC["aws-lc-rs 1.16.3\nML-KEM · AES-GCM · HKDF · X25519"]
     end
 
     subgraph "NIST PQ Signatures"
@@ -61,7 +61,7 @@ flowchart TB
 
 ### Post-Quantum Cryptography (NIST Standards)
 
-#### 1. aws-lc-rs (v1.16.0)
+#### 1. aws-lc-rs (v1.16.3)
 - **Purpose**: Core crypto backend — ML-KEM (FIPS 203), AES-GCM, HKDF, X25519
 - **Justification**:
   - AWS's cryptographic library with FIPS 140-3 validation (with `--features fips`)
