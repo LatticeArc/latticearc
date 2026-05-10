@@ -182,13 +182,24 @@ TEST_LOG="${LATTICEARC_HOOK_TMPDIR:-/tmp}/pre-commit-test-output.log"
 # feature combinations covers the cfg(not(fips)) gap while keeping
 # the cost bounded (skip-aware: same compilation cache; only the
 # differing test binaries actually rerun).
-cargo test --workspace --all-features --release > "$TEST_LOG" 2>&1
-CARGO_TEST_EXIT=$?
+# `set -e` is on at the top of this hook, which would abort the
+# script the instant `cargo test` returns non-zero — BEFORE we capture
+# `$?` and BEFORE the failure-printing branch below runs. The result
+# was a hook log that ends at "Running tests (release mode)..." with
+# no clue what failed (the error message is in $TEST_LOG, but we
+# never get a chance to echo it). Use the `&& A || B=$?` idiom: the
+# successful path sets `CARGO_TEST_EXIT=0`; the failure path captures
+# cargo's real exit code into the variable WITHOUT triggering errexit
+# (because the `||` arm itself completes successfully).
+cargo test --workspace --all-features --release > "$TEST_LOG" 2>&1 \
+    && CARGO_TEST_EXIT=0 \
+    || CARGO_TEST_EXIT=$?
 if [ "$CARGO_TEST_EXIT" -eq 0 ]; then
     cargo test --workspace --no-default-features \
         --features fips-self-test,kat-test-vectors --release \
-        >> "$TEST_LOG" 2>&1
-    CARGO_TEST_EXIT=$?
+        >> "$TEST_LOG" 2>&1 \
+        && CARGO_TEST_EXIT=0 \
+        || CARGO_TEST_EXIT=$?
 fi
 TEST_OUTPUT=$(cat "$TEST_LOG")
 TEST_FAILED=$(echo "$TEST_OUTPUT" | grep -c "test result: FAILED" || true)

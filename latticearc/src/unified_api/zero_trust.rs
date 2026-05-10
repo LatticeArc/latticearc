@@ -1661,7 +1661,19 @@ impl ZeroTrustSession {
             return Err(CoreError::AuthenticationFailed(VERIFY_RESPONSE_FAILED.to_string()));
         }
 
-        let verified = self.auth.verify_proof(proof, challenge.data())?;
+        // Snapshot challenge data, then immediately consume the
+        // challenge regardless of verification outcome. Without this,
+        // a captured (challenge, proof) pair on the wire is bit-for-bit
+        // replayable against the SAME ZeroTrustSession instance within
+        // the `challenge_timeout_ms` window (Ed25519 is deterministic
+        // per RFC 8032; the proof bytes don't change). Mirrors the
+        // posture of `verify_pop` (which uses `pop_replay_cache` for
+        // the same attack class). Off-machine replay defense still
+        // requires transport-binding (TLS); see SECURITY.md.
+        let challenge_data = challenge.data().to_vec();
+        self.challenge = None;
+
+        let verified = self.auth.verify_proof(proof, &challenge_data)?;
         self.verified = verified;
 
         if !verified {
@@ -2200,6 +2212,35 @@ mod tests {
         let result = session.verify_response(&fake_proof);
         assert!(result.is_err());
         Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_session_verify_response_consumes_challenge_replay_blocked() -> Result<()> {
+        // Regression test: verify_response must consume the challenge so a
+        // captured (challenge, proof) pair on the wire cannot be replayed
+        // against the same session within the challenge_timeout_ms window.
+        // Ed25519 is deterministic per RFC 8032, so the proof bytes are
+        // bit-for-bit reusable; the defense is server-side challenge
+        // single-use.
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+        let mut session = ZeroTrustSession::new(auth);
+
+        let challenge = session.initiate_authentication()?;
+        let proof = session.generate_proof(&challenge)?;
+
+        // First verify succeeds.
+        assert!(session.verify_response(&proof)?, "first verify_response must accept");
+
+        // Second verify with the SAME proof must reject — the challenge
+        // is now consumed (set to None inside verify_response). The
+        // exact error variant is opaque (Pattern-6), but we assert the
+        // err shape is `AuthenticationFailed` to lock the contract.
+        let replay = session.verify_response(&proof);
+        match replay {
+            Err(CoreError::AuthenticationFailed(_)) => Ok(()),
+            other => panic!("replay must reject with AuthenticationFailed, got {other:?}"),
+        }
     }
 
     #[test]

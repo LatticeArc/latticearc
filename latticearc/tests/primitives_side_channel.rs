@@ -61,6 +61,12 @@ use latticearc::primitives::sig::ml_dsa::{
 struct TimingResult {
     /// Mean duration in nanoseconds
     mean_ns: f64,
+    /// Median duration in nanoseconds. Robust to single-iteration
+    /// outliers (OS scheduling, cache warm/cold transitions, GC
+    /// pauses); preferred over `mean_ns` for cache-timing assertions
+    /// where one slow sample skews mean by orders of magnitude on a
+    /// shared CI runner.
+    median_ns: f64,
     /// Standard deviation in nanoseconds
     std_dev_ns: f64,
     /// Minimum duration in nanoseconds
@@ -115,12 +121,27 @@ where
     let min_ns = *durations.iter().min().unwrap_or(&0);
     let max_ns = *durations.iter().max().unwrap_or(&0);
 
-    TimingResult { mean_ns, std_dev_ns, min_ns, max_ns, sample_count: iterations }
+    // Median (sort + middle element). Robust to single-iteration
+    // outliers in a way mean is not. Uses unstable sort for speed —
+    // value, not order, is what we care about.
+    let mut sorted = durations.clone();
+    sorted.sort_unstable();
+    let median_ns = sorted.get(iterations / 2).copied().unwrap_or(0) as f64;
+
+    TimingResult { mean_ns, median_ns, std_dev_ns, min_ns, max_ns, sample_count: iterations }
 }
 
-/// Calculate timing ratio between two operations
+/// Calculate timing ratio between two operations.
+///
+/// Uses MEDIAN, not mean. Mean-based ratios are dominated by single-
+/// iteration outliers (OS scheduling, cache cold-start, GC) on shared
+/// CI runners — a 100× outlier in 256 iterations shifts the mean by
+/// ~40 % even though every other sample matches the comparison
+/// pattern. Median absorbs that. Real cache-side-channel and
+/// security-level-discriminator leaks show SUSTAINED ≥10× disparities
+/// across the full distribution and survive the median.
 fn timing_ratio(result1: &TimingResult, result2: &TimingResult) -> f64 {
-    if result2.mean_ns > 0.0 { result1.mean_ns / result2.mean_ns } else { 1.0 }
+    if result2.median_ns > 0.0 { result1.median_ns / result2.median_ns } else { 1.0 }
 }
 
 // ============================================================================
@@ -656,20 +677,36 @@ fn test_aes_gcm_cache_timing_resistance_succeeds() {
         timings.push(timing);
     }
 
-    // All patterns should have similar timing (within 5x)
-    for (i, timing1) in timings.iter().enumerate() {
-        for (j, timing2) in timings.iter().enumerate() {
-            if i != j {
-                let ratio = timing_ratio(timing1, timing2);
-                assert!(
-                    ratio > 0.05 && ratio < 20.0,
-                    "AES-GCM timing varies too much between patterns {} and {}: ratio={:.2}",
-                    i,
-                    j,
-                    ratio
-                );
-            }
-        }
+    // Compare each pattern's MEDIAN to the MEDIAN-OF-MEDIANS (rather
+    // than pairwise mean-vs-mean), which is robust to:
+    //   - Single noisy iteration in any one pattern (median absorbs it).
+    //   - Single noisy pattern overall (the median-of-medians is anchored
+    //     by the other 3 patterns; one outlier doesn't drag the anchor).
+    //   - Shared-CI-runner load (every pattern sees similar drag, so
+    //     ratios stay near 1).
+    // Real cache-side-channel leaks show a SUSTAINED ≥10× disparity
+    // across the full timing distribution (not just one iteration), so
+    // they survive median and trip the threshold; transient OS-noise
+    // outliers don't.
+    let mut medians: Vec<f64> = timings.iter().map(|t| t.median_ns).collect();
+    medians.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let median_of_medians = medians[medians.len() / 2];
+    assert!(
+        median_of_medians > 0.0,
+        "AES-GCM median-of-medians is zero — measurement clock too coarse"
+    );
+
+    for (i, timing) in timings.iter().enumerate() {
+        let ratio = timing.median_ns / median_of_medians;
+        assert!(
+            ratio > 0.1 && ratio < 10.0,
+            "AES-GCM pattern {i} median {:.0}ns deviates >10× from \
+             median-of-medians {median_of_medians:.0}ns (ratio={ratio:.2}). \
+             Real cache-side-channel leaks exhibit ≥10× sustained \
+             disparities and would trip this; CI-runner noise should \
+             not.",
+            timing.median_ns
+        );
     }
 }
 

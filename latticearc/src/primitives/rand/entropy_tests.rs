@@ -443,28 +443,54 @@ pub fn runs_test(bytes: &[u8]) -> Result<()> {
 
 /// Adaptive Proportion Test per NIST SP 800-90B Section 4.4.2.
 ///
-/// This test monitors for an excessive proportion of a single value within a
-/// window. It is designed to detect a significant decrease in entropy.
+/// Monitors for an excessive proportion of a single value within a sliding
+/// window — a signature of entropy degradation toward a stuck source.
+///
+/// # Cutoff calculation (SP 800-90B §4.4.2)
+///
+/// The standard defines the cutoff `C` as
+///
+/// ```text
+///   C = 1 + CRITBINOM(W, 2^-H, 1 - α)
+/// ```
+///
+/// where `W` is the window size, `H` is the assumed min-entropy per
+/// symbol (in bits), and `α` is the false-positive rate. For our default
+/// configuration `(W = 512, H = 8, α = 2^-30)` the binomial inverse
+/// gives `C = 16`, i.e. a window passes only if no single byte appears
+/// more than 16 times out of 512 (≈ 3.12%). The previous implementation
+/// hard-coded `cutoff_ratio = 0.4` (40%), which would only flag near-
+/// stuck sources and silently passed sources with significant entropy
+/// degradation while claiming SP 800-90B compliance.
 ///
 /// # Arguments
 ///
 /// * `bytes` - The random bytes to test
-/// * `window_size` - Size of the sliding window (default: 512)
-/// * `cutoff_ratio` - Maximum allowed ratio of most common value (default: 0.4)
-///
-/// # Returns
-///
-/// * `Ok(())` - If the test passes
-/// * `Err(LatticeArcError::ValidationError)` - If the test fails
 ///
 /// # Errors
 ///
-/// Returns `LatticeArcError::ValidationError` if any window exceeds the cutoff.
+/// Returns `LatticeArcError::ValidationError` if any window of 512 bytes
+/// has a single byte value appearing 16 or more times.
 pub fn adaptive_proportion_test(bytes: &[u8]) -> Result<()> {
-    adaptive_proportion_test_with_params(bytes, 512, 0.4)
+    // SP 800-90B compliant cutoff: CRITBINOM(512, 2^-8, 1 - 2^-30) + 1 = 16.
+    // Computed offline; recomputing every call would require a binomial
+    // CDF which has no FIPS-approved Rust implementation in our deps.
+    // Callers wanting non-default W/H/α use `_with_params` and pass their
+    // own pre-computed cutoff (as a ratio in [0, 1]).
+    //   16 / 512 = 0.03125 (exact in IEEE-754 f64, so no precision-loss
+    //   tail-bits creep into the comparison).
+    const STANDARD_WINDOW: usize = 512;
+    const COMPLIANT_CUTOFF_RATIO: f64 = 0.031_25;
+    adaptive_proportion_test_with_params(bytes, STANDARD_WINDOW, COMPLIANT_CUTOFF_RATIO)
 }
 
-/// Adaptive Proportion Test with custom parameters.
+/// Adaptive Proportion Test with custom `(window_size, cutoff_ratio)`.
+///
+/// Callers MUST compute `cutoff_ratio` from the SP 800-90B formula
+/// `(1 + CRITBINOM(W, 2^-H, 1 - α)) / W` for their target `(W, H, α)`
+/// — passing an arbitrary ratio defeats the standard. The
+/// no-argument [`adaptive_proportion_test`] uses the standard's
+/// default configuration.
 ///
 /// # Errors
 ///

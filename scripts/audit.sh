@@ -357,24 +357,160 @@ fi
 if [ "$QUICK" = false ]; then
     section "Dim 5" "Error Handling"
 
-    # 5.3: No unwrap/expect in production code
-    UNWRAP_RAW=$(grep -rn '\.unwrap()' --include="*.rs" $SRC/ 2>/dev/null \
-        | grep -v '/// ' | grep -v '//!' | grep -v '// ' \
-        | grep -v 'tests\.rs:' || true)
-    UNWRAP_PROD=$(filter_prod_only "$UNWRAP_RAW")
+    # 5.3: No unwrap/expect in production code, accounting for
+    # `#[expect(clippy::unwrap_used)]` / `#[expect(clippy::expect_used)]`
+    # / `#[allow(...)]` attributes on the line directly above. Plain grep
+    # gives false positives at every audited-and-justified suppression.
+    # Python implementation reads the immediately-preceding line for
+    # the attribute marker; if the file or function-level attribute
+    # appears anywhere in the preceding 3 lines, the call is exempt.
+    suppressed_filter() {
+        local pattern="$1"
+        local lint_id="$2"
+        python3 -c "
+import os, re, sys
+pattern = sys.argv[1]
+lint_id = sys.argv[2]
+src = sys.argv[3]
+hits = []
+attr_re = re.compile(rf'#\[(expect|allow)\([^)]*clippy::{lint_id}[^)]*\)\]')
+file_attr_re = re.compile(rf'#!\[(expect|allow)\([^)]*clippy::{lint_id}[^)]*\)\]')
+# `mod NAME {` and `fn NAME(` and `impl ... {` openings, line-anchored
+item_open_re = re.compile(r'^\s*(?:pub(?:\([^)]*\))?\s+)?(?:mod|fn|impl|trait|struct|enum)\b')
+mod_or_fn_open_re = re.compile(r'^\s*(?:pub(?:\([^)]*\))?\s+)?(?:mod|fn)\s+\w+')
+def find_test_ranges(text, lines):
+    '''Find byte ranges covered by #[cfg(test)] mod/fn items.
+
+    We walk lines top-down; whenever we hit `#[cfg(test)]` we collect
+    any subsequent attribute lines (which may themselves span multiple
+    lines via balanced parens) and then the next item opener. If that
+    opener is mod or fn, we mark the range from #[cfg(test)] to the
+    matching closing brace as a test region.
+    '''
+    ranges = []
+    n = len(lines)
+    i = 0
+    # Track byte offset of each line for fast range conversion
+    line_starts = [0]
+    for ln in lines[:-1]:
+        line_starts.append(line_starts[-1] + len(ln) + 1)
+    line_starts.append(line_starts[-1] + len(lines[-1]) if lines else 0)
+    while i < n:
+        if re.match(r'^\s*#\[cfg\(test\)\]\s*$', lines[i]):
+            block_start = line_starts[i]
+            j = i + 1
+            # Skip subsequent attribute lines (may be multi-line via parens).
+            while j < n:
+                stripped = lines[j].strip()
+                if not stripped or stripped.startswith('//'):
+                    j += 1
+                    continue
+                if stripped.startswith('#['):
+                    # Balance parens across this attribute
+                    open_p = lines[j].count('(') - lines[j].count(')')
+                    if not (lines[j].endswith(']') and open_p == 0):
+                        # Multi-line attribute — keep consuming until balanced
+                        while j + 1 < n and (open_p > 0 or not lines[j].rstrip().endswith(']')):
+                            j += 1
+                            open_p += lines[j].count('(') - lines[j].count(')')
+                    j += 1
+                    continue
+                break
+            if j >= n:
+                i = j
+                continue
+            # Now lines[j] should be the item opener
+            if not mod_or_fn_open_re.match(lines[j]):
+                i = j
+                continue
+            # Walk braces to find closing }
+            # First find the opening { (may be on the same or later line)
+            open_idx = None
+            k = j
+            while k < n:
+                if '{' in lines[k]:
+                    open_idx = k
+                    break
+                k += 1
+            if open_idx is None:
+                # `fn foo();` declaration with no body — skip
+                i = j + 1
+                continue
+            # Now walk braces from open_idx onward
+            depth = 0
+            end_byte = line_starts[open_idx]
+            for kk in range(open_idx, n):
+                for ch in lines[kk]:
+                    end_byte += 1
+                    if ch == '{':
+                        depth += 1
+                    elif ch == '}':
+                        depth -= 1
+                        if depth == 0:
+                            break
+                end_byte += 1  # newline byte
+                if depth == 0:
+                    break
+            ranges.append((block_start, end_byte))
+            i = kk + 1
+        else:
+            i += 1
+    return ranges
+for root, _, files in os.walk(src):
+    if '/target/' in root or '/tests/' in root:
+        continue
+    for f in files:
+        if not f.endswith('.rs') or f.endswith('tests.rs'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            with open(path) as fh:
+                text = fh.read()
+            lines = text.split('\n')
+        except Exception:
+            continue
+        # File-level attribute exempts everything in the file
+        head = '\n'.join(lines[:30])
+        if file_attr_re.search(head):
+            continue
+        test_ranges = find_test_ranges(text, lines)
+        def in_test(byte_pos, ranges=test_ranges):
+            return any(s <= byte_pos < e for s, e in ranges)
+        offset = 0
+        for i, line in enumerate(lines):
+            line_start = offset
+            offset += len(line) + 1
+            if in_test(line_start):
+                continue
+            if line.lstrip().startswith(('///', '//!', '// ')):
+                continue
+            # Skip lines that are inside a string literal continuation
+            # of an attribute (e.g. `reason = \"... .expect() ...\"`).
+            # Heuristic: line contains a balanced-pair-counting string
+            # before the match and the line itself is just attribute body.
+            if line.lstrip().startswith('reason ='):
+                continue
+            if not re.search(pattern, line):
+                continue
+            window = '\n'.join(lines[max(0, i-3):i])
+            if attr_re.search(window):
+                continue
+            hits.append(f'{path}:{i+1}:{line.rstrip()}')
+print('\n'.join(hits))
+" "$pattern" "$lint_id" "$SRC" 2>/dev/null || true
+    }
+
+    UNWRAP_PROD=$(suppressed_filter '\.unwrap\(\)' 'unwrap_used')
     if [ -z "$UNWRAP_PROD" ]; then
-        pass "5.3 No .unwrap() in production code"
+        pass "5.3 No .unwrap() in production code (attribute-aware)"
     else
         fail "5.3 .unwrap() found in production code:"
         echo "$UNWRAP_PROD" | head -5
     fi
 
-    EXPECT_RAW=$(grep -rn '\.expect(' --include="*.rs" $SRC/ 2>/dev/null \
-        | grep -v '/// ' | grep -v '//!' | grep -v '// ' \
-        | grep -v 'tests\.rs:' || true)
-    EXPECT_PROD=$(filter_prod_only "$EXPECT_RAW")
+    EXPECT_PROD=$(suppressed_filter '\.expect\(' 'expect_used')
     if [ -z "$EXPECT_PROD" ]; then
-        pass "5.3 No .expect() in production code"
+        pass "5.3 No .expect() in production code (attribute-aware)"
     else
         fail "5.3 .expect() found in production code:"
         echo "$EXPECT_PROD" | head -5

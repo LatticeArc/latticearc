@@ -297,7 +297,16 @@ impl Histogram {
         }
     }
 
-    /// Calculate a specific percentile
+    /// Calculate a specific percentile using **nearest-rank without
+    /// interpolation** (truncate the float index to `usize`). This is
+    /// what NIST SP 800-22 §1.1.5 calls "rounded percentile" and what
+    /// numpy's `interpolation='lower'` reports. It is NOT the R-7 /
+    /// linear-interpolation form most stats packages report by default.
+    /// Concrete example: with `sorted = [a, b]`, `p99` returns `a`, not
+    /// `b`, because `0.99 * 1 = 0.99` truncates to index `0`. Acceptable
+    /// for the usage here (perf-monitoring, where exact tail-shape
+    /// resolution requires more samples than nearest-rank-vs-interp
+    /// affects).
     // Float ↔ integer casting for percentile index computation on sample arrays
     #[expect(
         clippy::cast_possible_truncation,

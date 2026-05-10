@@ -70,8 +70,15 @@ pub type Cmac192 = CmacTag;
 /// CMAC-256 result (using AES-256). Alias for [`CmacTag`].
 pub type Cmac256 = CmacTag;
 
-/// CMAC subkeys K1 and K2 for padding operations
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+/// CMAC subkeys K1 and K2 for padding operations.
+///
+/// Pattern 5 / Anti-Pattern 2 ("no derived `Clone` on secret types"):
+/// `Clone` would silently duplicate secret bytes onto the heap. The
+/// type is module-private with no `.clone()` callers; the derive is
+/// dropped as a regression guard so a future caller has to make the
+/// duplication explicit (or use `clone_for_transmission()`-style audit
+/// escape hatch on the parent).
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct CmacSubkeys {
     k1: [u8; 16],
     k2: [u8; 16],

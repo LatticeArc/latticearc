@@ -9,6 +9,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### External audit follow-up — Zero Trust replay defense + SP 800-90B AP-test fix (2026-05-10)
+
+External audit returned 6 findings (1 HIGH, 2 MED, 2 LOW, 1 DOC).
+5 fixed; 1 (M2 — 37 internal types missing `#[non_exhaustive]`) carry-forward.
+
+#### HIGH
+
+- **H1 — `ZeroTrustSession::verify_response` proof-replay window closed.**
+  Within `challenge_timeout_ms = 5000` (default), a captured
+  `(challenge, proof)` pair on the wire was bit-for-bit replayable
+  against the same `ZeroTrustSession` instance. Ed25519 is
+  deterministic per RFC 8032, so the proof bytes are reusable; the
+  defense is server-side challenge single-use. Fixed by snapshotting
+  `challenge.data()` and immediately setting `self.challenge = None`
+  before calling `verify_proof` — subsequent verifies hit the
+  "no active challenge" branch. Mirrors the posture of the sibling
+  `verify_pop` (which uses `pop_replay_cache` for the same attack
+  class). Off-machine replay still requires transport-binding (TLS).
+  Added regression test
+  `test_zero_trust_session_verify_response_consumes_challenge_replay_blocked`.
+
+#### MED
+
+- **M1 — `adaptive_proportion_test` SP 800-90B-compliant cutoff.** The
+  default `cutoff_ratio` was `0.4` (40%), which would only flag a
+  near-stuck source — a source emitting 41 % of one byte and 59 %
+  noise would silently pass while the doc claimed SP 800-90B §4.4.2
+  compliance. Per the standard's formula
+  `C = 1 + CRITBINOM(W, 2^-H, 1-α)`, the correct cutoff for the default
+  configuration `(W = 512, H = 8, α = 2^-30)` is `C = 16` (3.125 %).
+  Computed offline; default updated to `16 / 512 = 0.031 25`. The
+  parameterized variant doc now requires callers to compute their own
+  cutoff per the standard's formula.
+
+- **M2 — TRACKED** (carry-forward). 37 internal types still lack
+  `#[non_exhaustive]`. The auth-relevant cohort (`KeyCustodian`,
+  `StateTransition`, `AuditEvent`) was closed in prior rounds; the
+  remainder are non-trivial refactor.
+
+#### LOW
+
+- **L1 — `Histogram::percentile` documentation.** The function uses
+  nearest-rank-without-interpolation (numpy's `interpolation='lower'`
+  / NIST SP 800-22 §1.1.5 "rounded percentile"), not R-7 / linear
+  interpolation. Documented explicitly with a worked `[a, b]` p99
+  example so callers don't expect linear-interp results.
+
+- **L2 — Audit script `Dim 5.3` attribute-aware.** The previous grep
+  for `\.unwrap()` / `\.expect(` flagged sites suppressed by
+  `#[expect(clippy::unwrap_used)]` / `#[expect(clippy::expect_used)]`
+  attributes, producing false positives at every audited-and-justified
+  suppression. Replaced with a Python implementation that:
+    1. Skips file-level `#![expect(...)]` / `#![allow(...)]`.
+    2. Skips items inside `#[cfg(test)]` blocks (mod, fn, with
+       multi-line attribute support — handles balanced-paren
+       attributes that span 5+ lines).
+    3. Skips lines whose preceding 3 lines carry the suppression
+       attribute.
+    4. Skips `reason = "..."` attribute body lines (where literal
+       `.expect(` may appear inside the documentation string).
+  3 csprng.rs sites and 5 test-module sites are now correctly
+  recognized as suppressed.
+
+#### DOC
+
+- **D1 — `CmacSubkeys` `Clone` derive dropped.** Type holds AES
+  subkeys (secret-bearing) and is module-private. No `.clone()`
+  callers anywhere in the workspace, so the derive was a tripwire-
+  not-yet-tripped per Pattern-5 / Anti-Pattern-2 ("no derived `Clone`
+  on secret types"). Removed as a regression guard; comment cites the
+  pattern so a future caller has to make duplication explicit.
+
 ### External audit follow-up — type-design hardening + doc-drift catchers (2026-05-10)
 
 External audit returned 10 findings (2 HIGH, 5 MED, 3 LOW, 2 DOC).
