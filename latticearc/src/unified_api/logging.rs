@@ -18,8 +18,11 @@
 //! not the library's). The doctest below is `ignore`d so it doesn't
 //! force the feature on every test config.
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! // Requires `latticearc = { ..., features = ["tracing-init"] }`
+//! // — example is `ignore`-gated rather than `no_run` because the
+//! //   `init_tracing` / `sanitize_data` symbols only exist when that
+//! //   feature is on.
 //! use latticearc::unified_api::logging::{init_tracing, sanitize_data};
 //!
 //! // Initialize logging (sets global tracing subscriber — call once per process)
