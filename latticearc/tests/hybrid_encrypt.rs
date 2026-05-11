@@ -389,6 +389,10 @@ mod hybrid {
     // Tamper detection for hybrid path
     // ============================================================================
 
+    // Gated behind `test-utils` because `symmetric_ciphertext_mut()`
+    // is — tamper tests need post-construction mutation access that
+    // production builds deliberately don't have.
+    #[cfg(feature = "test-utils")]
     #[test]
     fn test_decrypt_hybrid_tampered_ciphertext_fails() {
         let (pk, sk) = generate_keypair().unwrap();

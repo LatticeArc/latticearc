@@ -169,27 +169,47 @@ impl HybridCiphertext {
         &self.tag
     }
 
+    // The `*_mut` accessors below are gated behind the `test-utils`
+    // Cargo feature. They exist solely so negative-path tests can
+    // tamper with ciphertext fields (especially `tag`) to assert AEAD
+    // rejects malformed inputs. Exposing them on the default surface
+    // would let downstream consumers post-construction-modify the
+    // authentication tag — which is exactly what AEAD construction
+    // is designed to prevent. The feature flag follows the same
+    // shape as other audited test-only escape hatches.
+
     /// Returns a mutable reference to the ML-KEM ciphertext bytes.
+    /// **Test-only**: gated behind the `test-utils` Cargo feature.
+    #[cfg(feature = "test-utils")]
     pub fn kem_ciphertext_mut(&mut self) -> &mut Vec<u8> {
         &mut self.kem_ciphertext
     }
 
     /// Returns a mutable reference to the X25519 ephemeral public key bytes.
+    /// **Test-only**: gated behind the `test-utils` Cargo feature.
+    #[cfg(feature = "test-utils")]
     pub fn ecdh_ephemeral_pk_mut(&mut self) -> &mut Vec<u8> {
         &mut self.ecdh_ephemeral_pk
     }
 
     /// Returns a mutable reference to the AES-256-GCM symmetric ciphertext bytes.
+    /// **Test-only**: gated behind the `test-utils` Cargo feature.
+    #[cfg(feature = "test-utils")]
     pub fn symmetric_ciphertext_mut(&mut self) -> &mut Vec<u8> {
         &mut self.symmetric_ciphertext
     }
 
     /// Returns a mutable reference to the 12-byte AES-GCM nonce.
+    /// **Test-only**: gated behind the `test-utils` Cargo feature.
+    #[cfg(feature = "test-utils")]
     pub fn nonce_mut(&mut self) -> &mut Vec<u8> {
         &mut self.nonce
     }
 
     /// Returns a mutable reference to the 16-byte AES-GCM authentication tag.
+    /// **Test-only**: gated behind the `test-utils` Cargo feature.
+    /// Production builds cannot post-construction-modify the auth tag.
+    #[cfg(feature = "test-utils")]
     pub fn tag_mut(&mut self) -> &mut Vec<u8> {
         &mut self.tag
     }
@@ -977,6 +997,12 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // In-file test of the tamper-detection invariant. Gated under
+    // `test-utils` because the symmetric_ciphertext_mut accessor it
+    // uses is — keeping the gate consistent rather than reaching
+    // around it via direct field access (which would work in-module
+    // but defeats the audit signal from #14.17).
+    #[cfg(feature = "test-utils")]
     #[test]
     fn test_decrypt_hybrid_tampered_ciphertext_fails() {
         let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair().unwrap();

@@ -262,12 +262,17 @@ impl HybridKemPublicKey {
         let ml_len = u32::try_from(self.ml_kem_pk.len()).map_err(|_e| {
             HybridKemError::InvalidKeyMaterial("ml_kem_pk length exceeds 2^32 bytes".to_string())
         })?;
-        let ed_len = u32::try_from(self.ecdh_pk.len()).map_err(|_e| {
+        // `ecdh_len`, not `ed_len`. The field is X25519 (ECDH); "ed"
+        // conventionally means Ed25519, which is a different scheme
+        // used in `sig_hybrid.rs`. Confusion between the two would
+        // mis-route security reviewers reading the serialization
+        // format, so the variable name matches the field name.
+        let ecdh_len = u32::try_from(self.ecdh_pk.len()).map_err(|_e| {
             HybridKemError::InvalidKeyMaterial("ecdh_pk length exceeds 2^32 bytes".to_string())
         })?;
         out.extend_from_slice(&ml_len.to_be_bytes());
         out.extend_from_slice(&self.ml_kem_pk);
-        out.extend_from_slice(&ed_len.to_be_bytes());
+        out.extend_from_slice(&ecdh_len.to_be_bytes());
         out.extend_from_slice(&self.ecdh_pk);
         Ok(out)
     }
@@ -604,6 +609,11 @@ impl EncapsulatedKey {
     ///
     /// The `shared_secret` is a stack-allocated [`SecretBytes<64>`] that is
     /// wiped from memory when the `EncapsulatedKey` is dropped.
+    ///
+    /// **Use this constructor on the SENDER side** (after `encapsulate`),
+    /// where the shared secret is meaningful. On the receiver side, use
+    /// [`Self::for_decapsulate`] or the parts-based [`decapsulate_from_parts`]
+    /// — the `shared_secret` field is not read by [`decapsulate`].
     #[must_use]
     pub fn new(
         ml_kem_ct: Vec<u8>,
@@ -611,6 +621,33 @@ impl EncapsulatedKey {
         shared_secret: crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>,
     ) -> Self {
         Self { ml_kem_ct, ecdh_pk, shared_secret }
+    }
+
+    /// Construct an `EncapsulatedKey` for the decapsulate path, where the
+    /// `shared_secret` field is unused.
+    ///
+    /// The shared-secret field is set to zeros. This makes the receiver-side
+    /// call shape explicit — callers who only have the wire ciphertext (and
+    /// don't need to round-trip through the sender-side `shared_secret`) can
+    /// build the struct without constructing a placeholder. The companion
+    /// [`decapsulate_from_parts`] takes the raw slices directly and is
+    /// strictly preferable when the caller already has them.
+    ///
+    /// # Why this exists
+    ///
+    /// The `shared_secret` field is meaningful only on the sender side
+    /// (output of `encapsulate`). On the decapsulate path, the secret is
+    /// recovered from the recipient's secret key plus the wire ciphertext;
+    /// the field would be a confusing dead input. Providing this
+    /// constructor avoids forcing callers to manufacture a placeholder
+    /// `SecretBytes` that the next call deliberately ignores.
+    #[must_use]
+    pub fn for_decapsulate(ml_kem_ct: Vec<u8>, ecdh_pk: Vec<u8>) -> Self {
+        Self {
+            ml_kem_ct,
+            ecdh_pk,
+            shared_secret: crate::types::SecretBytes::new([0u8; HYBRID_SHARED_SECRET_LEN]),
+        }
     }
 
     /// Returns the ML-KEM ciphertext bytes.

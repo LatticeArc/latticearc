@@ -119,7 +119,21 @@ fn test_configuration_validation_returns_expected_succeeds() {
     let invalid_config =
         CoreConfig::new().with_security_level(SecurityLevel::Standard).with_strict_validation(true);
     let result = invalid_config.validate();
-    assert!(result.is_err(), "Invalid config should fail validation");
+    // Match the specific error variant + message anchor so a future
+    // change to the validation policy that surfaces a DIFFERENT error
+    // type fails this test loudly rather than silently passing under
+    // `is_err()`. Bare `is_err()` would also pass on, say, an
+    // `InvalidInput` or panic-caught variant — which would mean the
+    // policy semantics changed without the test noticing.
+    match result {
+        Err(crate::types::error::TypeError::ConfigurationError(msg)) => {
+            assert!(
+                msg.contains("Strict validation mode requires SecurityLevel::High or above"),
+                "Expected strict-mode error message, got: {msg}"
+            );
+        }
+        other => panic!("Expected ConfigurationError, got: {other:?}"),
+    }
 }
 
 #[test]

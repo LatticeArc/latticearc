@@ -120,6 +120,25 @@ pub(crate) fn hkdf_kem_info_with_pk(
     kem_ciphertext: &[u8],
 ) -> Result<Vec<u8>, crate::prelude::error::LatticeArcError> {
     let label_bytes = label.as_bytes();
+    // Runtime belt-and-suspenders guard against the test-time invariant
+    // below. The `HkdfKemLabel` enum is closed and pub(crate), and the
+    // `domain_labels_contain_no_nul_separator` test pins every variant
+    // to a NUL-free byte string. If a future variant is added that
+    // contains 0x00 without updating the test (or the test is removed
+    // outright), the separator `label || 0x00 || payload` becomes
+    // ambiguous with `label_that_ends_in_0x00 || payload` — an HPKE
+    // channel-binding collision. The debug_assert! catches that in
+    // any debug build; the explicit return-Err catches it in release.
+    debug_assert!(
+        !label_bytes.contains(&0x00),
+        "HkdfKemLabel::as_bytes() must be NUL-free; the 0x00 separator below would collide"
+    );
+    if label_bytes.contains(&0x00) {
+        return Err(crate::prelude::error::LatticeArcError::ValidationError {
+            message: "HKDF label contains a NUL byte; would collide with the domain separator"
+                .to_string(),
+        });
+    }
     let cap = label_bytes
         .len()
         .saturating_add(1)

@@ -44,8 +44,13 @@ use thiserror::Error;
 use zeroize::Zeroizing;
 
 /// Error types for PQ-only encryption operations.
+// PartialEq intentionally not derived: crypto error types should be
+// inspected by variant (`matches!`) rather than value-compared. The
+// `String`-carrying variants would otherwise compare upstream error
+// messages, which is too brittle. Consistent with `HybridKemError`,
+// `HybridSignatureError`, and `HybridEncryptionError` in sibling modules.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum PqOnlyError {
     /// Error during ML-KEM key encapsulation.
     #[error("KEM error: {0}")]

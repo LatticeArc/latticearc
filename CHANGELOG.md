@@ -9,6 +9,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### External audit follow-up — verify_* misnomers + sibling-type drift + tamper accessors (2026-05-11)
+
+External audit returned 8 findings (2 CRITICAL, 3 MED, 3 LOW). All fixed.
+
+#### CRITICAL
+
+- **CRITICAL-1 — `verify_hybrid_kem_security` / `verify_hybrid_signature_security`
+  renamed to `describe_*`.** The functions returned hardcoded
+  `Ok(HybridSecurityProof { ... })` with no execution path that could
+  fail. The `CompositionError` enum (`VerificationFailed`,
+  `InvalidProofStructure`) was never constructed anywhere in the
+  codebase. Function name + Result return type + doc example
+  (`.expect("KEM security verification failed")`) all reinforced the
+  false impression of runtime verification while the body's own
+  comment said "These are documented security claims, not runtime
+  proofs". Renamed to `describe_*`, removed the never-constructed
+  `CompositionError` enum, return type now `HybridSecurityProof`
+  (no `Result`) so the no-failure-path posture is explicit at the
+  type level. Breaking change for any caller that was matching on
+  `Result` shape; correct pre-1.0.
+
+- **CRITICAL-2 — `PqOnlyError` `PartialEq, Eq` derives removed.**
+  Three sibling crypto error types in `latticearc/src/hybrid/`
+  (`HybridKemError`, `HybridSignatureError`, `HybridEncryptionError`)
+  carry an explicit `// PartialEq intentionally not derived` comment
+  citing String-comparison brittleness. `PqOnlyError` was the
+  odd-one-out. Removed `PartialEq, Eq` derives and added the
+  consistency comment. Breaking change for `==` callers (none in
+  workspace; `matches!` is the documented inspection idiom).
+
+#### MED
+
+- **MED-3 — `HybridCiphertext::tag_mut` (and 4 siblings) gated behind
+  `test-utils` feature.** `pub fn tag_mut(&mut self) -> &mut Vec<u8>`
+  let downstream consumers mutate the AEAD authentication tag
+  post-construction — exactly what authenticated encryption is
+  designed to prevent. The 5 `_mut` accessors (tag, nonce,
+  symmetric_ciphertext, kem_ciphertext, ecdh_ephemeral_pk) are
+  used solely by negative-path tamper tests. Now gated behind
+  `#[cfg(feature = "test-utils")]` per the same shape as other
+  audited test-only escape hatches; production builds cannot
+  reach them.
+
+- **MED-4 — `ed_len` variable renamed to `ecdh_len`** in
+  `HybridKemPublicKey::to_bytes` serialization. The field is
+  X25519 (ECDH); "ed" conventionally means Ed25519 (a different
+  algorithm used in `sig_hybrid.rs`). Companion `ml_len` was
+  correctly named for ML-KEM. Naming inconsistency could mis-route
+  a security reviewer reading the serialization format.
+
+- **MED-5 — `hkdf_kem_info_with_pk` runtime NUL-in-label guard.**
+  The `HkdfKemLabel` enum is `pub(crate)` and closed; a test asserts
+  every variant's `as_bytes()` is NUL-free. The 0x00 byte between
+  label and `pk || ct` payload depends on that invariant — if a
+  future variant containing 0x00 is added without updating the
+  test, `label || 0x00 || payload` becomes ambiguous with
+  `label_that_ends_in_0x00 || payload` (HPKE channel-binding
+  collision). Added `debug_assert!(!label_bytes.contains(&0x00))`
+  plus a release-mode `return Err(...)` so the invariant is enforced
+  in BOTH debug and release builds, not just the test.
+
+#### LOW
+
+- **LOW-6 — `hmac_verify_internal` `copy_from_slice` panic paths
+  removed.** Two `[u8; 32]::copy_from_slice(slice)` calls were
+  unreachable under current code (both lengths statically
+  guaranteed) but the workspace lints
+  `panic_in_result_fn = "deny"`. Replaced with direct slice-based
+  `subtle::ConstantTimeEq::ct_eq`, which works on `&[u8]` without
+  the array conversion (and without the latent panic).
+
+- **LOW-7 — `EncapsulatedKey::for_decapsulate` constructor added.**
+  The `shared_secret` field is meaningful only on the sender side
+  (output of `encapsulate`). On the decapsulate path, the secret is
+  recovered from the recipient's SK plus the wire ciphertext; the
+  field would be a confusing dead input. Previously callers had to
+  manufacture a placeholder `SecretBytes` to call `decapsulate`
+  through `EncapsulatedKey`. New constructor sets the field to
+  zeros explicitly, making the receiver-side call shape honest.
+  `EncapsulatedKey::new` doc clarifies its sender-side scope and
+  points decapsulate-side callers at `for_decapsulate` or the
+  preferred parts-based `decapsulate_from_parts`.
+
+- **LOW-8 — Strict-validation config test now matches specific
+  variant.** Test asserted `result.is_err()` without checking which
+  variant — would silently pass if validation logic switched from
+  `ConfigurationError` to `InvalidInput`. Now uses
+  `match { Err(TypeError::ConfigurationError(msg)) => ... }` with
+  message-prefix anchor.
+
+#### `scripts/audit.sh` — 4 new Dim 14 checks targeting the gaps that let these findings slip past prior rounds
+
+The structural-pattern audit script encoded what we'd already
+learned to look for. These four checks codify the new patterns the
+external audit surfaced:
+
+- **14.15** `[SEMANTIC]` — `pub fn verify_*` returning `Result` with
+  no error-propagation path AND a hardcoded struct-literal body
+  (`Ok(SomeStruct { ... })`). Catches CRITICAL-1's shape without
+  flagging legitimate Result-forwarding wrappers like
+  `verify_pq_ml_dsa_unverified` (whose body forwards to a real
+  fallible impl).
+
+- **14.16** `[CONSISTENCY]` — Any `pub enum *Error` under
+  `latticearc/src/hybrid/` that derives `PartialEq` while three
+  sibling types in the same directory deliberately don't. Catches
+  CRITICAL-2's drift class.
+
+- **14.17** `[SECURITY]` — `pub fn (tag|nonce|kem_ciphertext|
+  symmetric_ciphertext|ecdh_ephemeral_pk|ciphertext)_mut` not
+  preceded by `#[cfg(feature = "test-utils")]`. Catches MED-3's
+  shape: any future ciphertext-bearing struct that grows
+  ungated `_mut` accessors trips this immediately.
+
+- **14.18** `[TEST-QUALITY]` — `assert!(...is_err())` without a
+  surrounding `matches!`. Catches LOW-8's shape. Lists 20 current
+  in-workspace sites that would benefit from the upgrade; tracked
+  as warnings rather than hard failures since the upgrade is
+  mechanical follow-up across many test files.
+
 ### External audit follow-up — `release-strict` profile + missed-CHANGELOG retro (2026-05-10)
 
 External audit returned 1 MED + 1 DOC nit. Both fixed.

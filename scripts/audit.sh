@@ -1556,6 +1556,145 @@ print('\n'.join(hits))
         echo "$DEBUG_ASSERT_FALLBACK" | head -5
     fi
 
+    # 14.15 [SEMANTIC] `pub fn verify_*` whose body is documentation,
+    # not verification. Tight heuristic: function returns `Result`, has
+    # NO error-propagation (`?`, `Err(`, `.map_err`, `bail!`), AND its
+    # body ends with `Ok(SomeStruct { ... })` (struct literal — i.e. a
+    # constructor returning hardcoded data, not a wrapper forwarding to
+    # an inner fallible call). This catches the
+    # `verify_hybrid_kem_security` shape (always-Ok with hardcoded
+    # proof_steps Vec) without flagging legitimate Result-forwarding
+    # wrappers like `verify_pq_ml_dsa_unverified` (whose body is a
+    # one-line forward to the real fallible impl).
+    VERIFY_NORERR=$(python3 -c "
+import os, re
+hits = []
+fn_re = re.compile(r'pub fn (verify_\w+)\s*\([^)]*\)\s*->\s*Result<[^>]+>', re.DOTALL)
+err_re = re.compile(r'\bErr\s*\(|\bbail!|\.map_err\s*\(|\?\s*[;.,)\]\s]')
+# Body ends with an Ok(<StructLiteral>) — Ok( followed by identifier
+# then `{`, signaling a struct literal under construction. Matches
+# both `Ok(HybridSecurityProof { ... })` and `Ok(\n    HybridSecurityProof {`.
+ok_struct_re = re.compile(r'Ok\(\s*\w+\s*\{', re.MULTILINE)
+for root, _, files in os.walk('$SRC'):
+    if '/target/' in root or '/tests/' in root:
+        continue
+    for f in files:
+        if not f.endswith('.rs'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            text = open(path).read()
+        except Exception:
+            continue
+        for m in fn_re.finditer(text):
+            start = text.find('{', m.end())
+            if start == -1:
+                continue
+            depth = 1
+            i = start + 1
+            while i < len(text) and depth > 0:
+                if text[i] == '{': depth += 1
+                elif text[i] == '}': depth -= 1
+                i += 1
+            body = text[start:i]
+            if err_re.search(body):
+                continue
+            if not ok_struct_re.search(body):
+                continue
+            line_no = text[:m.start()].count('\n') + 1
+            hits.append(f'{path}:{line_no}:{m.group(1)}')
+print('\n'.join(hits))
+" 2>/dev/null || true)
+    if [ -z "$VERIFY_NORERR" ]; then
+        pass "14.15 [SEMANTIC] No misleading 'verify_*' fns (Result with no Err path + hardcoded struct-literal body)"
+    else
+        VCOUNT=$(echo "$VERIFY_NORERR" | wc -l | tr -d ' ')
+        warn "14.15 [SEMANTIC] $VCOUNT verify_* fn(s) return Result with no Err path but hardcoded body — rename to describe_* or drop Result:"
+        echo "$VERIFY_NORERR" | head -5
+    fi
+
+    # 14.16 [CONSISTENCY] Sibling crypto error types should agree on
+    # PartialEq/Eq derives. Three error types in latticearc/src/hybrid/
+    # carry the comment "PartialEq intentionally not derived" with the
+    # explicit reason that String-carrying variants would compare
+    # upstream error messages. Any pub enum *Error in the same
+    # directory deriving PartialEq is an inconsistency.
+    PARTIAL_EQ_ERR=$(python3 -c "
+import os, re
+hits = []
+for root, _, files in os.walk('$SRC/hybrid'):
+    for f in files:
+        if not f.endswith('.rs'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            text = open(path).read()
+        except Exception:
+            continue
+        for m in re.finditer(r'#\[derive\([^)]*\bPartialEq\b[^)]*\)\]\s*(?:#\[[^\]]*\]\s*)*\npub enum (\w+Error)\b', text):
+            line_no = text[:m.start()].count('\n') + 1
+            hits.append(f'{path}:{line_no}:{m.group(1)}')
+print('\n'.join(hits))
+" 2>/dev/null || true)
+    if [ -z "$PARTIAL_EQ_ERR" ]; then
+        pass "14.16 [CONSISTENCY] No hybrid/*Error derives PartialEq (sibling-consistent)"
+    else
+        warn "14.16 [CONSISTENCY] Hybrid error enum(s) derive PartialEq — should match sibling-type policy (drop PartialEq, use matches!):"
+        echo "$PARTIAL_EQ_ERR" | head -5
+    fi
+
+    # 14.17 [SECURITY] `pub fn *_mut() -> &mut Vec<u8>` on ciphertext /
+    # tag / nonce fields. External tamper access to AEAD tag bytes
+    # post-construction is exactly what authenticated encryption is
+    # supposed to prevent. If exposed for negative-path tests, gate
+    # behind `#[cfg(feature = "test-utils")]` rather than `pub`.
+    TAG_MUT=$(grep -rnE 'pub fn (tag|nonce|kem_ciphertext|symmetric_ciphertext|ecdh_ephemeral_pk|ciphertext)_mut\s*\(' \
+        --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -v 'cfg(feature = "test-utils")' \
+        | python3 -c "
+import sys
+out = []
+for line in sys.stdin:
+    parts = line.split(':', 2)
+    if len(parts) < 3:
+        continue
+    path, lineno, _ = parts
+    try:
+        ctx = open(path).readlines()
+    except Exception:
+        continue
+    # Look 2 lines back for the feature gate (Rust formatter may
+    # place the cfg attr on its own line above the pub fn).
+    ln = int(lineno) - 1
+    window = ''.join(ctx[max(0, ln-3):ln])
+    if 'cfg(feature = \"test-utils\")' in window:
+        continue
+    out.append(line.rstrip())
+print('\n'.join(out))
+" || true)
+    if [ -z "$TAG_MUT" ]; then
+        pass "14.17 [SECURITY] No ungated pub *_mut() accessors on AEAD-tag/ciphertext fields"
+    else
+        warn "14.17 [SECURITY] Ungated pub *_mut() accessor(s) on tag/ciphertext fields — gate behind #[cfg(feature = \"test-utils\")]:"
+        echo "$TAG_MUT" | head -5
+    fi
+
+    # 14.18 [TEST-QUALITY] Tests asserting `result.is_err()` without
+    # matching a specific error variant. The assertion passes for ANY
+    # error type — a policy change that swaps `ConfigurationError` for
+    # `InvalidInput` would still pass, silently masking the regression.
+    # Prefer `assert!(matches!(result, Err(SomeError::Variant(_))))`.
+    BARE_IS_ERR=$(grep -rn 'assert!(.*\.is_err()' --include="*.rs" $SRC/ 2>/dev/null \
+        | grep -vE '/tests/|test_|tests::|matches!' \
+        | head -20 || true)
+    if [ -z "$BARE_IS_ERR" ]; then
+        pass "14.18 [TEST-QUALITY] No bare is_err() assertions in production-adjacent tests"
+    else
+        BCOUNT=$(echo "$BARE_IS_ERR" | wc -l | tr -d ' ')
+        warn "14.18 [TEST-QUALITY] $BCOUNT bare assert!(...is_err()) site(s) — prefer assert!(matches!(...)):"
+        echo "$BARE_IS_ERR" | head -5
+    fi
+
     # 14.10 [META] Pattern parity meta-check. Every check above maps to
     # a numbered pattern in DESIGN_PATTERNS.md. If DESIGN_PATTERNS.md
     # introduces a new pattern but no audit check is added, the script's

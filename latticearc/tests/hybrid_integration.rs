@@ -185,8 +185,17 @@ mod roundtrip {
 
     // ============================================================================
     // Tamper Detection Tests
+    //
+    // Each test below uses a `*_mut()` accessor on `HybridCiphertext` to
+    // inject a tamper. Those accessors are gated behind the `test-utils`
+    // Cargo feature so production builds can't post-construction-mutate
+    // the AEAD tag / ciphertext bytes. The tests themselves are gated to
+    // the same feature so feature combinations without `test-utils`
+    // (e.g. `--no-default-features --features fips-self-test`) still
+    // build cleanly.
     // ============================================================================
 
+    #[cfg(feature = "test-utils")]
     #[test]
     fn test_tampered_kem_ciphertext_fails() {
         let (pk, sk) = generate_keypair().unwrap();
@@ -203,6 +212,7 @@ mod roundtrip {
         assert!(result.is_err(), "Tampered KEM ciphertext should fail decryption");
     }
 
+    #[cfg(feature = "test-utils")]
     #[test]
     fn test_tampered_ecdh_pk_fails() {
         let (pk, sk) = generate_keypair().unwrap();
@@ -219,6 +229,7 @@ mod roundtrip {
         assert!(result.is_err(), "Tampered ECDH PK should fail decryption");
     }
 
+    #[cfg(feature = "test-utils")]
     #[test]
     fn test_tampered_symmetric_ciphertext_fails() {
         let (pk, sk) = generate_keypair().unwrap();
@@ -235,6 +246,7 @@ mod roundtrip {
         assert!(result.is_err(), "Tampered symmetric ciphertext should fail");
     }
 
+    #[cfg(feature = "test-utils")]
     #[test]
     fn test_tampered_nonce_fails() {
         let (pk, sk) = generate_keypair().unwrap();
@@ -251,6 +263,7 @@ mod roundtrip {
         assert!(result.is_err(), "Tampered nonce should fail decryption");
     }
 
+    #[cfg(feature = "test-utils")]
     #[test]
     fn test_tampered_tag_fails() {
         let (pk, sk) = generate_keypair().unwrap();

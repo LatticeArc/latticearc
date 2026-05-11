@@ -230,12 +230,15 @@ fn hmac_verify_internal(key: &[u8], data: &[u8], tag: &[u8]) -> Result<bool> {
 
     let expected = hmac_internal(key, data)?;
 
-    let mut tag_bytes = [0u8; 32];
-    tag_bytes.copy_from_slice(tag);
-    let mut expected_bytes = [0u8; 32];
-    expected_bytes.copy_from_slice(&expected);
-
-    let valid: bool = tag_bytes.ct_eq(&expected_bytes).into();
+    // Compare slices directly via `ConstantTimeEq`, which works on
+    // `&[u8]` without copying into fixed-size arrays. The previous
+    // shape used `[u8; 32]::copy_from_slice(...)`, which panics on
+    // length mismatch — even though both lengths are statically
+    // guaranteed here (tag was validated to be 32 bytes above; expected
+    // is HMAC-SHA256's 32-byte output), it's a latent panic path in a
+    // function with `panic_in_result_fn = "deny"` lints. Removing the
+    // copies removes both the lint risk and the small heap-write cost.
+    let valid: bool = tag.ct_eq(expected.as_slice()).into();
 
     crate::log_crypto_operation_complete!(
         op::HMAC_VERIFY,
