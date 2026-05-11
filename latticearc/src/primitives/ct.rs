@@ -7,19 +7,47 @@
 
 use subtle::ConstantTimeEq;
 
-/// Returns `true` iff every byte of `bytes` is zero, in constant time.
+/// Constant-time all-zero check for fixed-length byte arrays.
+///
+/// Prefer this over [`is_all_zero_bytes`] whenever the length is known
+/// at compile time: the loop iteration count is `ceil(N / 32)` — a
+/// constant — so the caller cannot accidentally pass a runtime-derived
+/// length that would leak through timing. AEAD key validation (16-,
+/// 24-, 32-byte keys) is the canonical call site.
+///
+/// Returns `false` when `N == 0` so a zero-length array cannot trigger
+/// a false-positive weak-input rejection.
+#[inline]
+#[must_use]
+pub fn is_all_zero<const N: usize>(bytes: &[u8; N]) -> bool {
+    if N == 0 {
+        return false;
+    }
+    is_all_zero_bytes(bytes.as_slice())
+}
+
+/// Returns `true` iff every byte of `bytes` is zero, in constant time
+/// **with respect to byte contents**.
 ///
 /// Empty slices return `false` so that a caller passing a zero-length
 /// secret cannot trigger a false-positive weak-input rejection.
 ///
-/// # Constant-time behaviour
+/// # Constant-time scope and a length-leak caveat
 ///
-/// Runtime is independent of the position of the first non-zero byte.
-/// Internally compares `bytes` against an all-zero stack buffer in
-/// 32-byte chunks via [`subtle::ConstantTimeEq::ct_eq`]; longer inputs
-/// (e.g. PBKDF2 salts greater than 32 bytes) are handled chunk-by-chunk
-/// without falling back to a heap allocation, and without an early exit
-/// on chunk boundaries (each chunk's `Choice` is `&`-folded).
+/// Runtime is independent of *which byte* is non-zero, so an attacker
+/// who can time this function cannot learn the position of the first
+/// difference. The loop, however, iterates `ceil(bytes.len() / 32)`
+/// times — the iteration count itself is **not constant-time over the
+/// input length**. For variable-length secret inputs (KDF output of
+/// caller-chosen size, secret-length nonces, etc.) the timing leaks
+/// the length.
+///
+/// **Production callers must validate `bytes.len()` before calling this
+/// function** (which the current sole caller `aead::is_all_zero_key`
+/// does, by way of the AEAD constructors' fixed-size key requirement).
+/// For new fixed-length use sites, prefer the const-generic
+/// [`is_all_zero`] above — its type signature makes the length-non-
+/// secrecy precondition compile-time enforced.
 #[inline]
 #[must_use]
 pub fn is_all_zero_bytes(bytes: &[u8]) -> bool {

@@ -180,32 +180,44 @@ pub enum MlKemError {
 ///
 /// Each security level provides different security guarantees and performance
 /// characteristics following the FIPS 203 specification.
+// `#[repr(u8)]` with EXPLICIT discriminant values so the
+// canonical `(self as u8).ct_eq(&(other as u8))` pattern from
+// `docs/DESIGN_PATTERNS.md` (Constant-Time Equality section) is sound
+// — and stays sound across future variant additions. Explicit values
+// also future-proof on-wire serialization should we ever encode
+// security level as a raw u8 (we don't today; routing goes via
+// `KeyAlgorithm`).
 #[non_exhaustive]
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MlKemSecurityLevel {
     /// ML-KEM-512: NIST Security Category 1
     /// Provides security comparable to AES-128
-    MlKem512,
+    MlKem512 = 1,
     /// ML-KEM-768: NIST Security Category 3
     /// Provides security comparable to AES-192
-    MlKem768,
+    MlKem768 = 3,
     /// ML-KEM-1024: NIST Security Category 5
     /// Provides security comparable to AES-256
-    MlKem1024,
+    MlKem1024 = 5,
 }
 
 impl ConstantTimeEq for MlKemSecurityLevel {
     fn ct_eq(&self, other: &Self) -> Choice {
-        // `MlKemSecurityLevel` is not `#[repr(u8)]`, so `*self as u8`
-        // would rely on compiler-chosen discriminant ordering and could
-        // silently misbehave if a variant is added or reordered. Use
-        // `PartialEq` (total equality over the variants) and lift the
-        // bool into `Choice` so this composes with other `ct_eq` legs.
+        // Canonical CT-equality pattern (DESIGN_PATTERNS.md §Constant-
+        // Time Equality / SlhDsa reference impl, line 793): cast the
+        // discriminant to its `#[repr(u8)]` byte and compare via
+        // `subtle::ConstantTimeEq`. Sound here because the enum has
+        // explicit `#[repr(u8)]` discriminants (so `as u8` is
+        // well-defined and stable across reorderings).
         //
-        // The security level itself is a public parameter — not secret —
-        // so a variable-time bool compare is security-irrelevant; the
-        // `Choice` wrapping exists purely for composability.
-        Choice::from(u8::from(self == other))
+        // The security level is a public parameter — a variable-time
+        // bool compare would be security-irrelevant — but using the
+        // canonical pattern keeps the call shape uniform with secret-
+        // bearing ct_eq legs elsewhere in the workspace. Future
+        // developers copying this shape into a secret context will
+        // start from a CT-safe primitive instead of `==`.
+        (*self as u8).ct_eq(&(*other as u8))
     }
 }
 
@@ -878,10 +890,39 @@ impl MlKemDecapsulationKeyPair {
     ) -> Result<Self, MlKemError> {
         let algorithm = security_level.as_aws_algorithm();
         let decaps_key = DecapsulationKey::new(algorithm, sk_bytes).map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Failed to reconstruct DecapsulationKey: {}", e))
+            MlKemError::KeyGenerationError(format!("Failed to reconstruct DecapsulationKey: {e}"))
         })?;
 
         let public_key = MlKemPublicKey::new(security_level, pk_bytes.to_vec())?;
+
+        // FIPS 203 §6.1 SK/PK cross-check. ML-KEM secret keys embed
+        // the public key at a known offset (`dk_pke_len = (sk_size −
+        // 96) / 2`). Without this check, a caller who passes a
+        // mismatched (sk, pk) pair from different keygens gets a
+        // structurally valid keypair that silently produces wrong
+        // decapsulation results — the only observable symptom is
+        // opaque AEAD-layer decrypt failures, with no diagnostic
+        // pointing at the keypair mismatch. Use constant-time compare:
+        // the embedded PK is not itself secret, but the equality bit
+        // gates further processing of secret material and a
+        // variable-time leg would set a misuse precedent.
+        let sk_size = security_level.secret_key_size();
+        let dk_pke_len = sk_size.saturating_sub(96) / 2;
+        let pk_size = security_level.public_key_size();
+        let embedded_end = dk_pke_len.saturating_add(pk_size);
+        let embedded_pk = sk_bytes.get(dk_pke_len..embedded_end).ok_or_else(|| {
+            MlKemError::InvalidSecretKeyFormat(format!(
+                "ML-KEM-{} secret key too short to embed public key",
+                security_level.name()
+            ))
+        })?;
+        let pk_match: bool = embedded_pk.ct_eq(pk_bytes).into();
+        if !pk_match {
+            return Err(MlKemError::InvalidSecretKeyFormat(format!(
+                "ML-KEM-{} SK does not embed the supplied PK (FIPS 203 §6.1 mismatch)",
+                security_level.name()
+            )));
+        }
 
         Ok(Self { public_key, decaps_key, security_level })
     }

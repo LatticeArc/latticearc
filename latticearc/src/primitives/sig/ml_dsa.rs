@@ -54,15 +54,21 @@ use tracing::instrument;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// ML-DSA parameter sets for different security levels
+///
+/// `#[repr(u8)]` with explicit discriminants so consumers can use the
+/// canonical `(self as u8).ct_eq(...)` CT-equality pattern from
+/// `docs/DESIGN_PATTERNS.md` (Constant-Time Equality reference).
+/// Matches the shape of [`MlKemSecurityLevel`].
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MlDsaParameterSet {
     /// ML-DSA-44: NIST Level 2 security (~128-bit classical security)
-    MlDsa44,
+    MlDsa44 = 2,
     /// ML-DSA-65: NIST Level 3 security (~192-bit classical security)
-    MlDsa65,
+    MlDsa65 = 3,
     /// ML-DSA-87: NIST Level 5 security (~256-bit classical security)
-    MlDsa87,
+    MlDsa87 = 5,
 }
 
 impl MlDsaParameterSet {

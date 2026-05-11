@@ -302,7 +302,17 @@ impl ConstantTimeEq for HybridSigSecretKey {
         // length-mismatch slice ct_eq would already return Choice(0) —
         // but checking the parameter set explicitly fails earlier and
         // makes the contract loud.
-        let param_eq = subtle::Choice::from(u8::from(self.parameter_set == other.parameter_set));
+        //
+        // Use the canonical `(self as u8).ct_eq(...)` pattern (per
+        // DESIGN_PATTERNS.md:793, Constant-Time Equality reference)
+        // rather than `==`. The parameter set is a public parameter,
+        // so the timing isn't security-sensitive HERE — but the
+        // canonical pattern keeps the call shape uniform with the
+        // secret-bearing legs below, so a future developer copying
+        // this shape into a secret context starts from a CT-safe
+        // primitive. `#[repr(u8)]` on MlDsaParameterSet makes the
+        // cast well-defined.
+        let param_eq = (self.parameter_set as u8).ct_eq(&(other.parameter_set as u8));
         param_eq
             & self.ml_dsa_sk.as_slice().ct_eq(other.ml_dsa_sk.as_slice())
             & self.ed25519_sk.as_slice().ct_eq(other.ed25519_sk.as_slice())

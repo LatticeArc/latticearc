@@ -9,6 +9,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### External audit follow-up — stale comments, CT-equality canonicalisation, FIPS 203 cross-check (2026-05-11)
+
+External audit returned 6 findings (1 stale-doc, 1 naming, 2 CT-canon,
+1 FIPS-compliance, 1 length-leak). All fixed.
+
+#### Findings
+
+- **1. Stale comment `kem_hybrid.rs:823`.** Said
+  `shared_secret is already Zeroizing<Vec<u8>>` but the actual type
+  is `SecretBytes<HYBRID_SHARED_SECRET_LEN>` — STACK-allocated, not
+  heap. Comment misled readers about backing-store security
+  properties (Secret Type Invariant I-2 / I-8 — no allocator metadata
+  leak, no realloc-without-zeroize path). Rewrote the comment to
+  match reality and cross-reference the invariants.
+
+- **2. `ed_len` in `from_bytes` (companion to round-56 fix).**
+  Round-56 renamed `ed_len` → `ecdh_len` in `to_bytes` with an
+  explicit "ed conventionally means Ed25519, this is X25519/ECDH"
+  comment. The companion `from_bytes` 50 lines below still used
+  `ed_len` / `ed_end` throughout, contradicting the new comment.
+  Renamed for serialization-symmetric naming.
+
+- **3 & 6. CT-equality canonicalisation (`MlKemSecurityLevel`,
+  `MlDsaParameterSet`, `HybridSigSecretKey`).** Three sites used
+  the non-canonical `Choice::from(u8::from(self == other))` shape
+  instead of DESIGN_PATTERNS.md:793's canonical
+  `(self as u8).ct_eq(&(other as u8))`. The `==`-based pattern is
+  security-equivalent for these public-parameter enums but sets a
+  misuse precedent: a future developer copying this shape into a
+  secret-bearing comparison would silently introduce a timing leak.
+  Fixed by:
+  - Adding `#[repr(u8)]` with explicit discriminants (`= 1/3/5` for
+    `MlKemSecurityLevel`, `= 2/3/5` for `MlDsaParameterSet`) so the
+    `as u8` cast is sound and stable across variant reorderings.
+  - Rewriting all three `ct_eq` bodies to use the canonical pattern.
+  - Tightening `HybridKemSecretKey::ct_eq` to call
+    `security_level().ct_eq(&other.security_level())` rather than
+    bare `==` (so the call shape is uniform with the secret-bearing
+    bytes leg).
+
+- **4. Missing FIPS 203 §6.1 SK/PK cross-check
+  (`MlKem::from_key_bytes`).** ML-KEM secret keys embed the public
+  key at offset `dk_pke_len = (sk_size − 96) / 2`. The constructor
+  validated SK and PK individually but didn't check they came from
+  the same keypair. A caller passing mismatched (sk, pk) (e.g. from
+  different keygens) got a structurally valid keypair that silently
+  produced wrong decapsulation results; the only observable symptom
+  was opaque AEAD-layer decrypt failures with no diagnostic. Added
+  constant-time cross-check using the existing
+  `embedded_public_key_bytes` slice extraction; mismatch returns
+  `MlKemError::InvalidSecretKeyFormat` with a "FIPS 203 §6.1
+  mismatch" message.
+
+- **5. `is_all_zero_bytes` length-leak doc + const-generic
+  companion.** The function iterates `ceil(bytes.len() / 32)` times
+  — the iteration count itself leaks the input length via timing.
+  Currently only called on fixed-length AEAD keys (16/24/32 bytes),
+  so there's no live leak, but the function signature lets a future
+  caller pass a secret-length input and trip the issue. Added
+  const-generic `is_all_zero<const N: usize>(&[u8; N])` companion
+  — the type signature compile-time-enforces fixed length — and
+  expanded the `is_all_zero_bytes` rustdoc with an explicit
+  "callers must validate length before calling" warning and
+  pointer at the const-generic alternative.
+
+#### `scripts/audit.sh` — 3 new Dim 14 checks (regression guards)
+
+- **14.19** `[CT]` — `impl ConstantTimeEq` whose body uses
+  `self == other` or `u8::from(... == ...)`. Catches the
+  finding-3-and-6 shape: any future ct_eq impl that delegates to
+  `==` instead of the canonical pattern is flagged immediately.
+- **14.20** `[CT]` — enums implementing `ConstantTimeEq` without
+  explicit `#[repr(uN)]`. The canonical pattern's `as u8` cast is
+  unsound across variant reorderings without the repr attribute.
+- **14.21** `[CT-LENGTH-LEAK]` — verifies the const-generic
+  `is_all_zero<N>(&[u8; N])` companion still exists alongside
+  the variable-length `is_all_zero_bytes`, so fixed-length callers
+  reach for the type-level-safe primitive.
+
 ### External audit follow-up — verify_* misnomers + sibling-type drift + tamper accessors (2026-05-11)
 
 External audit returned 8 findings (2 CRITICAL, 3 MED, 3 LOW). All fixed.

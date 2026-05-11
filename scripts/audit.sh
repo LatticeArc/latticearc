@@ -1695,6 +1695,101 @@ print('\n'.join(out))
         echo "$BARE_IS_ERR" | head -5
     fi
 
+    # 14.19 [CT] `ConstantTimeEq` impls that use `==` or `PartialEq` in
+    # their body. The canonical CT-equality pattern
+    # (DESIGN_PATTERNS.md:793) uses `(*self as u8).ct_eq(&(*other as
+    # u8))` — never `self == other` / `u8::from(self == other)` —
+    # because `==` propagation downstream might be copied into a
+    # secret-bearing comparison and silently introduce a timing leak.
+    CT_EQ_VIA_PARTIAL=$(python3 -c "
+import os, re
+hits = []
+impl_re = re.compile(r'impl(?:<[^>]+>)?\s+ConstantTimeEq\s+for\s+(\w+)', re.MULTILINE)
+bad_re = re.compile(r'\bself\s*==\s*other\b|u8::from\([^)]*==')
+for root, _, files in os.walk('$SRC'):
+    if '/target/' in root or '/tests/' in root:
+        continue
+    for f in files:
+        if not f.endswith('.rs'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            text = open(path).read()
+        except Exception:
+            continue
+        for m in impl_re.finditer(text):
+            start = text.find('{', m.end())
+            if start == -1:
+                continue
+            depth = 1
+            i = start + 1
+            while i < len(text) and depth > 0:
+                if text[i] == '{': depth += 1
+                elif text[i] == '}': depth -= 1
+                i += 1
+            body = text[start:i]
+            if bad_re.search(body):
+                line_no = text[:m.start()].count('\n') + 1
+                hits.append(f'{path}:{line_no}:{m.group(1)}')
+print('\n'.join(hits))
+" 2>/dev/null || true)
+    if [ -z "$CT_EQ_VIA_PARTIAL" ]; then
+        pass "14.19 [CT] ConstantTimeEq impls use canonical (*self as u8).ct_eq pattern, not =="
+    else
+        warn "14.19 [CT] ConstantTimeEq impl(s) use '==' in body — follow DESIGN_PATTERNS.md:793 canonical pattern:"
+        echo "$CT_EQ_VIA_PARTIAL" | head -5
+    fi
+
+    # 14.20 [CT] Enums implementing `ConstantTimeEq` without explicit
+    # `#[repr(uN)]`. The canonical pattern relies on `(self as u8)`
+    # being well-defined and stable across variant reorderings; an
+    # implicit-repr enum's discriminant could shift silently.
+    CT_EQ_NO_REPR=$(python3 -c "
+import os, re
+hits = []
+impl_re = re.compile(r'impl(?:<[^>]+>)?\s+ConstantTimeEq\s+for\s+(\w+)')
+for root, _, files in os.walk('$SRC'):
+    if '/target/' in root or '/tests/' in root:
+        continue
+    for f in files:
+        if not f.endswith('.rs'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            text = open(path).read()
+        except Exception:
+            continue
+        for m in impl_re.finditer(text):
+            name = m.group(1)
+            enum_re = re.compile(rf'(?:^|\n)((?:#\[[^\]]+\]\s*\n)*)pub enum {re.escape(name)}\b')
+            em = enum_re.search(text)
+            if not em:
+                continue  # not an enum (struct impls don't need repr)
+            attrs = em.group(1)
+            if re.search(r'repr\((u8|u16|u32|u64|i8|i16|i32|i64)\)', attrs):
+                continue
+            line_no = text[:em.start()].count('\n') + 1
+            hits.append(f'{path}:{line_no}:{name}')
+print('\n'.join(hits))
+" 2>/dev/null || true)
+    if [ -z "$CT_EQ_NO_REPR" ]; then
+        pass "14.20 [CT] All ConstantTimeEq-impl enums have explicit #[repr(uN)]"
+    else
+        warn "14.20 [CT] enum(s) implement ConstantTimeEq without #[repr(uN)] — discriminant cast unsound across reorderings:"
+        echo "$CT_EQ_NO_REPR" | head -5
+    fi
+
+    # 14.21 [CT-LENGTH-LEAK] Confirm const-generic `is_all_zero<N>`
+    # companion exists alongside the variable-length `is_all_zero_bytes`
+    # so future fixed-length callers reach for the type-level-safe
+    # primitive. Catches regression toward leaking length via
+    # iteration count.
+    if grep -q 'pub fn is_all_zero<const N: usize>' "$REPO_ROOT/latticearc/src/primitives/ct.rs" 2>/dev/null; then
+        pass "14.21 [CT-LENGTH-LEAK] const-generic is_all_zero<N>(&[u8; N]) companion present"
+    else
+        warn "14.21 [CT-LENGTH-LEAK] No const-generic is_all_zero alternative — fixed-length callers fall back to variable-length helper"
+    fi
+
     # 14.10 [META] Pattern parity meta-check. Every check above maps to
     # a numbered pattern in DESIGN_PATTERNS.md. If DESIGN_PATTERNS.md
     # introduces a new pattern but no audit check is added, the script's

@@ -330,17 +330,20 @@ impl HybridKemPublicKey {
         let ml_end = cursor.checked_add(ml_len).ok_or_else(inv)?;
         let ml_kem_pk = bytes.get(cursor..ml_end).ok_or_else(inv)?.to_vec();
         cursor = ml_end;
-        let ed_len = usize::try_from(read_len(bytes, cursor)?).map_err(|_e| inv())?;
-        if ed_len != X25519_KEY_SIZE {
+        // `ecdh_len` / `ecdh_end`, not `ed_len` / `ed_end`. The field
+        // is X25519 (ECDH); "ed" conventionally means Ed25519. Same
+        // naming-hygiene rationale as `to_bytes` above; keep the two
+        // sides of the serialization symmetric.
+        let ecdh_len = usize::try_from(read_len(bytes, cursor)?).map_err(|_e| inv())?;
+        if ecdh_len != X25519_KEY_SIZE {
             return Err(HybridKemError::InvalidKeyMaterial(format!(
-                "X25519 PK length {} does not match expected {}",
-                ed_len, X25519_KEY_SIZE
+                "X25519 PK length {ecdh_len} does not match expected {X25519_KEY_SIZE}"
             )));
         }
         cursor = cursor.checked_add(4).ok_or_else(inv)?;
-        let ed_end = cursor.checked_add(ed_len).ok_or_else(inv)?;
-        let ecdh_pk = bytes.get(cursor..ed_end).ok_or_else(inv)?.to_vec();
-        if ed_end != bytes.len() {
+        let ecdh_end = cursor.checked_add(ecdh_len).ok_or_else(inv)?;
+        let ecdh_pk = bytes.get(cursor..ecdh_end).ok_or_else(inv)?.to_vec();
+        if ecdh_end != bytes.len() {
             return Err(inv());
         }
         Ok(Self { ml_kem_pk, ecdh_pk, security_level })
@@ -556,11 +559,18 @@ impl ConstantTimeEq for HybridKemSecretKey {
     /// construction, so `ct_eq` on the hot path never touches aws-lc-rs
     /// FFI — it's a pure byte compare.
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        use subtle::Choice;
-
-        // `MlKemSecurityLevel` is not `#[repr(u8)]`, so do not rely on
-        // discriminant-cast ordering.
-        let level_match = Choice::from(u8::from(self.security_level() == other.security_level()));
+        // Use the typed `ConstantTimeEq` on `MlKemSecurityLevel` rather
+        // than `==`. The two-leg pattern (security-level leg & byte leg)
+        // is what a future developer might copy when adding a
+        // secret-bearing comparison; using `==` here would set a
+        // precedent that's unsafe to copy onto secret legs. The
+        // security_level is a public parameter so the typed ct_eq's
+        // documented variable-time behaviour is acceptable HERE — but
+        // the call shape is now uniform with the bytes_match leg, and
+        // copying the pattern into a secret context would naturally
+        // reach for `ConstantTimeEq` not `==`. (See Dim 14.19 audit
+        // check for the regression guard.)
+        let level_match = self.security_level().ct_eq(&other.security_level());
 
         // `subtle::ConstantTimeEq` on `[u8]` returns `Choice::from(0)` on
         // length mismatch, which happens only when security levels differ.
@@ -820,7 +830,13 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
         opaque()
     })?;
 
-    // `shared_secret` is already `Zeroizing<Vec<u8>>` — pass directly.
+    // `shared_secret` is `SecretBytes<HYBRID_SHARED_SECRET_LEN>` — a
+    // STACK-allocated, zeroize-on-drop fixed-size buffer (Secret Type
+    // Invariant I-2). NOT `Zeroizing<Vec<u8>>`: no heap allocator
+    // metadata leaks the secret's size, and there is no realloc path
+    // that could free an unzeroized buffer. Pass-through is the
+    // documented EncapsulatedKey construction shape (see the type's
+    // Security Guarantees section).
     Ok(EncapsulatedKey { ml_kem_ct, ecdh_pk: ecdh_ephemeral_public, shared_secret })
 }
 
