@@ -162,6 +162,48 @@ echo "✅ No dead code suppressions in production"
 # ============================================================================
 
 echo "Running tests (release mode)..."
+
+# Report passed-counts split by cargo invocation rather than as a
+# sum. The hook runs cargo test TWICE (all-features and
+# no-default-features+fips-self-test+kat-test-vectors); summing the
+# two runs' "X passed" lines double-counts every test that ran in
+# both configurations. Split-reporting matches what `cargo test`
+# actually did and avoids "14,709 tests" headlines when the unique
+# workspace test count is ~7,400.
+print_split_counts() {
+    local output="$1"
+    local suffix="$2"
+    # Boundary: the cargo invocation re-Compiles `latticearc v0.8.0`
+    # at the start of each run (different feature set → fresh
+    # incremental compile in --release with the cache invalidation
+    # we see in practice). Match `latticearc-<HASH>` in the lib
+    # unittests line and find the SECOND occurrence — that's the
+    # start of run 2. NOTE: must use `printf '%s\n'` not `echo`;
+    # macOS bash echo silently interprets the ANSI escape sequences
+    # in cargo's coloured output, dropping every line.
+    local boundary_line
+    boundary_line=$(printf '%s\n' "$output" \
+        | LC_ALL=C grep -an 'unittests src/lib\.rs (target/release/deps/latticearc-' \
+        | sed -n '2p' | cut -d: -f1)
+    if [ -n "$boundary_line" ]; then
+        local run1_passed
+        local run2_passed
+        run1_passed=$(printf '%s\n' "$output" | head -n "$((boundary_line - 1))" \
+            | LC_ALL=C grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' \
+            | awk '{s+=$1} END {print s+0}')
+        run2_passed=$(printf '%s\n' "$output" | tail -n "+$boundary_line" \
+            | LC_ALL=C grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' \
+            | awk '{s+=$1} END {print s+0}')
+        echo "✅ Run 1 (--all-features):                                                   $run1_passed $suffix"
+        echo "✅ Run 2 (--no-default-features --features fips-self-test,kat-test-vectors): $run2_passed $suffix"
+    else
+        local total
+        total=$(printf '%s\n' "$output" | LC_ALL=C grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' \
+            | awk '{s+=$1} END {print s+0}')
+        echo "✅ $total $suffix"
+    fi
+}
+
 # Round-29 follow-up: write test output to a file BEFORE shelling it
 # into TEST_OUTPUT. The previous `TEST_OUTPUT=$(...)` shape kept all
 # output in a shell variable, so when cargo test aborted mid-run the
@@ -231,8 +273,13 @@ if [ "$TEST_FAILED" -gt 0 ]; then
         grep -v -E "$SANDBOX_FAILURE_PATTERN" || true)
 
     if [ -z "$REAL_FAILURES" ]; then
-        TOTAL_PASSED=$(echo "$TEST_OUTPUT" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}')
-        echo "✅ $TOTAL_PASSED tests passed (TLS sandbox failures ignored)"
+        # Split the count by run boundary so the summary doesn't mislead:
+        # we invoke cargo test twice (all-features + no-default-features
+        # +fips-self-test+kat-test-vectors), and a naive `sum of passed`
+        # double-counts every test that runs in both configurations.
+        # Boundary marker: the SECOND `Running unittests src/lib.rs` line
+        # (which only appears once per cargo test invocation).
+        print_split_counts "$TEST_OUTPUT" "passed (TLS sandbox failures ignored)"
     else
         echo "❌ Tests failed"
         echo "   Full output: $TEST_LOG"
@@ -240,8 +287,7 @@ if [ "$TEST_FAILED" -gt 0 ]; then
         exit 1
     fi
 else
-    TOTAL_PASSED=$(echo "$TEST_OUTPUT" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}')
-    echo "✅ All $TOTAL_PASSED tests passed"
+    print_split_counts "$TEST_OUTPUT" "passed"
 fi
 
 # ============================================================================
