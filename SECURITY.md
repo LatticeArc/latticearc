@@ -98,6 +98,42 @@ LatticeArc supports compile-time and runtime compliance controls:
 
 Kani formally verifies that `requires_fips()` and `allows_hybrid()` return correct values for every `ComplianceMode` variant (exhaustive proofs).
 
+### FIPS Power-Up Integrity Test — Known Profile Coupling
+
+The FIPS 140-3 power-up self-test (`primitives::self_test::integrity_test`)
+verifies the running binary's HMAC matches a known-good value before any
+cryptographic operation. In FIPS 140-3 §7.10 parlance, a failure must
+abort the module on the first crypto call. LatticeArc implements both
+postures, but the choice is coupled to `cfg(debug_assertions)`:
+
+- **`cfg(debug_assertions)` true** — the integrity test logs an
+  informational warning when `PRODUCTION_HMAC.txt` is absent and
+  returns `Ok(())`. Suitable for development and the FIPS-self-test
+  workflow.
+- **`cfg(debug_assertions)` false** — the integrity test calls
+  `std::process::abort()` if `PRODUCTION_HMAC.txt` is absent. This is
+  the FIPS 140-3 §7.10 posture and what the module-policy doc claims.
+
+The workspace `[profile.release]` in `Cargo.toml` keeps
+`debug-assertions = true` precisely so that an operator running
+`cargo install latticearc-cli` without first provisioning
+`PRODUCTION_HMAC.txt` doesn't immediately abort. That ergonomic choice
+also means a default `cargo install` produces a binary whose FIPS
+integrity-check posture is the dev-stub posture, not the strict
+abort-on-missing-HMAC posture.
+
+**For deployments claiming FIPS 140-3 §7.10 compliance:**
+
+1. Build with `--profile release-strict` (`debug-assertions = false`)
+   or use the upcoming `fips-strict-integrity` feature flag (once it
+   ships), and
+2. Provision `PRODUCTION_HMAC.txt` per the deployment runbook.
+
+The structural fix — decouple the integrity-test gate from
+`cfg(debug_assertions)` via a dedicated `fips-strict-integrity`
+feature — is tracked as a follow-up. Until that lands, the
+profile-vs-deployment coupling described above is the operative rule.
+
 ### Defense in Depth
 
 1. **Hybrid cryptography** - PQC + classical for defense against future threats

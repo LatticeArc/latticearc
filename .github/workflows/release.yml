@@ -220,15 +220,31 @@ jobs:
         id: hash
         run: |
           cd target/${{ matrix.target }}/release
-          # Include both library and CLI binary in checksums
+          # Include both library and CLI binary in checksums. The SLSA
+          # provenance generator (later step) consumes `hashes=` as
+          # `base64-subjects`; an empty value silently produces a
+          # no-subject attestation that signs nothing. Fail fast here
+          # if there's nothing to hash so a misconfigured build path
+          # (renamed library, missing CLI binary, target-triple typo)
+          # can't quietly publish an attestation that provides no
+          # provenance.
           HASH_FILES=""
           for f in liblatticearc* ${{ matrix.cli_binary }}; do
             [ -f "$f" ] && HASH_FILES="$HASH_FILES $f"
           done
-          if [ -n "$HASH_FILES" ]; then
-            sha256sum $HASH_FILES 2>/dev/null | tee checksums.txt || true
-            echo "hashes=$(sha256sum $HASH_FILES 2>/dev/null | base64 -w0 || echo '')" >> "$GITHUB_OUTPUT"
+          if [ -z "$HASH_FILES" ]; then
+            echo "::error::No build artifacts found for hashing (target=${{ matrix.target }})." >&2
+            echo "::error::Expected liblatticearc* and ${{ matrix.cli_binary }} in target/${{ matrix.target }}/release/." >&2
+            ls -la . >&2 || true
+            exit 1
           fi
+          sha256sum $HASH_FILES | tee checksums.txt
+          HASHES_B64=$(sha256sum $HASH_FILES | base64 -w0)
+          if [ -z "$HASHES_B64" ]; then
+            echo "::error::sha256sum produced empty output; would yield no-subject SLSA attestation." >&2
+            exit 1
+          fi
+          echo "hashes=$HASHES_B64" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Package artifacts

@@ -2430,20 +2430,21 @@ impl PortableKey {
         })?;
 
         let mut aad = Vec::with_capacity(
-            b"latticearc-lpk-v2-enc"
+            b"latticearc-lpk-v3-enc"
                 .len()
-                .saturating_add(1) // null
+                .saturating_add(1) // null after magic
                 .saturating_add(4) // enc
                 .saturating_add(algorithm_name.len())
-                .saturating_add(1)
+                .saturating_add(1) // null after algorithm_name
                 .saturating_add(key_type_name.len())
-                .saturating_add(1)
+                .saturating_add(1) // null after key_type_name
                 .saturating_add(kdf.len())
-                .saturating_add(1)
+                .saturating_add(1) // null after kdf
                 .saturating_add(4) // kdf_iterations
                 .saturating_add(4) // salt len
                 .saturating_add(kdf_salt.len())
                 .saturating_add(aead.len())
+                .saturating_add(1) // null after aead (parallel to other string fields)
                 .saturating_add(4) // metadata len
                 .saturating_add(metadata_bytes.len()),
         );
