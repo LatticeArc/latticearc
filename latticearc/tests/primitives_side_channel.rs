@@ -140,8 +140,29 @@ where
 /// pattern. Median absorbs that. Real cache-side-channel and
 /// security-level-discriminator leaks show SUSTAINED ≥10× disparities
 /// across the full distribution and survive the median.
+///
+/// Below-floor handling: Windows `Instant::now()` typically resolves
+/// to ~100 ns whereas single-cycle ops (e.g. enum-discriminant
+/// `ct_eq`) take ~1 ns. Every sample then rounds to 0 ns and the
+/// median is 0. If we treated that as a real measurement, a
+/// `same / diff` comparison where one side rounded to 0 and the
+/// other captured one stray clock tick would give `0/N = 0.0` — a
+/// spurious "100× faster" reading that trips constant-time assertions.
+/// When either median is at-or-below the measurement floor we return
+/// `1.0` (indistinguishable) instead. Real leaks still require BOTH
+/// sides to be measurable AND show ≥10× variance to fail the
+/// containing assertion.
 fn timing_ratio(result1: &TimingResult, result2: &TimingResult) -> f64 {
-    if result2.median_ns > 0.0 { result1.median_ns / result2.median_ns } else { 1.0 }
+    /// Below this nanosecond count, the measurement is below the
+    /// platform's clock resolution and the ratio computation is
+    /// meaningless. 1 ns chosen because Linux/macOS `Instant::now()`
+    /// resolves to ~10–50 ns and Windows to ~100 ns — any sample
+    /// reading < 1 ns is genuinely "below floor", not just noisy.
+    const MEASUREMENT_FLOOR_NS: f64 = 1.0;
+    if result1.median_ns < MEASUREMENT_FLOOR_NS || result2.median_ns < MEASUREMENT_FLOOR_NS {
+        return 1.0;
+    }
+    result1.median_ns / result2.median_ns
 }
 
 // ============================================================================
