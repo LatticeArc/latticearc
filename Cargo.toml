@@ -247,6 +247,17 @@ incremental = false     # Reproducible builds
 # in release. Until that decoupling lands, this profile keeps both
 # values aligned with what the integrity test expects.
 
+[profile.release-strict]
+# FIPS 140-3 §7.10 deployment profile: `debug-assertions = false`
+# flips `primitives::self_test::integrity_test` from its dev-stub
+# posture (warn + Ok(()) when PRODUCTION_HMAC.txt is absent) to the
+# strict posture (`process::abort()` on first crypto call). Pair
+# with a provisioned `PRODUCTION_HMAC.txt` per the deployment runbook
+# in SECURITY.md "FIPS Power-Up Integrity Test — Known Profile Coupling".
+# Identical to `[profile.release]` apart from the debug-assertions flip.
+inherits = "release"
+debug-assertions = false
+
 [profile.valgrind]
 inherits = "release"
 debug = 2               # Full debug symbols for Valgrind stack traces

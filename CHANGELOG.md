@@ -9,6 +9,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### External audit follow-up — `release-strict` profile + missed-CHANGELOG retro (2026-05-10)
+
+External audit returned 1 MED + 1 DOC nit. Both fixed.
+
+#### MED
+
+- **SECURITY.md `cargo build --profile release-strict` was unrunnable.**
+  `SECURITY.md` "FIPS Power-Up Integrity Test — Known Profile
+  Coupling" (added in round-54) directed operators to build with
+  `cargo build --profile release-strict`, but
+  `[profile.release-strict]` didn't exist in `Cargo.toml` — the
+  command would have errored with `profile 'release-strict' is not
+  defined`. Added the profile to `Cargo.toml`: inherits from
+  `release`, flips `debug-assertions = false` (which is what trips
+  the strict FIPS 140-3 §7.10 integrity-check posture in
+  `primitives::self_test::integrity_test`). 4 lines, identical to
+  `release` apart from the assertion flip; comment cross-references
+  the SECURITY.md section so future profile edits stay coupled to
+  the doc claim.
+
+#### DOC
+
+- **Round-54 CHANGELOG entry retroactively added.** Every prior
+  audit round had a CHANGELOG entry; round-54 (commit `eb4b2aa87`)
+  didn't. Below is the missing entry, placed for readers who consult
+  CHANGELOG before / after `git log`.
+
+### External audit follow-up — AAD capacity drift + FIPS posture doc + SLSA fail-fast (2026-05-10) [retro]
+
+External audit returned 4 findings (3 LOW, 1 DOC). All fixed.
+Commit `eb4b2aa87`.
+
+#### LOW
+
+- **LOW-1 + LOW-2 — `encryption_aad` capacity computation: stale
+  label literal + missing null terminator for the `aead` field.**
+  `latticearc/src/unified_api/key_format.rs:2432-2449`. Two adjacent
+  bugs, both behavioural no-ops (Vec auto-grows) but reader-misleading:
+  - Capacity used `b"latticearc-lpk-v2-enc".len()` while the writer
+    (line 2462) emits `b"latticearc-lpk-v3-enc"`. Both literals are
+    21 bytes so the capacity is functionally identical, but the
+    v2→v3 AAD-format bump didn't update the reference.
+  - `.saturating_add(aead.len())` lacked its companion
+    `.saturating_add(1)` for the null terminator that line 2493
+    actually pushes. Every other string field (`algorithm_name`,
+    `key_type_name`, `kdf`) had the parallel `+1`.
+  Added inline comments naming each `+1` field.
+
+- **LOW-3 — FIPS integrity-test posture documentation gap.**
+  `[profile.release]` keeps `debug-assertions = true` because
+  `primitives::self_test::integrity_test` uses `cfg(debug_assertions)`
+  to gate dev-stub vs strict `process::abort()` behaviour. A default
+  `cargo install latticearc-cli` produces a binary in dev-stub
+  posture; "FIPS 140-3 ready" claims only hold under release-strict
+  profile + provisioned `PRODUCTION_HMAC.txt`. Added a "FIPS
+  Power-Up Integrity Test — Known Profile Coupling" subsection to
+  `SECURITY.md` documenting the trade-off, the two postures, and the
+  `fips-strict-integrity` feature decoupling follow-up.
+
+#### DOC
+
+- **DOC-1 — `release.yml` SLSA hash collection: fail-fast on empty
+  subjects.** The build-artifacts job's `id: hash` step computed
+  `hashes=` from `sha256sum | base64 -w0` and had `|| echo ''` /
+  `2>/dev/null` masks. If the build path didn't produce matching
+  `liblatticearc*` / `${{ matrix.cli_binary }}` files (renamed
+  library, target-triple typo, missing CLI binary), the step
+  silently produced an empty output. The SLSA Level 3 generator
+  consumes that as `base64-subjects`; an empty value yields a
+  no-subject attestation that signs nothing. Replaced with explicit
+  fail-fast: missing files / empty sha256sum output now logs
+  `::error::` annotations listing the directory and `exit 1`.
+
 ### External audit follow-up — Zero Trust replay defense + SP 800-90B AP-test fix (2026-05-10)
 
 External audit returned 6 findings (1 HIGH, 2 MED, 2 LOW, 1 DOC).
