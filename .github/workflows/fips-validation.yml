@@ -83,14 +83,19 @@ jobs:
       - name: Verify self-test coverage
         run: |
           echo "Verifying FIPS 140-3 self-test functions exist and ran..."
-          # Verify that KAT functions exist in self_test.rs
-          for kat in kat_aes_256_gcm kat_sha256 kat_sha3_256 kat_hmac_sha256 kat_hkdf_sha256 kat_ml_kem_768 kat_ml_dsa kat_slh_dsa kat_fn_dsa; do
+          # Verify that KAT / roundtrip self-test functions exist in
+          # self_test.rs. ML-KEM uses `roundtrip_ml_kem_768` (no ACVP
+          # vector available for ML-KEM at this self-test layer; the
+          # CAVP suite in `latticearc-tests` validates ML-KEM against
+          # real test vectors separately). All other primitives use
+          # `kat_*` because they have real ACVP/known-answer vectors.
+          for kat in kat_aes_256_gcm kat_sha256 kat_sha3_256 kat_hmac_sha256 kat_hkdf_sha256 roundtrip_ml_kem_768 kat_ml_dsa kat_slh_dsa kat_fn_dsa; do
             if ! grep -q "fn $kat" latticearc/src/primitives/self_test.rs; then
-              echo "FAILED: Missing KAT function: $kat"
+              echo "FAILED: Missing self-test function: $kat"
               exit 1
             fi
           done
-          echo "All required KAT functions found in self_test.rs"
+          echo "All required self-test functions found in self_test.rs"
           # Verify power-up test calls all KATs
           if ! grep -q "run_power_up_tests" latticearc/src/primitives/self_test.rs; then
             echo "FAILED: Missing run_power_up_tests function"
