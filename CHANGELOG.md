@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### External audit follow-up — Ed25519 ct_eq stack-temporary leak (2026-05-12)
+
+External audit returned 1 finding. Fixed.
+
+#### Findings
+
+- **`Ed25519KeyPair::ct_eq` materialised secret-key bytes in
+  unzeroized stack temporaries.** The implementation was
+  `self.secret_key.to_bytes().ct_eq(&other.secret_key.to_bytes())`.
+  `ed25519_dalek::SigningKey::to_bytes()` returns a plain
+  `[u8; 32]` — no `Zeroize` wrapper, no `Drop` that wipes the
+  stack slot. Each call materialised a 32-byte Ed25519 secret-key
+  seed in a stack temporary that persisted until overwritten by
+  the next function call. While the function itself was secret-
+  comparison-correct (ct_eq runs in constant time), the residual
+  stack copies were a structural Secret Type Invariant violation.
+
+  Fixed by wrapping both `.to_bytes()` results in
+  `Zeroizing<[u8; 32]>` (`Drop` wipes the slot on return). Same
+  pattern as `zkp::schnorr::SchnorrProver::new`, which documents
+  the rationale at length and is the established workspace
+  precedent for this class of borrow.
+
+#### `scripts/audit.sh` — 1 new Dim 14 regression guard
+
+- **14.22** `[STACK-LEAK]` — flags production `.secret_key.to_bytes()`
+  / `.signing_key.to_bytes()` calls that are NOT wrapped in
+  `Zeroizing` within ~80 chars before the match. Skips
+  `#[cfg(test)]` / `#[test]` contexts (where lower-stakes test
+  helpers may legitimately materialise plain arrays). Catches the
+  shape that let this finding slip past prior rounds. 7
+  test-context sites in `zkp/sigma.rs` are correctly excluded by
+  the test-range filter; only the production ed25519 site was
+  flagged before fix; check now passes.
+
 ### External audit follow-up — pre-activation emergency destruction path (SP 800-57 §8.3.1) (2026-05-12)
 
 External audit returned 1 finding (LOW). Fixed.
