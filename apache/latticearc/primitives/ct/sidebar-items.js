@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["is_all_zero_bytes"]};
+window.SIDEBAR_ITEMS = {"fn":["is_all_zero","is_all_zero_bytes"]};
