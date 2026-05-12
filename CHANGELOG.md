@@ -9,6 +9,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### External audit follow-up — pre-activation emergency destruction path (SP 800-57 §8.3.1) (2026-05-12)
+
+External audit returned 1 finding (LOW). Fixed.
+
+#### Findings
+
+- **Missing `Generation → Destroyed` state machine transition.** The
+  `KeyStateMachine` allowed `Generation → Active` as the only forward
+  edge from Generation, with no path to Destroyed without passing
+  through Active and Retired. For a key discovered compromised
+  between keygen and activation (PCT survived, but compromise found
+  before the key was ever used), the existing code forced the audit
+  trail through `Generation → Active → Retired → Destroyed` — three
+  semantically false transitions for a key that was never activated,
+  corrupting `state_history`.
+  
+  Severity LOW because physical destruction is guaranteed by `Drop`
+  (`ZeroizeOnDrop` on the inner secret types), so the gap was
+  audit-trail-only, not a key-material-leak. But audit-trail truth
+  matters: a record showing three transitions a key never took
+  falsifies the compliance evidence trail.
+  
+  SP 800-57 Part 1 Rev. 5 §8.3.1 explicitly does NOT require passing
+  through Activation before Destruction for compromised pre-activation
+  keys — the new direct edge aligns the implementation with the
+  standard.
+  
+  Fixed at four call sites in `latticearc/src/types/key_lifecycle.rs`:
+  
+  1. `KeyStateMachine::is_valid_transition` — added
+     `(Some(Generation), Destroyed) => true` arm with a comment
+     citing SP 800-57 §8.3.1.
+  2. `KeyStateMachine::allowed_next_states(Generation)` — returns
+     `vec![Active, Destroyed]` (was `vec![Active]`).
+  3. Kani proof `key_state_machine_transitions_match_spec` — the
+     independent spec encoding inside the proof updated in lockstep
+     so the proof still validates the implementation.
+  4. Doc comment on `is_valid_transition` lists the new transition
+     and explains the audit-trail-correctness rationale.
+  
+  Test coverage:
+  - Updated `test_valid_state_transitions_succeeds` to include
+    `Generation → Destroyed`.
+  - Updated `test_invalid_state_transitions_fails` — removed the
+    stale assertion that `Generation → Destroyed` is invalid
+    (replaced with `Active → Destroyed` is invalid, which is the
+    still-blocked emergency-destruction-from-active path).
+  - Updated `test_allowed_next_states_succeeds` for Generation's
+    new 2-element allowed list (set-membership assertion, robust
+    to vec ordering).
+  - **New test** `test_generation_to_destroyed_audit_trail_preserves_truth`
+    pins the end-to-end audit-trail property: a record taken from
+    Generation directly to Destroyed has exactly one history entry,
+    `from=Generation, to=Destroyed`, with no spurious Active or
+    Retired entries.
+  - Updated `test_transition_validation_succeeds` to exercise a
+    still-invalid transition (Active → Generation backward edge)
+    instead of the now-valid Generation → Destroyed.
+
+The `Active → Destroyed` emergency path was NOT added in this round
+(audit didn't flag it; per SP 800-57 §8.3.5 an active-compromised
+key SHOULD pass through Retired before Destroyed so the
+"intentionally retired" audit signal is preserved — different
+semantics from the pre-activation case).
+
 ### External audit follow-up — stale comments, CT-equality canonicalisation, FIPS 203 cross-check (2026-05-11)
 
 External audit returned 6 findings (1 stale-doc, 1 naming, 2 CT-canon,

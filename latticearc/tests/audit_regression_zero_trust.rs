@@ -220,8 +220,20 @@ fn key_lifecycle_record_rejects_every_illegal_transition() {
     use latticearc::types::key_lifecycle::{KeyLifecycleRecord, KeyLifecycleState};
 
     // (start_state, target_state) pairs that must be rejected.
+    //
+    // Note: `(Generation, Destroyed)` is INTENTIONALLY ABSENT — it is a
+    // valid pre-activation emergency-destruction path per SP 800-57
+    // Part 1 Rev. 5 §8.3.1 (compromised pre-activation keys may be
+    // destroyed without passing through Activation). The companion
+    // unit test in `key_lifecycle.rs::tests` (
+    // `test_generation_to_destroyed_audit_trail_preserves_truth`)
+    // pins the positive case.
+    //
+    // `(Active, Destroyed)` REMAINS illegal — an active-compromised
+    // key must pass through Retired so the "intentionally retired"
+    // audit signal is preserved (SP 800-57 §8.3.5 distinguishes the
+    // two cases by audit-trail intent).
     let illegal = [
-        (KeyLifecycleState::Generation, KeyLifecycleState::Destroyed),
         (KeyLifecycleState::Generation, KeyLifecycleState::Retired),
         (KeyLifecycleState::Generation, KeyLifecycleState::Rotating),
         (KeyLifecycleState::Active, KeyLifecycleState::Destroyed),
