@@ -9,6 +9,288 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-13
+
+**Headline**: normative Secret Type Invariants ratified and structurally
+enforced across the crate. Every type holding secret material now conforms to
+a single invariant set (`docs/SECRET_TYPE_INVARIANTS.md`): sealed single
+accessor `expose_secret()`, no `PartialEq`/`Eq`/`Clone`/`AsRef<[u8]>`/`Deref`,
+stack-allocated fixed-size backing where the length is compile-time known,
+compile-time barrier test covering 32 secret types, optional OS-level memory
+locking via the `secret-mlock` feature. This is a pre-1.0 breaking release;
+see the migration section below.
+
+### Added
+
+- **`docs/SECRET_TYPE_INVARIANTS.md`** — new normative spec. Ten invariants
+  (I-1 through I-10) governing every `pub` type in the crate that holds
+  secret material. Enforced by the compile-time barrier at
+  `tests/no_partial_eq_on_secret_types.rs`, by the `expose_secret()` naming
+  convention (grep-able audit checkpoint), and by CI clippy rules. Applies
+  equally to downstream proprietary consumers.
+- **`latticearc::SecretBytes<const N: usize>`** — new primitive.
+  Stack-allocated fixed-size secret-byte container, `#[derive(Zeroize,
+  ZeroizeOnDrop)]`, manual redacted `Debug`, `ConstantTimeEq`, no `Clone`
+  (use `clone_for_transmission()`), single sealed accessor
+  `expose_secret() -> &[u8; N]`. Preferred over `Zeroizing<Vec<u8>>` whenever
+  the length is statically known (invariant I-2): no heap allocator size
+  fingerprint, no realloc path that could free an unzeroized buffer.
+- **`latticearc::SecretVec`** — new primitive. Heap-allocated variable-length
+  equivalent. Same invariants as `SecretBytes<N>`. Constructors do **not**
+  call `shrink_to_fit()` (a 0.8.x hardening pass removed it after
+  discovering a realloc-leak: `shrink_to_fit` may move the buffer, leaving
+  the original allocation un-zeroized). The `Drop` impl walks the full
+  capacity instead.
+- **`latticearc::hybrid::kem_hybrid::HYBRID_SHARED_SECRET_LEN: usize = 64`**
+  — new public constant, the size of the combined hybrid shared secret
+  (HKDF-SHA256 output; see `derive_hybrid_shared_secret`).
+- **New optional feature `secret-mlock`** (invariant I-10; default off).
+  Under this feature, `SecretVec` calls `region::lock(2)` on its backing
+  buffer at construction time (Linux/macOS `mlock`, Windows `VirtualLock`)
+  so the bytes cannot be swapped to disk or captured in a core dump. Fail-
+  open on lock failure (e.g. `RLIMIT_MEMLOCK` exceeded): the `SecretVec` is
+  still returned with zeroization guarantees intact but without OS-level
+  leakage protection. `SecretBytes<N>` is deliberately not covered (stack
+  addresses do not survive Rust moves; per-instance page-locking is
+  impractical). Adds transitive deps `region`, `mach2` (macOS), `bitflags`
+  under the feature only.
+- **Compile-time `PartialEq` barrier on aws-lc-rs-wrapped secret types**
+  (closes #49, aws-lc-rs portion; defensive alternative to an upstream fix).
+  New integration test
+  `latticearc/tests/no_partial_eq_on_secret_types.rs` uses
+  `static_assertions::assert_not_impl_any!` to reject any future `PartialEq` or
+  `Eq` impl on `X25519KeyPair`, `EcdhP256KeyPair`, `EcdhP384KeyPair`,
+  `EcdhP521KeyPair`, and `MlKemDecapsulationKeyPair`. Removes the "no
+  compile-time barrier prevents a future `==` comparison" risk without waiting
+  on aws-lc-rs to expose raw key bytes. `static_assertions = "1.1"` added as
+  dev-dep; zero runtime cost.
+- **ZKP proof Zeroize + `clone_for_transmission` invariant tests** (#50).
+  Six tests across `zkp/schnorr.rs` and `zkp/sigma.rs` verify that (a)
+  `Zeroize::zeroize()` wipes every field and (b) `clone_for_transmission`
+  gives independent storage. Combined with `zeroize::ZeroizeOnDrop`'s
+  derive contract, these invariants imply both the original and every
+  transmitted clone are wiped at end-of-scope. A new SECURITY.md section
+  "ZKP Proof Clone Acceptance" under "Known Limitations" documents the
+  rationale and the tested invariants.
+
+### Changed (breaking — secret-type migration)
+
+- **Sealed accessor `expose_secret()` replaces `as_bytes()`/`as_slice()` on
+  every secret-bearing type** (invariant I-8). `as_bytes()` / `as_slice()`
+  remain on public-data types (`PublicKey`, `MlKemPublicKey`,
+  `MlKemCiphertext`, `MlDsaPublicKey`, `MlDsaSignature`, SLH-DSA
+  `VerifyingKey`, FN-DSA `VerifyingKey`/`Signature`, `X25519StaticKeyPair`,
+  `EcdhP256KeyPair`, `EcdhP384KeyPair`, `EcdhP521KeyPair`, `HashOutput`) —
+  the naming distinction between public and secret byte access is now
+  structural. Rename sweep covers `PrivateKey`, `SymmetricKey`,
+  `MlKemSecretKey`, `MlKemSharedSecret`, `MlDsaSecretKey`, SLH-DSA
+  `SigningKey`, FN-DSA `SigningKey`, and the new `SecretBytes`/`SecretVec`
+  primitives.
+
+  Migration: `sk.as_bytes()` → `sk.expose_secret()` (277 call sites in the
+  crate were migrated this way, driven by compiler errors).
+
+- **Multi-secret composite types use `expose_<component>_secret()`**:
+  - `HybridSigSecretKey::ml_dsa_sk()` → `expose_ml_dsa_secret()`
+  - `HybridSigSecretKey::ed25519_sk()` → `expose_ed25519_secret()`
+  - `EncapsulatedKey::shared_secret()` → `expose_secret()` (single secret
+    on the type, despite containing public ciphertext + public ephemeral
+    key fields alongside).
+  - `PqOnlySecretKey::ml_kem_sk_bytes()` → `expose_secret()`.
+
+- **`EncapsulatedKey::shared_secret` field type**: `Zeroizing<Vec<u8>>` →
+  `SecretBytes<64>` (stack-allocated, invariant I-2). `EncapsulatedKey::new`
+  third parameter type changes accordingly; `expose_secret()` now returns
+  `&[u8; 64]` rather than `&[u8]`. Eliminates one heap allocation per
+  hybrid-KEM decapsulation and removes a realloc-leak bug class.
+
+- **`derive_hybrid_shared_secret` return type**: `Result<Zeroizing<Vec<u8>>,
+  HybridKemError>` → `Result<SecretBytes<HYBRID_SHARED_SECRET_LEN>,
+  HybridKemError>`. The intermediate IKM assembly also migrated from
+  `Zeroizing<Vec<u8>>` + two `extend_from_slice` to a stack `[u8; 64]`
+  filled via explicit `copy_from_slice` into proven-in-range sub-slices.
+
+- **`kem_hybrid::decapsulate` return type**: same migration as above.
+
+- **No `PartialEq` / `Eq` on any secret type** (invariants I-5 / I-6).
+  Removed four pre-existing latent `impl PartialEq` violations
+  (`MlKemSecretKey`, `MlKemSharedSecret`, `MlDsaSecretKey`, SLH-DSA
+  `SigningKey`) — each delegated to `ConstantTimeEq::ct_eq` internally, but
+  their existence enabled callers to use `==` on secret types (leaking
+  timing via short-circuit composition with `&&` / `||`). The compile-time
+  barrier at `tests/no_partial_eq_on_secret_types.rs` now covers 32 types
+  and will reject any future `#[derive(PartialEq)]` on a secret type as a
+  build error.
+
+  Migration: `assert_eq!(sk1, sk2)` → `assert!(bool::from(sk1.ct_eq(&sk2)))`.
+  12 in-module and integration test call sites were migrated this way.
+
+- **No `AsRef<[u8]>` / `Deref<Target = [u8]>` / `DerefMut` on secret types**
+  (invariant I-8). `PrivateKey`, `SymmetricKey`, and the new `SecretBytes` /
+  `SecretVec` do not implement these traits. Implicit coercions via `&key`
+  or `&*key` that previously worked no longer compile.
+
+  Migration: `some_fn(&private_key)` → `some_fn(private_key.expose_secret())`.
+
+- **`PrivateKey` and `SymmetricKey` now wrap `SecretVec`** internally (was
+  `ZeroizedBytes`). Behavioural contract unchanged from the caller's
+  perspective aside from the accessor rename; under the `secret-mlock`
+  feature both types now inherit OS-level memory locking.
+
+### Changed (breaking — pre-1.0 API cleanup)
+
+- **ZKP proof types removed `Clone` derive** (closes #50). `SchnorrProof`,
+  `SigmaProof`, and `DlogEqualityProof` no longer implement `Clone`. Each
+  proof type now exposes `clone_for_transmission() -> Self` so every
+  duplication is a deliberate, grep-able audit checkpoint. Supersedes the
+  earlier Path A (documented acceptance of the `Clone` derive) with Path B
+  (no `Clone`, explicit method). SECURITY.md section renamed "ZKP Proof
+  Duplication" and updated accordingly.
+- **`SerializableKeyPair` removed `Clone` derive** (closes #51). Production
+  code never cloned this type; only three `#[test]` sites did. Those tests
+  were rewritten to construct two independent instances from the same
+  source key. Downstream consumers who previously cloned a serialized
+  keypair will see a compile error and should either construct two
+  instances from the same source or promote the resulting `KeyPair` to
+  runtime-key types.
+- **ML-DSA `sign`/`verify` are now methods, not free functions** (API shape
+  aligned with SLH-DSA and FN-DSA). Call sites change from
+  `ml_dsa::sign(&sk, msg, ctx)` to `sk.sign(msg, ctx)`, and from
+  `ml_dsa::verify(&pk, msg, sig, ctx)` to `pk.verify(msg, sig, ctx)`. All
+  46+ internal call sites migrated. The free functions are no longer
+  exported.
+- **FN-DSA now uses per-module `FnDsaError`** (matches ML-DSA's
+  `MlDsaError` and SLH-DSA's `SlhDsaError`). Previously FN-DSA returned
+  the crate-wide `LatticeArcError`. A `From<FnDsaError> for LatticeArcError`
+  impl is provided so callers that propagate into crate-level error types
+  continue to work via `?`.
+- **FN-DSA `VerifyingKey::verify` doc comment corrected.** The prior doc
+  promised an `Err` path ("Returns an error if the fn_dsa feature is not
+  enabled") that did not exist in the code — the function was infallible
+  in practice. Updated to accurately describe that the `Result` wrapper is
+  retained for return-type parity with ML-DSA/SLH-DSA and to keep future
+  error paths non-breaking.
+
+### Changed (audit marker convention)
+
+- **`AUDIT-ACCEPTED` → `AUDIT-TRACKED(#NN)`**: renamed 17 in-code markers across
+  `primitives/kem/ecdh.rs`, `primitives/kem/ml_kem.rs`, `primitives/mac/cmac.rs`,
+  `unified_api/serialization.rs`, `unified_api/key_format.rs`, `zkp/schnorr.rs`,
+  and `zkp/sigma.rs` to reference open GitHub tracking issues (#48–#52). The
+  word "accepted" implied audit closure and created a false sense of complete-
+  ness; tracked limitations now stay visible — and referenced to an open issue
+  — until genuinely resolved. Convention is documented in
+  `docs/DESIGN_PATTERNS.md`.
+
+### Deprecated
+
+(none this release)
+
+### Removed (breaking)
+
+- **`latticearc::ZeroizedBytes`** — deleted. Was a heap-backed variable-
+  length secret-byte container that duplicated `SecretVec`'s invariant set.
+  All uses in the crate were consolidated; `PrivateKey(ZeroizedBytes)` and
+  `SymmetricKey(ZeroizedBytes)` now wrap `SecretVec` instead.
+
+  Migration: `ZeroizedBytes::new(v)` → `SecretVec::new(v)`;
+  `zb.as_slice()` → `sv.expose_secret()`.
+
+- **`latticearc::primitives::security::SecureBytes`** — deleted. Was a
+  heap-backed secret-byte container that implemented `Deref<Target = [u8]>`
+  /  `DerefMut` / `AsRef<[u8]>` / `PartialEq` / `Eq` — every trait listed in
+  invariants I-5, I-6, and I-8 as forbidden on a secret type. Also retained
+  `extend_from_slice` / `resize` methods whose realloc path could free
+  unzeroized memory (invariant I-2 violation).
+
+  Migration: `SecureBytes::new(v)` → `SecretVec::new(v)`;
+  `SecureBytes::zeros(n)` → `SecretVec::zero(n)`; `sb.as_slice()` /
+  `&*sb` / `sb.as_ref()` → `sv.expose_secret()`. Callers that relied on
+  `extend_from_slice` or `resize` must build the final `Vec<u8>` outside
+  the wrapper and then pass it to `SecretVec::new` — the new type has no
+  in-place growth API, by design.
+
+- **`impl PartialEq for MlKemSecretKey`** and **`impl Eq for MlKemSecretKey`**
+  — removed (see Changed section above).
+- **`impl PartialEq for MlKemSharedSecret`** and **`impl Eq`** — removed.
+- **`impl PartialEq for MlDsaSecretKey`** and **`impl Eq`** — removed.
+- **`impl PartialEq for SLH-DSA SigningKey`** and **`impl Eq`** — removed.
+- **`impl Deref for SecureBytes`**, **`impl DerefMut`**, **`impl AsRef<[u8]>`**,
+  **`impl PartialEq`**, **`impl Eq`** — removed with the type.
+- **`impl AsRef<[u8]> for PrivateKey`**, **`impl AsRef<[u8]> for SymmetricKey`**,
+  **`impl AsRef<[u8]> for ZeroizedBytes`** — the latter with the type,
+  the former two deliberately.
+- **`MemoryPool::allocate` and `::deallocate` signatures** changed from
+  `SecureBytes` to `SecretVec`. The pool's internal storage is now
+  `HashMap<usize, Vec<SecretVec>>`.
+
+### Removed (audit markers)
+
+- **All `AUDIT-TRACKED` markers removed from source.** Six `#48` and five
+  `#49` markers on aws-lc-rs-wrapped secret types (ECDH keypairs, ML-KEM
+  `DecapsulationKey`) are replaced with concise inline docs pointing at
+  a new SECURITY.md section ("aws-lc-rs-Wrapped Secret Types"). Neither
+  remaining concern is actionable downstream: zeroization is already
+  handled by aws-lc-rs/BoringSSL at free time, and the absence of
+  `ConstantTimeEq` is guarded by a compile-time `PartialEq` barrier
+  (`latticearc/tests/no_partial_eq_on_secret_types.rs`). Issues #48 and
+  #49 close on merge. The `AUDIT-TRACKED(#NN)` convention remains
+  documented in `docs/DESIGN_PATTERNS.md` for future use, but the tree
+  now carries zero markers — the "locked" state for 1.0 prep.
+
+### Fixed
+
+- **CMAC subkey derivation is constant-time** (closes #52). Replaced the two
+  `if msb == 1 { xor_block(...) }` branches in
+  `primitives/mac/cmac.rs::generate_subkeys` with a constant-time
+  `ct_xor_block_if` helper built on `subtle::ConditionallySelectable`. K1 and
+  K2 derivations are now uniformly timed regardless of the CMAC key. NIST SP
+  800-38B KAT vectors for AES-128/192/256 continue to pass.
+- **`PortableKey::ConstantTimeEq` now compares all fields** (closes #49,
+  `PortableKey` portion). The prior impl had two correctness bugs:
+  (1) it ignored `PortableKey` metadata, so two keys with identical `key_data`
+      but different `algorithm`, `key_type`, `use_case`, `security_level`,
+      `created`, or extension metadata compared as equal;
+  (2) the `Encrypted` variant fell through the wildcard arm, so two identical
+      encrypted envelopes compared not-equal (false negative).
+  New impl compares metadata non-CT (it is plaintext on the wire) and
+  delegates the key material to a new `impl ConstantTimeEq for KeyData`. The
+  `KeyData` match is now exhaustive — adding a new variant triggers a compile
+  error rather than a silent fall-through. Eight regression tests added,
+  including coverage for each metadata field, the Encrypted variant, and
+  variant-mismatch paths.
+
+### Fixed (CLI — pure-PQ key handling in unified paths)
+
+- **`sign --public-key` with a pure-PQ ML-DSA key now works** (previously
+  failed with *"Hybrid secret key length mismatch: expected 4064, got
+  4032"*). Root cause: `build_signing_config` inferred `SecurityLevel`
+  from the key's algorithm but left `CryptoMode` at its default (`Hybrid`),
+  so the selector resolved to a hybrid scheme and rejected the pure-PQ
+  key. Added `infer_crypto_mode(KeyAlgorithm) -> Option<CryptoMode>`
+  alongside `infer_signature_security_level`; pure-PQ variants now set
+  `CryptoMode::PqOnly` automatically. Precedence unchanged — explicit
+  `--use-case` / `--security-level` still wins over inference.
+- **`encrypt --use-case ...` with a pure-PQ ML-KEM key now works**
+  (mirror-image of the sign bug). `encrypt_with_config` unconditionally
+  parsed public keys as hybrid in the use-case path. It now detects
+  pure-PQ ML-KEM algorithms (`ml-kem-512/768/1024`) and delegates to
+  `encrypt_pq_only_mode`, which sets `CryptoMode::PqOnly` and uses
+  `EncryptKey::PqOnly`. Hybrid keys continue to use the hybrid path.
+- **Regression tests**: six new end-to-end tests in
+  `cli_integration.rs` cover keygen → sign → verify (ML-DSA-44/65/87)
+  and keygen → encrypt → decrypt (ML-KEM-512/768/1024) via the
+  unified `--public-key` / `--use-case` flags. Existing tests only
+  exercised hybrid schemes (every `UseCase` maps to a hybrid variant
+  in the policy engine), so the pure-PQ × unified-API intersection was
+  unreached.
+
+---
+
+### Audit rounds & hardening (folded in, newest first)
+
+The Secret Type Invariants release above went through subsequent audit rounds (external follow-ups, self-audits, hardening passes, and rounds 3–49) between 2026-04-27 and 2026-05-12. Per-round detail is preserved below in reverse chronological order; the cumulative effect is captured in the Added / Changed / Fixed / Removed sections above.
+
 ### External audit follow-up — Ed25519 ct_eq stack-temporary leak (2026-05-12)
 
 External audit returned 1 finding. Fixed.
@@ -6395,285 +6677,6 @@ documentation hygiene. No new breaking changes.
   satisfy the new `MIN_SALT_LEN` floor.
 - **CLI tests touching salts** (`latticearc-cli/tests/cli_integration.rs`)
   bumped from 8 / 13 hex-char salts to 32 hex-char (16-byte) salts.
-
-## [0.8.0] — 2026-04-24
-
-**Headline**: normative Secret Type Invariants ratified and structurally
-enforced across the crate. Every type holding secret material now conforms to
-a single invariant set (`docs/SECRET_TYPE_INVARIANTS.md`): sealed single
-accessor `expose_secret()`, no `PartialEq`/`Eq`/`Clone`/`AsRef<[u8]>`/`Deref`,
-stack-allocated fixed-size backing where the length is compile-time known,
-compile-time barrier test covering 32 secret types, optional OS-level memory
-locking via the `secret-mlock` feature. This is a pre-1.0 breaking release;
-see the migration section below.
-
-### Added
-
-- **`docs/SECRET_TYPE_INVARIANTS.md`** — new normative spec. Ten invariants
-  (I-1 through I-10) governing every `pub` type in the crate that holds
-  secret material. Enforced by the compile-time barrier at
-  `tests/no_partial_eq_on_secret_types.rs`, by the `expose_secret()` naming
-  convention (grep-able audit checkpoint), and by CI clippy rules. Applies
-  equally to downstream proprietary consumers.
-- **`latticearc::SecretBytes<const N: usize>`** — new primitive.
-  Stack-allocated fixed-size secret-byte container, `#[derive(Zeroize,
-  ZeroizeOnDrop)]`, manual redacted `Debug`, `ConstantTimeEq`, no `Clone`
-  (use `clone_for_transmission()`), single sealed accessor
-  `expose_secret() -> &[u8; N]`. Preferred over `Zeroizing<Vec<u8>>` whenever
-  the length is statically known (invariant I-2): no heap allocator size
-  fingerprint, no realloc path that could free an unzeroized buffer.
-- **`latticearc::SecretVec`** — new primitive. Heap-allocated variable-length
-  equivalent. Same invariants as `SecretBytes<N>`. Constructors do **not**
-  call `shrink_to_fit()` (a 0.8.x hardening pass removed it after
-  discovering a realloc-leak: `shrink_to_fit` may move the buffer, leaving
-  the original allocation un-zeroized). The `Drop` impl walks the full
-  capacity instead.
-- **`latticearc::hybrid::kem_hybrid::HYBRID_SHARED_SECRET_LEN: usize = 64`**
-  — new public constant, the size of the combined hybrid shared secret
-  (HKDF-SHA256 output; see `derive_hybrid_shared_secret`).
-- **New optional feature `secret-mlock`** (invariant I-10; default off).
-  Under this feature, `SecretVec` calls `region::lock(2)` on its backing
-  buffer at construction time (Linux/macOS `mlock`, Windows `VirtualLock`)
-  so the bytes cannot be swapped to disk or captured in a core dump. Fail-
-  open on lock failure (e.g. `RLIMIT_MEMLOCK` exceeded): the `SecretVec` is
-  still returned with zeroization guarantees intact but without OS-level
-  leakage protection. `SecretBytes<N>` is deliberately not covered (stack
-  addresses do not survive Rust moves; per-instance page-locking is
-  impractical). Adds transitive deps `region`, `mach2` (macOS), `bitflags`
-  under the feature only.
-
-### Changed (breaking — secret-type migration)
-
-- **Sealed accessor `expose_secret()` replaces `as_bytes()`/`as_slice()` on
-  every secret-bearing type** (invariant I-8). `as_bytes()` / `as_slice()`
-  remain on public-data types (`PublicKey`, `MlKemPublicKey`,
-  `MlKemCiphertext`, `MlDsaPublicKey`, `MlDsaSignature`, SLH-DSA
-  `VerifyingKey`, FN-DSA `VerifyingKey`/`Signature`, `X25519StaticKeyPair`,
-  `EcdhP256KeyPair`, `EcdhP384KeyPair`, `EcdhP521KeyPair`, `HashOutput`) —
-  the naming distinction between public and secret byte access is now
-  structural. Rename sweep covers `PrivateKey`, `SymmetricKey`,
-  `MlKemSecretKey`, `MlKemSharedSecret`, `MlDsaSecretKey`, SLH-DSA
-  `SigningKey`, FN-DSA `SigningKey`, and the new `SecretBytes`/`SecretVec`
-  primitives.
-
-  Migration: `sk.as_bytes()` → `sk.expose_secret()` (277 call sites in the
-  crate were migrated this way, driven by compiler errors).
-
-- **Multi-secret composite types use `expose_<component>_secret()`**:
-  - `HybridSigSecretKey::ml_dsa_sk()` → `expose_ml_dsa_secret()`
-  - `HybridSigSecretKey::ed25519_sk()` → `expose_ed25519_secret()`
-  - `EncapsulatedKey::shared_secret()` → `expose_secret()` (single secret
-    on the type, despite containing public ciphertext + public ephemeral
-    key fields alongside).
-  - `PqOnlySecretKey::ml_kem_sk_bytes()` → `expose_secret()`.
-
-- **`EncapsulatedKey::shared_secret` field type**: `Zeroizing<Vec<u8>>` →
-  `SecretBytes<64>` (stack-allocated, invariant I-2). `EncapsulatedKey::new`
-  third parameter type changes accordingly; `expose_secret()` now returns
-  `&[u8; 64]` rather than `&[u8]`. Eliminates one heap allocation per
-  hybrid-KEM decapsulation and removes a realloc-leak bug class.
-
-- **`derive_hybrid_shared_secret` return type**: `Result<Zeroizing<Vec<u8>>,
-  HybridKemError>` → `Result<SecretBytes<HYBRID_SHARED_SECRET_LEN>,
-  HybridKemError>`. The intermediate IKM assembly also migrated from
-  `Zeroizing<Vec<u8>>` + two `extend_from_slice` to a stack `[u8; 64]`
-  filled via explicit `copy_from_slice` into proven-in-range sub-slices.
-
-- **`kem_hybrid::decapsulate` return type**: same migration as above.
-
-- **No `PartialEq` / `Eq` on any secret type** (invariants I-5 / I-6).
-  Removed four pre-existing latent `impl PartialEq` violations
-  (`MlKemSecretKey`, `MlKemSharedSecret`, `MlDsaSecretKey`, SLH-DSA
-  `SigningKey`) — each delegated to `ConstantTimeEq::ct_eq` internally, but
-  their existence enabled callers to use `==` on secret types (leaking
-  timing via short-circuit composition with `&&` / `||`). The compile-time
-  barrier at `tests/no_partial_eq_on_secret_types.rs` now covers 32 types
-  and will reject any future `#[derive(PartialEq)]` on a secret type as a
-  build error.
-
-  Migration: `assert_eq!(sk1, sk2)` → `assert!(bool::from(sk1.ct_eq(&sk2)))`.
-  12 in-module and integration test call sites were migrated this way.
-
-- **No `AsRef<[u8]>` / `Deref<Target = [u8]>` / `DerefMut` on secret types**
-  (invariant I-8). `PrivateKey`, `SymmetricKey`, and the new `SecretBytes` /
-  `SecretVec` do not implement these traits. Implicit coercions via `&key`
-  or `&*key` that previously worked no longer compile.
-
-  Migration: `some_fn(&private_key)` → `some_fn(private_key.expose_secret())`.
-
-- **`PrivateKey` and `SymmetricKey` now wrap `SecretVec`** internally (was
-  `ZeroizedBytes`). Behavioural contract unchanged from the caller's
-  perspective aside from the accessor rename; under the `secret-mlock`
-  feature both types now inherit OS-level memory locking.
-
-### Deprecated
-
-(none this release)
-
-### Removed (breaking)
-
-- **`latticearc::ZeroizedBytes`** — deleted. Was a heap-backed variable-
-  length secret-byte container that duplicated `SecretVec`'s invariant set.
-  All uses in the crate were consolidated; `PrivateKey(ZeroizedBytes)` and
-  `SymmetricKey(ZeroizedBytes)` now wrap `SecretVec` instead.
-
-  Migration: `ZeroizedBytes::new(v)` → `SecretVec::new(v)`;
-  `zb.as_slice()` → `sv.expose_secret()`.
-
-- **`latticearc::primitives::security::SecureBytes`** — deleted. Was a
-  heap-backed secret-byte container that implemented `Deref<Target = [u8]>`
-  /  `DerefMut` / `AsRef<[u8]>` / `PartialEq` / `Eq` — every trait listed in
-  invariants I-5, I-6, and I-8 as forbidden on a secret type. Also retained
-  `extend_from_slice` / `resize` methods whose realloc path could free
-  unzeroized memory (invariant I-2 violation).
-
-  Migration: `SecureBytes::new(v)` → `SecretVec::new(v)`;
-  `SecureBytes::zeros(n)` → `SecretVec::zero(n)`; `sb.as_slice()` /
-  `&*sb` / `sb.as_ref()` → `sv.expose_secret()`. Callers that relied on
-  `extend_from_slice` or `resize` must build the final `Vec<u8>` outside
-  the wrapper and then pass it to `SecretVec::new` — the new type has no
-  in-place growth API, by design.
-
-- **`impl PartialEq for MlKemSecretKey`** and **`impl Eq for MlKemSecretKey`**
-  — removed (see Changed section above).
-- **`impl PartialEq for MlKemSharedSecret`** and **`impl Eq`** — removed.
-- **`impl PartialEq for MlDsaSecretKey`** and **`impl Eq`** — removed.
-- **`impl PartialEq for SLH-DSA SigningKey`** and **`impl Eq`** — removed.
-- **`impl Deref for SecureBytes`**, **`impl DerefMut`**, **`impl AsRef<[u8]>`**,
-  **`impl PartialEq`**, **`impl Eq`** — removed with the type.
-- **`impl AsRef<[u8]> for PrivateKey`**, **`impl AsRef<[u8]> for SymmetricKey`**,
-  **`impl AsRef<[u8]> for ZeroizedBytes`** — the latter with the type,
-  the former two deliberately.
-- **`MemoryPool::allocate` and `::deallocate` signatures** changed from
-  `SecureBytes` to `SecretVec`. The pool's internal storage is now
-  `HashMap<usize, Vec<SecretVec>>`.
-
-### Fixed (CLI — pure-PQ key handling in unified paths)
-
-- **`sign --public-key` with a pure-PQ ML-DSA key now works** (previously
-  failed with *"Hybrid secret key length mismatch: expected 4064, got
-  4032"*). Root cause: `build_signing_config` inferred `SecurityLevel`
-  from the key's algorithm but left `CryptoMode` at its default (`Hybrid`),
-  so the selector resolved to a hybrid scheme and rejected the pure-PQ
-  key. Added `infer_crypto_mode(KeyAlgorithm) -> Option<CryptoMode>`
-  alongside `infer_signature_security_level`; pure-PQ variants now set
-  `CryptoMode::PqOnly` automatically. Precedence unchanged — explicit
-  `--use-case` / `--security-level` still wins over inference.
-- **`encrypt --use-case ...` with a pure-PQ ML-KEM key now works**
-  (mirror-image of the sign bug). `encrypt_with_config` unconditionally
-  parsed public keys as hybrid in the use-case path. It now detects
-  pure-PQ ML-KEM algorithms (`ml-kem-512/768/1024`) and delegates to
-  `encrypt_pq_only_mode`, which sets `CryptoMode::PqOnly` and uses
-  `EncryptKey::PqOnly`. Hybrid keys continue to use the hybrid path.
-- **Regression tests**: six new end-to-end tests in
-  `cli_integration.rs` cover keygen → sign → verify (ML-DSA-44/65/87)
-  and keygen → encrypt → decrypt (ML-KEM-512/768/1024) via the
-  unified `--public-key` / `--use-case` flags. Existing tests only
-  exercised hybrid schemes (every `UseCase` maps to a hybrid variant
-  in the policy engine), so the pure-PQ × unified-API intersection was
-  unreached.
-
-### Changed (breaking, pre-1.0 API cleanup)
-
-- **ZKP proof types removed `Clone` derive** (closes #50). `SchnorrProof`,
-  `SigmaProof`, and `DlogEqualityProof` no longer implement `Clone`. Each
-  proof type now exposes `clone_for_transmission() -> Self` so every
-  duplication is a deliberate, grep-able audit checkpoint. Supersedes the
-  earlier Path A (documented acceptance of the `Clone` derive) with Path B
-  (no `Clone`, explicit method). SECURITY.md section renamed "ZKP Proof
-  Duplication" and updated accordingly.
-- **`SerializableKeyPair` removed `Clone` derive** (closes #51). Production
-  code never cloned this type; only three `#[test]` sites did. Those tests
-  were rewritten to construct two independent instances from the same
-  source key. Downstream consumers who previously cloned a serialized
-  keypair will see a compile error and should either construct two
-  instances from the same source or promote the resulting `KeyPair` to
-  runtime-key types.
-- **ML-DSA `sign`/`verify` are now methods, not free functions** (API shape
-  aligned with SLH-DSA and FN-DSA). Call sites change from
-  `ml_dsa::sign(&sk, msg, ctx)` to `sk.sign(msg, ctx)`, and from
-  `ml_dsa::verify(&pk, msg, sig, ctx)` to `pk.verify(msg, sig, ctx)`. All
-  46+ internal call sites migrated. The free functions are no longer
-  exported.
-- **FN-DSA now uses per-module `FnDsaError`** (matches ML-DSA's
-  `MlDsaError` and SLH-DSA's `SlhDsaError`). Previously FN-DSA returned
-  the crate-wide `LatticeArcError`. A `From<FnDsaError> for LatticeArcError`
-  impl is provided so callers that propagate into crate-level error types
-  continue to work via `?`.
-- **FN-DSA `VerifyingKey::verify` doc comment corrected.** The prior doc
-  promised an `Err` path ("Returns an error if the fn_dsa feature is not
-  enabled") that did not exist in the code — the function was infallible
-  in practice. Updated to accurately describe that the `Result` wrapper is
-  retained for return-type parity with ML-DSA/SLH-DSA and to keep future
-  error paths non-breaking.
-
-### Removed (audit markers)
-
-- **All `AUDIT-TRACKED` markers removed from source.** Six `#48` and five
-  `#49` markers on aws-lc-rs-wrapped secret types (ECDH keypairs, ML-KEM
-  `DecapsulationKey`) are replaced with concise inline docs pointing at
-  a new SECURITY.md section ("aws-lc-rs-Wrapped Secret Types"). Neither
-  remaining concern is actionable downstream: zeroization is already
-  handled by aws-lc-rs/BoringSSL at free time, and the absence of
-  `ConstantTimeEq` is guarded by a compile-time `PartialEq` barrier
-  (`latticearc/tests/no_partial_eq_on_secret_types.rs`). Issues #48 and
-  #49 close on merge. The `AUDIT-TRACKED(#NN)` convention remains
-  documented in `docs/DESIGN_PATTERNS.md` for future use, but the tree
-  now carries zero markers — the "locked" state for 1.0 prep.
-
-### Changed (audit marker convention)
-
-- **`AUDIT-ACCEPTED` → `AUDIT-TRACKED(#NN)`**: renamed 17 in-code markers across
-  `primitives/kem/ecdh.rs`, `primitives/kem/ml_kem.rs`, `primitives/mac/cmac.rs`,
-  `unified_api/serialization.rs`, `unified_api/key_format.rs`, `zkp/schnorr.rs`,
-  and `zkp/sigma.rs` to reference open GitHub tracking issues (#48–#52). The
-  word "accepted" implied audit closure and created a false sense of complete-
-  ness; tracked limitations now stay visible — and referenced to an open issue
-  — until genuinely resolved. Convention is documented in
-  `docs/DESIGN_PATTERNS.md`.
-
-### Fixed
-
-- **CMAC subkey derivation is constant-time** (closes #52). Replaced the two
-  `if msb == 1 { xor_block(...) }` branches in
-  `primitives/mac/cmac.rs::generate_subkeys` with a constant-time
-  `ct_xor_block_if` helper built on `subtle::ConditionallySelectable`. K1 and
-  K2 derivations are now uniformly timed regardless of the CMAC key. NIST SP
-  800-38B KAT vectors for AES-128/192/256 continue to pass.
-- **`PortableKey::ConstantTimeEq` now compares all fields** (closes #49,
-  `PortableKey` portion). The prior impl had two correctness bugs:
-  (1) it ignored `PortableKey` metadata, so two keys with identical `key_data`
-      but different `algorithm`, `key_type`, `use_case`, `security_level`,
-      `created`, or extension metadata compared as equal;
-  (2) the `Encrypted` variant fell through the wildcard arm, so two identical
-      encrypted envelopes compared not-equal (false negative).
-  New impl compares metadata non-CT (it is plaintext on the wire) and
-  delegates the key material to a new `impl ConstantTimeEq for KeyData`. The
-  `KeyData` match is now exhaustive — adding a new variant triggers a compile
-  error rather than a silent fall-through. Eight regression tests added,
-  including coverage for each metadata field, the Encrypted variant, and
-  variant-mismatch paths.
-
-### Added
-
-- **Compile-time `PartialEq` barrier on aws-lc-rs-wrapped secret types**
-  (closes #49, aws-lc-rs portion; defensive alternative to an upstream fix).
-  New integration test
-  `latticearc/tests/no_partial_eq_on_secret_types.rs` uses
-  `static_assertions::assert_not_impl_any!` to reject any future `PartialEq` or
-  `Eq` impl on `X25519KeyPair`, `EcdhP256KeyPair`, `EcdhP384KeyPair`,
-  `EcdhP521KeyPair`, and `MlKemDecapsulationKeyPair`. Removes the "no
-  compile-time barrier prevents a future `==` comparison" risk without waiting
-  on aws-lc-rs to expose raw key bytes. `static_assertions = "1.1"` added as
-  dev-dep; zero runtime cost.
-- **ZKP proof Zeroize + `clone_for_transmission` invariant tests** (#50).
-  Six tests across `zkp/schnorr.rs` and `zkp/sigma.rs` verify that (a)
-  `Zeroize::zeroize()` wipes every field and (b) `clone_for_transmission`
-  gives independent storage. Combined with `zeroize::ZeroizeOnDrop`'s
-  derive contract, these invariants imply both the original and every
-  transmitted clone are wiped at
-  end-of-scope. A new SECURITY.md section "ZKP Proof Clone Acceptance" under
-  "Known Limitations" documents the rationale and the tested invariants.
 
 ## [0.7.1] — 2026-04-19
 

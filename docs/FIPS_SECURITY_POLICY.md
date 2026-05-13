@@ -293,6 +293,9 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.8.0 | 2026-05-13 | Normative Secret Type Invariants ratified (`docs/SECRET_TYPE_INVARIANTS.md`): sealed `expose_secret()` accessor on every secret-bearing type, `SecretBytes<N>`/`SecretVec` primitives, optional `secret-mlock` feature, compile-time barrier test. Multiple external audit rounds folded in (FIPS 203 §6.1 SK/PK cross-check, SP 800-57 §8.3.1 pre-activation destruction, CT-equality canonicalisation, length-leak hardening, Ed25519 stack-temporary zeroization). |
+| 0.7.1 | 2026-04-22 | FN-DSA `SigningKey` zeroizes inner key material (fn-dsa 0.3.0 derives `Zeroize`); X25519 static-keypair docs corrected for aws-lc-rs 1.16+ raw-bytes import/export support; CMAC K1/K2 subkey derivation made constant-time via `subtle::ConditionallySelectable`. |
+| 0.7.0 | 2026-04-16 | `SecurityLevel::Quantum` variant removed (use `CryptoMode::PqOnly`); Phase-2 verification hardening (DudeCT/ctgrind CT gates, cross-impl differential ML-KEM/ML-DSA/SLH-DSA, Wycheproof wrappers, allocation-bounded DoS fuzz, mutation testing). |
 | 0.6.0 | 2026-04-09 | Restructured SecurityLevel/CryptoMode: added `CryptoMode` enum, deprecated `SecurityLevel::Quantum`, PQ-only encryption via unified API, CNSA 2.0 checks `CryptoMode::PqOnly` |
 | 0.5.2 | 2026-04-09 | Feature-gate compilation fixes, error type mapping fix, pre-commit feature matrix, key persistence proof tests |
 | 0.5.1 | 2026-04-09 | Security: AEAD error opacity, self-contained hybrid secret keys, real KAT vectors, CLI hybrid decrypt, Level 7 scenario tests |
