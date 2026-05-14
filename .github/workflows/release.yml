@@ -100,20 +100,47 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # Extract changelog section for this version. VERSION is
-          # bound via env: above so the value is shell-expanded at
-          # runtime; inlining a workflow expression directly into a sed
-          # argument let a malicious tag inject shell metacharacters.
-          CHANGELOG=$(sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | sed '$d')
-          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          # Extract the K-a-C summary for this version (everything from
+          # `## [VERSION]` up to the next `## [` heading OR the
+          # `### Audit rounds & hardening` divider, whichever comes
+          # first). VERSION is bound via env: above so the value is
+          # shell-expanded at runtime; inlining a workflow expression
+          # directly into a sed argument would let a malicious tag inject
+          # shell metacharacters.
+          #
+          # Why bounded at "Audit rounds & hardening": large releases
+          # may include hundreds of per-round detail sub-sections
+          # totalling >250KB. GitHub Releases API caps body at 125KB,
+          # and `action-gh-release` spawns a subprocess whose argv
+          # blows past ARG_MAX before the API cap is even checked.
+          # Per-round detail lives in the repo CHANGELOG; the release
+          # page links there. See round-60 (v0.8.0) postmortem.
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found=1 }
+            found && /^### Audit rounds & hardening/ { exit }
+            found && $0 ~ "^## \\[" && $0 !~ "^## \\[" ver "\\]" { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-body.md"
+
+          # Append a pointer to the full CHANGELOG if the version section
+          # had an audit-rounds tail that we truncated.
+          if grep -q "^### Audit rounds & hardening" CHANGELOG.md; then
+            {
+              echo ""
+              echo "---"
+              echo ""
+              echo "**Per-round detail** in the [full CHANGELOG](https://github.com/${GITHUB_REPOSITORY}/blob/v${VERSION}/CHANGELOG.md) under \"Audit rounds & hardening\"."
+            } >> "$RUNNER_TEMP/release-body.md"
+          fi
+
+          echo "body_path=$RUNNER_TEMP/release-body.md" >> "$GITHUB_OUTPUT"
+          echo "body_bytes=$(wc -c < "$RUNNER_TEMP/release-body.md")" >> "$GITHUB_OUTPUT"
 
       - name: Create release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v2
         with:
           name: v${{ steps.version.outputs.version }}
-          body: ${{ steps.changelog.outputs.changelog }}
+          body_path: ${{ steps.changelog.outputs.body_path }}
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
 
