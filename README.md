@@ -7,13 +7,13 @@
 [![codecov](https://codecov.io/gh/LatticeArc/latticearc/branch/main/graph/badge.svg)](https://codecov.io/gh/LatticeArc/latticearc)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-Post-quantum cryptography for Rust. You describe what you're protecting — LatticeArc selects the algorithm, security level, and compliance mode. Hybrid (PQ + classical) by default. Single crate.
+**Post-quantum cryptography for Rust.** You describe what you're protecting; LatticeArc picks the algorithm, security level, and compliance mode. Hybrid (PQ + classical) by default. One crate.
 
 | What you'd normally wire up yourself | What can go wrong |
 |--------------------------------------|-------------------|
 | Pick from 4 NIST standards, 11 parameter sets | Wrong security level, wrong algorithm type |
 | Combine ML-KEM + X25519 + HKDF + AES-GCM | Broken key combiner, missing domain separation |
-| Zeroize secrets, constant-time comparisons | Leaks via Debug, timing side-channels |
+| Zeroize secrets, constant-time comparisons | Leaks via `Debug`, timing side-channels |
 | FIPS 140-3, CNSA 2.0 mode restrictions | Non-compliant algorithm silently selected |
 
 ```rust
@@ -22,8 +22,8 @@ use latticearc::generate_hybrid_keypair_with_level;
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 
 // HealthcareRecords resolves to ML-KEM-1024 (NIST Level 5), so the keypair
-// must be generated at the matching level — `generate_hybrid_keypair()`
-// defaults to ML-KEM-768 and would be rejected by `validate_key_matches_scheme`.
+// must be generated at the matching level — generate_hybrid_keypair() defaults
+// to ML-KEM-768 and would be rejected by validate_key_matches_scheme.
 let (pk, sk) = generate_hybrid_keypair_with_level(MlKemSecurityLevel::MlKem1024)?;
 let encrypted = encrypt(b"patient records",
     EncryptKey::Hybrid(&pk),
@@ -31,6 +31,8 @@ let encrypted = encrypt(b"patient records",
 let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 // ML-KEM-1024 + X25519 + HKDF-SHA256 + AES-256-GCM — selected automatically
 ```
+
+---
 
 ## Quick Start
 
@@ -41,7 +43,7 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 latticearc = "0.8"
 ```
 
-**Hybrid encryption** (default — PQ + classical, both must fail for an attacker to succeed):
+**Hybrid encryption** — PQ + classical, both must fail for an attacker to succeed:
 
 ```rust
 use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
@@ -51,7 +53,7 @@ let encrypted = encrypt(b"secret data", EncryptKey::Hybrid(&pk), CryptoConfig::n
 let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
-**Digital signatures** (ML-DSA-65 + Ed25519 hybrid):
+**Digital signatures** — ML-DSA-65 + Ed25519 hybrid:
 
 ```rust
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
@@ -64,44 +66,39 @@ assert!(verify(&signed, config)?);
 
 ### CLI
 
+`latticearc-cli` exposes the same library for ops and CI workflows — no Rust required:
+
 ```bash
-cargo install --path latticearc-cli
+cargo install --git https://github.com/LatticeArc/latticearc latticearc-cli
+# or, from a local checkout:  cargo install --path latticearc-cli
 ```
 
 ```bash
-# Sign a legal document
+# Sign a legal document (ML-DSA-87 + Ed25519 hybrid, selected by use case)
 latticearc-cli keygen --use-case legal-documents --output ./keys
-latticearc-cli sign --input contract.pdf \
+latticearc-cli sign   --input contract.pdf \
   --key keys/hybrid-ml-dsa-87-ed25519.sec.json \
   --public-key keys/hybrid-ml-dsa-87-ed25519.pub.json
 latticearc-cli verify --input contract.pdf \
   --signature contract.pdf.sig.json \
   --key keys/hybrid-ml-dsa-87-ed25519.pub.json
 
-# Encrypt healthcare records
-latticearc-cli keygen --algorithm aes256 --output ./keys
+# Encrypt healthcare records (AES-256-GCM)
+latticearc-cli keygen  --algorithm aes256 --output ./keys
 latticearc-cli encrypt --use-case healthcare-records \
   --input patient.json --output patient.enc.json \
   --key keys/aes256.key.json
 ```
 
-> 22 use cases, 12 algorithms, hybrid + PQ-only modes. See [`latticearc-cli/README.md`](latticearc-cli/README.md).
+> 22 use cases · 12 algorithms · hybrid + PQ-only modes. Full reference: [`latticearc-cli/README.md`](latticearc-cli/README.md).
 
-## Highlights
+---
 
-- **All 4 NIST PQC standards** — ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (draft FIPS 206)
-- **Hybrid by default** — PQ + classical for defense-in-depth ([NIST](https://csrc.nist.gov/projects/post-quantum-cryptography/faqs), [NSA CNSA 2.0](https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF), [ENISA](https://www.enisa.europa.eu/publications/post-quantum-cryptography-current-state-and-quantum-mitigation)); PQ-only mode available
-- **22 use cases** with automatic algorithm selection — `UseCase::HealthcareRecords` → ML-KEM-1024, `UseCase::IoTDevice` → ML-KEM-512
-- **Two orthogonal axes** — `SecurityLevel` (NIST 1/3/5) × `CryptoMode` (Hybrid/PqOnly)
-- **Multi-layered verification** — formal proofs (Kani + SAW), 3-way constant-time gates, cross-impl differential testing, 31 fuzz targets, mutation testing at 80% floor. See [Verification](#verification).
-- **Opt-in FIPS backend** — `--features fips` routes AES-GCM, ML-KEM, X25519, and HKDF through a CMVP-validated aws-lc-rs build. SHA-2 hashing remains on the RustCrypto `sha2` crate (see Algorithms table for why); PQ signatures use NIST-conformant but non-validated crates. See [Algorithms & Backends](#algorithms--backends).
-- **Single crate** — `cargo add latticearc` and go
-
-## When to Use / When Not To
+## When to Use
 
 **Use LatticeArc when you want:**
 
-- Hybrid PQ+classical encrypt/decrypt without wiring ML-KEM + X25519 + HKDF + AES-GCM yourself
+- Hybrid PQ + classical encrypt/decrypt without wiring ML-KEM + X25519 + HKDF + AES-GCM yourself
 - Use-case-driven algorithm selection (22 workloads, 3 compliance modes)
 - A CLI that ops teams can use without writing Rust
 - Opt-in FIPS routing with no code changes
@@ -116,7 +113,11 @@ latticearc-cli encrypt --use-case healthcare-records \
 
 > Detailed comparison: [Ecosystem Map](docs/ECOSYSTEM.md)
 
+---
+
 ## How It Works
+
+Plaintext, key type, and config flow through a policy engine that selects the algorithm pipeline at runtime:
 
 ```mermaid
 flowchart LR
@@ -159,7 +160,7 @@ flowchart LR
     style P_AES fill:#3b82f6,stroke:#1d4ed8,color:#fff
 ```
 
-## Algorithms & Backends
+### Algorithms & Backends
 
 Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-rs to its CMVP-validated build for the algorithms it covers. PQ signatures always use non-validated crates. LatticeArc itself is **not** a CMVP-certified module.
 
@@ -173,61 +174,15 @@ Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-r
 | **Classical Key Exchange** | X25519 | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
 | **Symmetric Encryption** | AES-256-GCM | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
 | **Symmetric Encryption** | ChaCha20-Poly1305 | chacha20poly1305 — non-FIPS |
-| **Hash** | SHA-2 (256/384/512) | RustCrypto `sha2` crate — widely reviewed, NOT CMVP-validated. The `--features fips` flag does NOT swap SHA-2 to aws-lc-rs (only AES-GCM, ML-KEM, X25519, and HKDF route through aws-lc-rs under FIPS). |
+| **Hash** | SHA-2 (256/384/512) | RustCrypto `sha2` — widely reviewed, NOT CMVP-validated. `--features fips` does NOT swap SHA-2 to aws-lc-rs. |
 | **Hash** | SHA-3, BLAKE2 | sha3 / blake2 crates — non-FIPS |
 | **KDF** | HKDF-SHA256 | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
 
 > Details: [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md) · [NIST Compliance](docs/NIST_COMPLIANCE.md)
 
-## Verification
+### Architecture
 
-Multi-layered — each tier catches what the tier below cannot.
-
-### Proof-level
-
-| Tool | What it proves | Scope |
-|------|----------------|-------|
-| [SAW](https://github.com/awslabs/aws-lc-verification) (inherited via aws-lc-rs) | Machine-checked correctness of C primitives | AES-GCM, HMAC-SHA2, SHA-256/384/512, ECDSA P-256/P-384 |
-| [Kani](https://github.com/model-checking/kani) | Bounded model checking of Rust code | 30 proofs; 18 PR-blocking, full suite scheduled nightly |
-
-### Property-based + differential
-
-| Tool | What it catches |
-|------|-----------------|
-| [Proptest](https://proptest-rs.github.io/proptest/) | Roundtrip, non-malleability, single-bit rejection invariants (40+ properties × 256+ cases) |
-| Cross-impl differential | ML-KEM (fips203 vs aws-lc-rs, 600 round-trips/run), ML-DSA (fips204 vs pqcrypto-mldsa), SLH-DSA (fips205 vs pqcrypto-sphincsplus) — 21 tests across all three |
-| [Wycheproof](https://github.com/nicholasblaskey/wycheproof-rs) | 555 attacker-chosen vectors through our AES-GCM, ChaCha20-Poly1305, HMAC, and HKDF wrappers |
-
-### Constant-time validation (3-way gate)
-
-| Tool | Methodology | Schedule |
-|------|-------------|----------|
-| Criterion | Qualitative wall-clock divergence between input classes | Weekly (Sun) |
-| [DudeCT](https://eprint.iacr.org/2016/1123) | Statistical Welch's t-test; `|max t| < 10` gate | Weekly (Mon) |
-| ctgrind (Valgrind memcheck) | Marks secret bytes as uninit; fails on any branch or index that depends on them | Weekly (Tue) |
-
-### DoS resistance
-
-| Tool | What it gates |
-|------|---------------|
-| `stats_alloc` allocation budgets | Per-API-call allocation ceiling on every crypto op; regression-gated |
-| DoS fuzz target | Allocation-bounded adversarial inputs; panics fuzzer above 1 MiB/call |
-| Resource-limits coverage script | CI fails if any public `&[u8]`-taking function lacks a declared size cap |
-
-### Continuous fuzz + mutation
-
-- **31 libfuzzer targets** covering AEAD, KEM, signatures, KDF, serialization, and DoS; weekly scheduled matrix. OSS-Fuzz scaffold vendored in [`fuzz/oss-fuzz/`](fuzz/oss-fuzz/).
-- **`cargo-mutants --in-diff`** with 80% score floor, PR-blocking on changed crypto files.
-
-### Runtime sanitizers
-
-ASan, TSan, and LSan are blocking. MSan is staged — aws-lc-rs 1.16.3 added `AWS_LC_SYS_SANITIZER=msan` to instrument C code through the FFI boundary; FIPS path awaits [aws/aws-lc#3167](https://github.com/aws/aws-lc/pull/3167).
-
-`#![forbid(unsafe_code)]` is enforced at workspace level.
-
-> Full proof inventory: [Formal Verification](docs/FORMAL_VERIFICATION.md)
-
-## Architecture
+The unified API sits over a small set of composite operations, which sit over the NIST primitives, which sit over their backends:
 
 ```mermaid
 block-beta
@@ -272,52 +227,74 @@ block-beta
     style BACK fill:#374151,stroke:#1f2937,color:#fff
 ```
 
+---
+
+## Verification
+
+Multi-layered — each tier catches what the tier below cannot.
+
+### Proof-level
+
+| Tool | What it proves | Scope |
+|------|----------------|-------|
+| [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | Machine-checked correctness of C primitives | AES-GCM, HMAC-SHA2, SHA-256/384/512, ECDSA P-256/P-384 |
+| [Kani](https://github.com/model-checking/kani) | Bounded model checking of Rust code | 30 proofs; 18 PR-blocking, full suite scheduled nightly |
+
+### Property-based, differential, attacker-chosen
+
+| Tool | What it catches |
+|------|-----------------|
+| [Proptest](https://proptest-rs.github.io/proptest/) | Roundtrip, non-malleability, single-bit rejection invariants (40+ properties × 256+ cases) |
+| Cross-impl differential | ML-KEM (fips203 vs aws-lc-rs, 600 round-trips/run), ML-DSA (fips204 vs pqcrypto-mldsa), SLH-DSA (fips205 vs pqcrypto-sphincsplus) — 21 tests |
+| [Wycheproof](https://github.com/nicholasblaskey/wycheproof-rs) | 555 attacker-chosen vectors through our AES-GCM, ChaCha20-Poly1305, HMAC, HKDF wrappers |
+
+### Constant-time (3-way gate, weekly)
+
+| Tool | Methodology |
+|------|-------------|
+| Criterion | Qualitative wall-clock divergence between input classes |
+| [DudeCT](https://eprint.iacr.org/2016/1123) | Welch's t-test; `\|max t\| < 10` gate |
+| ctgrind (Valgrind memcheck) | Marks secret bytes as uninit; fails on any branch or index depending on them |
+
+### DoS, fuzz, sanitizers
+
+- **Allocation budgets** — per-API-call ceiling on every crypto op, regression-gated via `stats_alloc`
+- **31 libfuzzer targets** — AEAD, KEM, signatures, KDF, serialization, DoS; weekly matrix; OSS-Fuzz scaffold in [`fuzz/oss-fuzz/`](fuzz/oss-fuzz/)
+- **`cargo-mutants --in-diff`** — 80% score floor, PR-blocking on changed crypto files
+- **Sanitizers** — ASan / TSan / LSan blocking on PR; MSan staged behind aws-lc-rs 1.16.3's `AWS_LC_SYS_SANITIZER=msan` (FIPS path awaits [aws/aws-lc#3167](https://github.com/aws/aws-lc/pull/3167))
+- **`#![forbid(unsafe_code)]`** enforced at workspace level
+
+> Full proof inventory: [Formal Verification](docs/FORMAL_VERIFICATION.md)
+
+---
+
 ## Security
 
-Designed with the assumption that any single algorithm may be broken — hybrid mode ensures an attacker must defeat both components. Key material is zeroized on drop, tag comparisons run in constant time, secret types have manual `Debug` impls that redact contents.
+Designed under the assumption that any single algorithm may be broken — hybrid mode ensures an attacker must defeat both components. Key material is zeroized on drop, tag comparisons run in constant time, secret types have manual `Debug` impls that redact contents.
 
 ### Limitations
 
 - **Not a CMVP-certified cryptographic module.** No CMVP backend exists for PQ signatures. Use `--features fips` for the subset that routes through aws-lc-rs.
-- **Not independently audited.** We welcome security researchers to review our code.
-- **Pre-1.0 software.** API may change between versions.
+- **Not independently audited.** Security researchers welcome to review.
+- **Pre-1.0.** API may change between minor versions; see [CHANGELOG.md](CHANGELOG.md). CLI environment variables documented in [`latticearc-cli/README.md`](latticearc-cli/README.md).
 
-### CLI environment variables
+### Reporting & upstream
 
-- `LATTICEARC_PASSPHRASE` — non-interactive passphrase for encrypted keyfiles (CI/automation only). Visible to same-UID processes via `/proc/<pid>/environ`; emits a `tracing::warn!` on every read. Unset immediately after the wrapping command exits.
-- `LATTICEARC_ALLOW_SYMLINK_KEYS` — set to `1` (or `true`, case-insensitive) to permit reading key files via symlinks. Round-29 N7: previously read at runtime but not advertised in `--help` or this README; documenting now. Default rejection prevents a symlink from silently redirecting reads to unintended targets (e.g. `~/.ssh/id_rsa`).
-- `LATTICEARC_KDF_INPUT` — KDF input string for `latticearc-cli kdf` when `--input-stdin` is not used. See `docs/MODULE_PATTERNS.md`.
+- Report security issues to **Security@LatticeArc.com** — see [SECURITY.md](SECURITY.md)
+- Upstream contributions: [aws-lc-rs#1029](https://github.com/aws/aws-lc-rs/pull/1029) (ML-KEM `DecapsulationKey` serialization, shipped in v1.16.0) · [aws-lc-rs#1034](https://github.com/aws/aws-lc-rs/pull/1034) (ML-DSA seed-based deterministic keygen, shipped in v1.16.0)
 
-### Upstream Contributions
+---
 
-- **[aws-lc-rs#1029](https://github.com/aws/aws-lc-rs/pull/1029)** — ML-KEM `DecapsulationKey` serialization (shipped in v1.16.0)
-- **[aws-lc-rs#1034](https://github.com/aws/aws-lc-rs/pull/1034)** — ML-DSA seed-based deterministic keygen (shipped in v1.16.0)
+## Build
 
-Report security issues to: Security@LatticeArc.com — see [SECURITY.md](SECURITY.md).
-
-## Build Prerequisites
-
-Requires Rust 1.93+ and a C/C++ compiler. For FIPS builds, also CMake and Go.
+Requires Rust 1.93+ and a C/C++ compiler. FIPS builds also need CMake and Go.
 
 ```bash
-# Default
-cargo build
-
-# FIPS-validated backend
-brew install cmake go    # macOS
+cargo build                       # default
+brew install cmake go             # macOS, FIPS prerequisites
 # sudo apt install cmake golang-go build-essential  # Ubuntu
-cargo build --features fips
+cargo build --features fips       # FIPS-validated backend
 ```
-
-### Cargo features
-
-| Feature | Default | What it enables |
-|---|:---:|---|
-| `fips` | off | Routes AES-GCM, ML-KEM, X25519, and HKDF through the CMVP-validated `aws-lc-rs` build. Required for `ComplianceMode::Fips140_3` and `Cnsa2_0`. **SHA-2 stays on the RustCrypto `sha2` crate even with this feature on** (see the SHA-2 row in the Algorithms table). **Transitively enables `fips-self-test`** so power-on KATs run as required by FIPS 140-3 §10.3.1. If you specifically want the validated backend without the self-test wiring, set `default-features = false` and enable `aws-lc-rs/fips` directly. |
-| `fips-self-test` | off | Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, ML-DSA, SLH-DSA). SHA-2 is on the RustCrypto `sha2` crate and is intentionally outside the FIPS boundary (see the SHA-2 row in the Algorithms table) — its self-test KAT is run by the RustCrypto crate's own test suite, not here. Pulled in transitively by `fips`; can be enabled standalone for non-FIPS builds that still want the self-test KAT coverage. |
-| `tracing-init` | off | Exposes `init_tracing` / `init_tracing_with_file` helpers and the `tracing-subscriber` + `tracing-appender` deps that back them. **Library code should NOT enable this** — subscriber wiring is the binary's responsibility, and a transitive library that calls `init_tracing` will `panic!` the first downstream consumer that calls their own subscriber init. `latticearc-cli` enables this. |
-| `secret-mlock` | off | Locks heap-backed `SecretVec` buffers into RAM via `mlock(2)` / `VirtualLock`, preventing them from appearing in swap or core dumps. |
-| `kat-test-vectors` | off | Exposes `AeadCipher::new_allow_weak_key`, an opt-in constructor that bypasses the `AeadError::WeakKey` rejection of all-zero keys. **Test-only** — needed to reproduce NIST AES-GCM Test Cases 1 and 2 (McGrew & Viega) which use the all-zero key. Production builds must leave this off so an uninitialised-memory key fails closed. |
 
 | Error | Fix |
 |-------|-----|
@@ -326,26 +303,21 @@ cargo build --features fips
 | `cc not found` (Linux) | `sudo apt install build-essential` |
 | Long initial build | First build compiles AWS-LC from source (~2-3 min) |
 
-## Migration
+### Cargo features
 
-LatticeArc is **pre-1.0**: each audit round may ship breaking changes
-without a major-version bump. The authoritative record of breaking
-items lives in [CHANGELOG.md](CHANGELOG.md). The headline post-0.7.1
-breaking changes downstream consumers should know about:
+| Feature | Default | Effect |
+|---|:---:|---|
+| `fips` | off | Routes AES-GCM, ML-KEM, X25519, HKDF through CMVP-validated aws-lc-rs. Required for `ComplianceMode::Fips140_3` / `Cnsa2_0`. SHA-2 stays on RustCrypto `sha2`. Transitively enables `fips-self-test`. |
+| `fips-self-test` | off | Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, ML-DSA, SLH-DSA). |
+| `tracing-init` | off | Exposes `init_tracing[_with_file]` helpers. Libraries must NOT enable this — subscriber init belongs in the binary. Enabled by `latticearc-cli`. |
+| `secret-mlock` | off | `mlock(2)` / `VirtualLock` for heap-backed `SecretVec` buffers — prevents swap and core-dump exposure. |
+| `kat-test-vectors` | off | **Test-only.** Exposes `AeadCipher::new_allow_weak_key` to reproduce NIST AES-GCM Test Cases 1 & 2 (all-zero key). |
 
-| Round | Item | Reference |
-|-------|------|-----------|
-| 31 | `pct_ml_kem` now takes the keypair (not a fresh sibling) | CHANGELOG round-30 H1 |
-| 31 | `SecurityMode::validate` rejects `TrustLevel::Untrusted` | CHANGELOG round-31 M2 |
-| 31 | `VerifiedSession::is_valid` consults a monotonic clock | CHANGELOG round-29 M3 |
-| 31 | `arc-zkp/dlog-equality-v2`: v1 dlog-equality proofs do not verify under v2 | CHANGELOG round-31 L4 |
-| 32 | `KeyLifecycleRecord` re-validates state-machine invariants on `Deserialize` | CHANGELOG round-32 M7 |
-| 32 | `arc-zkp/schnorr-v2`: v1 Schnorr proofs do not verify under v2 | CHANGELOG round-32 (/simplify follow-up) |
-| 32 | `MlKemPublicKey::new` now performs structural validation; new `MlKemError::InvalidKeyFormat` variant | CHANGELOG round-32 L9 + round-33 M2 |
-| 32 | ML-DSA 255-byte context cap rejects on both sign and verify | CHANGELOG round-26 M1 |
+### Migration
 
-For full per-round details (HIGH/MED/LOW + reasoning), read
-`CHANGELOG.md` from the top.
+LatticeArc is pre-1.0; each minor version may ship breaking changes. See [CHANGELOG.md](CHANGELOG.md) for the authoritative per-release breaking-change list with rationale.
+
+---
 
 ## Documentation
 
@@ -359,12 +331,8 @@ For full per-round details (HIGH/MED/LOW + reasoning), read
 | [Formal Verification](docs/FORMAL_VERIFICATION.md) | Complete Kani proof inventory |
 | [Design & Architecture](docs/DESIGN.md) | Crate structure, module boundaries, design decisions |
 | [Design Patterns](docs/DESIGN_PATTERNS.md) | Config, crypto safety, and testing patterns |
-| [CLI Reference](latticearc-cli/README.md) | Full command reference for latticearc-cli |
+| [CLI Reference](latticearc-cli/README.md) | Full `latticearc-cli` command reference |
 
-## License
+## License & Contributing
 
-Apache 2.0. See [LICENSE](LICENSE).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Apache 2.0 — see [LICENSE](LICENSE). Contributions welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).

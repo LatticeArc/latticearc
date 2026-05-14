@@ -1790,6 +1790,73 @@ print('\n'.join(hits))
         warn "14.21 [CT-LENGTH-LEAK] No const-generic is_all_zero alternative — fixed-length callers fall back to variable-length helper"
     fi
 
+    # 14.22 [STACK-LEAK] Secret-key `.to_bytes()` calls in production
+    # code that don't go through `Zeroizing` (or assignment to a
+    # `ZeroizeOnDrop` field). `ed25519_dalek::SigningKey::to_bytes()`,
+    # `k256::SecretKey::to_bytes()`, and similar return plain `[u8; N]`
+    # — no `Drop` impl wipes the stack slot. Calling them inline
+    # materialises the secret as a stack temporary that persists
+    # until overwritten. The workspace pattern is to wrap the call
+    # in `Zeroizing<[u8; N]>`.
+    SECRET_TO_BYTES=$(python3 -c "
+import os, re
+hits = []
+# Match: .secret_key.to_bytes() OR .signing_key.to_bytes() that is
+# NOT wrapped in Zeroizing::new(...) AND NOT inside #[cfg(test)] /
+# #[test] / mod tests context.
+needle_re = re.compile(r'\.(secret_key|signing_key)\.to_bytes\(\)')
+zeroizing_window = re.compile(r'Zeroizing(?:::new)?\s*\(')
+# Cheap test-context filter: build a set of byte ranges inside
+# `#[cfg(test)] mod ...` or `#[test] fn ...` blocks.
+test_open = re.compile(r'#\[(test|cfg\(test\))\]')
+for root, _, files in os.walk('$SRC'):
+    if '/target/' in root or '/tests/' in root:
+        continue
+    for f in files:
+        if not f.endswith('.rs'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            text = open(path).read()
+        except Exception:
+            continue
+        # Build test-range set: each #[test]/#[cfg(test)] marker
+        # extends to the next blank line or matched `}`.
+        test_ranges = []
+        for tm in test_open.finditer(text):
+            # find next 'fn' or 'mod', then balance braces from its '{'
+            after = text[tm.end():]
+            decl = re.search(r'\b(fn|mod)\b[^{]*\{', after)
+            if not decl:
+                continue
+            decl_start = tm.end() + decl.end() - 1  # position of '{'
+            depth = 1
+            i = decl_start + 1
+            while i < len(text) and depth > 0:
+                if text[i] == '{': depth += 1
+                elif text[i] == '}': depth -= 1
+                i += 1
+            test_ranges.append((tm.start(), i))
+        for m in needle_re.finditer(text):
+            pos = m.start()
+            if any(s <= pos < e for s, e in test_ranges):
+                continue
+            # Look ~80 chars BEFORE the match for a Zeroizing wrap.
+            window = text[max(0, pos - 80):pos]
+            if zeroizing_window.search(window):
+                continue
+            line_no = text[:pos].count('\n') + 1
+            hits.append(f'{path}:{line_no}')
+print('\n'.join(hits))
+" 2>/dev/null || true)
+    if [ -z "$SECRET_TO_BYTES" ]; then
+        pass "14.22 [STACK-LEAK] All production .secret_key.to_bytes() / .signing_key.to_bytes() wrapped in Zeroizing"
+    else
+        SCOUNT=$(echo "$SECRET_TO_BYTES" | wc -l | tr -d ' ')
+        warn "14.22 [STACK-LEAK] $SCOUNT production .secret_key/.signing_key.to_bytes() site(s) NOT wrapped in Zeroizing — leaks plain stack temporaries:"
+        echo "$SECRET_TO_BYTES" | head -5
+    fi
+
     # 14.10 [META] Pattern parity meta-check. Every check above maps to
     # a numbered pattern in DESIGN_PATTERNS.md. If DESIGN_PATTERNS.md
     # introduces a new pattern but no audit check is added, the script's

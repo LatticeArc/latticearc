@@ -55,7 +55,19 @@ impl std::fmt::Debug for Ed25519KeyPair {
 
 impl ConstantTimeEq for Ed25519KeyPair {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        self.secret_key.to_bytes().ct_eq(&other.secret_key.to_bytes())
+        // `ed25519_dalek::SigningKey::to_bytes()` returns a plain
+        // `[u8; 32]` — no Zeroize wrapper, no `Drop` impl that wipes
+        // the stack slot. Calling it directly inline (the previous
+        // shape) materialised the 32-byte Ed25519 secret-key seed in
+        // a stack temporary that stayed resident until the next call
+        // overwrote it. Wrap each in `Zeroizing<[u8; 32]>` so the
+        // stack slots are wiped when this function returns. Same
+        // pattern as `zkp::schnorr::SchnorrProver::new` (which
+        // documents the rationale at length).
+        use zeroize::Zeroizing;
+        let lhs: Zeroizing<[u8; 32]> = Zeroizing::new(self.secret_key.to_bytes());
+        let rhs: Zeroizing<[u8; 32]> = Zeroizing::new(other.secret_key.to_bytes());
+        lhs.as_ref().ct_eq(rhs.as_ref())
     }
 }
 

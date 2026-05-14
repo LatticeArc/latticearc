@@ -104,15 +104,26 @@ pub enum KeyLifecycleState {
 pub struct KeyStateMachine;
 
 impl KeyStateMachine {
-    /// Verify state transition is valid per SP 800-57
+    /// Verify state transition is valid per SP 800-57 Part 1 Rev. 5.
     ///
     /// Valid transitions:
     /// - None -> Generation (initial state)
     /// - Generation -> Active (initialization complete)
+    /// - Generation -> Destroyed (compromised pre-activation key,
+    ///   per SP 800-57 Part 1 Rev. 5 §8.3.1 — pre-activation
+    ///   compromise does NOT require passing through Activation)
     /// - Active -> Rotating (rotation initiated)
     /// - Active -> Retired (direct retirement)
     /// - Rotating -> Retired (rotation complete)
     /// - Retired -> Destroyed (cleanup)
+    ///
+    /// The `Generation -> Destroyed` transition is the "emergency
+    /// destruction" path for keys discovered compromised between
+    /// keygen and activation. Forcing such a key through
+    /// `Generation -> Active -> Retired -> Destroyed` would write
+    /// three semantically false transitions to `state_history`
+    /// (the key was never actually activated), corrupting the
+    /// audit trail. Direct destruction preserves audit-trail truth.
     #[must_use]
     pub fn is_valid_transition(from: Option<KeyLifecycleState>, to: KeyLifecycleState) -> bool {
         match (from, to) {
@@ -121,6 +132,10 @@ impl KeyStateMachine {
 
             // Generation -> Active (initialization complete)
             (Some(KeyLifecycleState::Generation), KeyLifecycleState::Active) => true,
+
+            // Generation -> Destroyed (compromised pre-activation key,
+            // SP 800-57 Part 1 Rev. 5 §8.3.1)
+            (Some(KeyLifecycleState::Generation), KeyLifecycleState::Destroyed) => true,
 
             // Active -> Rotating (rotation initiated)
             (Some(KeyLifecycleState::Active), KeyLifecycleState::Rotating) => true,
@@ -139,11 +154,17 @@ impl KeyStateMachine {
         }
     }
 
-    /// Get allowed next states from current state
+    /// Get allowed next states from current state.
+    ///
+    /// Mirrors [`Self::is_valid_transition`]; keep the two in sync.
+    /// The `Generation -> Destroyed` entry covers the pre-activation
+    /// emergency-destruction path (see `is_valid_transition` doc).
     #[must_use]
     pub fn allowed_next_states(current: KeyLifecycleState) -> Vec<KeyLifecycleState> {
         match current {
-            KeyLifecycleState::Generation => vec![KeyLifecycleState::Active],
+            KeyLifecycleState::Generation => {
+                vec![KeyLifecycleState::Active, KeyLifecycleState::Destroyed]
+            }
             KeyLifecycleState::Active => {
                 vec![KeyLifecycleState::Rotating, KeyLifecycleState::Retired]
             }
@@ -958,9 +979,14 @@ mod kani_proofs {
 
         let transition_valid = KeyStateMachine::is_valid_transition(Some(from), to);
 
-        // Independent specification of SP 800-57 allowed transitions
+        // Independent specification of SP 800-57 allowed transitions.
+        // Generation has two valid forward edges: Active (normal
+        // activation) and Destroyed (pre-activation compromise,
+        // SP 800-57 Part 1 Rev. 5 §8.3.1).
         let spec_allows = match from {
-            KeyLifecycleState::Generation => to == KeyLifecycleState::Active,
+            KeyLifecycleState::Generation => {
+                to == KeyLifecycleState::Active || to == KeyLifecycleState::Destroyed
+            }
             KeyLifecycleState::Active => {
                 to == KeyLifecycleState::Rotating || to == KeyLifecycleState::Retired
             }
@@ -994,10 +1020,18 @@ mod tests {
 
     #[test]
     fn test_valid_state_transitions_succeeds() {
-        // Generation -> Active
+        // Generation -> Active (normal activation)
         assert!(KeyStateMachine::is_valid_transition(
             Some(KeyLifecycleState::Generation),
             KeyLifecycleState::Active
+        ));
+
+        // Generation -> Destroyed (pre-activation compromise; SP 800-57
+        // Part 1 Rev. 5 §8.3.1 — pre-activation compromised keys may
+        // be destroyed without passing through Activation).
+        assert!(KeyStateMachine::is_valid_transition(
+            Some(KeyLifecycleState::Generation),
+            KeyLifecycleState::Destroyed
         ));
 
         // Active -> Rotating
@@ -1033,9 +1067,13 @@ mod tests {
             KeyLifecycleState::Generation
         ));
 
-        // Cannot skip states
+        // Cannot skip from Active straight to Destroyed (would have to
+        // pass through Retired — the NIST "Active compromise destroys
+        // active key" path goes Active -> Retired -> Destroyed). The
+        // emergency-destruction shortcut only applies to pre-activation
+        // (Generation) keys.
         assert!(!KeyStateMachine::is_valid_transition(
-            Some(KeyLifecycleState::Generation),
+            Some(KeyLifecycleState::Active),
             KeyLifecycleState::Destroyed
         ));
 
@@ -1048,10 +1086,15 @@ mod tests {
 
     #[test]
     fn test_allowed_next_states_succeeds() {
-        assert_eq!(
-            KeyStateMachine::allowed_next_states(KeyLifecycleState::Generation),
-            vec![KeyLifecycleState::Active]
-        );
+        // Generation has TWO valid forward edges: Active (normal
+        // activation) and Destroyed (pre-activation compromise).
+        // Vec ordering is the implementation's responsibility; assert
+        // set-equality via `contains` to keep the test robust to
+        // reordering.
+        let from_generation = KeyStateMachine::allowed_next_states(KeyLifecycleState::Generation);
+        assert_eq!(from_generation.len(), 2);
+        assert!(from_generation.contains(&KeyLifecycleState::Active));
+        assert!(from_generation.contains(&KeyLifecycleState::Destroyed));
 
         assert_eq!(
             KeyStateMachine::allowed_next_states(KeyLifecycleState::Active),
@@ -1059,6 +1102,45 @@ mod tests {
         );
 
         assert_eq!(KeyStateMachine::allowed_next_states(KeyLifecycleState::Destroyed), vec![]);
+    }
+
+    #[test]
+    fn test_generation_to_destroyed_audit_trail_preserves_truth() {
+        // End-to-end check that the audit trail for a pre-activation
+        // destroyed key shows EXACTLY [Generation -> Destroyed],
+        // without spurious Active/Retired entries that would falsify
+        // the record. SP 800-57 §8.3.1 alignment.
+        let mut record = KeyLifecycleRecord::new(
+            "compromised-pre-activation".to_string(),
+            "ML-KEM-768".to_string(),
+            3,
+            365,
+            30,
+        )
+        .unwrap();
+        assert_eq!(record.current_state(), KeyLifecycleState::Generation);
+
+        record
+            .transition(
+                KeyLifecycleState::Destroyed,
+                "incident-responder".to_string(),
+                "Pre-activation key compromised; emergency destruction per SP 800-57 §8.3.1"
+                    .to_string(),
+                Some("incident-2026-05-11".to_string()),
+            )
+            .unwrap();
+
+        assert_eq!(record.current_state(), KeyLifecycleState::Destroyed);
+        // Exactly one transition in the history.
+        let history = record.state_history();
+        assert_eq!(history.len(), 1);
+        let transition = history.first().unwrap();
+        assert_eq!(transition.from_state(), Some(KeyLifecycleState::Generation));
+        assert_eq!(transition.to_state(), KeyLifecycleState::Destroyed);
+        // Crucially: the audit trail does NOT contain Active or
+        // Retired entries for a key that was never activated.
+        assert!(history.iter().all(|t| t.to_state() != KeyLifecycleState::Active));
+        assert!(history.iter().all(|t| t.to_state() != KeyLifecycleState::Retired));
     }
 
     #[test]
@@ -1195,15 +1277,26 @@ mod tests {
         )
         .unwrap();
 
-        // Invalid transition should fail
+        // Active -> Generation is NOT a valid transition (no backward
+        // edge from any state to Generation). We need an Active state
+        // first; activate the key, then try to roll back.
+        record
+            .transition(
+                KeyLifecycleState::Active,
+                "alice".to_string(),
+                "activate".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Active -> Generation must fail (no backward transition).
         let result = record.transition(
-            KeyLifecycleState::Destroyed, // Invalid from Generation
+            KeyLifecycleState::Generation,
             "alice".to_string(),
-            "Invalid transition".to_string(),
+            "Invalid transition: cannot go backwards".to_string(),
             None,
         );
-
-        assert!(result.is_err());
+        assert!(matches!(result, Err(TypeError::InvalidStateTransition { .. })));
     }
 
     #[test]
