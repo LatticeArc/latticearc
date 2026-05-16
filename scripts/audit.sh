@@ -721,8 +721,12 @@ if [ "$QUICK" = false ]; then
         fi
     fi
 
-    # 7.13: Kani proof count — docs must match actual #[kani::proof] count in source
-    ACTUAL_PROOFS=$(grep -rc '#\[kani::proof\]' $SRC/types/*.rs 2>/dev/null | awk -F: '{s+=$2}END{print s}')
+    # 7.13: Kani proof count — docs must match actual #[kani::proof] count in source.
+    # Counts ALL of `$SRC`, not just `types/`: proofs also live in
+    # `unified_api/selector.rs` and `primitives/resource_limits.rs`. The old
+    # `$SRC/types/*.rs` glob undercounted by those 8 proofs and produced a
+    # false "mismatch" against docs. Mirrors the whole-tree count in 14.12.
+    ACTUAL_PROOFS=$(grep -rE '#\[kani::proof\]' --include="*.rs" "$SRC" 2>/dev/null | wc -l | tr -d ' ')
     ACTUAL_PROOFS="${ACTUAL_PROOFS:-0}"
     PROOF_STALE=""
     for doc in README.md SECURITY.md docs/FORMAL_VERIFICATION.md docs/DESIGN.md; do

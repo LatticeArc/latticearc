@@ -5,8 +5,14 @@
 
 // ZKP is not FIPS-approved; skip these tests when the `fips` feature is active.
 #![cfg(not(feature = "fips"))]
+// Integration-test file: a panicking unwrap/expect IS the test-failure
+// signal, and fixed test vectors / single-step loop scaffolding trip
+// pedantic lints that carry no risk in test code. File-scope `#![allow]`
+// per DESIGN_PATTERNS.md §"`#[allow]` vs `#[expect]` policy".
 #![allow(clippy::expect_used)]
+#![allow(clippy::unwrap_used)]
 #![allow(clippy::arithmetic_side_effects)]
+#![allow(clippy::single_element_loop)]
 
 use latticearc::zkp::{
     DlogEqualityProof, DlogEqualityStatement, HashCommitment, HashOpening, PedersenCommitment,

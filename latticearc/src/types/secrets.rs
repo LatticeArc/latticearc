@@ -24,7 +24,7 @@
 //!
 //! ## When to use which
 //!
-//! ```ignore
+//! ```text
 //! // 32-byte HKDF-Extract output: fixed size → SecretBytes<32>
 //! fn hkdf_extract(...) -> SecretBytes<32>;
 //!

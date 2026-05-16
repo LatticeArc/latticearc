@@ -172,6 +172,27 @@ jobs:
         CLIPPY_DURATION=$((END_TIME - START_TIME))
         echo "clippy_duration_seconds $CLIPPY_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-quality/instance/${{ github.run_id }}/operation/clippy || true
 
+    - name: Clippy lints (default / non-FIPS config)
+      # The step above runs `--all-features`, which turns the `fips` feature
+      # ON. Non-FIPS-only code (the `secp256k1` module, the `#[cfg(not(feature
+      # = "fips"))]` arm of examples) is then `#[cfg]`-excluded and never
+      # linted. This step re-runs clippy on the default feature set
+      # (`default = []`, fips OFF) so the non-FIPS configuration is gated too.
+      run: |
+        cargo clippy --workspace --all-targets -- \
+          -D warnings \
+          -D clippy::unwrap_used \
+          -D clippy::expect_used \
+          -D clippy::panic \
+          -D clippy::todo \
+          -D clippy::unimplemented \
+          -W clippy::arithmetic_side_effects \
+          -W clippy::cast_lossless \
+          -W clippy::cast_possible_truncation \
+          -W clippy::cast_precision_loss \
+          -W clippy::float_cmp \
+          -W clippy::implicit_clone
+
     - name: Check documentation
       run: |
         START_TIME=$(date +%s)

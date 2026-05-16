@@ -4,8 +4,17 @@
 //! AEAD encrypt/decrypt opacity, and ZK-proof transcripts. Reverting
 //! the fix must make the test fail.
 
+// Integration-test file: a panicking unwrap/expect IS the test-failure
+// signal, and fixed 32/64-byte vectors plus big-endian byte arithmetic
+// trip pedantic indexing/cast lints that carry no risk in test code.
+// File-scope `#![allow]` per DESIGN_PATTERNS.md §"`#[allow]` vs `#[expect]`
+// policy".
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 #![allow(clippy::indexing_slicing)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
 
 use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 use latticearc::primitives::ec::ed25519::Ed25519KeyPair;

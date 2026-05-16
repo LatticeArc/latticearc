@@ -114,7 +114,7 @@ jobs:
           # and `action-gh-release` spawns a subprocess whose argv
           # blows past ARG_MAX before the API cap is even checked.
           # Per-round detail lives in the repo CHANGELOG; the release
-          # page links there. See round-60 (v0.8.0) postmortem.
+          # page links there.
           awk -v ver="$VERSION" '
             $0 ~ "^## \\[" ver "\\]" { found=1 }
             found && /^### Audit rounds & hardening/ { exit }

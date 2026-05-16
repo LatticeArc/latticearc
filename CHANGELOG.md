@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-05-16
+
+Patch release: error-handling symmetry, documentation corrections, and
+CI/tooling hardening. No API changes.
+
+### Fixed
+
+- **ChaCha20-Poly1305 decrypt — key-construction error mapping.**
+  `decrypt_chacha20_internal` now uses a three-arm match (`WeakKey` →
+  `InvalidKey`, explicit `InvalidKeyLength` → structured error, catch-all →
+  `DecryptionFailed`) mirroring `encrypt_chacha20_internal`. The previous
+  wildcard `_ => InvalidKeyLength { expected: 32, actual: 32 }` would have
+  mislabeled any future `#[non_exhaustive]` `AeadError` variant raised by
+  cipher construction as the contradictory "expected 32, got 32". Not
+  reachable today (`ChaCha20Poly1305Cipher::new` only returns
+  `InvalidKeyLength` / `WeakKey`) — forward-compatibility hardening.
+
+- **`encrypt_pq_only` HKDF `info` documentation drift.** The doc comment
+  described the layout as `LABEL || 0x00 || kem_ciphertext`, but
+  `hkdf_kem_info_with_pk` actually produces
+  `LABEL || 0x00 || pk_len_be32 || recipient_pk || ct_len_be32 || kem_ciphertext`
+  — the recipient-public-key binding was added post-audit and the docs were
+  never updated. Corrected in the algorithm summary, the byte-layout
+  paragraph, and the Security section. Code unchanged; an interop
+  implementer working from the doc alone would have produced incompatible
+  ciphertext.
+
+- **`release.yml` GitHub-Release body overflow.** The `Create release` step
+  passed the extracted CHANGELOG section as an inline `body:` argument;
+  `action-gh-release` then spawned a subprocess whose argv exceeded
+  `ARG_MAX` for large sections (the 0.8.0 entry is ~360 KB), so the v0.8.0
+  GitHub Release was published with an empty body. The step now writes the
+  body to a file and uses `body_path:`, bounded at the "Audit rounds &
+  hardening" divider, with a link to the full CHANGELOG for per-round
+  detail.
+
+- **`scripts/audit.sh` Kani proof-count check (7.13).** The check globbed
+  only `src/types/*.rs` — counting 22 proofs and missing the 8 in
+  `unified_api/selector.rs` and `primitives/resource_limits.rs`, producing a
+  false "docs claim 30, actual 22" mismatch. Now counts all of `src/`; the
+  documented count of 30 was correct all along.
+
+### Changed
+
+- **CI now lints the non-FIPS configuration.** The existing clippy step runs
+  `--all-features`, which turns the `fips` feature on and `#[cfg]`-excludes
+  the `secp256k1` module and the non-FIPS `main` of examples — so non-FIPS
+  lint debt was never gated. A new `ci.yml` clippy step runs on the default
+  feature set. The pre-existing non-FIPS clippy debt it surfaced is fixed in
+  the same release: the `zero_knowledge_proofs` example's non-FIPS `main`
+  now returns `Result` (no `expect`/`unwrap`/`panic!`), and the `secp256k1`
+  test module plus three integration-test files carry justified lint
+  suppressions per `DESIGN_PATTERNS.md`.
+
 ## [0.8.0] — 2026-05-13
 
 **Headline**: normative Secret Type Invariants ratified and structurally

@@ -23,36 +23,40 @@ fn main() {
 }
 
 #[cfg(not(feature = "fips"))]
-fn main() {
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "example: assert! statements document the expected ZKP outcomes inline"
+)]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== LatticeArc: Zero-Knowledge Proofs ===\n");
 
     // -----------------------------------------------------------------------
     // 1. Schnorr Proof: prove knowledge of secret key
     // -----------------------------------------------------------------------
     println!("--- Schnorr Proof ---");
-    let (prover, public_key) = SchnorrProver::new().expect("prover creation failed");
+    let (prover, public_key) = SchnorrProver::new()?;
     println!("  Public key: {} bytes (secp256k1)", public_key.len());
 
     let context = b"authentication-challenge-2026";
-    let proof = prover.prove(context).expect("prove failed");
+    let proof = prover.prove(context)?;
     println!("  Proof commitment: {} bytes", proof.commitment().len());
     println!("  Proof response:   {} bytes", proof.response().len());
 
     let verifier = SchnorrVerifier::new(public_key);
-    let is_valid = verifier.verify(&proof, context).expect("verify failed");
+    let is_valid = verifier.verify(&proof, context)?;
     assert!(is_valid, "Valid Schnorr proof should verify");
     println!("  Verification: VALID");
 
     // Wrong context should fail
     let wrong_context = b"different-challenge";
-    let is_valid = verifier.verify(&proof, wrong_context).expect("verify failed");
+    let is_valid = verifier.verify(&proof, wrong_context)?;
     assert!(!is_valid, "Wrong context should fail");
     println!("  Wrong context: correctly rejected");
 
     // Wrong public key should fail
-    let (_other_prover, other_pk) = SchnorrProver::new().expect("prover creation failed");
+    let (_other_prover, other_pk) = SchnorrProver::new()?;
     let other_verifier = SchnorrVerifier::new(other_pk);
-    let is_valid = other_verifier.verify(&proof, context).expect("verify failed");
+    let is_valid = other_verifier.verify(&proof, context)?;
     assert!(!is_valid, "Wrong key should fail");
     println!("  Wrong key: correctly rejected");
 
@@ -61,21 +65,18 @@ fn main() {
     // -----------------------------------------------------------------------
     println!("\n--- Hash Commitment ---");
     let secret_vote = b"candidate_alice";
-    let (commitment, opening) = HashCommitment::commit(secret_vote).expect("commit failed");
+    let (commitment, opening) = HashCommitment::commit(secret_vote)?;
     println!("  Commitment:  {:02x?}...", &commitment.commitment()[..8]);
     println!("  (secret vote hidden until reveal)");
 
     // Verify the opening
-    let is_valid = commitment.verify(&opening).expect("verify failed");
+    let is_valid = commitment.verify(&opening)?;
     assert!(is_valid, "Valid opening should verify");
-    println!(
-        "  Reveal + Verify: VALID (vote = {:?})",
-        std::str::from_utf8(opening.value()).unwrap()
-    );
+    println!("  Reveal + Verify: VALID (vote = {:?})", std::str::from_utf8(opening.value())?);
 
     // Tampered opening should fail
     let tampered_opening = HashOpening::new(b"candidate_bob".to_vec(), *opening.randomness());
-    let is_valid = commitment.verify(&tampered_opening).expect("verify failed");
+    let is_valid = commitment.verify(&tampered_opening)?;
     assert!(!is_valid, "Tampered opening should fail");
     println!("  Tampered opening: correctly rejected");
 
@@ -86,10 +87,10 @@ fn main() {
     // Use a small value encoded as 32-byte scalar
     let mut value = [0u8; 32];
     value[31] = 42; // commit to the value 42
-    let (commitment, opening) = PedersenCommitment::commit(&value).expect("commit failed");
+    let (commitment, opening) = PedersenCommitment::commit(&value)?;
     println!("  Commitment: {} bytes (compressed point)", commitment.commitment().len());
 
-    let is_valid = commitment.verify(&opening).expect("verify failed");
+    let is_valid = commitment.verify(&opening)?;
     assert!(is_valid, "Valid Pedersen opening should verify");
     println!("  Verify: VALID (value = 42)");
 
@@ -97,11 +98,11 @@ fn main() {
     let mut wrong_value_bytes = *opening.value();
     wrong_value_bytes[31] = 43; // different value
     let wrong_value = PedersenOpening::new(wrong_value_bytes, *opening.blinding());
-    let is_valid = commitment.verify(&wrong_value);
-    match is_valid {
+    match commitment.verify(&wrong_value) {
         Ok(false) | Err(_) => println!("  Wrong value: correctly rejected"),
-        Ok(true) => panic!("Wrong value should not verify"),
+        Ok(true) => return Err("Wrong value should not verify".into()),
     }
 
     println!("\nAll zero-knowledge proof tests passed!");
+    Ok(())
 }

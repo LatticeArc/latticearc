@@ -446,10 +446,6 @@ impl PedersenCommitment {
             let mut buf =
                 Vec::with_capacity(b"arc-zkp/pedersen-generator-H-v3".len().saturating_add(4));
             buf.extend_from_slice(b"arc-zkp/pedersen-generator-H-v3");
-            #[expect(
-                clippy::arithmetic_side_effects,
-                reason = "counter.to_be_bytes() is infallible"
-            )]
             // Big-endian to match the transcript convention used elsewhere
             // in the crate.
             buf.extend_from_slice(&counter.to_be_bytes());

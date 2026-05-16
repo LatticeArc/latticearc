@@ -366,7 +366,20 @@ fn decrypt_chacha20_internal(
              `latticearc::primitives::security::generate_secure_random_bytes(32)`."
                 .to_string(),
         ),
-        _ => CoreError::InvalidKeyLength { expected: 32, actual: key.len() },
+        // `AeadError::InvalidKeyLength` is a unit variant — actual
+        // length came from the caller's `key.len()`, expected is the
+        // algorithm's KEY_LEN (32 for ChaCha20-Poly1305). Reported as a
+        // structured error because key-init is caller-side, not
+        // adversary-reachable (see the opacity note above).
+        AeadError::InvalidKeyLength => {
+            CoreError::InvalidKeyLength { expected: 32, actual: key.len() }
+        }
+        // `AeadError` is `#[non_exhaustive]`; a wildcard mapping to
+        // `InvalidKeyLength` would mislabel any future construction-time
+        // variant as the contradictory "expected 32, got 32". Forward
+        // unknown variants as `DecryptionFailed`, mirroring the
+        // encrypt-side catch-all at `encrypt_chacha20_internal`.
+        other => CoreError::DecryptionFailed(other.to_string()),
     })?;
     // `Some(&[])` produces a zero-byte GHASH input, byte-identical to
     // `None` per RFC 8439 §2.8. Pass through unconditionally to match
@@ -1286,7 +1299,6 @@ fn verify_hybrid_ml_dsa_ed25519(
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::panic_in_result_fn,
-    clippy::unnecessary_wraps,
     clippy::redundant_clone,
     clippy::useless_vec,
     clippy::clone_on_copy,
@@ -1294,6 +1306,10 @@ fn verify_hybrid_ml_dsa_ed25519(
     unused_qualifications,
     reason = "test/bench scaffolding: lints suppressed for this module"
 )]
+// `unnecessary_wraps` is `#[allow]`, not `#[expect]`: it fires only under the
+// `fips` feature config and would be an unfulfilled expectation in the
+// default (non-FIPS) build, which `-D warnings` rejects.
+#[allow(clippy::unnecessary_wraps, reason = "feature-config-dependent; see above")]
 mod tests {
     use super::*;
     use crate::types::types::CryptoScheme;

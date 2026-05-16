@@ -1,8 +1,13 @@
+// Integration-test file: bit-flip tamper tests index into known-non-empty
+// buffers and trip pedantic lints that carry no risk in test code.
+// File-scope `#![allow]` per DESIGN_PATTERNS.md §"`#[allow]` vs `#[expect]`
+// policy".
 #![allow(
     clippy::single_match,
     clippy::explicit_auto_deref,
     clippy::assertions_on_constants,
-    clippy::manual_let_else
+    clippy::manual_let_else,
+    clippy::indexing_slicing
 )]
 //! Comprehensive Regression Tests for arc-primitives
 //!

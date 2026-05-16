@@ -286,7 +286,17 @@ impl Secp256k1KeyPair {
 }
 
 #[cfg(test)]
-#[expect(clippy::panic_in_result_fn, reason = "Tests use assertions for verification")]
+#[expect(
+    clippy::panic_in_result_fn,
+    clippy::indexing_slicing,
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::arithmetic_side_effects,
+    reason = "test scaffolding: assertions for verification, fixed-size 32/64-byte \
+              test vectors, and a big-endian subtraction helper whose indices and \
+              byte arithmetic are statically in range"
+)]
 mod tests {
     use super::*;
     use crate::prelude::error::Result;

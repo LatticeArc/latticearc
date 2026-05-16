@@ -401,15 +401,17 @@ impl PqOnlyCiphertext {
 /// # Algorithm
 ///
 /// 1. ML-KEM encapsulate with the public key → (shared_secret, kem_ciphertext)
-/// 2. HKDF-SHA256(shared_secret, info=`PQ_ONLY_ENCRYPTION_INFO || 0x00 || kem_ciphertext`) → 32-byte AES key
+/// 2. HKDF-SHA256(shared_secret, info=`LABEL || 0x00 || pk_len || recipient_pk || ct_len || kem_ciphertext`) → 32-byte AES key
 /// 3. AES-256-GCM encrypt(plaintext) → (ciphertext, nonce, tag)
 ///
-/// The `info` string binds the KEM ciphertext into the AEAD-key
-/// derivation per RFC 9180 §5.1 (HPKE channel binding). The exact
-/// byte layout is `LABEL || 0x00 || kem_ciphertext`, where
-/// `LABEL = "LatticeArc-PqOnly-Encryption-v1"`
-/// (see `crate::types::domains::PQ_ONLY_ENCRYPTION_INFO`). Encrypt and
-/// decrypt MUST construct `info` identically; both go through
+/// The `info` string binds both the recipient public key and the KEM
+/// ciphertext into the AEAD-key derivation per RFC 9180 §5.1 (HPKE
+/// channel binding). The exact byte layout is
+/// `LABEL || 0x00 || pk_len_be32 || recipient_pk || ct_len_be32 || kem_ciphertext`,
+/// where `LABEL = "LatticeArc-PqOnly-Encryption-v1"` and `pk_len_be32`
+/// / `ct_len_be32` are big-endian `u32` length prefixes (see
+/// `crate::types::domains::hkdf_kem_info_with_pk`). Encrypt and decrypt
+/// MUST construct `info` identically; both go through
 /// `pq_only_encryption_info()` (private to this module) to keep the
 /// two paths in lockstep.
 ///
@@ -417,8 +419,9 @@ impl PqOnlyCiphertext {
 ///
 /// - IND-CCA2 security from ML-KEM (FIPS 203)
 /// - AES-256-GCM nonce generated internally from OS CSPRNG (SP 800-38D §8.2)
-/// - HKDF info binds `PQ_ONLY_ENCRYPTION_INFO` domain separator + KEM
-///   ciphertext (HPKE-style channel binding; SP 800-56C label usage)
+/// - HKDF info binds the `PQ_ONLY_ENCRYPTION_INFO` domain separator,
+///   the length-prefixed recipient public key, and the length-prefixed
+///   KEM ciphertext (HPKE-style channel binding; SP 800-56C label usage)
 /// - ML-KEM shared secret is not exposed to callers
 ///
 /// # Errors
