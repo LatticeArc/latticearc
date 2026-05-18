@@ -198,12 +198,19 @@ jobs:
     - name: Run extended fuzz tests
       run: |
         cd fuzz
-        # No `|| true` wrapper — see the short-duration job above. Both
-        # the outer `timeout` and `-max_total_time` are set to 3300s
-        # (55 min), leaving 5 min headroom inside the 90-min job
-        # timeout for libfuzzer cleanup, artifact upload, and step
-        # overhead.
-        timeout 3300s cargo fuzz run "${{ matrix.target }}" -- -max_total_time=3300
+        # No `|| true` wrapper — see the short-duration job above.
+        #
+        # Single source of truth: the fuzz budget is defined ONCE and the
+        # outer `timeout` is DERIVED as budget + headroom. `cargo fuzz run`
+        # does an incremental rebuild check on every invocation (even after
+        # the pre-build step), and libfuzzer needs time to write the corpus
+        # and exit cleanly. When the outer `timeout` equalled
+        # `-max_total_time` (both 3300s) the outer `timeout` SIGTERMed the
+        # fuzzer mid-run, before its own budget elapsed (`run interrupted;
+        # exiting`, exit code 124). The +600s covers the rebuild check and
+        # cleanup; the total stays inside the 90-min job timeout.
+        FUZZ_SECONDS=2700
+        timeout "$((FUZZ_SECONDS + 600))s" cargo fuzz run "${{ matrix.target }}" -- -max_total_time="$FUZZ_SECONDS"
 
     - name: Upload extended fuzz artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

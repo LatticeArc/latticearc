@@ -47,17 +47,16 @@ fn validate_aes256_key_length(k: &[u8]) -> Result<()> {
 
 /// Current Unix timestamp clamped to non-negative `u64`.
 ///
-/// Centralises the `u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0)`
-/// idiom that previously appeared at four call sites in this module.
-/// `chrono` returns `i64` seconds-since-epoch; the `max(0)` clamps any
-/// pre-1970 system clock to 0, and `unwrap_or(0)` covers the
-/// theoretically-impossible (until year 292277026596 AD) case where the
-/// clamped i64 still doesn't fit in u64. Both fallbacks are conservative
-/// — a wrong-but-bounded timestamp is preferable to a panic in
-/// audit-record construction.
+/// Centralises the timestamp idiom that previously appeared at four call
+/// sites in this module. `chrono` returns `i64` seconds-since-epoch;
+/// `max(0)` clamps any pre-1970 system clock to 0, and `unsigned_abs`
+/// then widens the proven-non-negative value to `u64` — a total
+/// conversion with no fallible `try_from` and no `as`-cast. A
+/// wrong-but-bounded timestamp is preferable to a panic in audit-record
+/// construction.
 #[inline]
 fn current_timestamp() -> u64 {
-    u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0)
+    Utc::now().timestamp().max(0).unsigned_abs()
 }
 use zeroize::Zeroizing;
 
@@ -186,18 +185,25 @@ use crate::primitives::resource_limits::{
 // ============================================================================
 
 /// Extract nonce and tag from `EncryptedOutput` as fixed-size arrays.
+///
+/// Runs on adversary-reachable input (a caller can hand `decrypt` a
+/// crafted `EncryptedOutput`), so a length mismatch returns the opaque
+/// `DecryptionFailed("decryption failed")` used everywhere on the
+/// decrypt path (Pattern 6) — the returned error must not reveal which
+/// field was malformed. The specific reason is kept in a
+/// `tracing::debug!` line for operator-side diagnosis.
 fn extract_nonce_tag(encrypted: &EncryptedOutput) -> Result<([u8; 12], [u8; 16])> {
+    let opaque = || CoreError::DecryptionFailed("decryption failed".to_string());
     let nonce: [u8; 12] = encrypted.nonce().try_into().map_err(|_slice_err| {
-        CoreError::DecryptionFailed(format!(
-            "Invalid nonce length: expected 12, got {}",
-            encrypted.nonce().len()
-        ))
+        tracing::debug!(
+            nonce_len = encrypted.nonce().len(),
+            "decrypt rejected: nonce length != 12"
+        );
+        opaque()
     })?;
     let tag: [u8; 16] = encrypted.tag().try_into().map_err(|_slice_err| {
-        CoreError::DecryptionFailed(format!(
-            "Invalid tag length: expected 16, got {}",
-            encrypted.tag().len()
-        ))
+        tracing::debug!(tag_len = encrypted.tag().len(), "decrypt rejected: tag length != 16");
+        opaque()
     })?;
     Ok((nonce, tag))
 }
@@ -517,7 +523,10 @@ pub fn encrypt_with_aad(
                 timestamp,
                 None,
             )
-            .map_err(|e| CoreError::EncryptionFailed(e.to_string()))?
+            // `EncryptedOutput::new` fails on a scheme/component-shape
+            // mismatch — a construction-invariant violation, not an
+            // encryption failure (the cipher op above already succeeded).
+            .map_err(|e| CoreError::ConfigurationError(e.to_string()))?
         }
         // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
         (EncryptKey::PqOnly(pk), _) if scheme.requires_pq_key() => {
@@ -535,7 +544,9 @@ pub fn encrypt_with_aad(
                 timestamp,
                 None,
             )
-            .map_err(|e| CoreError::EncryptionFailed(e.to_string()))?
+            // Construction-invariant violation, not an encryption
+            // failure — see the hybrid arm above.
+            .map_err(|e| CoreError::ConfigurationError(e.to_string()))?
         }
         // This arm should be unreachable due to validate_key_matches_scheme above
         _ => {

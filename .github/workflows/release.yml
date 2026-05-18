@@ -40,7 +40,13 @@ jobs:
   # Publish to crates.io
   publish:
     name: Publish
-    needs: verify
+    # `cargo publish` is irreversible — crates.io has no un-publish (only
+    # yank, which still leaves the version downloadable). Gate it behind
+    # EVERY fallible job (build artifacts, SBOM, Sigstore signing, SLSA
+    # provenance), not just `verify`. A late failure — e.g. Sigstore —
+    # then blocks the publish entirely, leaving a clean "nothing shipped,
+    # fix and re-tag" state instead of a published crate beside a red run.
+    needs: [verify, build-artifacts, sbom, sign-artifacts, provenance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -354,13 +360,20 @@ jobs:
           # outer `continue-on-error` is dropped; the upload step
           # demands `if-no-files-found: error`.
           set -e
+          # No `--oidc-issuer`: cosign auto-detects the GitHub Actions
+          # ambient OIDC issuer. Since cosign v2.6 the bundled signing
+          # config is active by default, and passing an explicit issuer
+          # URL alongside it fails with "cannot specify service URLs and
+          # use signing config". (`--output-signature`/`--output-certificate`
+          # are deprecated in v2.6 but still functional — a future change
+          # should migrate to `--bundle`, which also touches the upload
+          # glob and the attach-release-artifacts job below.)
           shopt -s nullglob
           for dir in artifacts/latticearc-*/; do
             for file in "$dir"liblatticearc*; do
               if [ -f "$file" ] && [[ ! "$file" =~ \.(sig|crt)$ ]]; then
                 echo "Signing: $file"
                 cosign sign-blob --yes \
-                  --oidc-issuer https://token.actions.githubusercontent.com \
                   --output-signature "${file}.sig" \
                   --output-certificate "${file}.crt" \
                   "$file"
@@ -372,7 +385,6 @@ jobs:
           if [ -f "artifacts/sbom/sbom.cdx.json" ]; then
             echo "Signing SBOM..."
             cosign sign-blob --yes \
-              --oidc-issuer https://token.actions.githubusercontent.com \
               --output-signature "artifacts/sbom/sbom.cdx.json.sig" \
               --output-certificate "artifacts/sbom/sbom.cdx.json.crt" \
               "artifacts/sbom/sbom.cdx.json"

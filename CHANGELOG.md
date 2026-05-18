@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **ChaCha20-Poly1305 decrypt — `extract_nonce_tag` error opacity.** The
+  nonce/tag length-mismatch arms returned distinct descriptive messages
+  ("Invalid nonce length: expected 12, got N" / "...tag...16...") on the
+  adversary-reachable decrypt path; its sibling failure in the same
+  caller already used the opaque `DecryptionFailed("decryption failed")`.
+  Both arms now return that opaque error, with the specific field/length
+  in a `tracing::debug!` line (Pattern 6 consistency).
+- **`EncryptedOutput::new` error mapping.** A scheme/component-shape
+  mismatch in the hybrid and PQ-only encrypt arms is a construction-
+  invariant violation, not an encryption failure (the cipher op already
+  succeeded). Remapped `EncryptionFailed` → `ConfigurationError`.
+- **`current_timestamp` dead fallback.** `u64::try_from(ts.max(0)).unwrap_or(0)`
+  had an unreachable fallback (`.max(0)` makes the conversion infallible);
+  replaced with the total `ts.max(0).unsigned_abs()`.
+
 ## [0.8.1] — 2026-05-16
 
 Patch release: error-handling symmetry, documentation corrections, and
