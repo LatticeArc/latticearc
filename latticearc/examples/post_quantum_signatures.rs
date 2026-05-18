@@ -22,7 +22,7 @@ fn main() {
     println!("--- ML-DSA at SecurityLevel::High (NIST Level 3) ---");
     let start = Instant::now();
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
     let keygen_time = start.elapsed();
     println!("  Scheme: {}", scheme);
     println!("  Keygen: {:?}", keygen_time);
@@ -45,7 +45,7 @@ fn main() {
     println!("\n--- ML-DSA at SecurityLevel::Maximum (NIST Level 5) ---");
     let start = Instant::now();
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-    let (pk5, sk5, scheme5) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk5, sk5, scheme5) = generate_signing_keypair(config).expect("keygen failed").into_parts();
     let keygen_time = start.elapsed();
     println!("  Scheme: {}", scheme5);
     println!("  Keygen: {:?}", keygen_time);

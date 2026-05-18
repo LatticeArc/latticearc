@@ -69,7 +69,7 @@
 //! let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
 //!
 //! // Sign (generate keypair once, sign with persistent key)
-//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
+//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?.into_parts();
 //! let signed = sign_with_key(message, sk.as_ref(), pk.as_ref(), CryptoConfig::new())?;
 //!
 //! // Verify
@@ -110,7 +110,7 @@ mod pq_sig;
 // Unified API
 // ============================================================================
 
-pub use api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
+pub use api::{SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 
 // ============================================================================
 // Hybrid Key Generation (ML-KEM + X25519)

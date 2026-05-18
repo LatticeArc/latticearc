@@ -59,7 +59,7 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 let signed = sign_with_key(b"document", &sk, &pk, config.clone())?;
 assert!(verify(&signed, config)?);
 ```

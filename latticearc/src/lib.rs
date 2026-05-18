@@ -108,7 +108,7 @@
 //! let message = b"Document to sign";
 //!
 //! // Generate a persistent signing keypair (ML-DSA-65 + Ed25519 hybrid)
-//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
+//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?.into_parts();
 //!
 //! // Sign with the persistent keypair
 //! let signed = sign_with_key(message, &sk, &pk, CryptoConfig::new())?;
@@ -280,7 +280,7 @@
 //!         CryptoConfig::new())?;
 //!
 //!     // --- Digital Signatures ---
-//!     let (sign_pk, sign_sk, _scheme) = generate_signing_keypair(CryptoConfig::new())?;
+//!     let (sign_pk, sign_sk, _scheme) = generate_signing_keypair(CryptoConfig::new())?.into_parts();
 //!     let signed = sign_with_key(b"important document", &sign_sk, &sign_pk, CryptoConfig::new())?;
 //!     let is_valid = verify(&signed, CryptoConfig::new())?;
 //!     assert!(is_valid);
@@ -439,7 +439,9 @@ pub use hybrid::sig_hybrid::{
 // ============================================================================
 
 // Single entry points for all cryptographic operations
-pub use unified_api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
+pub use unified_api::{
+    SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify,
+};
 
 // Hybrid key generation (ML-KEM + X25519)
 pub use unified_api::{generate_hybrid_keypair, generate_hybrid_keypair_with_level};

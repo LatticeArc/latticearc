@@ -14,7 +14,7 @@ use latticearc::unified_api::{
 #[test]
 fn test_hybrid_default_roundtrip() {
     let config = CryptoConfig::new();
-    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     assert!(
         scheme.contains("hybrid") || scheme.contains("ml-dsa"),
@@ -39,7 +39,7 @@ fn test_hybrid_default_roundtrip() {
 #[test]
 fn test_persistent_identity_all_messages_verify_succeeds() {
     let config = CryptoConfig::new();
-    let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     for i in 0..10 {
         let message = format!("Message number {}", i);
@@ -60,7 +60,7 @@ fn test_persistent_identity_all_messages_verify_succeeds() {
 #[test]
 fn test_pq_only_ml_dsa_87_roundtrip_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     assert!(
         scheme.contains("ml-dsa-87"),
@@ -82,7 +82,7 @@ fn test_pq_only_ml_dsa_87_roundtrip_succeeds() {
 #[test]
 fn test_ml_dsa_44_standard_roundtrip_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
-    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     assert!(
         scheme.contains("ml-dsa-44") || scheme.contains("ed25519"),
@@ -104,8 +104,8 @@ fn test_ml_dsa_44_standard_roundtrip_succeeds() {
 #[test]
 fn test_cross_key_rejection_fails_verification_fails() {
     let config = CryptoConfig::new();
-    let (pk_a, sk_a, _) = generate_signing_keypair(config.clone()).unwrap();
-    let (pk_b, _sk_b, _) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk_a, sk_a, _) = generate_signing_keypair(config.clone()).unwrap().into_parts();
+    let (pk_b, _sk_b, _) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     // Ensure different keys
     assert_ne!(pk_a, pk_b, "Two generated keypairs must have different public keys");
@@ -130,7 +130,7 @@ fn test_cross_key_rejection_fails_verification_fails() {
 #[test]
 fn test_tampered_message_rejection_fails_verification_fails() {
     let config = CryptoConfig::new();
-    let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     let message = b"Original message";
     let signed = sign_with_key(message, &sk, &pk, config).unwrap();
@@ -152,7 +152,7 @@ fn test_tampered_message_rejection_fails_verification_fails() {
 #[test]
 fn test_tampered_signature_rejection_fails_verification_fails() {
     let config = CryptoConfig::new();
-    let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     let message = b"Sign me";
     let signed = sign_with_key(message, &sk, &pk, config).unwrap();
@@ -179,7 +179,8 @@ fn test_scheme_consistency_keygen_and_sign_match_succeeds() {
 
     for level in &levels {
         let config = CryptoConfig::new().security_level(level.clone());
-        let (pk, sk, keygen_scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, keygen_scheme) =
+            generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"Scheme consistency test";
         let signed = sign_with_key(message, &sk, &pk, config).unwrap();
@@ -199,7 +200,7 @@ fn test_scheme_consistency_keygen_and_sign_match_succeeds() {
 #[test]
 fn test_empty_message_sign_verify_succeeds() {
     let config = CryptoConfig::new();
-    let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     let message = b"";
     let signed = sign_with_key(message, &sk, &pk, config).unwrap();
@@ -215,7 +216,7 @@ fn test_empty_message_sign_verify_succeeds() {
 #[test]
 fn test_large_message_sign_verify_succeeds() {
     let config = CryptoConfig::new();
-    let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     let message = vec![0xABu8; 10_000];
     let signed = sign_with_key(&message, &sk, &pk, config).unwrap();
@@ -233,7 +234,7 @@ fn test_pq_only_maximum_roundtrip() {
     let config = CryptoConfig::new()
         .security_level(SecurityLevel::Maximum)
         .crypto_mode(latticearc::CryptoMode::PqOnly);
-    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
     let message = b"PQ-only Maximum test message";
     let signed = sign_with_key(message, &sk, &pk, config).unwrap();

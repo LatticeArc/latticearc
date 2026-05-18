@@ -7,7 +7,7 @@ A consistent, high-level cryptographic API with automatic algorithm selection an
 ```mermaid
 flowchart LR
     subgraph "You Write"
-        CODE["let config = CryptoConfig::new();\nlet (pk, sk, _) = generate_signing_keypair(config.clone())?;\nlet signed = sign_with_key(msg, &sk, &pk, config.clone())?;\nlet valid = verify(&signed, config)?;"]
+        CODE["let config = CryptoConfig::new();\nlet (pk, sk, _) = generate_signing_keypair(config.clone())?.into_parts();\nlet signed = sign_with_key(msg, &sk, &pk, config.clone())?;\nlet valid = verify(&signed, config)?;"]
     end
 
     subgraph "LatticeArc Does"
@@ -53,7 +53,7 @@ let ed_sig = ed_sk.sign(message);
 
 ```rust
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 let signed = sign_with_key(message, &sk, &pk, config.clone())?;
 let is_valid = verify(&signed, config)?;
 ```
@@ -125,7 +125,7 @@ let message = b"Document to sign";
 
 // Generate signing keypair and sign with defaults (ML-DSA-65 + Ed25519 hybrid)
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 let signed = sign_with_key(message, &sk, &pk, config.clone())?;
 
 // Verify
@@ -226,7 +226,7 @@ let (public_key, private_key) = generate_keypair()?;
 let session = VerifiedSession::establish(&public_key, private_key.expose_secret())?;
 
 let config = CryptoConfig::new().session(&session);
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 let signed = sign_with_key(message, &sk, &pk, config.clone())?;
 let is_valid = verify(&signed, config)?;
 ```
@@ -458,7 +458,7 @@ flowchart LR
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 let signed = sign_with_key(message, &sk, &pk, config.clone())?;
 let is_valid = verify(&signed, config)?;
 ```
@@ -527,7 +527,7 @@ let key = derive_key_with_info(ikm, salt, 32, b"my-domain", SecurityMode::Verifi
 use latticearc::{generate_signing_keypair, sign_with_key, CoreError, CryptoConfig};
 
 let config = CryptoConfig::new().session(&session);
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 
 match sign_with_key(message, &sk, &pk, config) {
     Ok(signed) => { /* success */ }

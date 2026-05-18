@@ -64,7 +64,7 @@ fn test_aes_gcm_large_plaintext_roundtrip_succeeds() {
 #[test]
 fn test_sign_verify_high_security_roundtrip_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
     assert!(!scheme.is_empty());
 
     let message = b"Sign/verify at High security level";
@@ -80,7 +80,7 @@ fn test_sign_verify_high_security_roundtrip_succeeds() {
 #[test]
 fn test_sign_verify_maximum_security_roundtrip_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
     assert!(!scheme.is_empty());
 
     let message = b"Sign/verify at Maximum security level";
@@ -232,7 +232,8 @@ fn test_complete_encrypt_sign_workflow_succeeds() {
 
     // Sign the ciphertext
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (sign_pk, sign_sk, _) = generate_signing_keypair(config).expect("keygen failed");
+    let (sign_pk, sign_sk, _) =
+        generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed = sign_with_key(&ciphertext, &sign_sk, &sign_pk, config).expect("sign failed");
@@ -264,7 +265,7 @@ fn test_hybrid_then_sign_workflow_succeeds() {
 
     // Sign the ciphertext portion
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (s_pk, s_sk, _) = generate_signing_keypair(config).expect("keygen failed");
+    let (s_pk, s_sk, _) = generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed = sign_with_key(encrypted.ciphertext(), &s_sk, &s_pk, config).expect("sign failed");

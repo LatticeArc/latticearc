@@ -18,7 +18,9 @@ fuzz_target!(|data: &[u8]| {
     let config = CryptoConfig::default();
 
     // Generate a keypair, then sign with it
-    if let Ok((pk, sk, _scheme)) = generate_signing_keypair(config.clone()) {
+    if let Ok((pk, sk, _scheme)) =
+        generate_signing_keypair(config.clone()).map(|kp| kp.into_parts())
+    {
         if let Ok(signed) = sign_with_key(data, &sk, &pk, config.clone()) {
             // Test verification
             if let Ok(valid) = verify(&signed, config) {

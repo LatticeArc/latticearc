@@ -226,7 +226,8 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
 
     // Generate signing keypair — library selects the scheme.
     let (pk, sk, scheme) = latticearc::generate_signing_keypair(config)
-        .map_err(|e| anyhow::anyhow!("Signing keygen failed: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("Signing keygen failed: {e}"))?
+        .into_parts();
 
     let safe_scheme = scheme.replace(' ', "-");
     let pk_path = args.output.join(format!("{safe_scheme}.pub.json"));

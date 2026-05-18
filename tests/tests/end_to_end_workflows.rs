@@ -24,7 +24,7 @@ use latticearc::{
 #[test]
 fn test_unified_sign_verify_roundtrip() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
     assert!(!scheme.is_empty());
 
     let message = b"Sign and verify with persistent keypair";
@@ -90,7 +90,8 @@ fn test_ed25519_sign_verify_succeeds() {
 fn test_ml_dsa_sign_verify_all_levels_succeeds() {
     for level in [SecurityLevel::High, SecurityLevel::Maximum] {
         let config = CryptoConfig::new().security_level(level);
-        let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
+        let (pk, sk, scheme) =
+            generate_signing_keypair(config).expect("keygen failed").into_parts();
 
         let message = b"ML-DSA signature at different security levels";
 
@@ -165,7 +166,8 @@ fn test_complete_workflow_succeeds() {
 
     // Step 3: Sign the ciphertext
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (sign_pk, sign_sk, _scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (sign_pk, sign_sk, _scheme) =
+        generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed = sign_with_key(&ciphertext, &sign_sk, &sign_pk, config).expect("sign failed");
@@ -204,7 +206,7 @@ fn test_tamper_detection_comprehensive_fails() {
 
     // Signature tamper detection
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, _) = generate_signing_keypair(config).unwrap();
+    let (pk, sk, _) = generate_signing_keypair(config).unwrap().into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let mut signed = sign_with_key(b"original", &sk, &pk, config).unwrap();
@@ -233,10 +235,10 @@ fn test_tamper_detection_comprehensive_fails() {
 fn test_cross_key_rejection_fails() {
     // Signature cross-key rejection
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk_a, sk_a, _) = generate_signing_keypair(config).unwrap();
+    let (pk_a, sk_a, _) = generate_signing_keypair(config).unwrap().into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (_pk_b, _sk_b, _) = generate_signing_keypair(config).unwrap();
+    let (_pk_b, _sk_b, _) = generate_signing_keypair(config).unwrap().into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed_a = sign_with_key(b"message", &sk_a, &pk_a, config).unwrap();

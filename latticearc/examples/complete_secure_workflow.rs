@@ -34,7 +34,7 @@ fn main() {
     println!("Step 1: Generate signing keypair...");
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let (sign_pk, sign_sk, scheme) =
-        generate_signing_keypair(config).expect("signing keypair generation failed");
+        generate_signing_keypair(config).expect("signing keypair generation failed").into_parts();
     println!("  Scheme: {}, PK: {} bytes", scheme, sign_pk.len());
 
     // -----------------------------------------------------------------------

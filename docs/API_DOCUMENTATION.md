@@ -1,6 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.8.1 | **License**: Apache 2.0
+**Version**: 0.8.2 | **License**: Apache 2.0
 
 ---
 
@@ -136,7 +136,7 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 let signed_data = sign_with_key(data, &sk, &pk, config.clone())?;
 let is_valid = verify(&signed_data, config)?;
 ```
@@ -234,7 +234,7 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig, SecurityLevel};
 
 let config = CryptoConfig::new().security_level(SecurityLevel::High);
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 let signed_data = sign_with_key(data, &sk, &pk, config.clone())?;
 let is_valid = verify(&signed_data, config)?;
 ```

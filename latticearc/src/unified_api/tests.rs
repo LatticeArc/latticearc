@@ -77,7 +77,7 @@ fn test_basic_signing_succeeds() {
             // Test signing with persistent keypair API
             let config = CryptoConfig::new();
             let (pk, sk, _scheme) =
-                generate_signing_keypair(config).expect("Keygen should succeed");
+                generate_signing_keypair(config).expect("Keygen should succeed").into_parts();
             let signed = sign_with_key(message, &sk, &pk, CryptoConfig::new())
                 .expect("Signing should succeed");
 
@@ -289,7 +289,7 @@ fn test_signature_verification_with_use_case_succeeds() {
             // Test signing with High security level (uses ml-dsa-65-ed25519 which works correctly)
             let config = CryptoConfig::new().security_level(SecurityLevel::High);
             let (pk, sk, _scheme) =
-                generate_signing_keypair(config).expect("Keygen should succeed");
+                generate_signing_keypair(config).expect("Keygen should succeed").into_parts();
             let signed = sign_with_key(
                 message,
                 &sk,
@@ -1248,7 +1248,8 @@ fn test_generate_signing_keypair_all_use_cases_succeeds() {
             for uc in all_use_cases {
                 let config = non_fips_config(uc);
                 let (pk, sk, scheme) = generate_signing_keypair(config.clone())
-                    .unwrap_or_else(|e| panic!("Keypair generation failed for {:?}: {e}", uc));
+                    .unwrap_or_else(|e| panic!("Keypair generation failed for {:?}: {e}", uc))
+                    .into_parts();
                 // The scheme MUST be one of the known signing schemes.
                 let is_signing_scheme = matches!(
                     scheme.as_str(),
@@ -1299,7 +1300,7 @@ fn test_sign_with_key_hybrid_44_wrong_sk_length_returns_expected_fails() {
             let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
 
             // First check what scheme Standard gives us
-            let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+            let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
             if scheme.contains("hybrid-ml-dsa-44") {
                 // Now try with wrong key lengths
                 let result = sign_with_key(message, &wrong_sk, &pk, config.clone());
@@ -1323,7 +1324,7 @@ fn test_sign_with_key_hybrid_87_wrong_key_lengths_returns_expected_fails() {
             let message = b"test";
             let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
 
-            let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+            let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
             if scheme.contains("hybrid-ml-dsa-87") {
                 // Wrong SK length
                 let wrong_sk = vec![0u8; 100];
@@ -1556,7 +1557,7 @@ fn test_unified_sign_verify_with_verified_session_succeeds() {
                 VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret()).unwrap();
 
             let config = CryptoConfig::new().session(&session);
-            let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+            let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
             let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
             let valid = verify(&signed, config).unwrap();
             assert!(valid, "Signature should verify with verified session");

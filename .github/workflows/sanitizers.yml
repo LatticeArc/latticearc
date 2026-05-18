@@ -175,7 +175,12 @@ jobs:
           # can see into the FFI boundary. Requires aws-lc-rs >= 1.16.3.
           AWS_LC_SYS_SANITIZER: msan
           MSAN_OPTIONS: poison_in_dtor=1
-        timeout-minutes: 90
+        # MSan with `-Zsanitizer-memory-track-origins` is the slowest
+        # sanitizer configuration; the SLH-DSA (FIPS 205) hash-based
+        # signature tests run minutes-per-test under it. The full
+        # ~1650-test workspace needs ~3h, so this job gets a larger
+        # wall-clock budget than the other three sanitizers (90 min).
+        timeout-minutes: 240
 
       - name: MSan Summary
         if: always()

@@ -1,9 +1,9 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.8.1
+**Module Version**: 0.8.2
 **Module Type**: Software (FIPS 140-3 Level 1)
-**Date**: 2026-05-16
+**Date**: 2026-05-18
 **Last Reviewed**: 2026-05-10
 **Status**: Pre-submission draft — not yet CMVP validated
 
@@ -19,7 +19,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.8.1 |
+| Module Version | 0.8.2 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |
@@ -293,6 +293,7 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.8.2 | 2026-05-18 | Patch: `generate_signing_keypair` returns the named-field `SigningKeypair` type (private fields, redacting Debug, `into_parts()`); `EncryptedOutput::new` shape errors mapped to `ConfigurationError` across all encrypt arms; MemorySanitizer CI wall-clock budget raised |
 | 0.8.1 | 2026-05-16 | Patch: ChaCha20-Poly1305 decrypt error-mapping symmetry, `encrypt_pq_only` HKDF-info doc correction, non-FIPS CI clippy gating, release-workflow body overflow fix |
 | 0.8.0 | 2026-05-13 | Normative Secret Type Invariants ratified (`docs/SECRET_TYPE_INVARIANTS.md`): sealed `expose_secret()` accessor on every secret-bearing type, `SecretBytes<N>`/`SecretVec` primitives, optional `secret-mlock` feature, compile-time barrier test. Multiple external audit rounds folded in (FIPS 203 §6.1 SK/PK cross-check, SP 800-57 §8.3.1 pre-activation destruction, CT-equality canonicalisation, length-leak hardening, Ed25519 stack-temporary zeroization). |
 | 0.7.1 | 2026-04-22 | FN-DSA `SigningKey` zeroizes inner key material (fn-dsa 0.3.0 derives `Zeroize`); X25519 static-keypair docs corrected for aws-lc-rs 1.16+ raw-bytes import/export support; CMAC K1/K2 subkey derivation made constant-time via `subtle::ConditionallySelectable`. |

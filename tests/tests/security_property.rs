@@ -75,10 +75,10 @@ fn test_aes_gcm_truncated_ciphertext_fails() {
 #[test]
 fn test_signature_wrong_key_fails() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk_a, sk_a, _) = generate_signing_keypair(config).expect("keygen A failed");
+    let (pk_a, sk_a, _) = generate_signing_keypair(config).expect("keygen A failed").into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk_b, _sk_b, _) = generate_signing_keypair(config).expect("keygen B failed");
+    let (pk_b, _sk_b, _) = generate_signing_keypair(config).expect("keygen B failed").into_parts();
 
     let message = b"Signed by key A";
 
@@ -116,7 +116,7 @@ fn test_hybrid_wrong_key_fails() {
 #[test]
 fn test_signature_tampered_message_fails() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, _) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, _) = generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let mut signed = sign_with_key(b"original", &sk, &pk, config).expect("sign failed");
@@ -151,10 +151,10 @@ fn test_aes_gcm_different_keys_different_output_succeeds() {
 #[test]
 fn test_signing_keypair_uniqueness_are_unique() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk1, _sk1, _) = generate_signing_keypair(config).expect("keygen1 failed");
+    let (pk1, _sk1, _) = generate_signing_keypair(config).expect("keygen1 failed").into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk2, _sk2, _) = generate_signing_keypair(config).expect("keygen2 failed");
+    let (pk2, _sk2, _) = generate_signing_keypair(config).expect("keygen2 failed").into_parts();
 
     assert_ne!(pk1, pk2, "Different keypairs must have different public keys");
 }

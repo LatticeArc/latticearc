@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.8.2] — 2026-05-18
+
+### Changed
+
+- **BREAKING: `generate_signing_keypair` now returns `SigningKeypair`.**
+  It previously returned a bare `(Vec<u8>, Zeroizing<Vec<u8>>, String)`
+  tuple. `SigningKeypair` is now a first-class, re-exported type with
+  private fields (Pattern 5 property 5), a redacting `Debug`, and
+  `public_key()` / `expose_secret_key()` / `scheme()` accessors. Call
+  `.into_parts()` to recover the `(public_key, secret_key, scheme)` tuple.
+  The leak-prone `From<SigningKeypair> for (Vec<u8>, Zeroizing<Vec<u8>>,
+  String)` conversion — whose tuple re-exposed the secret key through
+  `Zeroizing`'s forwarded `Debug` — has been removed; `into_parts()` is
+  the explicit, grep-able replacement.
 
 ### Fixed
 
@@ -19,12 +32,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Both arms now return that opaque error, with the specific field/length
   in a `tracing::debug!` line (Pattern 6 consistency).
 - **`EncryptedOutput::new` error mapping.** A scheme/component-shape
-  mismatch in the hybrid and PQ-only encrypt arms is a construction-
-  invariant violation, not an encryption failure (the cipher op already
-  succeeded). Remapped `EncryptionFailed` → `ConfigurationError`.
+  mismatch in the hybrid, PQ-only, and symmetric (`symmetric_bytes_to_output`)
+  encrypt arms is a construction-invariant violation, not an encryption
+  failure (the cipher op already succeeded). All three arms now map
+  `EncryptedOutput::new` errors to `ConfigurationError` (the symmetric arm
+  previously still used `EncryptionFailed`).
 - **`current_timestamp` dead fallback.** `u64::try_from(ts.max(0)).unwrap_or(0)`
   had an unreachable fallback (`.max(0)` makes the conversion infallible);
   replaced with the total `ts.max(0).unsigned_abs()`.
+- **Sanitizers CI — MemorySanitizer wall-clock budget.** The MSan job
+  timed out at 90 min (got through 736 of 1649 tests): SLH-DSA hash-based
+  signature tests run minutes-per-test under MSan origin-tracking, so the
+  full workspace needs ~3h. Raised that job's `timeout-minutes` to 240.
 
 ## [0.8.1] — 2026-05-16
 

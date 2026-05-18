@@ -87,8 +87,9 @@ mod comprehensive {
     #[test]
     fn test_hybrid_signing_keygen_is_correct() {
         let config = CryptoConfig::new().security_level(SecurityLevel::High);
-        let (pk, sk, scheme) =
-            generate_signing_keypair(config.clone()).expect("hybrid signing keygen should succeed");
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone())
+            .expect("hybrid signing keygen should succeed")
+            .into_parts();
 
         assert!(
             scheme.contains("hybrid") || scheme.contains("ed25519") || scheme.contains("pq-ml-dsa"),
@@ -115,7 +116,8 @@ mod comprehensive {
         let config = CryptoConfig::new()
             .security_level(SecurityLevel::Maximum)
             .crypto_mode(latticearc::CryptoMode::PqOnly);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).expect("keygen");
+        let (pk, sk, scheme) =
+            generate_signing_keypair(config.clone()).expect("keygen").into_parts();
         assert_eq!(scheme, "pq-ml-dsa-87");
 
         let signed = sign_with_key(b"pq-only test", &sk, &pk, config).expect("sign");
@@ -420,7 +422,8 @@ mod comprehensive {
         for level in [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum] {
             let config = CryptoConfig::new().security_level(level);
             let (pk, sk, scheme) = generate_signing_keypair(config)
-                .unwrap_or_else(|e| panic!("keygen {:?}: {}", level, e));
+                .unwrap_or_else(|e| panic!("keygen {:?}: {}", level, e))
+                .into_parts();
             assert!(!scheme.is_empty());
 
             let config = CryptoConfig::new().security_level(level);
@@ -482,7 +485,7 @@ mod comprehensive {
 
         // Step 2: Sign the ciphertext
         let config = CryptoConfig::new().security_level(SecurityLevel::High);
-        let (sign_pk, sign_sk, _) = generate_signing_keypair(config).expect("keygen");
+        let (sign_pk, sign_sk, _) = generate_signing_keypair(config).expect("keygen").into_parts();
 
         let config = CryptoConfig::new().security_level(SecurityLevel::High);
         let signed =
@@ -750,7 +753,7 @@ mod coverage {
     fn test_sign_verify_authentication_use_case_keypair_succeeds() {
         // Authentication use case maps to a signing scheme (hybrid-ml-dsa)
         let config = CryptoConfig::new().use_case(UseCase::Authentication);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
         assert!(!pk.is_empty());
         assert!(!sk.is_empty());
 
@@ -767,7 +770,7 @@ mod coverage {
         // `SecurityLevel::Standard`, so signing keygen returns
         // `hybrid-ml-dsa-44-ed25519` (L1 hybrid).
         let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
         assert_eq!(scheme, "hybrid-ml-dsa-44-ed25519");
 
         let message = b"IoT use case sign/verify test";
@@ -778,7 +781,7 @@ mod coverage {
     #[test]
     fn test_sign_verify_default_scheme_succeeds() {
         let config = CryptoConfig::new();
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"Default scheme sign/verify test";
         let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -789,7 +792,7 @@ mod coverage {
     #[test]
     fn test_sign_verify_maximum_security_succeeds() {
         let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"Maximum security sign test";
         let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -800,7 +803,7 @@ mod coverage {
     #[test]
     fn test_sign_verify_standard_security_succeeds() {
         let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"Standard security sign test";
         let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -815,7 +818,7 @@ mod coverage {
         // scheme selector only for encryption operations; signing keygen pulls the
         // security level from `UseCaseConfig` instead.
         let config = CryptoConfig::new().use_case(UseCase::FileStorage);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
         assert_eq!(scheme, "hybrid-ml-dsa-87-ed25519");
 
         let message = b"FileStorage use case sign/verify test";
@@ -828,7 +831,7 @@ mod coverage {
         // `SecureMessaging` uses the `UseCaseConfig` default security level
         // (`SecurityLevel::High`), which selects the L3 hybrid signing scheme.
         let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
         assert_eq!(scheme, "hybrid-ml-dsa-65-ed25519");
 
         let message = b"SecureMessaging use case sign/verify test";
@@ -845,7 +848,7 @@ mod coverage {
         let config = CryptoConfig::new()
             .security_level(SecurityLevel::Maximum)
             .crypto_mode(latticearc::CryptoMode::PqOnly);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
         assert!(
             scheme.contains("ml-dsa") || scheme.contains("pq-ml-dsa"),
             "PQ-only Maximum should use pure ML-DSA, got: {}",
@@ -908,7 +911,7 @@ mod coverage {
     #[test]
     fn test_sign_verify_authentication_use_case_succeeds() {
         let config = CryptoConfig::new().use_case(UseCase::Authentication);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"Authentication signing test";
         let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -922,7 +925,7 @@ mod coverage {
         // Override auto-FIPS only when feature not available (test verifies signing, not FIPS)
         let config =
             if fips_available() { config } else { config.compliance(ComplianceMode::Default) };
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"Financial transaction signing test";
         let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -969,7 +972,7 @@ mod coverage {
     #[test]
     fn test_verify_with_wrong_signature_fails() {
         let config = CryptoConfig::new().use_case(UseCase::Authentication);
-        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"Original message";
         let mut signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -990,7 +993,7 @@ mod coverage {
     #[test]
     fn test_verify_with_wrong_message_fails() {
         let config = CryptoConfig::new().use_case(UseCase::Authentication);
-        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"Original message";
         let mut signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -1013,7 +1016,7 @@ mod coverage {
     fn test_sign_hybrid_44_sk_wrong_length_fails() {
         // Generate hybrid-44 keypair: uses IoTDevice which maps to ml-dsa-44 or hybrid-44
         let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         // Only test if scheme is hybrid
         if scheme.contains("hybrid") {
@@ -1027,7 +1030,7 @@ mod coverage {
     #[test]
     fn test_sign_hybrid_pk_wrong_length_fails() {
         let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
-        let (_pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (_pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         if scheme.contains("hybrid") {
             // Pass a short pk
@@ -1040,7 +1043,7 @@ mod coverage {
     #[test]
     fn test_sign_hybrid_65_sk_wrong_length_fails() {
         let config = CryptoConfig::new().security_level(SecurityLevel::High);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         if scheme.contains("hybrid") {
             let short_sk = &sk[..sk.len() / 2];
@@ -1052,7 +1055,7 @@ mod coverage {
     #[test]
     fn test_sign_hybrid_87_sk_wrong_length_fails() {
         let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         if scheme.contains("hybrid") {
             let short_sk = &sk[..sk.len() / 2];
@@ -1064,7 +1067,7 @@ mod coverage {
     #[test]
     fn test_sign_hybrid_87_pk_wrong_length_fails() {
         let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-        let (_pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (_pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         if scheme.contains("hybrid") {
             let short_pk = vec![0u8; 10];
@@ -1082,7 +1085,7 @@ mod coverage {
         let config = CryptoConfig::new()
             .security_level(SecurityLevel::Standard)
             .crypto_mode(latticearc::CryptoMode::PqOnly);
-        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"PQ-only ML-DSA-44 verification test";
         let mut signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -1102,7 +1105,7 @@ mod coverage {
         let config = CryptoConfig::new()
             .security_level(SecurityLevel::High)
             .crypto_mode(latticearc::CryptoMode::PqOnly);
-        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let message = b"PQ-only ML-DSA-65 verification test";
         let mut signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
@@ -1122,7 +1125,7 @@ mod coverage {
         let config = CryptoConfig::new()
             .security_level(SecurityLevel::Maximum)
             .crypto_mode(latticearc::CryptoMode::PqOnly);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         assert!(
             scheme.contains("ml-dsa-87"),
@@ -1144,7 +1147,7 @@ mod coverage {
         let config = CryptoConfig::new()
             .security_level(SecurityLevel::Maximum)
             .crypto_mode(latticearc::CryptoMode::PqOnly);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         assert!(scheme.contains("ml-dsa-87"), "Maximum+PqOnly should use ML-DSA-87, got: {scheme}");
 

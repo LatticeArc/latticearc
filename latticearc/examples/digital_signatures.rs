@@ -15,7 +15,7 @@ fn main() {
 
     // --- Generate a persistent signing keypair ---
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
     println!("Generated keypair using scheme: {}", scheme);
     println!("  Public key:  {} bytes", pk.len());
     println!("  Secret key:  {} bytes", sk.len());
@@ -62,7 +62,8 @@ fn main() {
     // --- Cross-key rejection ---
     println!("\n--- Cross-Key Rejection ---");
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (_pk2, sk2, _scheme2) = generate_signing_keypair(config).expect("keygen2 failed");
+    let (_pk2, sk2, _scheme2) =
+        generate_signing_keypair(config).expect("keygen2 failed").into_parts();
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed_by_other =
         sign_with_key(b"signed by key 2", &sk2, &pk, config).expect("sign failed");

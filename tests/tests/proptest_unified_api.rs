@@ -56,7 +56,7 @@ proptest! {
     #[test]
     fn unified_sign_roundtrip(message in prop::collection::vec(any::<u8>(), 0..1024)) {
         let config = CryptoConfig::new();
-        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         let signed = sign_with_key(&message, &sk, &pk, config.clone()).unwrap();
         let valid = verify(&signed, config).unwrap();
@@ -68,7 +68,7 @@ proptest! {
     #[test]
     fn unified_sign_standard(message in prop::collection::vec(any::<u8>(), 0..256)) {
         let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         // Standard selects hybrid-ml-dsa-44-ed25519
         prop_assert!(
@@ -86,7 +86,7 @@ proptest! {
     #[test]
     fn unified_sign_maximum(message in prop::collection::vec(any::<u8>(), 0..256)) {
         let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap().into_parts();
 
         prop_assert!(
             scheme.contains("ml-dsa-87") || scheme.contains("ml-dsa"),
@@ -104,8 +104,8 @@ proptest! {
     fn unified_config_consistency(_seed in any::<u64>()) {
         let config = CryptoConfig::new().security_level(SecurityLevel::High);
 
-        let (_, _, scheme1) = generate_signing_keypair(config.clone()).unwrap();
-        let (_, _, scheme2) = generate_signing_keypair(config).unwrap();
+        let (_, _, scheme1) = generate_signing_keypair(config.clone()).unwrap().into_parts();
+        let (_, _, scheme2) = generate_signing_keypair(config).unwrap().into_parts();
 
         prop_assert_eq!(&scheme1, &scheme2, "Same config must select same scheme");
     }

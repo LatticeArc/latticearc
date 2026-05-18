@@ -221,7 +221,7 @@ fn roundtrip_sign_verify_through_file_succeeds() {
     let message = b"Document that needs persistent signature verification";
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, _scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, _scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     // Sign
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
@@ -250,7 +250,7 @@ fn roundtrip_sign_verify_maximum_security_through_file_succeeds() {
     let message = b"Maximum security document signature";
 
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-    let (pk, sk, _scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, _scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     let signed = sign_with_key(message, &sk, &pk, config).expect("sign failed");
@@ -273,7 +273,7 @@ fn roundtrip_sign_verify_maximum_security_through_file_succeeds() {
 fn roundtrip_keypair_persist_and_use_for_signing_succeeds() {
     // Generate keypair
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, _scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, _scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     // Create a KeyPair for serialization
     let keypair = latticearc::unified_api::types::KeyPair::new(
@@ -641,7 +641,7 @@ fn tamper_detection_modified_signed_data_fails() {
     let message = b"Tamper-evident signed document";
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk, sk, _) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, _) = generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed = sign_with_key(message, &sk, &pk, config).expect("sign failed");

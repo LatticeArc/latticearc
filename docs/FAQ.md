@@ -131,7 +131,7 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 // Generate hybrid signing keypair (ML-DSA-65 + Ed25519)
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 
 // Sign
 let signed = sign_with_key(b"message", &sk, &pk, config.clone())?;

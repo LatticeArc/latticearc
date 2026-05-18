@@ -285,7 +285,9 @@ pub use zero_trust::{
 // Unified API (recommended)
 // ============================================================================
 
-pub use convenience::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
+pub use convenience::{
+    SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify,
+};
 
 // ============================================================================
 // Hybrid Key Generation

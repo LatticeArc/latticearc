@@ -258,7 +258,7 @@ use latticearc::ZeroTrustAuth;
 
 // Generate keypair + sign + verify
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
 let signed = sign_with_key(message, &sk, &pk, config.clone())?;
 let is_valid = verify(&signed, config)?;
 

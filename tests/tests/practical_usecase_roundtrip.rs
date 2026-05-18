@@ -488,7 +488,7 @@ fn scenario_signed_transaction_succeeds() {
     }"#;
 
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed").into_parts();
     assert!(!scheme.is_empty());
 
     // Sign the transaction
@@ -527,7 +527,7 @@ fn scenario_firmware_update_signing_succeeds() {
 
     // === MANUFACTURER PROCESS: signs firmware, publishes update file ===
     let config = CryptoConfig::new().use_case(UseCase::FirmwareSigning);
-    let (pk, sk, _) = generate_signing_keypair(config).expect("keygen failed");
+    let (pk, sk, _) = generate_signing_keypair(config).expect("keygen failed").into_parts();
 
     let update_file_path = {
         let config = CryptoConfig::new().use_case(UseCase::FirmwareSigning);
@@ -825,7 +825,7 @@ fn e2e_sign_then_encrypt_full_channel_succeeds() {
 
     let signing_config = CryptoConfig::new().use_case(UseCase::Authentication);
     let (alice_sign_pk, alice_sign_sk, _scheme) =
-        generate_signing_keypair(signing_config.clone()).expect("alice sign keygen");
+        generate_signing_keypair(signing_config.clone()).expect("alice sign keygen").into_parts();
 
     // Alice publishes her signing public key
     let alice_sign_pk_path = {
@@ -910,13 +910,13 @@ fn scenario_multi_party_signing_succeeds() {
 
     // Party A signs
     let config_a = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk_a, sk_a, _) = generate_signing_keypair(config_a).expect("keygen A");
+    let (pk_a, sk_a, _) = generate_signing_keypair(config_a).expect("keygen A").into_parts();
     let config_a = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed_a = sign_with_key(document, &sk_a, &pk_a, config_a).expect("sign A");
 
     // Party B signs the same document
     let config_b = CryptoConfig::new().security_level(SecurityLevel::High);
-    let (pk_b, sk_b, _) = generate_signing_keypair(config_b).expect("keygen B");
+    let (pk_b, sk_b, _) = generate_signing_keypair(config_b).expect("keygen B").into_parts();
     let config_b = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed_b = sign_with_key(document, &sk_b, &pk_b, config_b).expect("sign B");
 

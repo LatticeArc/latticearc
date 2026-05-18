@@ -585,8 +585,10 @@ fn symmetric_bytes_to_output(
 
     let timestamp = current_timestamp();
 
+    // A scheme/component-shape mismatch is a construction-invariant
+    // violation, not an encryption failure — see the hybrid/PQ-only arms.
     EncryptedOutput::new(scheme, encrypted.to_vec(), nonce, tag, None, timestamp, None)
-        .map_err(|e| CoreError::EncryptionFailed(e.to_string()))
+        .map_err(|e| CoreError::ConfigurationError(e.to_string()))
 }
 
 /// Decrypt data encrypted by `encrypt()`.
@@ -788,24 +790,57 @@ pub fn decrypt_with_aad(
     }
 }
 
-/// Typed wrapper for the result of [`generate_signing_keypair`].
+/// The result of [`generate_signing_keypair`]: public key, secret key, and
+/// the scheme tag bound together.
 ///
-/// Existed since 0.8.1 as an ergonomic alternative to the
-/// `(Vec<u8>, Zeroizing<Vec<u8>>, String)` tuple — the bare tuple makes
-/// it easy to lose track of which element is which (especially the scheme
-/// tag, which `sign_with_key` later needs to dispatch correctly). Callers
-/// can keep using the tuple form for backwards compatibility, OR construct
-/// `SigningKeypair::from(tuple)` to get named fields.
+/// Named accessors prevent losing track of which element is which (especially
+/// the scheme tag, which [`sign_with_key`] needs to dispatch correctly), and
+/// the manual redacting `Debug` keeps the secret key out of logs — neither
+/// of which a bare `(Vec<u8>, Zeroizing<Vec<u8>>, String)` tuple guarantees.
+///
+/// Fields are private (Pattern 5 property 5); read them with
+/// [`public_key`](Self::public_key), [`expose_secret_key`](Self::expose_secret_key),
+/// and [`scheme`](Self::scheme), or consume the bundle with
+/// [`into_parts`](Self::into_parts). The secret is held in `Zeroizing`, so it
+/// is wiped when the keypair (or the tuple from `into_parts`) drops
+/// (Pattern 5 property 1).
 pub struct SigningKeypair {
+    public_key: Vec<u8>,
+    secret_key: Zeroizing<Vec<u8>>,
+    scheme: String,
+}
+
+impl SigningKeypair {
     /// Public-key bytes for the selected scheme.
-    pub public_key: Vec<u8>,
-    /// Secret-key bytes (zeroized on drop).
-    pub secret_key: Zeroizing<Vec<u8>>,
+    #[must_use]
+    pub fn public_key(&self) -> &[u8] {
+        &self.public_key
+    }
+
+    /// Secret-key bytes. Named `expose_secret_key` — not `as_bytes` — so every
+    /// read of secret material is a grep-able audit point (Anti-Pattern 2).
+    #[must_use]
+    pub fn expose_secret_key(&self) -> &[u8] {
+        &self.secret_key
+    }
+
     /// Scheme tag (e.g. `"hybrid-ml-dsa-65-ed25519"`). Pass this back to
     /// [`sign_with_key`] via `CryptoConfig::force_scheme(...)` so the
-    /// dispatcher routes signing through the same algorithm that
-    /// generated the keypair.
-    pub scheme: String,
+    /// dispatcher routes signing through the same algorithm that generated
+    /// the keypair.
+    #[must_use]
+    pub fn scheme(&self) -> &str {
+        &self.scheme
+    }
+
+    /// Consume the bundle into its raw `(public_key, secret_key, scheme)`
+    /// parts. The secret stays wrapped in `Zeroizing`, so it is still wiped
+    /// on drop (Pattern 5 property 1; the Anti-Pattern 5 `into_parts` escape
+    /// hatch for destructuring without public fields).
+    #[must_use]
+    pub fn into_parts(self) -> (Vec<u8>, Zeroizing<Vec<u8>>, String) {
+        (self.public_key, self.secret_key, self.scheme)
+    }
 }
 
 // Manual `Debug` is required: `Zeroizing<Vec<u8>>` forwards `Debug` to the
@@ -828,34 +863,12 @@ impl From<(Vec<u8>, Zeroizing<Vec<u8>>, String)> for SigningKeypair {
     }
 }
 
-// the struct's manual `Debug` impl
-// redacts `secret_key`, but this `From<SigningKeypair>` for a tuple
-// re-exposes raw `Zeroizing<Vec<u8>>` whose `Debug` forwards to the
-// inner `Vec<u8>` — `dbg!(&tuple)` then prints the secret bytes.
-// `#[deprecated]` cannot be attached to trait impl blocks (rustc
-// rejects it as of 1.x), so the warning lives here instead: callers
-// MUST NOT round-trip a `SigningKeypair` through a tuple if any
-// `Debug`/`format!("{:?}")` site can observe it. Use the named-field
-// shape end-to-end. The reverse `From<tuple>` direction (above) is
-// safe because it consumes the tuple immediately into the struct.
-//
-// This impl exists for backwards compatibility with pre-named-field
-// callers and will be removed in a future major bump.
-impl From<SigningKeypair> for (Vec<u8>, Zeroizing<Vec<u8>>, String) {
-    fn from(kp: SigningKeypair) -> Self {
-        (kp.public_key, kp.secret_key, kp.scheme)
-    }
-}
-
 /// Generate a signing keypair for the scheme selected by config.
 ///
 /// The scheme selector auto-picks hybrid (ML-DSA-65 + Ed25519) by default.
-/// Returns `(public_key_bytes, secret_key_bytes, scheme_name)`.
-///
-/// **Tip:** the third element is the scheme tag string that
-/// [`sign_with_key`] needs to dispatch correctly — losing it makes the
-/// keypair effectively unusable. Wrap with [`SigningKeypair::from`] for
-/// a named-field shape that makes accidental loss harder.
+/// Returns a [`SigningKeypair`] bundling the public key, secret key, and
+/// the scheme tag — the tag is what [`sign_with_key`] needs to dispatch
+/// correctly, and the type's redacting `Debug` keeps the secret out of logs.
 ///
 /// # Unified API
 ///
@@ -869,9 +882,7 @@ impl From<SigningKeypair> for (Vec<u8>, Zeroizing<Vec<u8>>, String) {
 /// - Session is set and has expired (`CoreError::SessionExpired`)
 /// - Key generation fails for the selected scheme
 #[must_use = "keypair result must be used or errors will be silently dropped"]
-pub fn generate_signing_keypair(
-    config: CryptoConfig,
-) -> Result<(Vec<u8>, Zeroizing<Vec<u8>>, String)> {
+pub fn generate_signing_keypair(config: CryptoConfig) -> Result<SigningKeypair> {
     fips_verify_operational()?;
     config.validate()?;
 
@@ -943,14 +954,15 @@ pub fn generate_signing_keypair(
                 .map_err(|e| CoreError::InvalidInput(format!("Ed25519 keygen failed: {e}")))?;
             let pk_bytes = kp.public_key_bytes();
             let sk_bytes = kp.secret_key_bytes();
-            return Ok((pk_bytes, sk_bytes, scheme));
+            return Ok((pk_bytes, sk_bytes, scheme).into());
         }
         _ => {
             return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
         }
     };
 
-    Ok((public_key.into_bytes(), Zeroizing::new(secret_key.expose_secret().to_vec()), scheme))
+    Ok((public_key.into_bytes(), Zeroizing::new(secret_key.expose_secret().to_vec()), scheme)
+        .into())
 }
 
 /// Sign a message using caller-provided keys (unified API).
@@ -1339,7 +1351,7 @@ mod tests {
 
     /// Helper: generate keypair + sign + return signed data
     fn sign_message(message: &[u8], config: CryptoConfig) -> Result<SignedData> {
-        let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+        let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
         sign_with_key(message, &sk, &pk, config)
     }
 
@@ -2436,7 +2448,7 @@ mod tests {
         // scheme selector.
         let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
         let (pk, sk, scheme) =
-            generate_signing_keypair(config).expect("IoT signing keygen must succeed");
+            generate_signing_keypair(config).expect("IoT signing keygen must succeed").into_parts();
         assert_eq!(scheme, "hybrid-ml-dsa-44-ed25519");
         assert!(!pk.is_empty());
         assert!(!sk.is_empty());
@@ -2447,8 +2459,9 @@ mod tests {
         // `FileStorage` is a "long-term security" use case → `SecurityLevel::Maximum`,
         // which selects the L5 hybrid signing scheme.
         let config = CryptoConfig::new().use_case(UseCase::FileStorage);
-        let (_, _, scheme) =
-            generate_signing_keypair(config).expect("FileStorage signing keygen must succeed");
+        let (_, _, scheme) = generate_signing_keypair(config)
+            .expect("FileStorage signing keygen must succeed")
+            .into_parts();
         assert_eq!(scheme, "hybrid-ml-dsa-87-ed25519");
     }
 
@@ -2458,8 +2471,9 @@ mod tests {
         // base level when no explicit level is set), which selects the L3
         // hybrid signing scheme.
         let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
-        let (_, _, scheme) =
-            generate_signing_keypair(config).expect("SecureMessaging signing keygen must succeed");
+        let (_, _, scheme) = generate_signing_keypair(config)
+            .expect("SecureMessaging signing keygen must succeed")
+            .into_parts();
         assert_eq!(scheme, "hybrid-ml-dsa-65-ed25519");
     }
 
@@ -2470,7 +2484,7 @@ mod tests {
         let config = CryptoConfig::new().use_case(UseCase::BlockchainTransaction);
         let result = generate_signing_keypair(config);
         assert!(result.is_ok());
-        let (pk, sk, scheme) = result.unwrap();
+        let (pk, sk, scheme) = result.unwrap().into_parts();
         assert!(!pk.is_empty());
         assert!(!sk.is_empty());
         assert!(!scheme.is_empty());
@@ -2534,7 +2548,8 @@ mod tests {
                         .unwrap();
 
                 let config = CryptoConfig::new().session(&session);
-                let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+                let (pk, sk, _scheme) =
+                    generate_signing_keypair(config.clone()).unwrap().into_parts();
                 let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
                 let valid = verify(&signed, config).unwrap();
                 assert!(valid);
@@ -2622,7 +2637,8 @@ mod tests {
                         .unwrap();
 
                 // Generate a valid keypair first
-                let (pk, sk, _scheme) = generate_signing_keypair(CryptoConfig::new()).unwrap();
+                let (pk, sk, _scheme) =
+                    generate_signing_keypair(CryptoConfig::new()).unwrap().into_parts();
 
                 let expired = session.expired_clone();
                 let config = CryptoConfig::new().session(&expired);
@@ -2648,7 +2664,8 @@ mod tests {
                 // Sign with no session first
                 let message = b"test message";
                 let config = CryptoConfig::new();
-                let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+                let (pk, sk, _scheme) =
+                    generate_signing_keypair(config.clone()).unwrap().into_parts();
                 let signed = sign_with_key(message, &sk, &pk, config).unwrap();
 
                 // Now try to verify with an expired session
@@ -2862,7 +2879,7 @@ mod tests {
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let config = CryptoConfig::new().use_case(UseCase::Authentication);
-                let (pk, sk, scheme) = generate_signing_keypair(config).unwrap();
+                let (pk, sk, scheme) = generate_signing_keypair(config).unwrap().into_parts();
                 assert!(
                     scheme.contains("hybrid-ml-dsa-87"),
                     "Auth should use hybrid-87: {}",
@@ -2883,7 +2900,7 @@ mod tests {
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let config = CryptoConfig::new().use_case(UseCase::DigitalCertificate);
-                let (pk, sk, scheme) = generate_signing_keypair(config).unwrap();
+                let (pk, sk, scheme) = generate_signing_keypair(config).unwrap().into_parts();
                 assert!(
                     scheme.contains("hybrid-ml-dsa-87"),
                     "DigitalCertificate should use hybrid-87: {}",
