@@ -364,18 +364,19 @@ jobs:
           # ambient OIDC issuer. Since cosign v2.6 the bundled signing
           # config is active by default, and passing an explicit issuer
           # URL alongside it fails with "cannot specify service URLs and
-          # use signing config". (`--output-signature`/`--output-certificate`
-          # are deprecated in v2.6 but still functional — a future change
-          # should migrate to `--bundle`, which also touches the upload
-          # glob and the attach-release-artifacts job below.)
+          # use signing config". `--bundle` writes the new-format Sigstore
+          # bundle (signature + certificate + Rekor entry in one JSON
+          # file). The legacy `--output-signature`/`--output-certificate`
+          # flags are silently ignored under cosign's default new-bundle
+          # format — cosign then fails trying to open an empty bundle path
+          # — so they must not be used.
           shopt -s nullglob
           for dir in artifacts/latticearc-*/; do
             for file in "$dir"liblatticearc*; do
-              if [ -f "$file" ] && [[ ! "$file" =~ \.(sig|crt)$ ]]; then
+              if [ -f "$file" ] && [[ ! "$file" =~ \.bundle$ ]]; then
                 echo "Signing: $file"
                 cosign sign-blob --yes \
-                  --output-signature "${file}.sig" \
-                  --output-certificate "${file}.crt" \
+                  --bundle "${file}.bundle" \
                   "$file"
               fi
             done
@@ -385,8 +386,7 @@ jobs:
           if [ -f "artifacts/sbom/sbom.cdx.json" ]; then
             echo "Signing SBOM..."
             cosign sign-blob --yes \
-              --output-signature "artifacts/sbom/sbom.cdx.json.sig" \
-              --output-certificate "artifacts/sbom/sbom.cdx.json.crt" \
+              --bundle "artifacts/sbom/sbom.cdx.json.bundle" \
               "artifacts/sbom/sbom.cdx.json"
           fi
 
@@ -395,8 +395,7 @@ jobs:
         with:
           name: signatures
           path: |
-            artifacts/**/*.sig
-            artifacts/**/*.crt
+            artifacts/**/*.bundle
           # error if signatures are missing.
           # `warn` previously masked the unsigned-release failure mode.
           if-no-files-found: error
@@ -465,8 +464,7 @@ jobs:
           echo "To verify artifact signatures:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "cosign verify-blob \\\\" >> $GITHUB_STEP_SUMMARY
-          echo "  --certificate artifact.crt \\\\" >> $GITHUB_STEP_SUMMARY
-          echo "  --signature artifact.sig \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  --bundle artifact.bundle \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  --certificate-identity-regexp 'https://github.com/.*' \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  artifact" >> $GITHUB_STEP_SUMMARY

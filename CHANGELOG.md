@@ -44,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timed out at 90 min (got through 736 of 1649 tests): SLH-DSA hash-based
   signature tests run minutes-per-test under MSan origin-tracking, so the
   full workspace needs ~3h. Raised that job's `timeout-minutes` to 240.
+- **Release workflow — Sigstore signing.** `cosign sign-blob` migrated to
+  the `--bundle` output format. The deprecated `--output-signature` /
+  `--output-certificate` flags are silently ignored under cosign's default
+  new-bundle format — cosign then aborts trying to open an empty bundle
+  path — which failed the signing job and, because `publish` now depends
+  on it, blocked the gated crates.io publish.
 
 ## [0.8.1] — 2026-05-16
 
