@@ -69,7 +69,7 @@
 <a href=#69 id=69 data-nosnippet>69</a>//! let plaintext = decrypt(&amp;encrypted, DecryptKey::Symmetric(&amp;key), CryptoConfig::new())?;
 <a href=#70 id=70 data-nosnippet>70</a>//!
 <a href=#71 id=71 data-nosnippet>71</a>//! // Sign (generate keypair once, sign with persistent key)
-<a href=#72 id=72 data-nosnippet>72</a>//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
+<a href=#72 id=72 data-nosnippet>72</a>//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?.into_parts();
 <a href=#73 id=73 data-nosnippet>73</a>//! let signed = sign_with_key(message, sk.as_ref(), pk.as_ref(), CryptoConfig::new())?;
 <a href=#74 id=74 data-nosnippet>74</a>//!
 <a href=#75 id=75 data-nosnippet>75</a>//! // Verify
@@ -110,7 +110,7 @@
 <a href=#110 id=110 data-nosnippet>110</a>// Unified API
 <a href=#111 id=111 data-nosnippet>111</a>// ============================================================================
 <a href=#112 id=112 data-nosnippet>112</a>
-<a href=#113 id=113 data-nosnippet>113</a></span><span class="kw">pub use </span>api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
+<a href=#113 id=113 data-nosnippet>113</a></span><span class="kw">pub use </span>api::{SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 <a href=#114 id=114 data-nosnippet>114</a>
 <a href=#115 id=115 data-nosnippet>115</a><span class="comment">// ============================================================================
 <a href=#116 id=116 data-nosnippet>116</a>// Hybrid Key Generation (ML-KEM + X25519)
