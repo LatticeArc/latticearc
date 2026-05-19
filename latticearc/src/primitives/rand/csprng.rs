@@ -110,18 +110,6 @@ mod tests {
         assert_eq!(bytes.len(), 32);
     }
 
-    #[test]
-    fn test_random_u32_is_within_range_succeeds() {
-        let val = random_u32();
-        assert!(val < u32::MAX);
-    }
-
-    #[test]
-    fn test_random_u64_is_within_range_succeeds() {
-        let val = random_u64();
-        assert!(val < u64::MAX);
-    }
-
     // Non-repetition tests
     #[test]
     fn test_random_bytes_no_repetition_are_unique() {

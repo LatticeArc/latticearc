@@ -292,7 +292,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
     /// small enough to fit in u32, but we use saturating_cast for safety.
     ///
     /// # Errors
-    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
+    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GB guard).
     fn compute_challenge(
         &self,
         statement: &P::Statement,
@@ -307,7 +307,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         // input, producing the same length-prefix bytes for any input
         // at or above 4 GiB and breaking transcript collision-
         // resistance. Practically unreachable today (SHA-256 has its
-        // own 1 GiB DoS cap below) but a silent failure mode is worse
+        // own 1 GB DoS cap below) but a silent failure mode is worse
         // than an explicit error. Map to a Fiat-Shamir-specific Err
         // so reviewers can see the bound is enforced.
         let domain_separator_len = u32::try_from(self.domain_separator.len()).map_err(|_e| {
@@ -352,7 +352,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         buf.extend_from_slice(&context_len.to_be_bytes());
         buf.extend_from_slice(context);
 
-        // ZKP payloads are always well below the 1 GiB SHA-256 DoS cap.
+        // ZKP payloads are always well below the 1 GB SHA-256 DoS cap.
         sha256(&buf).map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))
     }
 }
@@ -719,7 +719,7 @@ impl DlogEqualityProof {
     }
 
     /// # Errors
-    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard),
+    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GB guard),
     /// or — astronomically rarely — if the rejection-sampling counter
     /// overflows `u32::MAX` without finding a hash output `< q`.
     ///
@@ -761,7 +761,7 @@ impl DlogEqualityProof {
             buf.extend_from_slice(context);
             buf.extend_from_slice(&counter.to_be_bytes());
 
-            // ~210 bytes — well below the 1 GiB SHA-256 DoS cap.
+            // ~210 bytes — well below the 1 GB SHA-256 DoS cap.
             let hash = sha256(&buf)
                 .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
             // Reject both `>= q` and `== 0`: with `c == 0`, the
@@ -804,7 +804,7 @@ mod tests {
 
         // Two different generators
         let g = ProjectivePoint::GENERATOR;
-        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap(); // H = 2*G for testing
+        let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap(); // H = NUMS Pedersen generator (discrete log w.r.t. G unknown)
 
         // Compute P = x*G and Q = x*H
         let p = g * x_scalar;

@@ -17,7 +17,7 @@ use k256::{
     elliptic_curve::{PrimeField, group::GroupEncoding, sec1::ToEncodedPoint},
 };
 use subtle::ConstantTimeEq;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 // ============================================================================
 // Hash Commitment
@@ -94,7 +94,7 @@ impl HashCommitment {
     /// Returns an error if random number generation fails or the value
     /// exceeds `u32::MAX` bytes (4 GiB).
     pub fn commit(value: &[u8]) -> Result<(Self, HashOpening)> {
-        let rand_vec = crate::primitives::rand::csprng::random_bytes(32);
+        let rand_vec = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
         let mut randomness = [0u8; 32];
         randomness.copy_from_slice(&rand_vec);
 
@@ -135,7 +135,7 @@ impl HashCommitment {
     /// and `unified_api::audit::compute_integrity_hash` — both u32 BE.
     /// (Post-85e2bd79e L4 previous version used u64, which
     /// was the only u64-width transcript prefix in the crate. Migrating
-    /// to u32 BE unifies the convention; SHA-3's 1 GiB DoS cap below
+    /// to u32 BE unifies the convention; SHA-3's 1 GB DoS cap below
     /// makes the u32 ceiling unreachable in practice.)
     ///
     /// Domain label bumped `arc-zkp/hash-commitment-v1` → `-v2` because
@@ -234,7 +234,7 @@ impl PedersenCommitment {
     /// # Errors
     /// Returns an error if the value is not a valid scalar.
     pub fn commit(value: &[u8; 32]) -> Result<(Self, PedersenOpening)> {
-        let rand_vec = crate::primitives::rand::csprng::random_bytes(32);
+        let rand_vec = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
         let mut blinding = [0u8; 32];
         blinding.copy_from_slice(&rand_vec);
 
@@ -414,7 +414,7 @@ impl PedersenCommitment {
     /// Cached after first computation via `OnceLock`.
     ///
     /// # Errors
-    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard)
+    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GB guard)
     /// or if no valid curve point is found within 256 iterations.
     /// now `pub` (was private) so callers — including
     /// integration tests in `tests/` — can construct
@@ -450,7 +450,7 @@ impl PedersenCommitment {
             // in the crate.
             buf.extend_from_slice(&counter.to_be_bytes());
             // Input is 34 bytes (30-byte label + 4-byte counter), well below the
-            // 1 GiB SHA-256 DoS cap.
+            // 1 GB SHA-256 DoS cap.
             let hash = sha256(&buf)
                 .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
 

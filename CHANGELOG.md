@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **ZKP — secret material left un-zeroized.** `Schnorr::new`,
+  `HashCommitment::commit`, and `PedersenCommitment::commit` drew 32-byte
+  secrets (a raw private key; Pedersen / hash-commitment blinding factors)
+  from `csprng::random_bytes()`, which returns a plain `Vec<u8>` dropped
+  without zeroization. The intermediates are now wrapped in `Zeroizing`,
+  matching the existing nonce path in `schnorr.rs`.
+- **`pct_ml_kem` doc corrected.** The doc comment described a
+  `security_level` argument and fresh-keypair generation; the function
+  takes and tests the caller's `MlKemDecapsulationKeyPair` (FIPS 140-3
+  IG 10.3.A) and generates nothing. Doc now matches the signature.
+- **ZKP hash-cap comments.** `MAX_HASH_INPUT_SIZE` is 1_000_000_000 bytes
+  = 1 GB (decimal); comments that called it "1 GiB" corrected to "1 GB".
+- **`sigma.rs` test comment.** A test comment claimed `H = 2*G`;
+  `generator_h()` is a NUMS try-and-increment generator whose discrete log
+  w.r.t. `G` is unknown — corrected.
+- **csprng tests.** Removed `test_random_u32_is_within_range_succeeds` /
+  `test_random_u64_is_within_range_succeeds` — they asserted `val <
+  TYPE::MAX` on a full-width integer, which is both vacuous and flaky
+  (fails at probability 2⁻³² / 2⁻⁶⁴). `random_u32` / `random_u64` remain
+  covered by the non-repetition tests.
+
 ## [0.8.2] — 2026-05-18
 
 ### Changed

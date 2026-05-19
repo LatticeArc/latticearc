@@ -61,7 +61,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 ///
 /// # Errors
 /// Returns an error if the SHA-256 primitive fails (input exceeds 1
-/// GiB guard) or — astronomically rarely — if the rejection-sampling
+/// GB guard) or — astronomically rarely — if the rejection-sampling
 /// counter overflows `u32::MAX` without finding a hash output `< q`.
 ///
 /// # Domain bump
@@ -229,7 +229,8 @@ impl SchnorrProver {
         // `[u8; 32]` whose stack slot does not zero on shadowing/move.
         // Wrap that intermediate copy in `Zeroizing<[u8; 32]>` so when
         // the inner bytes are copied into `Self` the outer slot is wiped.
-        let initial_bytes = crate::primitives::rand::csprng::random_bytes(32);
+        let initial_bytes =
+            zeroize::Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
         let secret_key = SecretKey::from_slice(&initial_bytes)
             .map_err(|e| ZkpError::SerializationError(format!("Invalid secret key: {e}")))?;
         let public_key = secret_key.public_key();

@@ -171,16 +171,17 @@ pub fn pct_ml_dsa(
 // ML-KEM Pairwise Consistency Test
 // =============================================================================
 
-/// Performs a Pairwise Consistency Test for ML-KEM keypairs
+/// Performs a Pairwise Consistency Test on an ML-KEM keypair.
 ///
-/// This function generates a fresh keypair with decapsulation capability,
-/// encapsulates a shared secret, decapsulates it, and verifies the shared
-/// secrets match. According to FIPS 140-3, this test must pass before the
-/// keypair can be used for any cryptographic operations.
+/// Encapsulates a shared secret to `keypair`'s public key, decapsulates the
+/// resulting ciphertext with the same keypair's secret key, and verifies the
+/// two shared secrets match. Per FIPS 140-3 IG 10.3.A the PCT must run on the
+/// exact keypair being introduced, so this tests the caller's keypair — it
+/// does not generate one.
 ///
 /// # Arguments
 ///
-/// * `security_level` - The ML-KEM security level to test
+/// * `keypair` - The ML-KEM decapsulation keypair to test
 ///
 /// # Returns
 ///
@@ -189,9 +190,21 @@ pub fn pct_ml_dsa(
 ///
 /// # Errors
 ///
-/// Returns `PctError::SigningFailed` if key generation or encapsulation fails.
+/// Returns `PctError::SigningFailed` if encapsulation fails.
 /// Returns `PctError::VerificationFailed` if decapsulation fails.
-/// Returns `PctError::KeyPairInconsistent` if shared secrets don't match.
+/// Returns `PctError::KeyPairInconsistent` if the shared secrets don't match.
+///
+/// # Example
+///
+/// ```no_run
+/// use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+/// use latticearc::primitives::pct::pct_ml_kem;
+///
+/// let keypair = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768)?;
+/// pct_ml_kem(&keypair)?;
+/// // Keypair is now validated and safe to use
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 pub fn pct_ml_kem(
     keypair: &crate::primitives::kem::ml_kem::MlKemDecapsulationKeyPair,
 ) -> PctResult<()> {
