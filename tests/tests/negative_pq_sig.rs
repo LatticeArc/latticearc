@@ -466,7 +466,8 @@ fn test_fn_dsa_verify_junk_signature_fails() {
     let (public_key, _private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
     let message = b"Test message";
-    // Create junk signature with reasonable length
+    // Junk of a non-FN-DSA length (1000 bytes is neither 666 nor 1280):
+    // `FnDsaSignature::from_bytes` rejects it on length, so verify returns Err.
     let junk_signature = vec![0x42u8; 1000];
 
     let result = verify_pq_fn_dsa_unverified(
@@ -475,8 +476,7 @@ fn test_fn_dsa_verify_junk_signature_fails() {
         public_key.as_slice(),
         FnDsaSecurityLevel::Level512,
     );
-    // verify path collapses Err to Ok(false) (Pattern 6).
-    assert_eq!(result.ok(), Some(false), "junk signature must yield Ok(false)");
+    assert!(result.is_err(), "wrong-length junk signature must be rejected");
 }
 
 // ============================================================================

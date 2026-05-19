@@ -130,31 +130,33 @@ fn resolve_keygen_passphrase(args: &KeygenArgs) -> Result<Option<zeroize::Zeroiz
 
 /// Execute the keygen command.
 pub(crate) fn run(args: KeygenArgs) -> Result<()> {
-    // create the output dir with 0700 on Unix so the
-    // filenames inside (which encode algorithm choice — e.g.
-    // `ml-dsa-65.sec.json`) aren't world-listable. The secret files
-    // themselves are written with 0600, but the directory containing
-    // them was previously created with the user's umask (typically
-    // 0755), leaking algorithm identity to any same-host reader. No
-    // public-API impact; behaviour is purely "tighter perms by default."
+    // Force the output dir to 0700 on Unix so the filenames inside
+    // (which encode algorithm choice — e.g. `ml-dsa-65.sec.json`) aren't
+    // world-listable. The secret files themselves are written with 0600,
+    // but the directory containing them is otherwise created with the
+    // user's umask (typically 0755), leaking algorithm identity to any
+    // same-host reader. `DirBuilder::mode` applies only to directories
+    // the call *creates*, so a pre-existing `--output` dir would keep its
+    // looser mode; `set_permissions` afterwards enforces 0700
+    // unconditionally. No public-API impact; behaviour is purely "tighter
+    // perms by default."
     #[cfg(unix)]
     {
-        use std::os::unix::fs::DirBuilderExt;
-        std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&args.output)?;
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::create_dir_all(&args.output)?;
+        std::fs::set_permissions(&args.output, std::fs::Permissions::from_mode(0o700))?;
     }
     #[cfg(not(unix))]
     {
         std::fs::create_dir_all(&args.output)?;
-        // Windows analogue of `mode(0o700)`: replace the freshly-
-        // created directory's DACL with the workspace owner-only
-        // policy. Without this step the directory inherits the
-        // parent's ACL — typically `Users:Read` on a default user
-        // profile root — which is the same algorithm-identity leak
-        // (filenames encode scheme, e.g. `ml-dsa-65.sec.json`) the
-        // Unix path closes via `mode(0o700)`. Skipped silently when
-        // the directory already existed (no-op create_dir_all path)
-        // because we don't want to retroactively rewrite a DACL the
-        // operator may have set on purpose.
+        // Windows analogue of `mode(0o700)`: replace the directory's DACL
+        // with the workspace owner-only policy. Without this step the
+        // directory inherits the parent's ACL — typically `Users:Read` on
+        // a default user profile root — which is the same algorithm-
+        // identity leak (filenames encode scheme, e.g.
+        // `ml-dsa-65.sec.json`) the Unix path closes via `mode(0o700)`.
+        // Applied unconditionally, including to a pre-existing `--output`
+        // dir, so the hardening matches the Unix branch.
         latticearc::unified_api::win_acl::set_local_admin_dacl(&args.output)
             .map_err(|e| anyhow::anyhow!("Windows keygen-dir DACL hardening failed: {e}"))?;
     }
@@ -293,31 +295,51 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
     // Also generate the matching hybrid encryption keypair. A failure here is
     // fatal: the user asked for a use-case bundle (signing + encryption) and
     // silently delivering only the signing half would leave them unable to
-    // run encrypt/decrypt with the same workflow.
-    let (enc_pk, enc_sk) = latticearc::generate_hybrid_keypair()
-        .map_err(|e| anyhow::anyhow!("Hybrid encryption keygen failed: {e}"))?;
-    let (portable_pk, mut portable_sk) = latticearc::PortableKey::from_hybrid_kem_keypair(
-        args.use_case.unwrap_or(latticearc::types::types::UseCase::SecureMessaging),
-        &enc_pk,
-        &enc_sk,
-    )
-    .map_err(|e| anyhow::anyhow!("Hybrid encryption key export failed: {e}"))?;
+    // run encrypt/decrypt with the same workflow. If any encryption step
+    // fails, roll back the signing-key files already on disk — otherwise a
+    // non-`--force` retry is blocked by the overwrite guard against the
+    // orphaned signing half, and `--force` would silently overwrite it.
+    let write_encryption_keypair = || -> Result<(PathBuf, PathBuf)> {
+        let (enc_pk, enc_sk) = latticearc::generate_hybrid_keypair()
+            .map_err(|e| anyhow::anyhow!("Hybrid encryption keygen failed: {e}"))?;
+        let (portable_pk, mut portable_sk) = latticearc::PortableKey::from_hybrid_kem_keypair(
+            args.use_case.unwrap_or(latticearc::types::types::UseCase::SecureMessaging),
+            &enc_pk,
+            &enc_sk,
+        )
+        .map_err(|e| anyhow::anyhow!("Hybrid encryption key export failed: {e}"))?;
 
-    if let Some(pp) = passphrase.as_ref() {
+        if let Some(pp) = passphrase.as_ref() {
+            portable_sk
+                .encrypt_with_passphrase(pp.as_bytes())
+                .map_err(|e| anyhow::anyhow!("Failed to encrypt encryption SK: {e}"))?;
+        }
+
+        let enc_pk_path = args.output.join("encryption.pub.json");
+        let enc_sk_path = args.output.join("encryption.sec.json");
+        // SK first — same SK-first-ordering rationale as the signing-keypair branch.
         portable_sk
-            .encrypt_with_passphrase(pp.as_bytes())
-            .map_err(|e| anyhow::anyhow!("Failed to encrypt encryption SK: {e}"))?;
-    }
-
-    let enc_pk_path = args.output.join("encryption.pub.json");
-    let enc_sk_path = args.output.join("encryption.sec.json");
-    // SK first — same SK-first-ordering rationale as the signing-keypair branch.
-    portable_sk
-        .write_to_file_with_overwrite(&enc_sk_path, args.force)
-        .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_sk_path.display()))?;
-    portable_pk
-        .write_to_file_with_overwrite(&enc_pk_path, args.force)
-        .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_pk_path.display()))?;
+            .write_to_file_with_overwrite(&enc_sk_path, args.force)
+            .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_sk_path.display()))?;
+        portable_pk
+            .write_to_file_with_overwrite(&enc_pk_path, args.force)
+            .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_pk_path.display()))?;
+        Ok((enc_pk_path, enc_sk_path))
+    };
+    let (enc_pk_path, enc_sk_path) = match write_encryption_keypair() {
+        Ok(paths) => paths,
+        Err(e) => {
+            for orphan in [&sk_path, &pk_path] {
+                if let Err(rm_err) = std::fs::remove_file(orphan) {
+                    eprintln!(
+                        "warning: could not remove orphaned signing-key file {}: {rm_err}",
+                        orphan.display()
+                    );
+                }
+            }
+            return Err(e);
+        }
+    };
 
     eprintln!("  Encrypt PK: {}", enc_pk_path.display());
     eprintln!("  Encrypt SK: {}", enc_sk_path.display());

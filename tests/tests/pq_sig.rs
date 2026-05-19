@@ -1850,10 +1850,10 @@ mod error_paths {
 
     #[test]
     fn test_fn_dsa_verify_invalid_sig_format_returns_error() {
-        // FnDsaSignature::from_bytes only rejects empty,
-        // so a 100-byte 0xFF blob passes parse and reaches pk.verify(),
-        // where the malformed-signature failure is collapsed to
-        // Ok(false) by map_verify_result (Pattern 6).
+        // A wrong-length signature is rejected by `FnDsaSignature::from_bytes`,
+        // which validates length at construction (consistent with ML-DSA), so
+        // verify returns Err before reaching pk.verify(). Mirrors
+        // `test_ml_dsa_44_verify_wrong_sig_length_returns_error`.
         let (pk, _sk) = generate_fn_dsa_keypair().unwrap();
         let bad_sig = vec![0xFFu8; 100]; // wrong length, non-empty
         let result = verify_pq_fn_dsa_unverified(
@@ -1862,7 +1862,7 @@ mod error_paths {
             pk.as_slice(),
             FnDsaSecurityLevel::Level512,
         );
-        assert_eq!(result.ok(), Some(false), "invalid sig format must yield Ok(false)");
+        assert!(result.is_err(), "wrong-length FN-DSA signature must be rejected");
     }
 }
 

@@ -69,15 +69,20 @@ const ML_KEM_PK_METADATA_KEY: &str = "ml_kem_pk";
 
 /// Current version of the encrypted-key envelope schema.
 ///
-/// bumped from `1` to `2` to mark the AAD
-/// label change introduced by's metadata-binding fix
-/// (`lpk-v1-enc` → `lpk-v2-enc`). Pre-fix v1 envelopes have the same
-/// `enc: 1` field but a different AEAD AAD; decrypting them with v2
-/// code surfaces as "wrong passphrase" because the AAD mismatch fails
-/// authentication. Bumping the wire field lets us emit a distinct
-/// "v1 envelope; re-protect with --upgrade" error so users know to
+/// Each bump marks an AEAD AAD-layout change. An envelope written by an
+/// older version has the same wire shape but a different AAD, so a newer
+/// verifier's AAD will not match and AEAD authentication fails. Without a
+/// version field that failure is indistinguishable from a wrong
+/// passphrase. Bumping the field on every AAD change lets the loader emit
+/// a distinct "old envelope; re-protect" error so users decrypt and
 /// re-encrypt rather than chase a passphrase that was already correct.
-const ENCRYPTED_ENVELOPE_VERSION: u32 = 2;
+///
+/// History:
+/// - `1` → `2`: metadata-binding fix; AAD magic `lpk-v1-enc` → `lpk-v2-enc`.
+/// - `2` → `3`: AAD canonicalization fix — a null terminator was added
+///   after the `aead` string field; AAD magic `lpk-v2-enc` → `lpk-v3-enc`.
+///   See `encryption_aad` for the layout.
+const ENCRYPTED_ENVELOPE_VERSION: u32 = 3;
 /// KDF identifier for the encrypted-key envelope.
 const PBKDF2_KDF_ID: &str = "PBKDF2-HMAC-SHA256";
 /// AEAD identifier for the encrypted-key envelope.
@@ -1996,18 +2001,18 @@ impl PortableKey {
                 ciphertext.len()
             )));
         }
-        // emit a distinct error for the v1
-        // → v2 transition so users know to re-encrypt rather than
-        // chase a passphrase that was already correct (the v1 AAD
-        // doesn't match the v2 verifier; AEAD authentication fails
-        // and the legacy code path surfaced as "wrong passphrase").
-        if enc == 1 {
-            return Err(CoreError::InvalidKey(
-                "v1 envelope; re-protect with --upgrade. The AAD format \
-                 changed in 0.8.0; v1 envelopes cannot be decrypted by v2 code \
-                 even with the correct passphrase."
-                    .to_string(),
-            ));
+        // An envelope from an older schema version has a valid wire shape
+        // but an older AEAD AAD layout, so authentication would fail
+        // opaquely as "wrong passphrase". Detect it by version and emit a
+        // distinct, actionable error instead.
+        if enc < ENCRYPTED_ENVELOPE_VERSION {
+            return Err(CoreError::InvalidKey(format!(
+                "v{enc} encrypted-key envelope: the AEAD AAD layout changed in \
+                 v{ENCRYPTED_ENVELOPE_VERSION}, so a v{enc} envelope cannot be \
+                 decrypted by current code even with the correct passphrase. \
+                 Re-protect the key: decrypt it with the release that wrote it, \
+                 then re-encrypt with the current release."
+            )));
         }
         if enc != ENCRYPTED_ENVELOPE_VERSION {
             return Err(CoreError::InvalidKey(format!(
@@ -2448,18 +2453,19 @@ impl PortableKey {
                 .saturating_add(4) // metadata len
                 .saturating_add(metadata_bytes.len()),
         );
-        // bumped to v3 to mark the AAD canonicalization
-        // fix. The previous v2 layout omitted the null terminator after
-        // the `aead` string field while every other string field
-        // (label, algorithm_name, key_type_name, kdf) had one — the
-        // moment a second AEAD name was added (e.g. ChaCha20-Poly1305),
-        // the (aead || metadata_len) concatenation could collide with
-        // a different (aead' || metadata_len') prefix-shifted by the
-        // length difference. Adding the terminator closes the
-        // collision class. v2 envelopes will fail AEAD authentication
-        // under v3 AAD; the mismatch surfaces as an opaque "wrong
-        // passphrase or corrupted envelope" at the decrypt site —
-        // same shape as the v1→v2 break.
+        // AAD magic `lpk-v3-enc`: bumped from `lpk-v2-enc` for the
+        // canonicalization fix below. The previous v2 layout omitted the
+        // null terminator after the `aead` string field while every other
+        // string field (label, algorithm_name, key_type_name, kdf) had
+        // one — the moment a second AEAD name was added (e.g.
+        // ChaCha20-Poly1305), the (aead || metadata_len) concatenation
+        // could collide with a different (aead' || metadata_len')
+        // prefix-shifted by the length difference. Adding the terminator
+        // closes the collision class. The envelope's `enc` wire field is
+        // bumped to `ENCRYPTED_ENVELOPE_VERSION` (3) in lockstep, so a v2
+        // envelope is caught by the version check at load time and
+        // reported with a distinct "re-protect" error rather than failing
+        // opaquely as a wrong passphrase.
         aad.extend_from_slice(b"latticearc-lpk-v3-enc");
         aad.push(0);
         aad.extend_from_slice(&enc.to_be_bytes());
@@ -2826,6 +2832,21 @@ impl PortableKey {
         let legacy: LegacyKeyFile = decode_json_opaque(json, "key.legacy_json")?;
 
         let algorithm = parse_legacy_algorithm(&legacy.algorithm)?;
+        // The legacy schema carries a single flat `key` field, so it
+        // physically cannot represent a hybrid key's separate post-quantum
+        // and classical components. Reject hybrid algorithms here with the
+        // real reason: otherwise the key is built as `KeyData::Single` and
+        // `validate()` rejects it with the misleading "must use composite
+        // key data" message, which reads as a caller error rather than a
+        // format limitation.
+        if algorithm.is_hybrid() {
+            return Err(CoreError::InvalidKey(format!(
+                "Legacy key format cannot represent hybrid algorithm {algorithm:?}: \
+                 the legacy schema has a single `key` field and no way to encode \
+                 the separate post-quantum and classical components a hybrid key \
+                 requires. Re-export this key in the current (non-legacy) format."
+            )));
+        }
         let key_type = match legacy.key_type.to_lowercase().as_str() {
             "public" | "pub" => KeyType::Public,
             "secret" | "private" | "sk" => KeyType::Secret,
@@ -3125,6 +3146,21 @@ mod tests {
         key.key_data = snapshot.into_key_data();
         let err = key.validate().expect_err("wrong envelope version must be rejected");
         assert!(err.to_string().contains("Unsupported encrypted key envelope version 99"));
+    }
+
+    #[test]
+    fn test_validate_rejects_superseded_envelope_version() {
+        // A v2 envelope carries an older AEAD AAD layout. It must be
+        // rejected with a distinct, actionable "re-protect" error rather
+        // than the opaque wrong-passphrase failure the version field
+        // exists to prevent.
+        let (mut key, mut snapshot) = make_valid_encrypted_key();
+        snapshot.enc = 2;
+        key.key_data = snapshot.into_key_data();
+        let err = key.validate().expect_err("superseded envelope version must be rejected");
+        let msg = err.to_string();
+        assert!(msg.contains("v2 encrypted-key envelope"), "got: {msg}");
+        assert!(msg.contains("Re-protect"), "got: {msg}");
     }
 
     #[test]
@@ -3746,6 +3782,25 @@ mod tests {
     fn test_from_legacy_json_unknown_key_type_fails() {
         let legacy = r#"{"algorithm":"ed25519","key_type":"unknown","key":"AQID"}"#;
         assert!(PortableKey::from_legacy_json(legacy).is_err());
+    }
+
+    #[test]
+    fn test_from_legacy_json_hybrid_algorithm_fails() {
+        // The legacy schema has a single `key` field and cannot represent a
+        // hybrid key's composite components; import must reject it with the
+        // format-limitation reason, not the misleading "must use composite
+        // key data" message that surfaces if the key reaches `validate()`.
+        let legacy = r#"{
+            "algorithm": "hybrid-ml-kem-768-x25519",
+            "key_type": "public",
+            "key": "AQID"
+        }"#;
+        let err = PortableKey::from_legacy_json(legacy)
+            .expect_err("hybrid algorithm must be rejected by the legacy importer");
+        assert!(
+            err.to_string().contains("Legacy key format cannot represent hybrid"),
+            "got: {err}"
+        );
     }
 
     // --- Every algorithm roundtrip (JSON + CBOR) ---

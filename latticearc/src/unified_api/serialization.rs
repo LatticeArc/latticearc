@@ -138,7 +138,13 @@ impl std::fmt::Debug for SerializableKeyPair {
 
 impl ConstantTimeEq for SerializableKeyPair {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        // Compare both halves: two keypairs that share a private key but
+        // carry different public keys are not equal. The private-key
+        // comparison runs in constant time to avoid leaking secret-key
+        // bytes via timing; the public-key comparison is folded in with a
+        // bitwise AND so the result still reflects the whole keypair.
         self.private_key.as_bytes().ct_eq(other.private_key.as_bytes())
+            & self.public_key.as_bytes().ct_eq(other.public_key.as_bytes())
     }
 }
 
@@ -676,6 +682,19 @@ mod tests {
         };
         let result: std::result::Result<KeyPair, _> = bad.try_into();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_serializable_keypair_ct_eq_compares_public_key() {
+        use subtle::ConstantTimeEq;
+        // `ct_eq` must reflect the whole keypair: two keypairs that share a
+        // private key but carry different public keys are not equal.
+        let sk = BASE64_ENGINE.encode(b"shared-private-key");
+        let a = SerializableKeyPair::new(BASE64_ENGINE.encode(b"public-A"), sk.clone());
+        let b = SerializableKeyPair::new(BASE64_ENGINE.encode(b"public-B"), sk.clone());
+        let a_again = SerializableKeyPair::new(BASE64_ENGINE.encode(b"public-A"), sk);
+        assert!(!bool::from(a.ct_eq(&b)));
+        assert!(bool::from(a.ct_eq(&a_again)));
     }
 
     #[test]

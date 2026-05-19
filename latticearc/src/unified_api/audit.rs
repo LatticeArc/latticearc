@@ -1,12 +1,18 @@
 //! # Persistent Audit Storage with Rotation
 //!
-//! Provides tamper-evident audit logging for cryptographic operations.
+//! Provides hash-chained audit logging for cryptographic operations.
 //! Events are persisted to disk in JSON Lines format with automatic rotation
 //! based on file size and age.
 //!
 //! ## Security Features
 //!
-//! - **Integrity Verification**: SHA-256 hash chain for tamper detection
+//! - **Integrity Verification**: SHA-256 hash chain linking each event to its
+//!   predecessor and to a per-storage genesis anchor. This detects truncation,
+//!   reordering, and edits by any party that cannot read the genesis anchor
+//!   file. It is **not** a keyed MAC: an attacker with read access to the
+//!   genesis anchor *and* write access to the log can recompute a
+//!   self-consistent chain. Tamper-evidence therefore rests on the genesis
+//!   anchor's `0o600` confidentiality, not on a secret key.
 //! - **Automatic Rotation**: Files rotate based on size and age limits
 //! - **Retention Policies**: Configurable retention periods for compliance
 //! - **Thread-Safe**: All operations are safe for concurrent access
@@ -837,7 +843,7 @@ impl FileAuditStorage {
                     // open. Default `fs::write` would inherit the
                     // process's default DACL — typically world-
                     // readable on local Windows — exposing the
-                    // chain-integrity HMAC seed to other local users.
+                    // chain-integrity seed to other local users.
                     // Note: `share_mode(0)` is the closest std-only
                     // approximation to Unix `0o600` without pulling
                     // in the full Windows ACL API; a future round
@@ -1001,9 +1007,14 @@ impl FileAuditStorage {
             return true;
         }
 
-        // Check age limit
-        let age =
-            Utc::now().signed_duration_since(state.created_at).to_std().unwrap_or(Duration::ZERO);
+        // Check age limit. `to_std` only errors on a negative duration,
+        // i.e. `created_at` is in the future (clock skew or a tampered
+        // timestamp). A future-dated file would otherwise read as 0 s old
+        // forever and never age-rotate; treat the anomaly as past the age
+        // limit so the file rotates.
+        let Ok(age) = Utc::now().signed_duration_since(state.created_at).to_std() else {
+            return true;
+        };
 
         age >= self.config.max_file_age
     }

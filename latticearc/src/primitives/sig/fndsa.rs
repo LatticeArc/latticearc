@@ -239,15 +239,29 @@ pub struct Signature {
 }
 
 impl Signature {
-    /// Create a signature from bytes
+    /// Create a signature from bytes.
+    ///
+    /// FN-DSA signatures are fixed-length per parameter set. `Signature`
+    /// does not carry the parameter set, so this accepts any length valid
+    /// for *some* supported set; [`VerifyingKey::verify`] rejects a
+    /// signature whose length does not match the verifying key's set.
+    /// Rejecting other lengths here keeps the construction invariant
+    /// consistent with [`crate::primitives::sig::ml_dsa`] and
+    /// [`crate::primitives::sig::slh_dsa`], which validate length at
+    /// construction.
     ///
     /// # Errors
-    /// Returns an error if the signature bytes are empty.
+    /// Returns an error if `bytes.len()` is not a valid FN-DSA signature
+    /// size (`666` for FN-DSA-512, `1280` for FN-DSA-1024).
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.is_empty() {
-            return Err(FnDsaError::InvalidSignature(
-                "Signature bytes cannot be empty".to_string(),
-            ));
+        let len_512 = FnDsaSecurityLevel::Level512.signature_size();
+        let len_1024 = FnDsaSecurityLevel::Level1024.signature_size();
+        if bytes.len() != len_512 && bytes.len() != len_1024 {
+            return Err(FnDsaError::InvalidSignature(format!(
+                "signature length {} is not a valid FN-DSA signature size \
+                 ({len_512} for FN-DSA-512, {len_1024} for FN-DSA-1024)",
+                bytes.len(),
+            )));
         }
         Ok(Self { bytes: bytes.to_vec() })
     }
@@ -1004,6 +1018,17 @@ mod tests {
     fn test_fndsa_empty_signature_is_rejected() {
         let result = Signature::from_bytes(&[]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fndsa_signature_from_bytes_wrong_length_is_rejected() {
+        // A 100-byte blob is neither a valid FN-DSA-512 (666) nor
+        // FN-DSA-1024 (1280) signature; construction must reject it.
+        assert!(Signature::from_bytes(&[0u8; 100]).is_err());
+        assert!(Signature::from_bytes(&[0u8; 667]).is_err());
+        // Both valid parameter-set sizes are accepted.
+        assert!(Signature::from_bytes(&[0u8; 666]).is_ok());
+        assert!(Signature::from_bytes(&[0u8; 1280]).is_ok());
     }
 
     #[test]

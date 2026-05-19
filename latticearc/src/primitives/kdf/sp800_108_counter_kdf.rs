@@ -179,28 +179,28 @@ pub fn counter_kdf(
         ));
     }
 
-    // Max output length is 2^32 blocks * hash_length (SHA-256 = 32 bytes)
     const HASH_LEN: usize = 32;
-    // Safe: compile-time constant multiplication
-    #[expect(
-        clippy::arithmetic_side_effects,
-        reason = "arithmetic bounded by callsite invariants; overflow impossible at this site"
-    )]
-    let max_len = (1u64 << 32) * HASH_LEN as u64;
+    // SP 800-108 counter mode encodes the requested output length L (in
+    // bits) as the fixed 32-bit big-endian field `[L]₂`. The largest
+    // representable L is `u32::MAX` bits, so the maximum key length is
+    // `u32::MAX / 8` bytes (~512 MiB). An earlier bound of `2^32 · 32`
+    // bytes (~128 GiB) was too permissive: requests in `[512 MiB, 128 GiB)`
+    // passed this gate, then failed the `[L]₂` `u32::try_from` below with a
+    // confusing "too large for bit representation" message. Bounding to the
+    // spec field here fails such requests with one clear error instead.
+    const MAX_KEY_LEN_BYTES: u64 = (u32::MAX as u64) / 8;
 
     // compare in u64 instead of routing through
-    // `usize::try_from(max_len).unwrap_or(usize::MAX)`. On a 32-bit
-    // target, max_len = 2^37 saturates to usize::MAX = 2^32-1, so the
-    // guard becomes `key_length > usize::MAX` which is never true and
-    // the size check is effectively dead. Comparing in u64 makes the
-    // bound correct on every target.
+    // `usize::try_from(...).unwrap_or(usize::MAX)`: on a 32-bit target a
+    // u64 bound above `usize::MAX` would saturate and make the guard dead.
+    // Comparing in u64 keeps the bound correct on every target.
     let key_length_u64 = u64::try_from(key_length).map_err(|_e| {
         LatticeArcError::InvalidParameter(format!("Key length {} exceeds u64", key_length))
     })?;
-    if key_length_u64 > max_len {
+    if key_length_u64 > MAX_KEY_LEN_BYTES {
         return Err(LatticeArcError::InvalidParameter(format!(
             "Key length {} exceeds maximum of {}",
-            key_length, max_len
+            key_length, MAX_KEY_LEN_BYTES
         )));
     }
 
@@ -483,6 +483,18 @@ mod tests {
 
         // Length requiring multiple blocks should succeed
         assert!(counter_kdf(b"ki", &params, 64).is_ok());
+    }
+
+    #[test]
+    fn test_counter_kdf_rejects_key_length_above_sp800_108_bound() {
+        let params = CounterKdfParams::new(b"Label");
+        // SP 800-108 encodes the output length L as a 32-bit bit-count, so
+        // the maximum key length is `u32::MAX / 8` = 536_870_911 bytes.
+        // One byte over (512 MiB exactly) must fail at the length gate with
+        // a clear "exceeds maximum" error, not later with a confusing
+        // bit-representation error.
+        let err = counter_kdf(b"ki", &params, 536_870_912).unwrap_err();
+        assert!(err.to_string().contains("exceeds maximum"), "got: {err}");
     }
 
     #[test]

@@ -31,6 +31,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   TYPE::MAX` on a full-width integer, which is both vacuous and flaky
   (fails at probability 2⁻³² / 2⁻⁶⁴). `random_u32` / `random_u64` remain
   covered by the non-repetition tests.
+- **Audit log — "tamper-evident" claim qualified.** The integrity chain
+  is an unkeyed SHA-256 hash chain, not a keyed MAC. The module header
+  claimed unconditional "tamper-evident" / "tamper detection", and a
+  genesis-file comment called the random nonce a "chain-integrity HMAC
+  seed" — no HMAC exists. The docs now state that tamper-evidence rests
+  on the genesis anchor's `0o600` confidentiality and that an attacker
+  who can read the genesis and write the log can recompute the chain.
+- **Audit log — future-dated files never age-rotated.** `needs_rotation`
+  computed file age via `signed_duration_since(created_at).to_std()
+  .unwrap_or(Duration::ZERO)`; a `created_at` in the future yields a
+  negative duration, `to_std()` errors, and the file read as 0 s old
+  forever. A future-dated file now rotates.
+- **`keygen` — `0o700` not applied to a pre-existing `--output` dir.**
+  `DirBuilder::mode` applies only to directories the call creates, so an
+  existing output directory kept its (umask-derived) mode, leaking
+  algorithm identity via filenames. The directory mode is now enforced
+  with `set_permissions` unconditionally.
+- **`keygen --use-case` — partial key bundle left on disk.** If the
+  encryption-keypair half failed after the signing-keypair half was
+  written, the signing files were orphaned with no rollback, blocking a
+  non-`--force` retry. The signing files are now removed on failure.
+- **`FnDsa::Signature::from_bytes` — no length validation.** It rejected
+  only empty input; any other length was accepted, unlike ML-DSA. It now
+  rejects lengths that are not a valid FN-DSA signature size (666 / 1280).
+- **`SerializableKeyPair::ct_eq` ignored the public key.** Two keypairs
+  with the same private key but different public keys compared equal; the
+  public key is now folded into the comparison.
+- **Legacy key import — misleading error for hybrid algorithms.**
+  `from_legacy_json` built a `Single` key for a hybrid algorithm name,
+  which `validate()` then rejected with "must use composite key data".
+  The legacy schema cannot represent composite keys; the importer now
+  rejects hybrid algorithms up front with the real reason.
+- **SP 800-108 counter KDF — `max_len` bound too permissive.** The length
+  gate allowed ~128 GiB, but the spec's 32-bit `[L]₂` bit-count field caps
+  output at `u32::MAX / 8` bytes (~512 MiB). Requests in between passed
+  the gate then failed with a confusing bit-representation error; they now
+  fail at the gate with a clear "exceeds maximum" message.
+- **Encrypted-key envelope — version not bumped for the v3 AAD change.**
+  `ENCRYPTED_ENVELOPE_VERSION` stayed `2` while the AEAD AAD magic had
+  moved to `lpk-v3-enc`, so a stale v2 envelope failed authentication
+  opaquely as "wrong passphrase". The wire version is now `3`; older
+  envelopes are detected by version and rejected with a distinct
+  "re-protect" error.
 
 ## [0.8.2] — 2026-05-18
 

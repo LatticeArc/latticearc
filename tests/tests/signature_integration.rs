@@ -1161,7 +1161,9 @@ fn test_slh_dsa_signature_with_fn_dsa_key_fails() {
     )
     .expect("SLH-DSA signing should succeed");
 
-    // This should fail because we're mixing schemes
+    // This should fail because we're mixing schemes: an SLH-DSA signature
+    // is not a valid FN-DSA signature length, so `FnDsaSignature::from_bytes`
+    // rejects it and verify returns Err.
     let result = verify_pq_fn_dsa_unverified(
         message,
         &slh_dsa_sig,
@@ -1169,8 +1171,7 @@ fn test_slh_dsa_signature_with_fn_dsa_key_fails() {
         FnDsaSecurityLevel::Level512,
     );
 
-    // verify path collapses Err to Ok(false) (Pattern 6).
-    assert_eq!(result.ok(), Some(false), "SLH-DSA signature should not verify with FN-DSA key");
+    assert!(result.is_err(), "SLH-DSA signature must not verify with an FN-DSA key");
 }
 
 #[test]

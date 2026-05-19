@@ -572,21 +572,27 @@ fn test_fndsa_default_security_level_succeeds() {
 #[test]
 fn test_fndsa_signature_construction_succeeds() {
     // Empty signature should fail
-    let result = Signature::from_bytes(&vec![]);
-    assert!(result.is_err(), "Empty signature bytes should fail");
+    assert!(Signature::from_bytes(&[]).is_err(), "Empty signature bytes should fail");
 
-    // Valid bytes should succeed
-    let valid_bytes = vec![0x42u8; 100];
-    let sig = Signature::from_bytes(&valid_bytes.clone()).expect("Valid bytes should succeed");
-    assert_eq!(sig.len(), 100, "Signature length should match input");
+    // A non-FN-DSA length should fail — `from_bytes` validates the length
+    // against the supported parameter sets, consistent with ML-DSA.
+    assert!(
+        Signature::from_bytes(&[0x42u8; 100]).is_err(),
+        "100-byte blob is not a valid FN-DSA signature size"
+    );
+
+    // A valid FN-DSA-512 signature size should succeed
+    let valid_512 = vec![0x42u8; 666];
+    let sig = Signature::from_bytes(&valid_512).expect("FN-DSA-512 signature size should succeed");
+    assert_eq!(sig.len(), 666, "Signature length should match input");
     assert!(!sig.is_empty(), "Signature should not be empty");
-    assert_eq!(sig.to_bytes(), valid_bytes, "to_bytes should return original bytes");
-    assert_eq!(sig.as_ref(), valid_bytes.as_slice(), "as_ref should return slice");
+    assert_eq!(sig.to_bytes(), valid_512, "to_bytes should return original bytes");
+    assert_eq!(sig.as_ref(), valid_512.as_slice(), "as_ref should return slice");
 
-    // TryFrom Vec<u8> conversion
-    let from_vec: Signature =
-        Signature::from_bytes(&vec![0x11u8; 50]).expect("Non-empty bytes should succeed");
-    assert_eq!(from_vec.len(), 50, "TryFrom conversion should preserve length");
+    // A valid FN-DSA-1024 signature size should also succeed
+    let sig_1024 =
+        Signature::from_bytes(&[0x11u8; 1280]).expect("FN-DSA-1024 signature size should succeed");
+    assert_eq!(sig_1024.len(), 1280, "FN-DSA-1024 signature length should be preserved");
 }
 
 /// Test verifying key maintains security level
