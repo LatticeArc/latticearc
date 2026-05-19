@@ -273,6 +273,13 @@ pub fn export_key(&self) -> Zeroizing<Vec<u8>> {
 }
 ```
 
+This applies to *freshly drawn* secret randomness too, not just returns:
+`csprng::random_bytes(n)` yields a plain `Vec<u8>`. When that value is a secret
+(a private key, a Pedersen/commitment blinding factor, KDF input keying
+material), wrap it in `Zeroizing` at the draw site or use
+`security::generate_secure_random_bytes(n)` — otherwise the buffer survives
+un-wiped on drop.
+
 ## Formal Verification Integration
 
 Rust's type system catches many bugs at compile time, but cryptographic correctness
@@ -678,7 +685,12 @@ crates automatically get the fix.
 
 ### How To Follow It
 - New crypto operation? Add a wrapper in `primitives/`, then call it from the upper layer.
-- Need randomness? Call `crate::primitives::rand::csprng::random_bytes(n)`. Never `OsRng`.
+- Need randomness? Call `crate::primitives::rand::csprng::random_bytes(n)` — never `OsRng`.
+  If the bytes are **secret** (private keys, blinding factors, KDF input keying
+  material), draw them with `security::generate_secure_random_bytes(n)` (returns
+  `Zeroizing<Vec<u8>>`), or wrap `random_bytes(n)` in `Zeroizing` at the call site
+  — `random_bytes` returns a plain `Vec<u8>` that is *not* wiped on drop (Pattern 5
+  property 1).
 - Need AES-GCM? Call `crate::primitives::aead::aes_gcm::AesGcm256`. Never `aws_lc_rs::aead`.
 
 ---
