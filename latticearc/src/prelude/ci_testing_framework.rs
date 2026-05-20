@@ -69,6 +69,36 @@ impl PreludeCiTestSuite {
             tracing::error!("Memory safety tests failed");
         }
 
+        // 4. Side-Channel Analysis
+        //
+        // `all_critical_tests_passed` filters `side_channel_assessments`
+        // for `Critical | High`; an empty vec trivially passes that
+        // filter, so the assessments must be populated here for the
+        // gate to carry signal.
+        tracing::info!("Running Side-Channel Analysis");
+        let side_channel_tester =
+            crate::prelude::side_channel_analysis::UtilitySideChannelTester::new();
+        match side_channel_tester.run_analysis() {
+            Ok(assessments) => {
+                tracing::info!(
+                    "Side-channel analysis completed: {} assessment(s) produced",
+                    assessments.len()
+                );
+                report.side_channel_assessments = assessments;
+            }
+            Err(e) => {
+                // Don't drop the failure on the floor — if the analyzer
+                // itself errored we have no signal about constant-time
+                // posture, which is a worse position than a clean run
+                // that surfaced a finding. Record an error in the
+                // text report; leave the assessments empty so the gate
+                // still trips on its other inputs (unit/property/memory).
+                tracing::error!("Side-channel analysis failed: {e}");
+                report.side_channel_report =
+                    Some(format!("side-channel analysis did not run cleanly: {e}"));
+            }
+        }
+
         tracing::info!("Prelude CI Test Suite Completed");
 
         Ok(report)

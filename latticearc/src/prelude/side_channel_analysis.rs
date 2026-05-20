@@ -427,10 +427,14 @@ impl UtilitySideChannelTester {
 
         report.push_str("## Detailed Findings\n\n");
         for assessment in assessments {
+            // `{:?}` over the bare enum: `SideChannelType` has no
+            // `repr(u8)`, so an `as u8` cast yields auto-assigned
+            // discriminants (Timing → 0, Cache → 1, …) that render
+            // as integers in the markdown header rather than the
+            // variant name an auditor reading the report needs.
             report.push_str(&format!(
-                "### {} ({:?})\n",
-                assessment.vulnerability_type.clone() as u8,
-                assessment.severity
+                "### {:?} ({:?})\n",
+                assessment.vulnerability_type, assessment.severity
             ));
             report.push_str(&format!("**Confidence:** {:.1}%\n", assessment.confidence * 100.0));
             report.push_str(&format!("**Description:** {}\n", assessment.description));

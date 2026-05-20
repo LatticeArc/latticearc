@@ -24,14 +24,16 @@ fuzz_target!(|data: &[u8]| {
     // Use first 32 bytes of fuzz input as the message
     let message = &data[..32];
 
-    // Test 1: Valid roundtrip — sign then verify must succeed
+    // Test 1: Valid roundtrip — sign then verify must succeed. Err on
+    // a fresh signature is a contract violation; panic so the fuzzer
+    // catches it instead of accepting Err as a legitimate outcome.
     if let Ok(signature) = keypair.sign(message) {
         let vk = keypair.verifying_key();
         match vk.verify(message, &signature) {
             Ok(valid) => {
                 assert!(valid, "Valid FN-DSA signature must verify");
             }
-            Err(_) => {}
+            Err(e) => panic!("verify error on fresh FN-DSA signature: {e}"),
         }
     }
 

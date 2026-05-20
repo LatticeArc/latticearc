@@ -241,7 +241,12 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
         // paths route through `read_file_with_cap` /
         // `read_stdin_with_limit`; mirror that discipline here.
         const KDF_INPUT_MAX: u64 = 1024 * 1024;
-        let mut buf_bytes = Vec::new();
+        // Raw byte buffer is `Zeroizing<Vec<u8>>`: a UTF-8 failure on
+        // `String::from_utf8` returns the bytes inside `FromUtf8Error`,
+        // which `?` drops without zeroize. Anchoring the wipe on the
+        // raw buffer covers both the success and the UTF-8-failure
+        // paths regardless of `from_utf8`'s allocation behaviour.
+        let mut buf_bytes: zeroize::Zeroizing<Vec<u8>> = zeroize::Zeroizing::new(Vec::new());
         let mut limited = std::io::stdin().take(KDF_INPUT_MAX.saturating_add(1));
         limited.read_to_end(&mut buf_bytes).context("Failed to read --input-stdin")?;
         if buf_bytes.len() as u64 > KDF_INPUT_MAX {
@@ -250,8 +255,15 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
                 KDF_INPUT_MAX
             );
         }
-        let mut buf =
-            String::from_utf8(buf_bytes).context("--input-stdin contains invalid UTF-8")?;
+        // UTF-8 validation goes through `std::str::from_utf8(&buf_bytes)`
+        // (borrow, not move) so a failure cannot strand the bytes inside
+        // a `FromUtf8Error`. The owned `String` is then wrapped in
+        // `Zeroizing<String>` so the decoded form is also wiped on drop.
+        let mut buf: zeroize::Zeroizing<String> = zeroize::Zeroizing::new(
+            std::str::from_utf8(&buf_bytes)
+                .context("--input-stdin contains invalid UTF-8")?
+                .to_string(),
+        );
         // Strip a single trailing newline (LF or CRLF) — common when
         // the user does `echo password | latticearc-cli kdf …`.
         if buf.ends_with('\n') {
@@ -263,7 +275,7 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
         if buf.is_empty() {
             bail!("--input-stdin received an empty line");
         }
-        return Ok(zeroize::Zeroizing::new(buf));
+        return Ok(buf);
     }
     if let Ok(env_val) = std::env::var("LATTICEARC_KDF_INPUT") {
         if env_val.is_empty() {

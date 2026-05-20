@@ -11,6 +11,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`keygen --use-case` rollback could destroy the user's signing keys.**
+  `--force` overwrote the signing keypair via atomic rename, then
+  attempted the encryption keypair; a mid-flight failure on the
+  encryption half triggered a rollback that deleted the just-overwritten
+  signing files, leaving the user with no signing keys on disk and a
+  partial encryption half orphaned. Write order is now encryption-first,
+  signing-second, with a `written: Vec<PathBuf>` log so the rollback
+  removes exactly what landed on disk and nothing else.
+- **SBOM signing could attach a Sigstore signature to an empty
+  placeholder.** The SBOM-generation step in `release.yml` has
+  `continue-on-error: true` and an `|| echo '{}' > sbom.cdx.json`
+  fallback; the signing step checked only `[ -f $SBOM ]`. A `cargo-sbom`
+  / `cargo-cyclonedx` install or generation failure could ship a signed
+  `{}`. The sign step now validates non-empty CycloneDX `components`
+  via `jq -e` before invoking `cosign sign-blob`, and fails the release
+  if the SBOM is missing.
+- **`UtilityLeakDetector::monitor_leaks` returned `Ok(())` even when
+  every operation failed.** The docstring promised "Returns an error if
+  the monitored operation fails during leak detection" but the body
+  counted errors, logged, and unconditionally returned `Ok`. `is_ok()`
+  was a false-safety signal. The function now captures the first
+  observed failure and returns it after the full 1000-iteration sample.
+- **`SystemTimeError` routed to `EncryptionError`.** `From<SystemTimeError>`
+  produced `EncryptionError("System time error: ...")` — wall-clock
+  skew (NTP step, manual adjustment, suspend/resume) is a host-config
+  condition, not a crypto-pipeline failure, and routing it through
+  `EncryptionError` lit up encryption-level alerting on every clock
+  adjustment. Now routes to `InvalidConfiguration("system clock skew: ...")`.
+- **`read_new_passphrase` used `!=` to compare two passphrases.** Local-TTY
+  re-entry has no remote-timing channel, but workspace convention
+  (DESIGN_PATTERNS.md Pattern 5 property 3 / SP 800-175B §4.1) is
+  constant-time for every comparison of secret material. Now uses
+  `subtle::ConstantTimeEq`.
+- **`kdf --input-stdin` raw bytes outlived `Zeroizing`.** The stdin
+  buffer was a plain `Vec<u8>`; the success path moves into
+  `String::from_utf8` (reuses the allocation, fine) but the UTF-8-failure
+  path returns the original bytes inside `FromUtf8Error`, which `?`
+  drops without zeroization. The raw buffer is now `Zeroizing<Vec<u8>>`,
+  UTF-8 validation goes through `std::str::from_utf8(&buf_bytes)`
+  (borrow, not move), and the decoded `String` is also wrapped in
+  `Zeroizing<String>`.
+- **Side-channel report header rendered the variant discriminant as
+  an integer.** `assessment.vulnerability_type.clone() as u8` produced
+  `### 0 (Critical)` instead of `### Timing (Critical)` — `SideChannelType`
+  has no `repr(u8)`, so the cast yields auto-assigned discriminants.
+  Now uses `{:?}` over the enum directly.
+- **CI side-channel gate was always trivially green.**
+  `UtilitySideChannelTester::run_analysis()` ran in tests but its
+  output was never written into `PreludeCiReport::side_channel_assessments`.
+  `all_critical_tests_passed` filtered an empty vec for `Critical | High`
+  and so the side-channel portion of the gate always passed.
+  `PreludeCiTestSuite::run_ci_tests` now wires the analyzer output into
+  the report.
+- **Fuzz harnesses swallowed verify-`Err` on freshly-signed messages.**
+  `fuzz_fn_dsa_sign`, `fuzz_fn_dsa_verify`, and `fuzz_ml_dsa_sign` had
+  `Err(_) => { /* should not happen */ }` branches on `verify(...)` for
+  signatures the harness had just produced — a verifier that always
+  returned `Err` would have passed every iteration. Promoted to `panic!`
+  so fuzzing actually catches the regression.
+- **`encrypt_fuzz` exercised only `SecurityMode::Unverified`.** The
+  `Verified(&session)` path runs `mode.validate()` (trust-level +
+  session-lifetime checks); none of that was reachable from any fuzz
+  target. The harness now lazily builds one `VerifiedSession` via
+  `LazyLock` (per-process, not per-iteration — `establish` runs a
+  full handshake) and exercises the Verified roundtrip alongside
+  Unverified.
+
+### Security
+
+- **CI security-gate tools pinned to specific versions.** `cargo install
+  cargo-audit / cargo-deny / cargo-sbom / cargo-cyclonedx --locked`
+  pinned the *tool's* lockfile but not the tool version, so a release
+  that reclassified advisories or reinterpreted `deny.toml` rules
+  could change gate behavior between identical source revisions.
+  `ci.yml`, `security.yml`, and `release.yml` now use
+  `taiki-e/install-action@<sha>` with `tool: cargo-audit@0.22.1`-style
+  pins (matching the existing `cargo-llvm-cov` pattern). Bumps become
+  intentional commits.
+
 - **ZKP — secret material left un-zeroized.** `Schnorr::new`,
   `HashCommitment::commit`, and `PedersenCommitment::commit` drew 32-byte
   secrets (a raw private key; Pedersen / hash-commitment blinding factors)

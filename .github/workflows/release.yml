@@ -28,14 +28,15 @@ jobs:
         run: cargo test --workspace --all-features --release
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Install cargo-audit
+        # Pinned: see ci.yml security-tools install rationale.
+        uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e # main
+        with:
+          tool: cargo-audit@0.22.1
       - name: Security audit
-        # stale comment about a four-advisory
-        # list and per-workflow sync rules removed. After an earlier audit #H-4
-        # the single source of truth is `.cargo/audit.toml` (mirrored
+        # The single source of truth is `.cargo/audit.toml` (mirrored
         # by `deny.toml`); cargo-audit auto-discovers it. No CLI flags.
-        run: |
-          cargo install cargo-audit --locked
-          cargo audit --deny warnings
+        run: cargo audit --deny warnings
 
   # Publish to crates.io
   publish:
@@ -161,9 +162,16 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       - name: Install SBOM tools
-        run: |
-          cargo install cargo-sbom --locked || true
-          cargo install cargo-cyclonedx --locked || true
+        # Pin SBOM generator versions so the signed SBOM we ship has
+        # reproducible structure / component shape across release days.
+        # Uses taiki-e/install-action (prebuilt binaries) to match the
+        # security-tool install pattern. Fail-fast on install error is
+        # the correct semantic now that the downstream sign step refuses
+        # placeholder SBOMs: a tool-install failure should abort the
+        # release here rather than continue and fail at signing.
+        uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e # main
+        with:
+          tool: cargo-sbom@0.10.0,cargo-cyclonedx@0.5.9
       - name: Generate SBOM (SPDX)
         run: cargo sbom > sbom.spdx.json || echo '{}' > sbom.spdx.json
         continue-on-error: true
@@ -383,12 +391,31 @@ jobs:
           done
 
           # Sign SBOM (required, not best-effort).
-          if [ -f "artifacts/sbom/sbom.cdx.json" ]; then
-            echo "Signing SBOM..."
-            cosign sign-blob --yes \
-              --bundle "artifacts/sbom/sbom.cdx.json.bundle" \
-              "artifacts/sbom/sbom.cdx.json"
+          # Refuse to sign a placeholder SBOM: the generation step has
+          # `continue-on-error: true` and an `|| echo '{}' > sbom.cdx.json`
+          # fallback. Signing whatever is on disk would let an empty `{}`
+          # ship as a Sigstore-attested SBOM if cargo-sbom/cargo-cyclonedx
+          # ever fails to install or run. Validate non-empty CycloneDX
+          # contents (must have a non-empty `components` array) before
+          # cosign sees the file.
+          SBOM_PATH="artifacts/sbom/sbom.cdx.json"
+          if [ ! -f "$SBOM_PATH" ]; then
+            echo "ERROR: SBOM artifact missing; release cannot ship unsigned."
+            exit 1
           fi
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "ERROR: jq required to validate SBOM before signing"
+            exit 1
+          fi
+          if ! jq -e '(.components | type == "array" and length > 0)' "$SBOM_PATH" >/dev/null; then
+            echo "ERROR: SBOM at $SBOM_PATH is empty or missing components;"
+            echo "       refusing to attach a Sigstore signature to a placeholder."
+            exit 1
+          fi
+          echo "Signing SBOM..."
+          cosign sign-blob --yes \
+            --bundle "${SBOM_PATH}.bundle" \
+            "$SBOM_PATH"
 
       - name: Upload signatures
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

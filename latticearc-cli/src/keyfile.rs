@@ -525,10 +525,17 @@ pub(crate) fn validate_new_passphrase(pp: &str) -> Result<()> {
 /// Read a *new* passphrase from the terminal, prompting twice and rejecting
 /// mismatches or empty values. Used at keygen time.
 pub(crate) fn read_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
+    use subtle::ConstantTimeEq;
     let pp1 = read_passphrase("Enter passphrase to protect secret key: ")?;
     validate_new_passphrase(&pp1)?;
     let pp2 = read_passphrase("Confirm passphrase: ")?;
-    if pp1.as_bytes() != pp2.as_bytes() {
+    // Constant-time comparison: `subtle::ConstantTimeEq` is the
+    // workspace convention for any comparison of secret material
+    // (DESIGN_PATTERNS.md Pattern 5 property 3 / SP 800-175B §4.1),
+    // even where — as here — the input source is a local TTY with no
+    // remote-timing channel.
+    let eq: bool = pp1.as_bytes().ct_eq(pp2.as_bytes()).into();
+    if !eq {
         bail!("Passphrases did not match");
     }
     Ok(pp1)

@@ -263,14 +263,19 @@ impl UtilityLeakDetector {
     ///
     /// # Errors
     ///
-    /// Returns an error if the monitored operation fails during leak detection.
+    /// Returns an error if **any** invocation of the monitored operation
+    /// fails. All 1000 iterations still run (so the log reflects the
+    /// full error rate of the sample) and the *first* observed failure
+    /// is returned. `monitor_leaks(...).is_ok()` is therefore a true
+    /// correctness signal: it is `Ok` only when every iteration
+    /// succeeded.
     pub fn monitor_leaks<F>(&self, operation: F) -> Result<()>
     where
         F: Fn() -> Result<()>,
     {
-        // Comprehensive leak detection through repeated execution and error monitoring
         let mut success_count = 0;
         let mut error_count = 0;
+        let mut first_error: Option<LatticeArcError> = None;
         for i in 0..1000 {
             match operation() {
                 #[expect(
@@ -285,7 +290,9 @@ impl UtilityLeakDetector {
                 Err(e) => {
                     error_count += 1;
                     tracing::warn!("Operation {} failed: {}", i, e);
-                    // Continue testing to see if it's consistent
+                    if first_error.is_none() {
+                        first_error = Some(e);
+                    }
                 }
             }
         }
@@ -294,11 +301,12 @@ impl UtilityLeakDetector {
             success_count,
             error_count
         );
-        Ok(())
+        if let Some(e) = first_error { Err(e) } else { Ok(()) }
     }
 }
 
 #[cfg(test)]
+#[expect(clippy::panic, reason = "test code: variant-mismatch panics are the assertion path")]
 mod tests {
     use super::*;
 
@@ -361,18 +369,29 @@ mod tests {
     #[test]
     fn test_leak_detector_with_failing_operation_fails() {
         let detector = UtilityLeakDetector::new();
-        // Operation that always fails — monitor_leaks should still succeed
-        // (it counts errors but doesn't propagate them)
+        // Always-failing operation must surface the first error and
+        // preserve the variant — a `bool`-shaped pass/fail would be a
+        // weaker contract than this assertion expects.
         let result = detector.monitor_leaks(|| {
             Err(LatticeArcError::InvalidInput("intentional failure".to_string()))
         });
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        match result {
+            Err(LatticeArcError::InvalidInput(msg)) => {
+                assert!(msg.contains("intentional failure"));
+            }
+            Err(other) => panic!("unexpected error variant: {other:?}"),
+            Ok(()) => panic!("expected Err, got Ok"),
+        }
     }
 
     #[test]
     fn test_leak_detector_with_intermittent_failures_fails() {
         let detector = UtilityLeakDetector::new();
         let counter = std::sync::atomic::AtomicUsize::new(0);
+        // Single intermittent failure in the 1000-iteration sample is
+        // enough to flip the return: `monitor_leaks` is Ok ↔ every
+        // iteration succeeded.
         let result = detector.monitor_leaks(|| {
             let val = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if val.is_multiple_of(3) {
@@ -381,7 +400,7 @@ mod tests {
                 Ok(())
             }
         });
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     #[test]

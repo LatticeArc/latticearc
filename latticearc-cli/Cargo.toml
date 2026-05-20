@@ -34,6 +34,10 @@ anyhow = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
 rpassword = { workspace = true }
+# Constant-time comparison for passphrase re-entry in `read_new_passphrase`.
+# Local-TTY input has no remote-timing attack vector, but the workspace
+# convention for any comparison of secret material is `ConstantTimeEq`.
+subtle = { workspace = true }
 # /#20: CLI commands route diagnostic info
 # (paths, algorithm names) through `tracing::debug!` instead of
 # `eprintln!` to avoid leaking onto stderr by default.

@@ -39,7 +39,13 @@ impl From<aws_lc_rs::error::Unspecified> for LatticeArcError {
 
 impl From<std::time::SystemTimeError> for LatticeArcError {
     fn from(err: std::time::SystemTimeError) -> Self {
-        LatticeArcError::EncryptionError(format!("System time error: {err}"))
+        // `SystemTimeError` is raised when wall-clock motion goes
+        // backwards (NTP step, manual adjustment, suspend/resume race).
+        // Route to `InvalidConfiguration` — the host clock is the
+        // operator-actionable cause, not the crypto pipeline — so
+        // alerts fanning out on `EncryptionError` are not triggered
+        // by routine clock-skew events.
+        LatticeArcError::InvalidConfiguration(format!("system clock skew: {err}"))
     }
 }
 
@@ -133,16 +139,20 @@ mod tests {
     }
 
     #[test]
-    fn test_from_system_time_error_produces_encryption_error_variant_fails() {
+    fn test_from_system_time_error_produces_invalid_configuration_variant_fails() {
         use std::time::{Duration, SystemTime};
         let earlier = SystemTime::UNIX_EPOCH;
         // SystemTimeError is created by duration_since when called with a future time
         let time_err =
             earlier.duration_since(SystemTime::UNIX_EPOCH + Duration::from_secs(1)).unwrap_err();
         let err: LatticeArcError = time_err.into();
+        // Clock skew is a host-configuration condition, not a
+        // crypto-pipeline failure — the conversion lands in
+        // `InvalidConfiguration` so encryption-level alerting is not
+        // triggered by NTP adjustments.
         match err {
-            LatticeArcError::EncryptionError(msg) => assert!(msg.contains("System time error")),
-            other => panic!("Expected EncryptionError, got {:?}", other),
+            LatticeArcError::InvalidConfiguration(msg) => assert!(msg.contains("clock")),
+            other => panic!("Expected InvalidConfiguration, got {:?}", other),
         }
     }
 

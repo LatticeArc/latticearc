@@ -234,113 +234,126 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
     let safe_scheme = scheme.replace(' ', "-");
     let pk_path = args.output.join(format!("{safe_scheme}.pub.json"));
     let sk_path = args.output.join(format!("{safe_scheme}.sec.json"));
+    let enc_pk_path = args.output.join("encryption.pub.json");
+    let enc_sk_path = args.output.join("encryption.sec.json");
 
-    // Hybrid signing schemes return `pq_bytes || ed25519_bytes`; routing them
-    // through `PortableKey::from_hybrid_sig_keypair` preserves the use case in
-    // the key file and uses the library's canonical composite encoding. PQ-only
-    // / classical schemes write as a single key.
+    // Write order: encryption keypair first, then signing keypair. With
+    // `--force` this guarantees that a failure in the encryption half
+    // leaves any pre-existing signing keys untouched on disk — the
+    // alternative (signing-first) opens a window where a mid-flight
+    // encryption-write failure forces a rollback that deletes the
+    // just-overwritten signing files, leaving the user with no signing
+    // keys at all.
     let use_case = args.use_case.unwrap_or(latticearc::types::types::UseCase::SecureMessaging);
-    if is_hybrid_ml_dsa_scheme(&scheme) {
-        let (mut portable_pk, mut portable_sk) =
-            build_hybrid_sig_portable_keys(use_case, &scheme, &pk, sk.as_ref())?;
-        if let Some(l) = args.label.clone() {
-            portable_pk
-                .set_label(l.clone())
-                .map_err(|e| anyhow::anyhow!("public-key label rejected: {e}"))?;
-            portable_sk
-                .set_label(l)
-                .map_err(|e| anyhow::anyhow!("secret-key label rejected: {e}"))?;
+
+    // Track files we've actually written so the rollback handler can clean
+    // up exactly what landed and nothing else (some failures happen before
+    // any write, e.g. label rejection or in-memory encrypt-with-passphrase).
+    let mut written: Vec<PathBuf> = Vec::with_capacity(4);
+
+    fn rollback(written: &[PathBuf], err: anyhow::Error) -> anyhow::Error {
+        for orphan in written {
+            if let Err(rm_err) = std::fs::remove_file(orphan) {
+                eprintln!(
+                    "warning: could not remove orphaned key file {}: {rm_err}",
+                    orphan.display()
+                );
+            }
         }
-        if let Some(pp) = passphrase.as_ref() {
-            portable_sk
-                .encrypt_with_passphrase(pp.as_bytes())
-                .map_err(|e| anyhow::anyhow!("Failed to encrypt secret key: {e}"))?;
-        }
-        // write SK first. If we wrote PK first and
-        // the SK write failed (disk full, permission), the PK would be
-        // orphaned on disk; subsequent retry would hit the new
-        // "refusing to overwrite" guard against the orphan and surface
-        // a confusing "file exists" error for a keypair half the user
-        // didn't know was created. SK-first ensures the PK only lands
-        // when there's a matching usable SK.
-        portable_sk
-            .write_to_file_with_overwrite(&sk_path, args.force)
-            .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", sk_path.display()))?;
-        portable_pk
-            .write_to_file_with_overwrite(&pk_path, args.force)
-            .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", pk_path.display()))?;
-    } else {
-        // PQ-only or classical signing scheme — concatenated bytes are the
-        // entire key and should be written as a Single KeyData.
-        let alg = parse_scheme_to_algorithm(&scheme)?;
-        // SK first — see SK-first-ordering rationale above.
-        keyfile::write_key_protected(
-            &sk_path,
-            alg,
-            KeyType::Secret,
-            sk.as_ref(),
-            args.label.clone(),
-            passphrase.as_ref().map(|p| p.as_bytes()),
-            args.force,
-        )?;
-        keyfile::write_key(&pk_path, alg, KeyType::Public, &pk, args.label.clone(), args.force)?;
+        err
     }
 
-    let uc_desc = args.use_case.as_ref().map(|uc| format!(" for {:?}", uc)).unwrap_or_default();
-
-    eprintln!("Generated {scheme} signing keypair{uc_desc}:");
-    eprintln!("  Public:  {}", pk_path.display());
-    eprintln!("  Secret:  {}", sk_path.display());
-
-    // Also generate the matching hybrid encryption keypair. A failure here is
-    // fatal: the user asked for a use-case bundle (signing + encryption) and
-    // silently delivering only the signing half would leave them unable to
-    // run encrypt/decrypt with the same workflow. If any encryption step
-    // fails, roll back the signing-key files already on disk — otherwise a
-    // non-`--force` retry is blocked by the overwrite guard against the
-    // orphaned signing half, and `--force` would silently overwrite it.
-    let write_encryption_keypair = || -> Result<(PathBuf, PathBuf)> {
+    // Step 1: write the encryption keypair (SK first, then PK — mirroring
+    // the per-keypair ordering rationale: PK without a matching SK is a
+    // confusing orphan, and SK-first means the PK only lands when the SK
+    // is already on disk).
+    let enc_result: Result<()> = (|| {
         let (enc_pk, enc_sk) = latticearc::generate_hybrid_keypair()
             .map_err(|e| anyhow::anyhow!("Hybrid encryption keygen failed: {e}"))?;
-        let (portable_pk, mut portable_sk) = latticearc::PortableKey::from_hybrid_kem_keypair(
-            args.use_case.unwrap_or(latticearc::types::types::UseCase::SecureMessaging),
-            &enc_pk,
-            &enc_sk,
-        )
-        .map_err(|e| anyhow::anyhow!("Hybrid encryption key export failed: {e}"))?;
-
+        let (portable_pk, mut portable_sk) =
+            latticearc::PortableKey::from_hybrid_kem_keypair(use_case, &enc_pk, &enc_sk)
+                .map_err(|e| anyhow::anyhow!("Hybrid encryption key export failed: {e}"))?;
         if let Some(pp) = passphrase.as_ref() {
             portable_sk
                 .encrypt_with_passphrase(pp.as_bytes())
                 .map_err(|e| anyhow::anyhow!("Failed to encrypt encryption SK: {e}"))?;
         }
-
-        let enc_pk_path = args.output.join("encryption.pub.json");
-        let enc_sk_path = args.output.join("encryption.sec.json");
-        // SK first — same SK-first-ordering rationale as the signing-keypair branch.
         portable_sk
             .write_to_file_with_overwrite(&enc_sk_path, args.force)
             .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_sk_path.display()))?;
+        written.push(enc_sk_path.clone());
         portable_pk
             .write_to_file_with_overwrite(&enc_pk_path, args.force)
             .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_pk_path.display()))?;
-        Ok((enc_pk_path, enc_sk_path))
-    };
-    let (enc_pk_path, enc_sk_path) = match write_encryption_keypair() {
-        Ok(paths) => paths,
-        Err(e) => {
-            for orphan in [&sk_path, &pk_path] {
-                if let Err(rm_err) = std::fs::remove_file(orphan) {
-                    eprintln!(
-                        "warning: could not remove orphaned signing-key file {}: {rm_err}",
-                        orphan.display()
-                    );
-                }
-            }
-            return Err(e);
-        }
-    };
+        written.push(enc_pk_path.clone());
+        Ok(())
+    })();
+    if let Err(e) = enc_result {
+        return Err(rollback(&written, e));
+    }
 
+    // Step 2: write the signing keypair. Hybrid signing schemes return
+    // `pq_bytes || ed25519_bytes`; routing them through
+    // `PortableKey::from_hybrid_sig_keypair` preserves the use case in the
+    // key file and uses the library's canonical composite encoding. PQ-only
+    // / classical schemes write as a single key.
+    let sig_result: Result<()> = (|| {
+        if is_hybrid_ml_dsa_scheme(&scheme) {
+            let (mut portable_pk, mut portable_sk) =
+                build_hybrid_sig_portable_keys(use_case, &scheme, &pk, sk.as_ref())?;
+            if let Some(l) = args.label.clone() {
+                portable_pk
+                    .set_label(l.clone())
+                    .map_err(|e| anyhow::anyhow!("public-key label rejected: {e}"))?;
+                portable_sk
+                    .set_label(l)
+                    .map_err(|e| anyhow::anyhow!("secret-key label rejected: {e}"))?;
+            }
+            if let Some(pp) = passphrase.as_ref() {
+                portable_sk
+                    .encrypt_with_passphrase(pp.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("Failed to encrypt secret key: {e}"))?;
+            }
+            portable_sk
+                .write_to_file_with_overwrite(&sk_path, args.force)
+                .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", sk_path.display()))?;
+            written.push(sk_path.clone());
+            portable_pk
+                .write_to_file_with_overwrite(&pk_path, args.force)
+                .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", pk_path.display()))?;
+            written.push(pk_path.clone());
+        } else {
+            let alg = parse_scheme_to_algorithm(&scheme)?;
+            keyfile::write_key_protected(
+                &sk_path,
+                alg,
+                KeyType::Secret,
+                sk.as_ref(),
+                args.label.clone(),
+                passphrase.as_ref().map(|p| p.as_bytes()),
+                args.force,
+            )?;
+            written.push(sk_path.clone());
+            keyfile::write_key(
+                &pk_path,
+                alg,
+                KeyType::Public,
+                &pk,
+                args.label.clone(),
+                args.force,
+            )?;
+            written.push(pk_path.clone());
+        }
+        Ok(())
+    })();
+    if let Err(e) = sig_result {
+        return Err(rollback(&written, e));
+    }
+
+    let uc_desc = args.use_case.as_ref().map(|uc| format!(" for {:?}", uc)).unwrap_or_default();
+    eprintln!("Generated {scheme} signing keypair{uc_desc}:");
+    eprintln!("  Public:  {}", pk_path.display());
+    eprintln!("  Secret:  {}", sk_path.display());
     eprintln!("  Encrypt PK: {}", enc_pk_path.display());
     eprintln!("  Encrypt SK: {}", enc_sk_path.display());
 

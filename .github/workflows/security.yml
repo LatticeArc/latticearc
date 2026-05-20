@@ -28,7 +28,12 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install cargo-audit
-      run: cargo install cargo-audit --locked
+      # Pinned: see ci.yml security-tools install rationale. Uses
+      # taiki-e/install-action (prebuilt binaries) for consistency with
+      # the cargo-llvm-cov install pattern.
+      uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e # main
+      with:
+        tool: cargo-audit@0.22.1
 
     - name: Run security audit
       run: |
@@ -37,7 +42,10 @@ jobs:
         cargo audit --deny warnings
 
     - name: Install cargo-deny
-      run: cargo install cargo-deny --locked
+      # Pinned: same rationale as cargo-audit above.
+      uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e # main
+      with:
+        tool: cargo-deny@0.19.6
 
     - name: Check dependencies
       run: |

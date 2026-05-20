@@ -344,9 +344,14 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install security tools
-      run: |
-        cargo install cargo-audit --locked
-        cargo install cargo-deny --locked
+      # Pin security-gate tools so a tool-side release that reclassifies
+      # advisories or re-interprets deny.toml rules can't change gate
+      # behaviour between identical source revisions. Bump intentionally.
+      # Uses taiki-e/install-action (prebuilt binaries) to match the
+      # cargo-llvm-cov pinning pattern earlier in this file.
+      uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e # main
+      with:
+        tool: cargo-audit@0.22.1,cargo-deny@0.19.6
 
     - name: Run cargo-audit (enhanced vulnerability scanning)
       run: |

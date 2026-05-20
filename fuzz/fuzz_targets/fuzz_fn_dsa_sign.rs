@@ -27,15 +27,16 @@ fuzz_target!(|data: &[u8]| {
                 "FN-DSA-512 signature size mismatch"
             );
 
-            // The signature must verify correctly against the same message
+            // Verify-Err on a freshly-signed message is a contract
+            // violation (sign → verify must succeed with the same key);
+            // panic so the fuzzer surfaces it instead of treating Err
+            // as a legitimate outcome.
             let vk = keypair.verifying_key();
             match vk.verify(data, &signature) {
                 Ok(valid) => {
                     assert!(valid, "FN-DSA signature must verify with its own key");
                 }
-                Err(_) => {
-                    // Verification errors should not occur for freshly generated signatures
-                }
+                Err(e) => panic!("verify error on fresh FN-DSA signature: {e}"),
             }
         }
         Err(_) => {
@@ -52,7 +53,7 @@ fuzz_target!(|data: &[u8]| {
                 Ok(valid) => {
                     assert!(valid, "Empty message signature must verify");
                 }
-                Err(_) => {}
+                Err(e) => panic!("verify error on fresh empty-message FN-DSA signature: {e}"),
             }
         }
         Err(_) => {}

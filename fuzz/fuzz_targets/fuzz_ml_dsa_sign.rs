@@ -30,7 +30,9 @@ fuzz_target!(|data: &[u8]| {
         Err(_) => return,
     };
 
-    // Test 1: Sign the fuzzed message (no context)
+    // Test 1: Sign the fuzzed message (no context). Verify-Err on a
+    // freshly-generated signature is a contract violation; panic so the
+    // fuzzer surfaces it instead of accepting Err as a legitimate path.
     match sk.sign(message, &[]) {
         Ok(signature) => {
             // Verify signature has correct size
@@ -46,9 +48,7 @@ fuzz_target!(|data: &[u8]| {
                 Ok(is_valid) => {
                     assert!(is_valid, "Valid signature must verify");
                 }
-                Err(_) => {
-                    // Verification error - should not happen for valid sig
-                }
+                Err(e) => panic!("verify error on fresh ML-DSA signature ({param:?}): {e}"),
             }
         }
         Err(_) => {
@@ -68,7 +68,9 @@ fuzz_target!(|data: &[u8]| {
                     Ok(is_valid) => {
                         assert!(is_valid, "Signature with context must verify");
                     }
-                    Err(_) => {}
+                    Err(e) => panic!(
+                        "verify error on fresh ML-DSA signature with context ({param:?}): {e}"
+                    ),
                 }
 
                 // Verify with different context should fail
