@@ -74,6 +74,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   opaquely as "wrong passphrase". The wire version is now `3`; older
   envelopes are detected by version and rejected with a distinct
   "re-protect" error.
+- **`run_power_up_tests_with_report` — FIPS module-state hooks missing.**
+  The diagnostic entry point ran the KATs without (a) the integrity test
+  required first by FIPS 140-3 §9.2.2 and (b) the `SELF_TEST_PASSED` /
+  `set_module_error` writes that gate the rest of the module on the
+  result. Both are now wired: integrity test runs first, Pass sets
+  `SELF_TEST_PASSED`, Fail calls `set_module_error(SelfTestFailure)`.
+  The function still does not `process::abort()` on failure — that is
+  the contract difference from `initialize_and_test`, which the doc
+  spells out explicitly.
+- **HMAC convenience wrappers — parameter order mismatched the module
+  convention.** `hmac_with_config_unverified` and
+  `hmac_check_with_config_unverified` took `(key, data, ...)` while the
+  other six `hmac*` functions take `(data, key, ...)`. A caller
+  following the module convention got their `data` and `key` arguments
+  swapped — silently computing the wrong MAC. The wrappers now match
+  `(data, key, ...)`. Existing call sites that already wrote
+  `(key, data, ...)` produced wrong MACs and need to be re-checked
+  against the corrected signature.
+- **`secret-mlock` on Windows — feature was silently inoperative.** The
+  `_lock` field and `MlockGuard` are gated `not(target_os = "windows")`,
+  so on Windows the feature does nothing despite a 60-line doc block
+  that described `VirtualLock`/`VirtualUnlock` semantics. The doc now
+  states up front that this is Unix-only and explains why Windows is
+  excluded (panic-on-`ERROR_NOT_LOCKED` in `region`'s Windows `Drop`);
+  the rest of `SecretVec`'s protections still apply on Windows.
+- **`KeyLifecycleRecord` validator — Active/`activated_at` parity check
+  missing.** The deserializer's per-state timestamp invariant covered
+  Rotating/Retired/Destroyed but not Active. A tampered record with
+  `current_state=Destroyed`, history `[Generation → Destroyed]`, and a
+  fabricated `activated_at` passed validation, defeating the validator's
+  own tamper-evidence goal. The parity check is now uniform across all
+  four optional timestamps.
+- **SP 800-90B adaptive-proportion test — never fired in the default
+  path.** `DEFAULT_SAMPLE_SIZE = 256` is less than the standard window
+  size of 512, so the test silently returned `Ok(())` on every
+  `run_entropy_health_tests` call. Default sample bumped to 1024.
+- **`FixedBytesRng::fill_bytes` — relied on caller pre-zeroing.** The
+  underflow / size-mismatch arms claimed to "leave `out` zero-filled"
+  but only `tracing::debug!`'d, never wrote. Currently benign because
+  `fips204`/`fips205` pre-zero their buffers; a future upstream switch
+  to `MaybeUninit` would silently consume uninitialized memory as the
+  KAT seed. `fill_bytes` now calls `out.fill(0)` first.
+- **`SignatureScheme` doc — "round-trip preserves wire format" was
+  false.** `FromStr` accepts both `"fn-dsa"` and `"fn-dsa-512"` →
+  `FnDsa512`, but `as_str` emits only `"fn-dsa-512"`, so the legacy
+  literal is rewritten on round-trip. Doc now describes this as
+  canonicalization rather than identity.
+- **`EncryptedOutput.nonce` / `.tag` — duplication contract was implicit.**
+  For symmetric AES-GCM the canonical AEAD wire is `nonce ‖ ct ‖ tag` in
+  `ciphertext`; the standalone fields are a denormalized copy used for
+  length validation. Field docs now spell out the symmetric-vs-hybrid
+  duplication contract so future constructors don't drift.
+- **`FALLBACK_RNG::secure` — panic on OS-RNG failure not documented.**
+  The thread-local fallback initializer calls
+  `ChaCha20Rng::from_os_rng()` which panics on `getrandom` failure;
+  this can fire from `RngHandle::secure()` even though that function
+  returns `Result`. Added a `# Panics` section explaining the narrow
+  (global-poisoned + OS-RNG-dead) trigger and why the fail-stop is the
+  intentional outcome.
+- **FIPS integrity test — silent skip in debug builds.** When
+  `PRODUCTION_HMAC.txt` is not configured, debug builds returned
+  `Ok(())` with only `eprintln!` diagnostics, so CI logs showed "FIPS
+  integrity passed" with nothing actually verified. The skip now also
+  emits a `tracing::warn!` and the stderr line is rephrased to
+  "SKIPPED" instead of "Development mode".
+- **`hybrid::compose` — module name implied runtime crypto.** The
+  module is now self-explicit in its first sentence that it performs no
+  cryptography and only returns documented security-claim strings;
+  pointers to the actual hybrid crypto modules are in the header.
+- **`SecretVec::from_bytes` doc — `Vec::zeroize` rationale was wrong.**
+  Said zeroize 1.8's `Vec::zeroize` "only wipes `..len`, not
+  `..capacity`". The actual 1.8 impl wipes the full capacity
+  (`iter_mut + clear + spare_capacity_mut().zeroize()`). The
+  copy-and-wipe is still correct (the wipe is to scrub the caller's
+  original allocation, not the new exact-sized buffer), but the doc
+  now states the real reason.
+- **Monobit entropy test — error message hardcoded "40-60%" for all
+  sample sizes.** Small samples (`total_bits < 1000`) use 35-65% bounds.
+  Message now reports the actual `min`/`max` used.
+- **`map_verify_result` doc — scope was over-claimed.** Said "any
+  rejection → Ok(false)"; in fact structural parse failures (wrong-
+  length PK/sig) propagate as `Err(InvalidInput)` before reaching this
+  mapper. Doc now spells out the bifurcated policy: server-config
+  oracles collapse to `Ok(false)`, attacker-controlled parse failures
+  surface as `Err` with a fixed string.
 
 ## [0.8.2] — 2026-05-18
 

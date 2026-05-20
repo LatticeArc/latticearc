@@ -680,9 +680,16 @@ pub enum CryptoScheme {
 /// Strongly-typed signature scheme identifier.
 ///
 /// Provides compile-time safety over the stringly-typed
-/// [`SignedMetadata::signature_algorithm`] field. The `as_str`/`FromStr` round-trip
-/// preserves the exact wire format used in serialized signatures, so on-disk
-/// formats remain backward compatible with prior versions that used raw strings.
+/// [`SignedMetadata::signature_algorithm`] field. `FromStr` accepts every
+/// historical wire spelling for backward compatibility; `as_str` emits
+/// the **canonical** spelling.
+///
+/// The round-trip `FromStr` → `as_str` is therefore *canonicalizing*,
+/// not identity. The only currently-active rewrite is `"fn-dsa"` →
+/// `"fn-dsa-512"`: `FromStr` accepts the legacy `"fn-dsa"` literal that
+/// older signatures shipped with, and emits the standard `"fn-dsa-512"`
+/// spelling on the way back out. Stored signatures load correctly, and
+/// re-serializing them updates the wire string to the canonical form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SignatureScheme {

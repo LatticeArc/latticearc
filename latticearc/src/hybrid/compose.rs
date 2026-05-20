@@ -3,11 +3,17 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-//! Composition Security Proofs Module
+//! Composition Security Claim Strings (Documentation Only)
 //!
-//! This module provides formal security analysis and proofs for hybrid cryptographic
-//! schemes. It demonstrates that the hybrid constructions maintain security properties
-//! when combining post-quantum and classical algorithms.
+//! **This module performs no cryptography.** Despite the file name and
+//! type names that reference "composition" and "proof", every public
+//! item in this file is a hand-written string describing a published
+//! security claim — there is no encrypt/decrypt, sign/verify, or KDF
+//! code path here. The entry points return a [`HybridSecurityProof`]
+//! struct of claim strings the caller can display or log; nothing in
+//! this file is on a security-sensitive execution path. The actual
+//! hybrid crypto lives in [`crate::hybrid::kem_hybrid`] /
+//! [`crate::hybrid::sig_hybrid`].
 //!
 //! # Overview
 //!

@@ -222,10 +222,20 @@ pub fn run_power_up_tests() -> SelfTestResult {
     SelfTestResult::Pass
 }
 
-/// Run power-up tests with detailed reporting
+/// Run power-up tests with detailed reporting.
 ///
-/// Similar to `run_power_up_tests` but returns a detailed report
-/// of all test results and timings.
+/// Same sequence as [`run_power_up_tests`] — integrity test first per
+/// FIPS 140-3 §9.2.2, then the KATs / self-consistency tests — but
+/// returns a [`SelfTestReport`] capturing individual results and timings
+/// for diagnostics. On Pass this sets `SELF_TEST_PASSED` so the module
+/// becomes operational; on Fail it calls [`set_module_error`] so
+/// subsequent crypto-op gates reject calls.
+///
+/// Unlike [`initialize_and_test`], this function does **not** abort the
+/// process on failure — FIPS 140-3 §9.1's "immediate abort" requirement
+/// is the caller's responsibility for this entry point. Inspect the
+/// returned report and abort if your deployment needs strict §9.1
+/// behaviour, or call [`initialize_and_test`] instead.
 ///
 /// # Returns
 ///
@@ -243,6 +253,22 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
     let start = Instant::now();
     let mut tests = Vec::new();
     let mut overall_pass = true;
+
+    // Module integrity test (FIPS 140-3 §9.2.2): MUST run first, before
+    // any cryptographic operation. Same ordering as `run_power_up_tests`.
+    let integrity_start = Instant::now();
+    let integrity_result = match integrity_test() {
+        Ok(()) => SelfTestResult::Pass,
+        Err(e) => {
+            overall_pass = false;
+            SelfTestResult::Fail(e.to_string())
+        }
+    };
+    tests.push(IndividualTestResult {
+        algorithm: "Module-Integrity".to_string(),
+        result: integrity_result,
+        duration_us: Some(duration_to_us(integrity_start.elapsed())),
+    });
 
     // SHA-256 KAT
     let sha_start = Instant::now();
@@ -380,8 +406,20 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
     });
 
     let overall_result = if overall_pass {
+        // Mirror `run_power_up_tests`: on Pass, mark the module operational so
+        // `is_module_operational()` returns true for callers that routed
+        // through `_with_report` instead of `initialize_and_test`. SeqCst
+        // pairs with the SeqCst loads on the reader side.
+        SELF_TEST_PASSED.store(true, Ordering::SeqCst);
         SelfTestResult::Pass
     } else {
+        // Mirror `initialize_and_test`: on Fail, set the FIPS module-error
+        // state so subsequent crypto-op gates reject calls. We do NOT
+        // `process::abort()` here — the contract of this entry point is to
+        // return a diagnostic report. Callers in FIPS deployments who need
+        // §9.1's immediate-abort behaviour must inspect the returned report
+        // (or call `initialize_and_test`).
+        set_module_error(ModuleErrorCode::SelfTestFailure);
         let failed: Vec<_> =
             tests.iter().filter(|t| t.result.is_fail()).map(|t| t.algorithm.clone()).collect();
         SelfTestResult::Fail(format!("Failed tests: {}", failed.join(", ")))
@@ -705,14 +743,18 @@ impl rand_core_0_6::RngCore for FixedBytesRng {
         0
     }
     fn fill_bytes(&mut self, out: &mut [u8]) {
-        // Both the underflow and the size-mismatch branches leave
-        // `out` zero-filled, which the downstream pk/sk comparison
-        // against the ACVP vector detects (a zero seed cannot derive
-        // the attested keypair). Surface the discriminator via
-        // tracing::debug! so a future upstream call-sequence change
-        // (e.g., fips204 bumps `try_keygen_with_rng` to do an extra
-        // fill) shows up as a "RNG stack underflow" log rather than
-        // a "wrong KAT output" mystery.
+        // Pre-zero `out` so the underflow / size-mismatch branches
+        // produce a deterministic zero-filled seed, which the downstream
+        // pk/sk comparison against the ACVP vector detects (a zero seed
+        // cannot derive the attested keypair). The comment used to claim
+        // those branches "leave `out` zero-filled", but that was only
+        // true incidentally — `fips204`/`fips205` pre-zero their buffers
+        // today; an upstream switch to `MaybeUninit` would silently feed
+        // uninitialized memory as the KAT seed. Surface the discriminator
+        // via `tracing::debug!` so an upstream call-sequence change shows
+        // up as an "RNG stack underflow" log rather than a "wrong KAT
+        // output" mystery.
+        out.fill(0);
         match self.data.pop() {
             Some(bytes) if bytes.len() == out.len() => out.copy_from_slice(&bytes),
             Some(bytes) => {
@@ -1448,12 +1490,26 @@ pub fn integrity_test() -> Result<()> {
     let Some(expected_hmac) = expected_hmac else {
         #[cfg(debug_assertions)]
         {
+            // Emit a structured warning in addition to stderr so CI log
+            // consumers (which often only surface `tracing` output, not
+            // raw stderr from a `cargo test --release` run) cannot miss
+            // that the integrity test was effectively skipped. The
+            // function still returns `Ok(())` so the dev workflow isn't
+            // blocked, but the reader-side audit trail must show the skip.
+            tracing::warn!(
+                hmac_computed = ?computed_hmac.as_slice(),
+                "FIPS integrity test SKIPPED (debug build, no PRODUCTION_HMAC.txt). \
+                 Module-integrity verification did NOT run. Configure \
+                 PRODUCTION_HMAC.txt and use a release build for FIPS compliance."
+            );
             #[expect(clippy::print_stderr, reason = "Development mode diagnostic output")]
             {
-                eprintln!("FIPS Integrity Test: Development mode (debug build)");
-                eprintln!("   Expected HMAC not configured. Computed HMAC:");
-                eprintln!("   {:02x?}", computed_hmac.as_slice());
-                eprintln!("   Configure PRODUCTION_HMAC.txt for production builds.");
+                eprintln!(
+                    "WARNING: FIPS Integrity Test SKIPPED (debug build, no PRODUCTION_HMAC.txt)"
+                );
+                eprintln!("   Module-integrity verification did NOT run.");
+                eprintln!("   Computed HMAC: {:02x?}", computed_hmac.as_slice());
+                eprintln!("   Configure PRODUCTION_HMAC.txt + use --release for FIPS compliance.");
             }
             return Ok(());
         }
@@ -2251,11 +2307,15 @@ mod tests {
     #[test]
     fn test_self_test_report_fields_succeeds() {
         let report = run_power_up_tests_with_report();
-        assert_eq!(report.tests.len(), 9); // SHA-256, HKDF, AES-GCM, SHA3-256, HMAC, ML-KEM, ML-DSA, SLH-DSA, FN-DSA
+        // Module-Integrity (FIPS 140-3 §9.2.2, runs first) + 9 algorithm
+        // tests (SHA-256, HKDF, AES-GCM, SHA3-256, HMAC, ML-KEM, ML-DSA,
+        // SLH-DSA, FN-DSA).
+        assert_eq!(report.tests.len(), 10);
+        assert_eq!(report.tests[0].algorithm, "Module-Integrity");
         assert!(report.total_duration_us > 0);
 
         let cloned = report.clone();
-        assert_eq!(cloned.tests.len(), 9);
+        assert_eq!(cloned.tests.len(), 10);
 
         let debug = format!("{:?}", report);
         assert!(debug.contains("SelfTestReport"));

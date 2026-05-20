@@ -51,8 +51,14 @@ const MAX_CONSECUTIVE_IDENTICAL_BYTES: usize = 5;
 /// Minimum sample size for reliable entropy testing
 const MIN_SAMPLE_SIZE: usize = 32;
 
-/// Default sample size for entropy health tests
-const DEFAULT_SAMPLE_SIZE: usize = 256;
+/// Default sample size for entropy health tests.
+///
+/// Must be at least one `STANDARD_WINDOW` (= 512 bytes, see
+/// [`adaptive_proportion_test`]) so the SP 800-90B adaptive-proportion
+/// test actually fires in the default `run_entropy_health_tests` path.
+/// 1024 bytes lets the test slide two windows and keeps a margin for
+/// callers who reduce the sample via `_on_bytes`.
+const DEFAULT_SAMPLE_SIZE: usize = 1024;
 
 /// Maximum allowed deviation from expected frequency (as a ratio).
 /// A value of 0.5 means no byte value should appear more than 1.5x or less
@@ -343,8 +349,10 @@ pub fn monobit_test(bytes: &[u8]) -> Result<()> {
     if proportion < min_proportion || proportion > max_proportion {
         return Err(LatticeArcError::ValidationError {
             message: format!(
-                "Monobit test failed: {:.1}% ones (expected 40-60% for {} bits)",
+                "Monobit test failed: {:.1}% ones (expected {:.0}-{:.0}% for {} bits)",
                 proportion * 100.0,
+                min_proportion * 100.0,
+                max_proportion * 100.0,
                 total_bits
             ),
         });

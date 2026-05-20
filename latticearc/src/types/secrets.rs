@@ -250,73 +250,72 @@ pub struct SecretVec {
     bytes: Vec<u8>,
 }
 
-/// Panic-tolerant wrapper around [`region::LockGuard`].
+/// Panic-tolerant wrapper around [`region::LockGuard`] (Unix only).
 ///
-/// # Why this wrapper exists
+/// # Platform scope
 ///
-/// `region::LockGuard::drop` calls `munlock`/`VirtualUnlock` and panics on any
-/// error. That is too strict on Windows: `VirtualUnlock` returns
-/// `ERROR_NOT_LOCKED` (158) when the OS has already released the lock — most
-/// commonly because the working set was trimmed under memory pressure. Per
-/// Microsoft's documentation `VirtualLock` is *best-effort*: pages can be
-/// implicitly unlocked when the working set is trimmed, and a subsequent
-/// `VirtualUnlock` returning `ERROR_NOT_LOCKED` is documented behaviour, not
-/// a logic error. Panicking on it is wrong, and panicking inside `Drop` is
-/// itself a soundness hazard — secret containers can drop while unwinding
-/// from another panic, and a Drop-time double-panic aborts the process.
+/// This struct (and the `_lock` field it backs in [`SecretVec`]) is
+/// `#[cfg(not(target_os = "windows"))]`. On Windows, the `secret-mlock`
+/// feature is currently a no-op: `_lock` does not exist, no
+/// `VirtualLock` is attempted, and no `MlockGuard` is constructed. The
+/// rest of `SecretVec`'s protections (`ZeroizeOnDrop`, redacted `Debug`,
+/// constant-time compare) still apply on Windows; only the in-RAM
+/// pinning is absent. See the "Why Windows is excluded" section below.
 ///
-/// # Behaviour
+/// # Why this wrapper exists (Unix)
 ///
-/// On every platform, the wrapper hands `region::LockGuard::drop` to
-/// [`std::panic::catch_unwind`] so that any panic raised by the underlying
-/// unlock syscall (notably the Windows `ERROR_NOT_LOCKED` path) is caught
-/// at the wrapper boundary instead of escaping into the surrounding Drop
-/// chain.
+/// `region::LockGuard::drop` calls `munlock` and panics on any error.
+/// Panicking inside `Drop` is a soundness hazard — a secret container
+/// can drop while unwinding from another panic, and a Drop-time
+/// double-panic aborts the process. The wrapper hands the inner drop to
+/// [`std::panic::catch_unwind`] so any error raised by the unlock
+/// syscall is caught at the wrapper boundary instead of escaping the
+/// surrounding Drop chain. On Unix the `munlock` syscall reliably
+/// succeeds for any region we successfully locked, so `catch_unwind`
+/// should never fire in practice — the wrapper is defence-in-depth.
 ///
-/// - **Unix:** the `munlock` syscall does not have the working-set-trim
-///   quirk and reliably succeeds for any region we successfully locked, so
-///   `catch_unwind` should never fire — the guard runs through normally.
-///   The wrapper is functionally identical to a bare
-///   `Option<region::LockGuard>` on this platform.
-/// - **Windows:** if `VirtualUnlock` returns `ERROR_NOT_LOCKED` (the
-///   working-set-trim case), `region` raises a panic; we catch it,
-///   discard it, and return cleanly. If unlock succeeds (the common case)
-///   the panic is never raised. Either way the OS lock accounting is
-///   resolved before the backing `Vec` is freed.
+/// # Why Windows is excluded
 ///
-/// # Why `catch_unwind` and not direct FFI
+/// `region`'s Windows `Drop` panics on `VirtualUnlock` returning
+/// `ERROR_NOT_LOCKED` (158). Per Microsoft's documentation `VirtualLock`
+/// is *best-effort*: pages can be implicitly unlocked when the working
+/// set is trimmed under memory pressure, and a subsequent
+/// `VirtualUnlock` returning `ERROR_NOT_LOCKED` is documented behaviour,
+/// not a logic error. With `region`'s current `Drop` policy, a routine
+/// working-set trim turns into a Drop-time panic — exactly the
+/// soundness hazard above. Disabling the lock on Windows trades the
+/// pinning protection for a sound Drop chain. The bytes are still
+/// zeroized at Drop via `ZeroizeOnDrop`.
 ///
-/// A direct `VirtualUnlock` FFI call would also work but requires
-/// `unsafe_code` (the workspace-wide deny gate would need a targeted
-/// `#[allow]` with justification) and either a new `windows-sys` dep or
-/// hand-rolled FFI declarations. Catching the panic at the Rust boundary
-/// keeps the safe-code guarantee, avoids a new platform-dep, and still
-/// achieves correct unlock-on-drop semantics. The runtime cost on the
-/// success path (no panic raised) is a single `catch_unwind` setup, which
-/// is a stack-only operation — negligible compared to the syscall.
+/// # Why `catch_unwind` and not direct FFI (Unix)
+///
+/// A direct unlock FFI call would also work but requires `unsafe_code`
+/// (the workspace-wide deny gate would need a targeted `#[allow]` with
+/// justification). Catching the panic at the Rust boundary keeps the
+/// safe-code guarantee. The runtime cost on the success path (no panic
+/// raised) is a single `catch_unwind` setup, which is a stack-only
+/// operation — negligible compared to the syscall.
 ///
 /// # Security guarantee
 ///
-/// `VirtualLock` is documented as best-effort; a working-set trim could
-/// already have swapped the page to disk *before* our drop. Whether we
-/// explicitly unlock at drop or not has no effect on whether the secret
-/// was resident while it mattered. The bytes are zeroized by
-/// `ZeroizeOnDrop` regardless.
+/// Memory pinning is documented as best-effort on every platform; a
+/// working-set trim or swap activity could already have copied the page
+/// to disk *before* our drop. Whether we explicitly unlock at drop or
+/// not has no effect on whether the secret was resident while it
+/// mattered. The bytes are zeroized by `ZeroizeOnDrop` regardless.
 ///
 /// # Caveat
 ///
 /// `catch_unwind` is a no-op when the binary is built with
 /// `panic = "abort"`; in that mode the original `LockGuard::drop` panic
 /// would still abort the process. The workspace defaults to
-/// `panic = "unwind"` and `catch_unwind` works as expected. Downstream
-/// users who switch to `panic = "abort"` for size/perf should be aware
-/// that the Windows working-set-trim path becomes an abort hazard again.
+/// `panic = "unwind"` and `catch_unwind` works as expected.
 ///
 /// # Upstream
 ///
 /// If `region` ever changes its `Drop` to tolerate `ERROR_NOT_LOCKED` on
 /// Windows, this wrapper can be deleted and the field reverted to
-/// `Option<region::LockGuard>`.
+/// `Option<region::LockGuard>` with `not(target_os = "windows")` lifted.
 #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
 struct MlockGuard(Option<region::LockGuard>);
 
@@ -371,12 +370,18 @@ impl SecretVec {
     /// which pre-sizes with slack).
     ///
     /// The exact-size copy + caller-side wipe pattern guarantees:
-    /// 1. Backing capacity == length, so `Vec::zeroize` (which only wipes
-    ///    `..len`, not `..capacity` in `zeroize 1.8`) covers every byte at
-    ///    Drop time.
-    /// 2. The original caller-supplied buffer is wiped before its `Vec`
-    ///    Drop hands the memory back to the allocator, so no copy of the
-    ///    secret persists in any allocator free-list.
+    /// 1. Backing capacity == length, so the owned `Vec` has no slack
+    ///    that could outlive a future shrink/realloc. (`zeroize 1.8`'s
+    ///    `Vec<Z>::zeroize` does wipe the full capacity — `iter_mut +
+    ///    clear + spare_capacity_mut().zeroize()` — but the exact-size
+    ///    invariant keeps that property robust against future moves
+    ///    that change the underlying allocation.)
+    /// 2. The original caller-supplied buffer is wiped *in place* before
+    ///    its `Vec` Drop hands the memory back to the allocator, so no
+    ///    copy of the secret persists in any allocator free-list. This
+    ///    is the property the new exact-size `owned` cannot provide on
+    ///    its own, because it inherits none of the original's slack
+    ///    capacity.
     #[inline]
     fn from_bytes(mut bytes: Vec<u8>) -> Self {
         let len = bytes.len();

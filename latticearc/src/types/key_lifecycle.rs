@@ -405,6 +405,17 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
         //     state must be present iff that state has been entered
         //     (i.e. appears in state_history).
         let entered = |st: KeyLifecycleState| raw.state_history.iter().any(|t| t.to_state == st);
+        // `activated_at` parallels `rotated_at` / `retired_at` /
+        // `destroyed_at` below. (1)'s match arm only covers four of the
+        // five (state, timestamp) combinations — current_state=Destroyed
+        // with a fabricated `activated_at` slips through, even though
+        // state_history may not include Active. Closing the gap here
+        // makes the validator's tamper-evidence guarantee uniform.
+        if entered(KeyLifecycleState::Active) != raw.activated_at.is_some() {
+            return Err(TypeError::InvalidAuditInput(
+                "activated_at presence disagrees with state_history".to_string(),
+            ));
+        }
         if entered(KeyLifecycleState::Rotating) != raw.rotated_at.is_some() {
             return Err(TypeError::InvalidAuditInput(
                 "rotated_at presence disagrees with state_history".to_string(),
@@ -1201,6 +1212,36 @@ mod tests {
         assert!(
             msg.contains("rotation_interval_days 0"),
             "deserializer should echo rejection: got {msg}"
+        );
+    }
+
+    #[test]
+    fn test_deserialize_rejects_destroyed_with_fabricated_activated_at() {
+        // Tamper scenario: state_history skips Active entirely
+        // (Generation → Destroyed), but the persisted record carries a
+        // fabricated `activated_at`. Without the Active/activated_at
+        // parity check, this passed deserialization unchallenged because
+        // `current_state=Destroyed` does not appear in the (state,
+        // timestamp) match arm. The parity check in (3) closes that gap.
+        let json = r#"{
+            "key_id":"k","key_type":"ML-KEM-768","security_level":3,
+            "current_state":"Destroyed",
+            "state_history":[
+                {"from_state":null,"to_state":"Generation","timestamp":"2026-01-01T00:00:00Z","custodian_id":"alice","justification":"init","approval_id":null},
+                {"from_state":"Generation","to_state":"Destroyed","timestamp":"2026-01-02T00:00:00Z","custodian_id":"alice","justification":"abort","approval_id":null}
+            ],
+            "generator":null,"approvers":[],"destroyer":null,
+            "generated_at":"2026-01-01T00:00:00Z",
+            "activated_at":"2026-01-01T12:00:00Z",
+            "rotated_at":null,"retired_at":null,
+            "destroyed_at":"2026-01-02T00:00:00Z",
+            "rotation_interval_days":365,"overlap_period_days":30
+        }"#;
+        let err = serde_json::from_str::<KeyLifecycleRecord>(json).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("activated_at presence disagrees with state_history"),
+            "deserializer should reject fabricated activated_at: got {msg}"
         );
     }
 

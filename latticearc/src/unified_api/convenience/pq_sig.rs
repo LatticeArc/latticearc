@@ -34,9 +34,9 @@ use crate::types::types::SecurityLevel;
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
 
-/// Map a primitive verify result `Result<bool, E>` to the convenience-API
-/// shape `Result<bool, CoreError>`. Used by all three PQ verify paths
-/// (ML-DSA, SLH-DSA, FN-DSA) to collapse:
+/// Map a *post-parse* primitive verify result `Result<bool, E>` to the
+/// convenience-API shape `Result<bool, CoreError>`. Used by all three PQ
+/// verify paths (ML-DSA, SLH-DSA, FN-DSA) to collapse:
 ///
 /// ```text
 /// Ok(true)  → Ok(true)
@@ -44,14 +44,31 @@ use crate::unified_api::error::{CoreError, Result};
 /// Err(e)    → Ok(false), with `tracing::debug!` capturing the cause
 /// ```
 ///
-/// the previous mapping returned distinguishable
-/// `Err(VerificationFailed)` and `Err(InvalidInput("{alg} ... {e}"))`
-/// variants on adversary-reachable input, leaking both the algorithm
-/// name and upstream parse failure detail. H7 closed the same
-/// re-opening at convenience-layer string sites but missed this central
-/// mapper. Now the only observable boolean to a verifier is `Ok(false)`
-/// for any rejection (correct shape *or* malformed bytes); diagnosis
-/// goes through `tracing::debug!` at developer log level.
+/// # Scope: post-parse only
+///
+/// This mapper runs *after* `Signature::new` / `PublicKey::new` have
+/// already accepted the input bytes. The convenience-fn verify path is
+/// bifurcated:
+///
+///   * **Structural parse failures** (wrong-length PK or signature,
+///     malformed encoding) propagate as `Err(InvalidInput("..."))` with
+///     a fixed string before this mapper runs. The fixed string avoids
+///     leaking the upstream parser's specific error text; the input
+///     length is something the attacker already controls, so the Err vs
+///     Ok(false) bit is not a meaningful oracle.
+///   * **Server-side resource caps** (`validate_signature_size(message)`)
+///     return `Ok(false)` early so an adversary cannot binary-search the
+///     configured cap from the Result variant. The cap is server
+///     configuration the attacker should not learn.
+///   * **Verification semantic failures** (correctly-shaped but bad
+///     signature) reach this mapper and collapse to `Ok(false)`.
+///
+/// The previous mapping returned distinguishable `Err(VerificationFailed)`
+/// and `Err(InvalidInput("{alg} ... {e}"))` variants on the third bullet,
+/// leaking both the algorithm name and upstream verify-failure detail —
+/// H7 closed that. The first bullet remains an `Err` deliberately, since
+/// it carries no server-side information and matches the construction-
+/// time invariants enforced by `Signature::new` / `PublicKey::new`.
 // the post-collapse signature always returns `Ok(...)`, but
 // the wrapping `Result<bool>` is required to match the call sites that
 // previously could fail and to keep the public-API shape stable across

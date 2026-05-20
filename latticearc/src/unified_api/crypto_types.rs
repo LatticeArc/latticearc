@@ -318,8 +318,24 @@ pub struct EncryptedOutput {
     /// The encrypted data (symmetric ciphertext).
     ciphertext: Vec<u8>,
     /// AEAD nonce (12 bytes).
+    ///
+    /// For symmetric AES-GCM schemes, the canonical AEAD wire is
+    /// `nonce ‖ ct ‖ tag` and lives in [`Self::ciphertext`]; the
+    /// `decrypt` path re-parses nonce/tag from that blob. This field
+    /// holds a duplicate copy used for length validation
+    /// (`extract_nonce_tag` in `convenience::api`) and as metadata for
+    /// callers that want quick nonce access without re-parsing.
+    /// Constructors that build symmetric outputs are expected to keep
+    /// this in lockstep with `ciphertext[..12]`.
+    ///
+    /// For hybrid schemes this is the AEAD nonce consumed directly by
+    /// the inner cipher; it is not duplicated inside `ciphertext`.
     nonce: Vec<u8>,
     /// AEAD authentication tag (16 bytes).
+    ///
+    /// Same duplication contract as [`Self::nonce`]: symmetric AES-GCM
+    /// stores the tag both at the tail of [`Self::ciphertext`] and in
+    /// this field; hybrid schemes store it only here.
     tag: Vec<u8>,
     /// Hybrid-specific components (KEM ciphertext + ephemeral ECDH key).
     /// Present only for hybrid schemes.

@@ -69,8 +69,21 @@ use rand::{RngCore, SeedableRng}; // SeedableRng provides ChaCha20Rng::from_os_r
 use rand_chacha::ChaCha20Rng;
 use std::sync::{Mutex, OnceLock};
 
-// Thread-local fallback RNG for poisoned lock recovery.
-// `from_os_rng()` replaced `from_entropy()` in rand 0.9.
+// Thread-local fallback RNG for poisoned-lock recovery.
+//
+// `from_os_rng()` (replaced `from_entropy()` in rand 0.9) is infallible
+// by signature but **panics** if the underlying OS RNG fails. The
+// `thread_local!` initializer runs lazily on first access from each
+// thread; this panic therefore fires exactly on the "fallback" code
+// path that exists to recover from a poisoned global RNG — so a caller
+// who calls `RngHandle::secure()` while the global path is poisoned AND
+// the OS RNG is dead will get a panic rather than the documented
+// `LatticeArcError::RandomError`. The window is narrow (poisoned mutex
+// + OS-RNG simultaneously unavailable) but real; if it ever fires, a
+// secure RNG is fundamentally unobtainable and crashing is the only
+// safe outcome — using a deterministic seed in this situation would
+// silently produce predictable "random" bytes. See [`RngHandle::secure`]
+// for the contract.
 thread_local! {
     static FALLBACK_RNG: Mutex<ChaCha20Rng> = Mutex::new(ChaCha20Rng::from_os_rng());
 }
@@ -104,6 +117,17 @@ impl<'a> RngHandle<'a> {
     /// # Errors
     /// Returns an error if all RNG sources fail, or if FIPS mode rejects
     /// the non-FIPS fallback.
+    ///
+    /// # Panics
+    /// In non-FIPS builds, the thread-local fallback uses
+    /// `ChaCha20Rng::from_os_rng()`, whose `rand_core` 0.9 contract is to
+    /// **panic** when the OS RNG is unavailable (`getrandom` failure).
+    /// `secure()` therefore panics — rather than returning
+    /// `LatticeArcError::RandomError` — when the global RNG is poisoned
+    /// AND the OS RNG is dead at the moment of the thread-local's lazy
+    /// init. This is a deliberate fail-stop: a secure RNG is
+    /// unobtainable in that state, and seeding deterministically would
+    /// silently produce predictable randomness.
     pub fn secure() -> Result<RngHandle<'a>> {
         match get_global_secure_rng() {
             Ok(global) => Ok(RngHandle::Global(global)),

@@ -150,12 +150,12 @@ fn test_hmac_with_config_succeeds() {
 
 #[test]
 fn test_hmac_with_config_unverified_succeeds() {
-    // hmac_with_config_unverified(key, data, config)
+    // hmac_with_config_unverified(data, key, config)
     let key = b"hmac key for config unverified test";
     let data = b"data to authenticate";
     let config = CoreConfig::default();
 
-    let mac = hmac_with_config_unverified(key, data, &config).unwrap();
+    let mac = hmac_with_config_unverified(data, key, &config).unwrap();
     assert!(!mac.is_empty());
 }
 
@@ -173,14 +173,32 @@ fn test_hmac_check_with_config_succeeds() {
 
 #[test]
 fn test_hmac_check_with_config_unverified_succeeds() {
-    // hmac_check_with_config_unverified(key, data, tag, config)
+    // hmac_check_with_config_unverified(data, key, tag, config)
     let key = b"hmac key for check config unverified";
     let data = b"data to verify";
     let config = CoreConfig::default();
 
-    let mac = hmac_with_config_unverified(key, data, &config).unwrap();
-    let valid = hmac_check_with_config_unverified(key, data, &mac, &config).unwrap();
+    let mac = hmac_with_config_unverified(data, key, &config).unwrap();
+    let valid = hmac_check_with_config_unverified(data, key, &mac, &config).unwrap();
     assert!(valid);
+}
+
+#[test]
+fn test_hmac_with_config_unverified_matches_hmac_unverified() {
+    // Cross-API consistency: `hmac_with_config_unverified` and
+    // `hmac_unverified` both follow the module-wide `(data, key, ...)`
+    // convention, so they must produce identical MACs for identical
+    // inputs. A regression of the prior `(key, data, ...)` swap in
+    // `_with_config_unverified` would surface here as a mismatch.
+    let key = b"hmac convention regression key";
+    let data = b"hmac convention regression data";
+    let config = CoreConfig::default();
+    let mac_short = hmac_unverified(data, key).unwrap();
+    let mac_cfg = hmac_with_config_unverified(data, key, &config).unwrap();
+    assert_eq!(
+        mac_short, mac_cfg,
+        "convention break: with-config wrapper computed a different MAC than the short form"
+    );
 }
 
 #[test]

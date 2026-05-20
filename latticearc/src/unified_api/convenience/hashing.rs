@@ -609,10 +609,16 @@ pub fn derive_key_with_config_unverified(
 /// - The HMAC key is empty
 #[inline]
 pub fn hmac_with_config_unverified(
-    key: &[u8],
     data: &[u8],
+    key: &[u8],
     config: &CoreConfig,
 ) -> Result<Vec<u8>> {
+    // Parameter order is `(data, key, ...)` — same as every other `hmac*`
+    // function in this module. An earlier version of this wrapper had
+    // `(key, data, ...)`, which produced silently-wrong MACs for any
+    // caller who followed the module's six-out-of-eight convention:
+    // their `(my_data, my_key)` arguments were bound to `(key, data)`
+    // here, swapping which operand was treated as the HMAC key.
     hmac_with_config(data, key, config, SecurityMode::Unverified)
 }
 
@@ -628,11 +634,14 @@ pub fn hmac_with_config_unverified(
 /// - The HMAC key is empty or tag is invalid
 #[inline]
 pub fn hmac_check_with_config_unverified(
-    key: &[u8],
     data: &[u8],
+    key: &[u8],
     tag: &[u8],
     config: &CoreConfig,
 ) -> Result<bool> {
+    // Parameter order is `(data, key, tag, ...)` — same as every other
+    // `hmac*` function in this module; see `hmac_with_config_unverified`
+    // for the history of the prior swap.
     hmac_check_with_config(data, key, tag, config, SecurityMode::Unverified)
 }
 
