@@ -298,70 +298,95 @@
 <a href=#298 id=298 data-nosnippet>298</a>        // the file inode but before the rename, leaving the file
 <a href=#299 id=299 data-nosnippet>299</a>        // unrecoverable. Best-effort on non-Unix platforms (Windows
 <a href=#300 id=300 data-nosnippet>300</a>        // doesn't expose a parent-fsync primitive in the same way).
-<a href=#301 id=301 data-nosnippet>301</a>        </span><span class="attr">#[cfg(unix)]
-<a href=#302 id=302 data-nosnippet>302</a>        </span>{
-<a href=#303 id=303 data-nosnippet>303</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(dir) = std::fs::File::open(parent) {
-<a href=#304 id=304 data-nosnippet>304</a>                <span class="kw">let _ </span>= dir.sync_all();
-<a href=#305 id=305 data-nosnippet>305</a>            }
-<a href=#306 id=306 data-nosnippet>306</a>        }
-<a href=#307 id=307 data-nosnippet>307</a>
-<a href=#308 id=308 data-nosnippet>308</a>        <span class="comment">// Windows DACL hardening was applied to the tempfile above,
-<a href=#309 id=309 data-nosnippet>309</a>        // BEFORE persist, so the rename preserves the hardened DACL.
-<a href=#310 id=310 data-nosnippet>310</a>        // No post-rename DACL apply is needed — a post-rename apply
-<a href=#311 id=311 data-nosnippet>311</a>        // would have a race window where the file at `path` exists
-<a href=#312 id=312 data-nosnippet>312</a>        // with the parent dir's permissive default DACL.
-<a href=#313 id=313 data-nosnippet>313</a>        </span><span class="prelude-val">Ok</span>(())
-<a href=#314 id=314 data-nosnippet>314</a>    }
-<a href=#315 id=315 data-nosnippet>315</a>}
-<a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a><span class="attr">#[cfg(test)]
-<a href=#318 id=318 data-nosnippet>318</a>#[allow(clippy::expect_used, reason = <span class="string">"test scaffolding: source-shape regression assertions"</span>)]
-<a href=#319 id=319 data-nosnippet>319</a></span><span class="kw">mod </span>regression_tests {
-<a href=#320 id=320 data-nosnippet>320</a>    <span class="doccomment">//! Source-text regression for the Windows DACL-failure
-<a href=#321 id=321 data-nosnippet>321</a>    //! plaintext-scrub sequence. The current logic at the
-<a href=#322 id=322 data-nosnippet>322</a>    //! `set_local_admin_dacl` failure block calls `seek(SeekFrom::Start(0))`
-<a href=#323 id=323 data-nosnippet>323</a>    //! BEFORE the `write_all(zero)` loop and `set_len(0)` truncate. A
-<a href=#324 id=324 data-nosnippet>324</a>    //! future refactor that reorders seek and write_all would silently
-<a href=#325 id=325 data-nosnippet>325</a>    //! regress the "don't append zeros to plaintext" invariant —
-<a href=#326 id=326 data-nosnippet>326</a>    //! `write_all` from the current cursor position would extend the
-<a href=#327 id=327 data-nosnippet>327</a>    //! file from N to 2N bytes, then `set_len(0)` would release the
-<a href=#328 id=328 data-nosnippet>328</a>    //! ORIGINAL N bytes of plaintext to the free-cluster pool.
-<a href=#329 id=329 data-nosnippet>329</a>    //!
-<a href=#330 id=330 data-nosnippet>330</a>    //! This isn't a behavioural test — it's a source-shape assertion
-<a href=#331 id=331 data-nosnippet>331</a>    //! that runs on every `cargo test`. The cost is one `include_str!`
-<a href=#332 id=332 data-nosnippet>332</a>    //! and a substring-position comparison. The benefit is a loud
-<a href=#333 id=333 data-nosnippet>333</a>    //! signal if the ordering ever drifts.
-<a href=#334 id=334 data-nosnippet>334</a>
-<a href=#335 id=335 data-nosnippet>335</a>    </span><span class="kw">const </span>SRC: <span class="kw-2">&amp;</span>str = <span class="macro">include_str!</span>(<span class="string">"atomic_write.rs"</span>);
-<a href=#336 id=336 data-nosnippet>336</a>
-<a href=#337 id=337 data-nosnippet>337</a>    <span class="doccomment">/// The seek-to-start MUST appear before the zero-write loop in the
-<a href=#338 id=338 data-nosnippet>338</a>    /// DACL-failure scrub block. Without this ordering, plaintext is
-<a href=#339 id=339 data-nosnippet>339</a>    /// appended to (not overwritten) before the truncate releases
-<a href=#340 id=340 data-nosnippet>340</a>    /// clusters back to the free pool.
-<a href=#341 id=341 data-nosnippet>341</a>    </span><span class="attr">#[test]
-<a href=#342 id=342 data-nosnippet>342</a>    </span><span class="kw">fn </span>test_dacl_failure_scrub_seeks_before_writing_zeros() {
-<a href=#343 id=343 data-nosnippet>343</a>        <span class="comment">// Anchor on the unique block-opening comment so we don't match
-<a href=#344 id=344 data-nosnippet>344</a>        // unrelated `seek(SeekFrom::Start(0))` calls elsewhere.
-<a href=#345 id=345 data-nosnippet>345</a>        </span><span class="kw">let </span>block_anchor = <span class="string">"Best-effort secret-bytes scrub before `tmp` drops and"</span>;
-<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">let </span>block_start = SRC.find(block_anchor).expect(
-<a href=#347 id=347 data-nosnippet>347</a>            <span class="string">"scrub-block anchor comment moved or removed — update this test \
-<a href=#348 id=348 data-nosnippet>348</a>             to anchor on the new comment OR review the change for the \
-<a href=#349 id=349 data-nosnippet>349</a>             ordering invariant before adjusting the anchor."</span>,
-<a href=#350 id=350 data-nosnippet>350</a>        );
-<a href=#351 id=351 data-nosnippet>351</a>
-<a href=#352 id=352 data-nosnippet>352</a>        <span class="kw">let </span>block = <span class="kw-2">&amp;</span>SRC[block_start..];
-<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">let </span>seek_pos = block
-<a href=#354 id=354 data-nosnippet>354</a>            .find(<span class="string">"f.seek(SeekFrom::Start(0))"</span>)
-<a href=#355 id=355 data-nosnippet>355</a>            .expect(<span class="string">"seek-to-start call missing from scrub block"</span>);
-<a href=#356 id=356 data-nosnippet>356</a>        <span class="kw">let </span>write_pos =
-<a href=#357 id=357 data-nosnippet>357</a>            block.find(<span class="string">"f.write_all(chunk)"</span>).expect(<span class="string">"zero-write loop missing from scrub block"</span>);
-<a href=#358 id=358 data-nosnippet>358</a>
-<a href=#359 id=359 data-nosnippet>359</a>        <span class="macro">assert!</span>(
-<a href=#360 id=360 data-nosnippet>360</a>            seek_pos &lt; write_pos,
-<a href=#361 id=361 data-nosnippet>361</a>            <span class="string">"DACL-scrub ordering regressed: seek(SeekFrom::Start(0)) MUST appear \
-<a href=#362 id=362 data-nosnippet>362</a>             before write_all(chunk) so plaintext is overwritten, not appended. \
-<a href=#363 id=363 data-nosnippet>363</a>             seek_pos={seek_pos}, write_pos={write_pos}"
-<a href=#364 id=364 data-nosnippet>364</a>        </span>);
-<a href=#365 id=365 data-nosnippet>365</a>    }
-<a href=#366 id=366 data-nosnippet>366</a>}
+<a href=#301 id=301 data-nosnippet>301</a>        //
+<a href=#302 id=302 data-nosnippet>302</a>        // Failures here are surfaced as `CoreError::Internal` rather than
+<a href=#303 id=303 data-nosnippet>303</a>        // swallowed: a caller that asked for a durable atomic write must
+<a href=#304 id=304 data-nosnippet>304</a>        // be told if the durability part could not be guaranteed. The two
+<a href=#305 id=305 data-nosnippet>305</a>        // accepted-quietly cases are filesystems that fundamentally do
+<a href=#306 id=306 data-nosnippet>306</a>        // not implement directory fsync — `Unsupported` (ENOTSUP, returned
+<a href=#307 id=307 data-nosnippet>307</a>        // by some FUSE mounts) and `InvalidInput` (EINVAL, returned by
+<a href=#308 id=308 data-nosnippet>308</a>        // tmpfs). On those filesystems the kernel cannot offer the
+<a href=#309 id=309 data-nosnippet>309</a>        // guarantee and there is nothing the caller can do; the rename
+<a href=#310 id=310 data-nosnippet>310</a>        // itself has already succeeded, matching the non-Unix branch.
+<a href=#311 id=311 data-nosnippet>311</a>        </span><span class="attr">#[cfg(unix)]
+<a href=#312 id=312 data-nosnippet>312</a>        </span>{
+<a href=#313 id=313 data-nosnippet>313</a>            <span class="kw">let </span>dir = std::fs::File::open(parent).map_err(|e| {
+<a href=#314 id=314 data-nosnippet>314</a>                CoreError::Internal(<span class="macro">format!</span>(
+<a href=#315 id=315 data-nosnippet>315</a>                    <span class="string">"atomic_write parent fsync: open({}) failed: {e}"</span>,
+<a href=#316 id=316 data-nosnippet>316</a>                    parent.display()
+<a href=#317 id=317 data-nosnippet>317</a>                ))
+<a href=#318 id=318 data-nosnippet>318</a>            })<span class="question-mark">?</span>;
+<a href=#319 id=319 data-nosnippet>319</a>            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = dir.sync_all() {
+<a href=#320 id=320 data-nosnippet>320</a>                <span class="kw">let </span>acceptable = <span class="macro">matches!</span>(
+<a href=#321 id=321 data-nosnippet>321</a>                    e.kind(),
+<a href=#322 id=322 data-nosnippet>322</a>                    std::io::ErrorKind::Unsupported | std::io::ErrorKind::InvalidInput
+<a href=#323 id=323 data-nosnippet>323</a>                );
+<a href=#324 id=324 data-nosnippet>324</a>                <span class="kw">if </span>!acceptable {
+<a href=#325 id=325 data-nosnippet>325</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::Internal(<span class="macro">format!</span>(
+<a href=#326 id=326 data-nosnippet>326</a>                        <span class="string">"atomic_write parent fsync({}) failed: {e}"</span>,
+<a href=#327 id=327 data-nosnippet>327</a>                        parent.display()
+<a href=#328 id=328 data-nosnippet>328</a>                    )));
+<a href=#329 id=329 data-nosnippet>329</a>                }
+<a href=#330 id=330 data-nosnippet>330</a>            }
+<a href=#331 id=331 data-nosnippet>331</a>        }
+<a href=#332 id=332 data-nosnippet>332</a>
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="comment">// Windows DACL hardening was applied to the tempfile above,
+<a href=#334 id=334 data-nosnippet>334</a>        // BEFORE persist, so the rename preserves the hardened DACL.
+<a href=#335 id=335 data-nosnippet>335</a>        // No post-rename DACL apply is needed — a post-rename apply
+<a href=#336 id=336 data-nosnippet>336</a>        // would have a race window where the file at `path` exists
+<a href=#337 id=337 data-nosnippet>337</a>        // with the parent dir's permissive default DACL.
+<a href=#338 id=338 data-nosnippet>338</a>        </span><span class="prelude-val">Ok</span>(())
+<a href=#339 id=339 data-nosnippet>339</a>    }
+<a href=#340 id=340 data-nosnippet>340</a>}
+<a href=#341 id=341 data-nosnippet>341</a>
+<a href=#342 id=342 data-nosnippet>342</a><span class="attr">#[cfg(test)]
+<a href=#343 id=343 data-nosnippet>343</a>#[allow(clippy::expect_used, reason = <span class="string">"test scaffolding: source-shape regression assertions"</span>)]
+<a href=#344 id=344 data-nosnippet>344</a></span><span class="kw">mod </span>regression_tests {
+<a href=#345 id=345 data-nosnippet>345</a>    <span class="doccomment">//! Source-text regression for the Windows DACL-failure
+<a href=#346 id=346 data-nosnippet>346</a>    //! plaintext-scrub sequence. The current logic at the
+<a href=#347 id=347 data-nosnippet>347</a>    //! `set_local_admin_dacl` failure block calls `seek(SeekFrom::Start(0))`
+<a href=#348 id=348 data-nosnippet>348</a>    //! BEFORE the `write_all(zero)` loop and `set_len(0)` truncate. A
+<a href=#349 id=349 data-nosnippet>349</a>    //! future refactor that reorders seek and write_all would silently
+<a href=#350 id=350 data-nosnippet>350</a>    //! regress the "don't append zeros to plaintext" invariant —
+<a href=#351 id=351 data-nosnippet>351</a>    //! `write_all` from the current cursor position would extend the
+<a href=#352 id=352 data-nosnippet>352</a>    //! file from N to 2N bytes, then `set_len(0)` would release the
+<a href=#353 id=353 data-nosnippet>353</a>    //! ORIGINAL N bytes of plaintext to the free-cluster pool.
+<a href=#354 id=354 data-nosnippet>354</a>    //!
+<a href=#355 id=355 data-nosnippet>355</a>    //! This isn't a behavioural test — it's a source-shape assertion
+<a href=#356 id=356 data-nosnippet>356</a>    //! that runs on every `cargo test`. The cost is one `include_str!`
+<a href=#357 id=357 data-nosnippet>357</a>    //! and a substring-position comparison. The benefit is a loud
+<a href=#358 id=358 data-nosnippet>358</a>    //! signal if the ordering ever drifts.
+<a href=#359 id=359 data-nosnippet>359</a>
+<a href=#360 id=360 data-nosnippet>360</a>    </span><span class="kw">const </span>SRC: <span class="kw-2">&amp;</span>str = <span class="macro">include_str!</span>(<span class="string">"atomic_write.rs"</span>);
+<a href=#361 id=361 data-nosnippet>361</a>
+<a href=#362 id=362 data-nosnippet>362</a>    <span class="doccomment">/// The seek-to-start MUST appear before the zero-write loop in the
+<a href=#363 id=363 data-nosnippet>363</a>    /// DACL-failure scrub block. Without this ordering, plaintext is
+<a href=#364 id=364 data-nosnippet>364</a>    /// appended to (not overwritten) before the truncate releases
+<a href=#365 id=365 data-nosnippet>365</a>    /// clusters back to the free pool.
+<a href=#366 id=366 data-nosnippet>366</a>    </span><span class="attr">#[test]
+<a href=#367 id=367 data-nosnippet>367</a>    </span><span class="kw">fn </span>test_dacl_failure_scrub_seeks_before_writing_zeros() {
+<a href=#368 id=368 data-nosnippet>368</a>        <span class="comment">// Anchor on the unique block-opening comment so we don't match
+<a href=#369 id=369 data-nosnippet>369</a>        // unrelated `seek(SeekFrom::Start(0))` calls elsewhere.
+<a href=#370 id=370 data-nosnippet>370</a>        </span><span class="kw">let </span>block_anchor = <span class="string">"Best-effort secret-bytes scrub before `tmp` drops and"</span>;
+<a href=#371 id=371 data-nosnippet>371</a>        <span class="kw">let </span>block_start = SRC.find(block_anchor).expect(
+<a href=#372 id=372 data-nosnippet>372</a>            <span class="string">"scrub-block anchor comment moved or removed — update this test \
+<a href=#373 id=373 data-nosnippet>373</a>             to anchor on the new comment OR review the change for the \
+<a href=#374 id=374 data-nosnippet>374</a>             ordering invariant before adjusting the anchor."</span>,
+<a href=#375 id=375 data-nosnippet>375</a>        );
+<a href=#376 id=376 data-nosnippet>376</a>
+<a href=#377 id=377 data-nosnippet>377</a>        <span class="kw">let </span>block = <span class="kw-2">&amp;</span>SRC[block_start..];
+<a href=#378 id=378 data-nosnippet>378</a>        <span class="kw">let </span>seek_pos = block
+<a href=#379 id=379 data-nosnippet>379</a>            .find(<span class="string">"f.seek(SeekFrom::Start(0))"</span>)
+<a href=#380 id=380 data-nosnippet>380</a>            .expect(<span class="string">"seek-to-start call missing from scrub block"</span>);
+<a href=#381 id=381 data-nosnippet>381</a>        <span class="kw">let </span>write_pos =
+<a href=#382 id=382 data-nosnippet>382</a>            block.find(<span class="string">"f.write_all(chunk)"</span>).expect(<span class="string">"zero-write loop missing from scrub block"</span>);
+<a href=#383 id=383 data-nosnippet>383</a>
+<a href=#384 id=384 data-nosnippet>384</a>        <span class="macro">assert!</span>(
+<a href=#385 id=385 data-nosnippet>385</a>            seek_pos &lt; write_pos,
+<a href=#386 id=386 data-nosnippet>386</a>            <span class="string">"DACL-scrub ordering regressed: seek(SeekFrom::Start(0)) MUST appear \
+<a href=#387 id=387 data-nosnippet>387</a>             before write_all(chunk) so plaintext is overwritten, not appended. \
+<a href=#388 id=388 data-nosnippet>388</a>             seek_pos={seek_pos}, write_pos={write_pos}"
+<a href=#389 id=389 data-nosnippet>389</a>        </span>);
+<a href=#390 id=390 data-nosnippet>390</a>    }
+<a href=#391 id=391 data-nosnippet>391</a>}
 </code></pre></div></section></main></body></html>
