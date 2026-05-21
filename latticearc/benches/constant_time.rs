@@ -10,6 +10,19 @@
 //! ```bash
 //! cargo bench --package arc-validation --bench constant_time
 //! ```
+//!
+//! # BENCH-ONLY: nonce/key reuse is intentional
+//!
+//! The AEAD benches below construct `Nonce::assume_unique_for_key([0u8; 12])`
+//! per iteration on the same key. Production AES-GCM and ChaCha20-Poly1305
+//! callers MUST NOT reuse nonces under the same key — doing so destroys
+//! confidentiality (XOR of plaintexts leaks in CTR mode) and forges
+//! authentication (Poly1305/GHASH single-key collisions). The reuse here is
+//! deliberate: the dudect methodology compares wall-clock time across input
+//! classes (plaintext-zeros vs plaintext-ones vs plaintext-mixed) and needs
+//! every other variable held constant. Ciphertext is discarded via
+//! `black_box`, so the unsafe pattern never produces a recoverable artifact.
+//! **Do not copy this idiom into encryption code paths.**
 
 // JUSTIFICATION: Benchmark code patterns - strict lints relaxed for benchmark-specific idioms
 #![allow(missing_docs)] // Criterion macros generate undocumented code

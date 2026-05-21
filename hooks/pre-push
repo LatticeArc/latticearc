@@ -7,13 +7,22 @@
 set -e
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+AUDIT_SH="$REPO_ROOT/scripts/audit.sh"
 
 echo "Pre-push: Running audit checks..."
 
-# Run the quick audit (supply chain + feature flags + format + clippy)
+# Run the quick audit (supply chain + feature flags + format + clippy).
 # Full audit is too slow for every push — run manually with ./scripts/audit.sh
-if [ -x "$REPO_ROOT/scripts/audit.sh" ]; then
-    "$REPO_ROOT/scripts/audit.sh" --quick
+#
+# Invoke via `bash "$AUDIT_SH"` rather than `"$AUDIT_SH"` so a missing +x
+# bit (common on Windows checkouts, on repos with core.fileMode=false, or
+# after an accidental chmod -x) does not silently degrade the gate to a
+# format-only check. Previously the `[ -x ... ]` branch missed exactly
+# that case and `git push` reported "Pre-push checks passed" on a partial
+# gate. We still fall back to fmt-only when the file is *missing* entirely
+# (e.g. an unrelated checkout that never had the audit script).
+if [ -f "$AUDIT_SH" ]; then
+    bash "$AUDIT_SH" --quick
 else
     echo "WARNING: scripts/audit.sh not found, falling back to basic checks"
 

@@ -953,31 +953,17 @@ pub fn sanitize_value(key: &str, value: &str) -> String {
     }
 }
 
-/// Compute the first 16 hex characters of a SHA-256 hash.
-///
-/// This provides a fingerprint for data correlation without revealing content.
-/// Uses the first 8 bytes of the SHA-256 hash, producing 16 hex characters.
-fn sha256_first_16_hex(data: &[u8]) -> String {
-    // Route through the primitives wrapper rather than importing `sha2` directly,
-    // so hash backends remain swappable from a single place. The fingerprinted
-    // inputs here are log-payload fragments — orders of magnitude smaller than
-    // the 1 GiB DoS cap that guards the wrapper — so treating the Result as
-    // infallible is sound.
-    let Ok(result) = crate::primitives::hash::sha2::sha256(data) else {
-        return String::from("hash-error");
-    };
-    // SHA-256 always produces 32 bytes, so .get(..8) will always succeed.
-    // Using .get() for safe array access per project lint rules.
-    result.get(..8).map_or_else(|| hex::encode(result), hex::encode)
-}
-
 /// Sanitize byte data for logging.
 ///
-/// This function ensures raw bytes (which could be cryptographic keys or other
-/// sensitive material) are never logged directly. Instead, it produces a safe
-/// representation showing:
-/// - For data <= 32 bytes: just the length
-/// - For data > 32 bytes: length plus a fingerprint hash for correlation
+/// Emits exactly `[<N> bytes]` for any input length — no fingerprint, no
+/// preview, no per-secret correlation token. An earlier revision included
+/// a `sha256_first_16_hex(data)` fingerprint for inputs longer than 32
+/// bytes for "correlation across log lines"; that fingerprint is a
+/// deterministic, content-dependent function of the secret, so a reader
+/// with log access can brute-force candidate secrets against the
+/// fingerprint to recover the original. Sister function `sanitize_data`
+/// was fixed in the round-4 audit follow-up; this leak survived in
+/// `sanitize_bytes` and is closed here.
 ///
 /// # Arguments
 ///
@@ -985,31 +971,19 @@ fn sha256_first_16_hex(data: &[u8]) -> String {
 ///
 /// # Returns
 ///
-/// A safe string representation of the data.
+/// A safe string representation of the data — length only.
 ///
 /// # Example
 ///
 /// ```rust
 /// use latticearc::unified_api::logging::sanitize_bytes;
 ///
-/// // Small data shows only length
 /// assert_eq!(sanitize_bytes(&[1, 2, 3]), "[3 bytes]");
-///
-/// // Larger data shows length and fingerprint
-/// let large = vec![0u8; 100];
-/// let result = sanitize_bytes(&large);
-/// assert!(result.contains("100 bytes"));
-/// assert!(result.contains("fingerprint:"));
+/// assert_eq!(sanitize_bytes(&vec![0u8; 100]), "[100 bytes]");
 /// ```
 #[must_use]
 pub fn sanitize_bytes(data: &[u8]) -> String {
-    if data.len() <= 32 {
-        format!("[{} bytes]", data.len())
-    } else {
-        // Show length and truncated hash for correlation
-        let fingerprint = sha256_first_16_hex(data);
-        format!("[{} bytes, fingerprint: {}]", data.len(), fingerprint)
-    }
+    format!("[{} bytes]", data.len())
 }
 
 /// Sanitize an entire metadata map.
@@ -2141,47 +2115,19 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_bytes_large_data_has_fingerprint_format_has_correct_size() {
-        let data = vec![0u8; 33];
-        let result = sanitize_bytes(&data);
-        assert!(result.contains("33 bytes"));
-        assert!(result.contains("fingerprint:"));
-
-        let data = vec![0u8; 100];
-        let result = sanitize_bytes(&data);
-        assert!(result.contains("100 bytes"));
-        assert!(result.contains("fingerprint:"));
-    }
-
-    #[test]
-    fn test_sanitize_bytes_fingerprint_is_consistent() {
-        // Same data should produce same fingerprint
-        let data = b"test data for fingerprint consistency check";
-        let result1 = sanitize_bytes(data);
-        let result2 = sanitize_bytes(data);
-        assert_eq!(result1, result2);
-    }
-
-    #[test]
-    fn test_sanitize_bytes_fingerprint_differs_for_different_data_succeeds() {
-        let data1 = vec![0u8; 100];
-        let data2 = vec![1u8; 100];
-        let result1 = sanitize_bytes(&data1);
-        let result2 = sanitize_bytes(&data2);
-        assert_ne!(result1, result2);
-    }
-
-    #[test]
-    fn test_sha256_first_16_hex_has_correct_format() {
-        // Known test vector - SHA-256 of empty string
-        let empty_hash = sha256_first_16_hex(&[]);
-        assert_eq!(empty_hash.len(), 16);
-        // SHA-256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-        // First 8 bytes = e3b0c44298fc1c14
-        assert_eq!(empty_hash, "e3b0c44298fc1c14");
-
-        // Verify it's valid hex
-        assert!(empty_hash.chars().all(|c| c.is_ascii_hexdigit()));
+    fn test_sanitize_bytes_large_data_emits_length_only() {
+        // Inputs larger than 32 bytes previously got a SHA-256-derived
+        // fingerprint appended for "correlation"; that was a brute-force
+        // oracle on the secret content. The output is now length-only for
+        // any length — verify by checking two distinct inputs of the same
+        // length render identically.
+        let data_a = vec![0u8; 100];
+        let data_b = vec![0xFFu8; 100];
+        let out_a = sanitize_bytes(&data_a);
+        let out_b = sanitize_bytes(&data_b);
+        assert_eq!(out_a, "[100 bytes]");
+        assert_eq!(out_b, "[100 bytes]");
+        assert_eq!(out_a, out_b);
     }
 
     #[test]

@@ -9,6 +9,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (audit-round-5 follow-ups, 9-finding sweep)
+
+- **`sanitize_bytes` retained the brute-force-oracle fingerprint that
+  `sanitize_data` was just fixed for.** The round-4 fix removed the
+  deterministic SHA-256-derived fingerprint from `sanitize_data` but the
+  sister public function `sanitize_bytes` in the same `unified_api::logging`
+  module kept emitting `[{len} bytes, fingerprint: {sha256_first_16_hex(data)}]`
+  for inputs longer than 32 bytes. Same brute-force-oracle pattern, same
+  module, same audit reasoning — closed here. `sanitize_bytes` now emits
+  length only; the unused `sha256_first_16_hex` helper was removed; the
+  test that asserted the leaky format was replaced with a regression
+  test pinning that two distinct same-length inputs render identically.
+- **PoP replay cache silently disabled when full.** `ZeroTrustAuth`'s
+  proof-of-possession cache skipped the insert at
+  `seen.len() >= POP_CACHE_MAX` and returned `Ok(valid)`. The next
+  presentation of the same PoP within the 5-minute freshness window
+  found `contains_key == false` and was accepted again — the replay
+  window silently lifted at 16,384 unique-PoPs threshold. Cache now
+  fails closed: at capacity (after evicting expired entries) it warns
+  and rejects new PoPs with a clear error rather than skipping the
+  insert.
+- **`run_power_up_tests_with_report` continued KATs after an integrity
+  failure.** Round-2 wired up `integrity_test()` at the start of the
+  reporting variant but didn't propagate halt semantics — eight more
+  KATs (SHA-256, HKDF, AES-GCM, SHA3, HMAC, ML-KEM, ML-DSA, SLH-DSA,
+  FN-DSA) ran on a binary that just failed its tamper check, which is
+  exactly the §9.2.2 threat scenario the test exists for. The sibling
+  `run_power_up_tests` already short-circuited; the reporting variant
+  now does too — it records every downstream KAT as
+  `Fail("Not run: inhibited by integrity-test failure (FIPS 140-3 §9.2.2)")`
+  and returns early with the FIPS module-error state set.
+- **Round-4 L3 fix was incomplete; three stale SAW scope claims
+  remained.** `FORMAL_VERIFICATION.md` had four mutually-inconsistent
+  SAW coverage claims (Mermaid diagram, prose paragraph, layer table,
+  comparison table). Round-4 fixed only the layer table. All four
+  now reconcile to the same conservative list (AES-GCM, HMAC, HKDF,
+  SHA-2, ECDSA, ECDH) with a link to upstream `aws-lc-verification` as
+  the source of truth.
+- **AES-GCM bench reused nonce + key across iterations without a
+  BENCH-ONLY warning.** `benches/constant_time.rs` calls
+  `Nonce::assume_unique_for_key([0u8; 12])` thousands of times per key
+  to hold variables constant for CT measurement (output is `black_box`'d
+  and discarded — safe in context). The pattern carried no warning
+  comment, making it a copy-paste hazard. Added a "BENCH-ONLY: nonce/key
+  reuse is intentional" doc block explaining the methodology and the
+  production prohibition. Also removed the byte-identical duplicate at
+  `tests/benches/constant_time.rs` (orphaned after the lib reorg) and
+  pointed the `.github/workflows/constant-time.yml` CI gate at the
+  canonical bench in `latticearc/`.
+- **SLH-DSA report label said `SLH-DSA-SHAKE-128s` for a KAT that
+  actually tested `192s`.** `kat_slh_dsa` runs the
+  `fips205::slh_dsa_shake_192s` ACVP keygen vector (line 1038); the
+  pre-call comment at line 378 of the reporting variant correctly
+  named `192s`; but the `IndividualTestResult` label hardcoded `128s`.
+  A FIPS audit-record accuracy defect — fixed to match what actually
+  ran.
+- **`oss-fuzz/build.sh` hardcoded the `x86_64-unknown-linux-gnu`
+  target triple.** Lines 24-28 looked for fuzz binaries under
+  `fuzz/target/x86_64-unknown-linux-gnu/release/` and only `echo
+  "Warning: ..."` on missing binaries (non-fatal). A future aarch64 /
+  musl / other-host expansion would have silently shipped zero fuzz
+  binaries with a green build. Now derives the host triple from
+  `rustc -vV` and **fails closed** (exit 1) on any missing target.
+- **`Challenge::is_expired` treated future-dated challenges as
+  not-expired.** `unwrap_or(0)` on the `u64::try_from(negative_i64)`
+  conversion meant a future timestamp → `elapsed = 0` → `0 > timeout`
+  is false → "not expired". Sibling `verify_challenge_age` (same file)
+  used `unwrap_or(u64::MAX)` for the same scenario and correctly
+  rejected future-dated challenges. The two conventions for the same
+  skew case are reconciled — `is_expired` now also reads
+  `unwrap_or(u64::MAX)`, so a future-dated challenge is reported as
+  expired (the safe default).
+- **Stale comments in `recommend_scheme`.** (1) Doc comment claimed the
+  divergence-warning was emitted at `tracing::debug!` after the round-4
+  L6 fix had bumped the level to `tracing::warn!` — doc now matches
+  the implementation. (2) The "every returned identifier here is a
+  key in `EncryptionScheme::parse_str`" comment was correct when
+  read scope-local-to-`KeyExchange` (where I placed it) but false when
+  read across the whole `match` (signature use cases above return
+  signature-scheme identifiers that are intentionally outside
+  `EncryptionScheme::parse_str`). Comment now states the
+  encryption-use-case scope explicitly and points at the regression
+  test that walks exactly that set.
+- **Pre-push hook silently degraded to format-only when `audit.sh`
+  was non-executable.** The hook used `[ -x "$AUDIT_SH" ]`, so a
+  Windows checkout, a `core.fileMode = false` repo, or an accidental
+  `chmod -x` would skip the audit and run only `cargo fmt --check` —
+  while reporting "Pre-push checks passed". The check is now
+  `[ -f "$AUDIT_SH" ]` and the script is invoked via `bash "$AUDIT_SH"`,
+  so the +x bit no longer gates the audit. The "file missing entirely"
+  fmt-only fallback is retained for unrelated checkouts that never had
+  the audit script.
+
 ### Fixed (audit-round follow-ups, 14-finding sweep)
 
 - **String selector returned an unparseable scheme for `KeyExchange`.**

@@ -82,12 +82,13 @@ impl CryptoPolicyEngine {
     /// override the use-case mapping — that's a deliberate design
     /// choice (use cases are self-documenting and a per-use-case
     /// mapping prevents configuration drift). However, when a caller
-    /// supplies a non-default `config.security_level`, we now log a
-    /// `tracing::debug!` so it's visible in audit-trail pipelines that
-    /// the override was ignored. Callers wanting strict-level routing
-    /// should use `select_pq_encryption_scheme` / `select_encryption_scheme`
-    /// (level-driven), or call `force_scheme` to bypass use-case
-    /// mapping entirely.
+    /// supplies a non-default `config.security_level`, we log a
+    /// `tracing::warn!` (not `debug!`, so the divergence is visible
+    /// under default `RUST_LOG=info` filters) so audit-trail pipelines
+    /// see that the override was ignored. Callers wanting strict-level
+    /// routing should use `select_pq_encryption_scheme` /
+    /// `select_encryption_scheme` (level-driven), or call `force_scheme`
+    /// to bypass use-case mapping entirely.
     ///
     /// # Errors
     ///
@@ -128,10 +129,13 @@ impl CryptoPolicyEngine {
             UseCase::SessionToken => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
             UseCase::DigitalCertificate => Ok("hybrid-ml-dsa-87-ed25519".to_string()),
             // Must match the typed sibling `recommend_encryption_scheme` and parse via
-            // `EncryptionScheme::parse_str` — every returned identifier here is a key in
-            // that parser. ML-KEM provides the PQ-side key exchange; the symmetric AEAD
-            // is part of the same scheme identifier so the string path and the typed path
-            // resolve to the same `EncryptionScheme` variant.
+            // `EncryptionScheme::parse_str`. Note: this round-trip invariant applies to
+            // **encryption** use cases only — signature use cases above (Authentication,
+            // DigitalCertificate, FinancialTransactions, …) return signature-scheme
+            // identifiers (`hybrid-ml-dsa-*-ed25519`) that are intentionally NOT in
+            // `EncryptionScheme::parse_str` (they belong to a separate signature taxonomy).
+            // The regression test `test_recommend_scheme_string_and_typed_paths_agree_for_every_use_case`
+            // walks only the encryption use cases for exactly this reason.
             UseCase::KeyExchange => Ok("hybrid-ml-kem-1024-aes-256-gcm".to_string()),
 
             // Financial & Legal

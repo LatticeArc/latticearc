@@ -40,7 +40,7 @@ jobs:
 
       - name: Run constant-time benchmarks
         run: |
-          cargo bench --package latticearc-tests --bench constant_time -- --noplot 2>&1 | tee bench-output.txt
+          cargo bench --package latticearc --bench constant_time -- --noplot 2>&1 | tee bench-output.txt
         timeout-minutes: 30
 
       - name: Analyze timing consistency

@@ -969,11 +969,28 @@ impl ProofOfPossession for ZeroTrustAuth {
                     "Proof-of-possession replay detected".to_string(),
                 ));
             }
-            // Soft cap on cache size to bound memory under attack.
+            // Bounded cache. The eviction above already removed entries
+            // older than the freshness window, so reaching the cap means
+            // ≥ `POP_CACHE_MAX` distinct legitimate PoPs were verified
+            // inside a single 5-minute window — that is DoS-class load.
+            // Previously the insert was silently skipped here, which lifted
+            // the replay window: subsequent presentations of the same PoP
+            // would not see it in the cache and would be accepted again.
+            // Fail closed instead: reject the new PoP with a clear error
+            // and warn so operators can resize the cap or rate-limit upstream.
             const POP_CACHE_MAX: usize = 16 * 1024;
-            if seen.len() < POP_CACHE_MAX {
-                seen.insert(key, now_secs);
+            if seen.len() >= POP_CACHE_MAX {
+                tracing::warn!(
+                    cap = POP_CACHE_MAX,
+                    "PoP replay cache full; rejecting new PoP rather than skipping insert \
+                     (silently skipping would re-open the 5-minute replay window)"
+                );
+                return Err(CoreError::InvalidInput(
+                    "Proof-of-possession replay cache at capacity; retry later or scale up"
+                        .to_string(),
+                ));
             }
+            seen.insert(key, now_secs);
         }
 
         Ok(valid)
@@ -1125,11 +1142,17 @@ impl Challenge {
     }
 
     /// Returns `true` if the challenge has expired.
+    ///
+    /// A future-dated timestamp (negative elapsed — typically clock skew or
+    /// a forged challenge) is treated as **expired**, matching
+    /// `ZeroTrustAuth::verify_challenge_age`: we'd rather reject a confusing
+    /// timestamp than accept one. Previously this returned `false` via
+    /// `unwrap_or(0)`, inconsistent with the sibling helper and an accidental
+    /// "future-stamped challenges live forever" footgun.
     #[must_use]
     pub fn is_expired(&self) -> bool {
         let elapsed = Utc::now().signed_duration_since(self.timestamp);
-        // Negative elapsed means future timestamp, which is suspicious but not expired
-        let elapsed_u64 = u64::try_from(elapsed.num_milliseconds()).unwrap_or(0);
+        let elapsed_u64 = u64::try_from(elapsed.num_milliseconds()).unwrap_or(u64::MAX);
         elapsed_u64 > self.timeout_ms
     }
 }

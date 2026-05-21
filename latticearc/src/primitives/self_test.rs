@@ -256,8 +256,15 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
 
     // Module integrity test (FIPS 140-3 §9.2.2): MUST run first, before
     // any cryptographic operation. Same ordering as `run_power_up_tests`.
+    // If the integrity test fails, §9.2.2 requires the module to inhibit
+    // all subsequent crypto — we record a skip for each downstream KAT and
+    // return early. The sibling `run_power_up_tests` already short-circuits
+    // on integrity failure; the reporting variant previously continued
+    // through eight more KATs on a binary that just failed tamper
+    // detection, which is exactly the threat scenario this test exists for.
     let integrity_start = Instant::now();
-    let integrity_result = match integrity_test() {
+    let integrity_outcome = integrity_test();
+    let integrity_result = match &integrity_outcome {
         Ok(()) => SelfTestResult::Pass,
         Err(e) => {
             overall_pass = false;
@@ -269,6 +276,44 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
         result: integrity_result,
         duration_us: Some(duration_to_us(integrity_start.elapsed())),
     });
+    if integrity_outcome.is_err() {
+        // Set the FIPS module-error state so downstream `verify_operational`
+        // calls reject too; mirror `run_power_up_tests`'s effect even though
+        // this variant returns a Report rather than aborting.
+        set_module_error(ModuleErrorCode::IntegrityFailure);
+        // Record every downstream KAT as "not run" so report consumers see
+        // exactly which tests were inhibited by the §9.2.2 halt. We don't
+        // execute the underlying KAT functions — running tamper-suspect
+        // crypto code is precisely what §9.2.2 forbids.
+        const SKIPPED_TESTS: &[&str] = &[
+            "SHA-256",
+            "HKDF-SHA256",
+            "AES-256-GCM",
+            "SHA3-256",
+            "HMAC-SHA256",
+            "ML-KEM-768",
+            "ML-DSA-44",
+            "SLH-DSA-SHAKE-192s",
+            "FN-DSA",
+        ];
+        for name in SKIPPED_TESTS {
+            tests.push(IndividualTestResult {
+                algorithm: (*name).to_string(),
+                result: SelfTestResult::Fail(
+                    "Not run: inhibited by integrity-test failure (FIPS 140-3 §9.2.2)".to_string(),
+                ),
+                duration_us: None,
+            });
+        }
+        return SelfTestReport {
+            overall_result: SelfTestResult::Fail(
+                "Module-Integrity Test failed; downstream KATs inhibited per FIPS 140-3 §9.2.2"
+                    .to_string(),
+            ),
+            tests,
+            total_duration_us: duration_to_us(start.elapsed()),
+        };
+    }
 
     // SHA-256 KAT
     let sha_start = Instant::now();
@@ -385,7 +430,12 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
         }
     };
     tests.push(IndividualTestResult {
-        algorithm: "SLH-DSA-SHAKE-128s".to_string(),
+        // The underlying KAT exercises `fips205::slh_dsa_shake_192s`
+        // (ACVP keygen vector + sign/verify roundtrip). The audit-record
+        // label must name the parameter set that actually ran, not the
+        // smaller `128s` variant — that mislabel previously misrepresented
+        // which FIPS 205 parameter set was validated on power-up.
+        algorithm: "SLH-DSA-SHAKE-192s".to_string(),
         result: slhdsa_result,
         duration_us: Some(duration_to_us(slhdsa_start.elapsed())),
     });

@@ -130,7 +130,3 @@ crabgrind = "0.2"
 
 [lib]
 path = "src/lib.rs"
-
-[[bench]]
-name = "constant_time"
-harness = false

@@ -18,7 +18,7 @@ flowchart TB
 
     subgraph "Layer 1 — Primitives"
         SAW["SAW (inherited)\nMathematical proofs"]
-        AWSLC["aws-lc-rs C code\nAES-GCM · ML-KEM · X25519"]
+        AWSLC["aws-lc-rs C code\nAES-GCM · HMAC · HKDF · SHA-2 · ECDSA · ECDH"]
     end
 
     KANI --> TYPES
@@ -51,7 +51,7 @@ This means: no single tool covers everything, but together they form a complete 
 
 ## Layer 1: SAW — Primitive Correctness (inherited)
 
-We don't run SAW ourselves. aws-lc-rs provides [mathematically verified implementations](https://github.com/awslabs/aws-lc-verification) of AES-GCM, ML-KEM, X25519, and SHA-2. These are the building blocks our library composes.
+We don't run SAW ourselves. aws-lc-rs provides [mathematically verified implementations](https://github.com/awslabs/aws-lc-verification) of AES-GCM, HMAC, HKDF, SHA-2, ECDSA, and ECDH. See the upstream `aws-lc-verification` repository for the up-to-date proof inventory — the list above is the conservative subset we know we can claim today. These are the building blocks our library composes.
 
 ## Layer 2: Proptest — API Crypto Correctness
 
@@ -209,7 +209,7 @@ cargo test --package latticearc-tests --release -- proptest
 
 | Tool | What It Verifies | Coverage | Cost |
 |------|------------------|----------|------|
-| **SAW** | Primitive correctness (via aws-lc-rs) | AES-GCM, ML-KEM, SHA-2 | Inherited |
+| **SAW** | Primitive correctness (via aws-lc-rs) | AES-GCM, HMAC, HKDF, SHA-2, ECDSA, ECDH (see [aws-lc-verification](https://github.com/awslabs/aws-lc-verification) for the up-to-date inventory) | Inherited |
 | **Proptest** | API crypto correctness (256 random cases/property) | 40+ properties, 6 files | ~60s (release) |
 | **Kani** | Type invariants (all possible inputs) | 30 proofs across 8 files (latticearc::types + primitives::resource_limits) | ~15 min |
 | **Unit tests** | Specific test cases | 8,500+ tests | ~120s (release) |
