@@ -35,7 +35,7 @@ flowchart TB
 
 | Layer | Tool | Scope | What it proves |
 |-------|------|-------|----------------|
-| **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |
+| **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, HMAC, HKDF, SHA-2, ECDSA, ECDH (see [aws-lc-verification](https://github.com/awslabs/aws-lc-verification) for the up-to-date inventory) | Mathematical correctness of C implementations |
 | **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
 | **Type invariants** | [Kani](https://github.com/model-checking/kani) (30 proofs) | `latticearc::types` + `primitives::resource_limits` (pure Rust) | State machine rules, config validation, domain separation, enum exhaustiveness, ordering, defaults, resource bounds |
 
@@ -63,7 +63,7 @@ We don't run SAW ourselves. aws-lc-rs provides [mathematically verified implemen
 | `proptest_hybrid_encrypt.rs` | 6 | Hybrid encryption: roundtrip, non-malleability, AAD integrity, key independence |
 | `proptest_hybrid_sig.rs` | 7 | ML-DSA-65 + Ed25519: roundtrip, wrong-message/key, Ed25519 determinism, sizes |
 | `proptest_unified_api.rs` | 8 | Unified API: AEAD + signing across all security levels and use cases |
-| `proptest_pq_kem.rs` | 8 | ML-KEM-512/768/1024: roundtrip, FIPS 203 key/ciphertext sizes |
+| `proptest_pq_kem.rs` | 8 | ML-KEM-512/768/1024: roundtrip, FIPS 203 key/ciphertext sizes (plain `#[test]` with 256-iteration loops — OS RNG drives randomness, so proptest seed replay would not have reproduced failures) |
 | `proptest_selector.rs` | 6 | CryptoPolicyEngine: determinism, monotonicity, exhaustiveness |
 
 These are the tests that verify **actual cryptographic correctness** — encrypt/decrypt roundtrip, KEM consistency, signature verification, and FIPS spec compliance.
@@ -92,18 +92,16 @@ These are the tests that verify **actual cryptographic correctness** — encrypt
 | `key_state_machine_only_generation_from_none` | Keys must begin in Generation state |
 | `key_state_machine_retired_only_to_destroyed` | Retired keys can only be destroyed (no reactivation) |
 
-#### Configuration Validation — `types/config.rs` (6 proofs)
+#### Configuration Validation — `types/config.rs` (4 proofs)
 
 | Proof | What It Guarantees |
 |-------|-------------------|
 | `core_config_default_validates` | `CoreConfig::default()` always passes validation |
 | `core_config_for_production_validates` | `CoreConfig::for_production()` always passes validation |
 | `core_config_for_development_validates` | `CoreConfig::for_development()` always passes validation |
-| `core_config_validation_biconditional` | `validate()` passes IFF both safety invariants hold (exhaustive over all 96 CoreConfig combinations) |
-| `encryption_compression_requires_integrity` | Compression without integrity check fails validation (prevents oracle attacks) |
-| `signature_chain_requires_timestamp` | Certificate chain without timestamp fails validation (revocation checking) |
+| `core_config_validation_biconditional` | `validate()` passes IFF both safety invariants hold (exhaustive over all 72 CoreConfig combinations) |
 
-The bi-conditional proof (`core_config_validation_biconditional`) is the strongest — it proves validation has no false positives AND no false negatives across all 96 possible CoreConfig combinations (4 security levels × 3 performance preferences × 2³ booleans).
+The bi-conditional proof (`core_config_validation_biconditional`) is the strongest — it proves validation has no false positives AND no false negatives across all 72 possible CoreConfig combinations (3 `SecurityLevel` variants × 3 `PerformancePreference` variants × 2³ booleans).
 
 #### Policy Engine — `unified_api/selector.rs` (5 proofs)
 
@@ -148,6 +146,14 @@ This is a critical security property — if any two domain constants collide, di
 |-------|-------------------|
 | `verification_status_is_verified_iff_verified` | `is_verified()` returns true IFF status is Verified (expired/failed/pending sessions are never "verified") |
 
+#### Resource Limits — `primitives/resource_limits.rs` (3 proofs)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `validate_encryption_size_biconditional` | Encryption-size cap passes IFF the input length is at or below the configured limit (closes the DoS path; no oversized input slips through) |
+| `validate_decryption_size_biconditional` | Decryption-size cap passes IFF the ciphertext length is at or below the configured limit (mirror of the encryption invariant) |
+| `validate_key_derivation_count_accepts_zero` | Key-derivation counter validation accepts zero regardless of how the configured limit is set |
+
 #### Security Defaults — `types/types.rs` (4 proofs)
 
 | Proof | What It Guarantees |
@@ -162,12 +168,13 @@ This is a critical security property — if any two domain constants collide, di
 | File | Proofs | Key Property |
 |------|--------|-------------|
 | `types/key_lifecycle.rs` | 5 | SP 800-57 state machine correctness |
-| `types/config.rs` | 6 | CoreConfig bi-conditional validation (96 combos) |
+| `types/config.rs` | 4 | CoreConfig bi-conditional validation (72 combos) |
 | `unified_api/selector.rs` | 5 | Encryption + signature selection completeness |
 | `types/types.rs` | 7 | ComplianceMode, SecurityLevel defaults and exhaustive checks |
 | `types/zero_trust.rs` | 4 | Trust level ordering + `is_fully_trusted()` |
 | `types/domains.rs` | 1 | Domain separation pairwise distinctness |
 | `types/traits.rs` | 1 | VerificationStatus correctness |
+| `primitives/resource_limits.rs` | 3 | Resource-cap bi-conditional validation |
 | **Total** | **30** | |
 
 ## Running Proofs

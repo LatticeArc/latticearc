@@ -9,6 +9,129 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (audit-round follow-ups, 14-finding sweep)
+
+- **String selector returned an unparseable scheme for `KeyExchange`.**
+  `CryptoPolicyEngine::recommend_scheme(KeyExchange, _)` returned
+  `"hybrid-ml-kem-1024-x25519"`, which is not a key in
+  `EncryptionScheme::parse_str`; the typed sibling
+  `recommend_encryption_scheme` returned `HybridMlKem1024Aes256Gcm`
+  for the same use case, so the two selector paths produced
+  different `EncryptionScheme` identifiers for the same input. The
+  string path now returns `"hybrid-ml-kem-1024-aes-256-gcm"`,
+  matching the typed sibling and round-tripping through the
+  crate's own parser.
+- **FIPS Security Policy listed SLH-DSA fast variants that aren't
+  wired through.** `docs/FIPS_SECURITY_POLICY.md` enumerated
+  `SLH-DSA-SHAKE-128s/f, 192s/f, 256s/f` (6 parameter sets), but
+  `primitives::sig::slh_dsa` only imports the three small-signature
+  variants (`shake_128s`, `shake_192s`, `shake_256s`); the `*f` fast
+  variants were never exposed. The policy table now matches the
+  implementation surface.
+- **`FORMAL_VERIFICATION.md` overstated Kani proof counts and named
+  proofs that don't exist.** The doc claimed `types/config.rs`
+  carried 6 Kani proofs and described
+  `encryption_compression_requires_integrity` /
+  `signature_chain_requires_timestamp`; the file actually has 4
+  proofs and neither named proof exists in the source tree. The
+  table now reflects the real 4 proofs, and a previously omitted
+  row for `primitives/resource_limits.rs` (3 proofs:
+  encryption-size and decryption-size bi-conditionals plus the
+  key-derivation zero-acceptance proof) was added so the headline
+  "30 proofs across 8 files" matches the per-file accounting.
+- **`core_config_validation_biconditional` claimed exhaustivity over
+  96 combos when only 72 exist.** The doc multiplied "4 security
+  levels × 3 performance preferences × 2³ booleans". `SecurityLevel`
+  has 3 variants (Standard / High / Maximum), not 4, so the bi-conditional
+  proof's exhaustivity range is 72 combinations. Arithmetic corrected.
+- **`ml_dsa_44_tampered_message_rejected_cross_impl` did not tamper
+  the message.** The test signed `b"original"` under one keypair,
+  then verified the signature under a *different* (freshly generated)
+  public key. That is wrong-key rejection — already covered by
+  `ml_dsa_44_wrong_key_cross_impl` immediately above. The test now
+  uses the original keypair and asks pqcrypto to verify the
+  *tampered* message, isolating message-integrity rejection from
+  key-binding rejection.
+- **Release profile kept `debug-assertions = true` to keep the FIPS
+  integrity test in dev posture.** With `panic = "abort"` set in the
+  same profile, any future `debug_assert!` in production code would
+  silently become `process::abort()` on a violated invariant. The
+  FIPS integrity gate is now decoupled from `cfg(debug_assertions)`
+  and lives behind a new `fips-strict-integrity` Cargo feature
+  (transitively enabled by `--features fips`). With the feature
+  off, `integrity_test()` warns-and-continues when
+  `PRODUCTION_HMAC.txt` is absent (dev / downstream `cargo install`
+  posture); with the feature on, it returns an error so
+  `fips_verify_operational` refuses to enter operational state
+  (FIPS 140-3 §9.2 pre-operational integrity-test posture). The
+  workspace `[profile.release]` now sets
+  `debug-assertions = false`, consistent with `panic = "abort"`.
+  The previously-redundant `[profile.release-strict]` (which had
+  only existed to flip `debug-assertions` off relative to `release`)
+  was removed — `cargo build --release --features fips` is now the
+  one canonical FIPS-strict invocation.
+- **DudeCT thresholds documented as a single `|max t| < 10` gate.**
+  `README.md` and `SECURITY.md` claimed a uniform Welch's-t
+  threshold of 10, but `.github/workflows/dudect.yml` uses 10.0 for
+  `bench_verify_hmac_sha256` (primary CT gate) and 50.0 for
+  `bench_hybrid_secret_key_ct_eq` (regression sentry — ctgrind is
+  the authoritative pure-Rust gate on that path, and shared-runner
+  variance has been observed up to `|t| ≈ 33` on the known-CT
+  code). Both docs now state the per-bench thresholds with the
+  rationale link.
+- **SAW scope claimed in `README` and `FORMAL_VERIFICATION` did not
+  match.** `README` listed `AES-GCM, HMAC-SHA2, SHA-256/384/512,
+  ECDSA P-256/P-384`; `FORMAL_VERIFICATION.md` listed `AES-GCM,
+  ML-KEM, X25519, SHA-2`. Both docs now point to
+  `aws-lc-verification` as the up-to-date inventory and quote a
+  conservative shared list (`AES-GCM, HMAC, HKDF, SHA-2, ECDSA,
+  ECDH`) we know we can claim today.
+- **SECURITY.md cited FIPS 140-3 §7.10 for power-up self-tests.**
+  §7.10 is "Mitigation of Other Attacks"; the pre-operational
+  integrity-test requirement is in §9 (specifically §9.2). All
+  three citations were corrected and the surrounding "Known
+  Profile Coupling" section was rewritten to describe the new
+  `fips-strict-integrity` feature gate.
+- **`examples/basic_encryption.rs` used a fixed `[0x42u8; 32]` key
+  without a "do not copy" warning.** The other examples
+  (`unified_api.rs`, `complete_secure_workflow.rs`) carry the
+  EXAMPLE-ONLY-KEY caveat block; the basic-encryption example
+  did not, making it the most copy-paste-friendly demonstration
+  of an anti-pattern. The warning block was added.
+- **`recommend_scheme` silenced the
+  `config.security_level`-not-honoured divergence at `debug` log
+  level.** A caller setting `.use_case(IoTDevice).security_level(Maximum)`
+  silently received ML-KEM-512 (Level 1); the audit-trail event was
+  emitted at `tracing::debug!`, which is suppressed under typical
+  `RUST_LOG=info` production filters. The event is now emitted at
+  `tracing::warn!` so the divergence is visible without log-filter
+  tuning.
+- **`unified_api::logging::sanitize_data` emitted a deterministic
+  BLAKE2s fingerprint for secrets longer than 32 bytes.** The
+  per-secret 16-hex-char digest is content-dependent, so an
+  attacker with log access could brute-force candidate secrets
+  against the fingerprint to recover the original. The
+  large-input branch was removed; `sanitize_data` now emits
+  `[<N> bytes]` for inputs of any length, and a regression test
+  pins that two distinct same-length inputs render to identical
+  output.
+- **`proptest_pq_kem.rs` declared a `_seed in any::<u64>()` input
+  that did not drive randomness.** `MlKem::generate_decapsulation_keypair`
+  draws from the OS RNG, so a `proptest-regressions` replay would
+  use the recorded seed name but draw fresh entropy on the actual
+  KEM call — failing cases could not reproduce. The file was
+  converted to plain `#[test]` functions with explicit
+  256-iteration loops, which is honest about the OS-RNG dependency
+  and preserves the previous coverage discipline.
+- **`test_all_zero_key_roundtrip` discarded its result.** The test
+  documented "the result can be Some or None" and bound the
+  outcome with `let _ = result;`, so neither branch of the parse
+  was actually exercised. The test was renamed to
+  `test_all_zero_key_parses_per_fips203_modulus_check` and now
+  asserts that fips203 accepts the all-zero key (per FIPS 203
+  §6.2 the modulus check passes because `0 < q = 3329`, even
+  though the SHAKE-derived matrix `A` is degenerate).
+
 ### Fixed
 
 - **`keygen --use-case` rollback could destroy the user's signing keys.**

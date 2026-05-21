@@ -237,7 +237,7 @@ Multi-layered — each tier catches what the tier below cannot.
 
 | Tool | What it proves | Scope |
 |------|----------------|-------|
-| [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | Machine-checked correctness of C primitives | AES-GCM, HMAC-SHA2, SHA-256/384/512, ECDSA P-256/P-384 |
+| [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | Machine-checked correctness of C primitives | AES-GCM, HMAC, HKDF, SHA-2, ECDSA, ECDH — see [aws-lc-verification](https://github.com/awslabs/aws-lc-verification) for the up-to-date proof inventory |
 | [Kani](https://github.com/model-checking/kani) | Bounded model checking of Rust code | 30 proofs; 18 PR-blocking, full suite scheduled nightly |
 
 ### Property-based, differential, attacker-chosen
@@ -253,7 +253,7 @@ Multi-layered — each tier catches what the tier below cannot.
 | Tool | Methodology |
 |------|-------------|
 | Criterion | Qualitative wall-clock divergence between input classes |
-| [DudeCT](https://eprint.iacr.org/2016/1123) | Welch's t-test; `\|max t\| < 10` gate |
+| [DudeCT](https://eprint.iacr.org/2016/1123) | Welch's t-test; per-bench gates — `\|max t\| < 10` for HMAC verify (PRIMARY CT gate), `\|max t\| < 50` for hybrid `ct_eq` (regression sentry — ctgrind is authoritative on this pure-Rust path). See [`.github/workflows/dudect.yml`](.github/workflows/dudect.yml) for rationale. |
 | ctgrind (Valgrind memcheck) | Marks secret bytes as uninit; fails on any branch or index depending on them |
 
 ### DoS, fuzz, sanitizers

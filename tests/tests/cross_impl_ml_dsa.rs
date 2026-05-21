@@ -65,18 +65,24 @@ fn ml_dsa_44_fips204_sign_pqcrypto_verify() {
 #[test]
 fn ml_dsa_44_tampered_message_rejected_cross_impl() {
     use pqcrypto_mldsa::mldsa44;
-    let (_pk_fips, sk_fips) = ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
-    let message = b"original";
-    let sig_fips = sk_fips.sign(message, b"").unwrap();
+    // Sign one message under sk_fips, then ask pqcrypto to verify a DIFFERENT
+    // message under the matching pk_fips. The keypair and signature bytes are
+    // identical to the legitimate case — only the message is tampered — so
+    // this isolates message integrity from key-binding (wrong-key rejection
+    // is covered by `ml_dsa_44_wrong_key_cross_impl` above).
+    let (pk_fips, sk_fips) = ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+    let original = b"original";
+    let tampered = b"tampered";
+    let sig_fips = sk_fips.sign(original, b"").unwrap();
 
-    // Reconstruct just the PQClean-side objects.
-    let (pk_pqc, _sk_pqc) = mldsa44::keypair(); // wrong keypair — signature was made under sk_fips
+    let pk_pqc = mldsa44::PublicKey::from_bytes(pk_fips.as_bytes()).unwrap();
     let sig_pqc = mldsa44::DetachedSignature::from_bytes(sig_fips.as_bytes()).unwrap();
 
-    // Even though the bytes round-trip cleanly, a signature made under one
-    // secret key must not verify under a different public key.
-    let result = mldsa44::verify_detached_signature(&sig_pqc, message, &pk_pqc);
-    assert!(result.is_err(), "pqcrypto must reject signature verified under wrong pk");
+    let result = mldsa44::verify_detached_signature(&sig_pqc, tampered, &pk_pqc);
+    assert!(
+        result.is_err(),
+        "pqcrypto must reject a fips204 signature when the message is tampered"
+    );
 }
 
 // =============================================================================

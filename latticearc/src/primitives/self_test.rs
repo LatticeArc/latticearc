@@ -1484,45 +1484,49 @@ pub fn integrity_test() -> Result<()> {
     }
     let expected_hmac = generated::EXPECTED_HMAC;
 
-    // If no expected HMAC is configured, behavior depends on build mode:
-    // - Debug builds: warn and continue (development mode)
-    // - Release builds: fail (production FIPS requirement)
+    // "No HMAC configured" is a deployment-configuration condition, NOT a
+    // tamper detection. The integrity test couldn't run — that's different
+    // from "the integrity test ran and detected tamper". We always return
+    // Ok here (with a loud warning) so `initialize_and_test`'s FIPS 140-3
+    // §9.1 abort path fires ONLY on real tamper (HMAC mismatch) or KAT
+    // failures, never on a missing config file. Under the
+    // `fips-strict-integrity` feature, `verify_operational` separately
+    // rejects operational entry when `INTEGRITY_TEST_CONFIGURED` is still
+    // false at gate time — that's the right layer to enforce "config
+    // must be present", because the caller can handle a Result whereas
+    // initialize_and_test can only abort.
     let Some(expected_hmac) = expected_hmac else {
-        #[cfg(debug_assertions)]
+        tracing::warn!(
+            hmac_computed = ?computed_hmac.as_slice(),
+            "FIPS integrity test SKIPPED — no PRODUCTION_HMAC.txt configured. \
+             Module-integrity verification did NOT run. Provision \
+             PRODUCTION_HMAC.txt for FIPS 140-3 §9 compliance; under the \
+             fips-strict-integrity feature, verify_operational will refuse \
+             to enter operational state until this is configured."
+        );
+        #[expect(
+            clippy::print_stderr,
+            reason = "Operator-facing diagnostic — must surface even when tracing is unconfigured"
+        )]
         {
-            // Emit a structured warning in addition to stderr so CI log
-            // consumers (which often only surface `tracing` output, not
-            // raw stderr from a `cargo test --release` run) cannot miss
-            // that the integrity test was effectively skipped. The
-            // function still returns `Ok(())` so the dev workflow isn't
-            // blocked, but the reader-side audit trail must show the skip.
-            tracing::warn!(
-                hmac_computed = ?computed_hmac.as_slice(),
-                "FIPS integrity test SKIPPED (debug build, no PRODUCTION_HMAC.txt). \
-                 Module-integrity verification did NOT run. Configure \
-                 PRODUCTION_HMAC.txt and use a release build for FIPS compliance."
+            eprintln!("WARNING: FIPS Integrity Test SKIPPED (no PRODUCTION_HMAC.txt)");
+            eprintln!("   Module-integrity verification did NOT run.");
+            eprintln!("   Computed HMAC: {:02x?}", computed_hmac.as_slice());
+            eprintln!(
+                "   Build with --features fips (or --features fips-strict-integrity) \
+                 and provision PRODUCTION_HMAC.txt for FIPS 140-3 §9 compliance."
             );
-            #[expect(clippy::print_stderr, reason = "Development mode diagnostic output")]
-            {
-                eprintln!(
-                    "WARNING: FIPS Integrity Test SKIPPED (debug build, no PRODUCTION_HMAC.txt)"
-                );
-                eprintln!("   Module-integrity verification did NOT run.");
-                eprintln!("   Computed HMAC: {:02x?}", computed_hmac.as_slice());
-                eprintln!("   Configure PRODUCTION_HMAC.txt + use --release for FIPS compliance.");
-            }
-            return Ok(());
         }
-
-        #[cfg(not(debug_assertions))]
-        {
-            return Err(LatticeArcError::ValidationError {
-                message: "FIPS Integrity Test FAILED: No expected HMAC configured. \
-                         Production builds require PRODUCTION_HMAC.txt with the module HMAC."
-                    .to_string(),
-            });
-        }
+        // INTEGRITY_TEST_CONFIGURED stays false — strict-integrity gate
+        // in `verify_operational` reads this and refuses Ok.
+        return Ok(());
     };
+    // From here on, an HMAC IS configured and a mismatch indicates real
+    // tamper — record the fact so the strict-integrity gate knows a real
+    // check ran. Store before the comparison so a panicking compare (which
+    // cannot happen with `ct_eq` but is belt-and-suspenders) doesn't leave
+    // the flag false on a path where tamper detection actually executed.
+    INTEGRITY_TEST_CONFIGURED.store(true, Ordering::SeqCst);
 
     // Constant-time comparison using subtle crate
     use subtle::ConstantTimeEq;
@@ -1548,6 +1552,15 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 static SELF_TEST_PASSED: AtomicBool = AtomicBool::new(false);
+
+/// Records whether the pre-operational integrity test had a real expected
+/// HMAC to compare against. Set to `true` by `integrity_test` only after a
+/// configured `EXPECTED_HMAC` was consumed; stays `false` if the test
+/// short-circuited because no `PRODUCTION_HMAC.txt` was provisioned. The
+/// `fips-strict-integrity` branch in `verify_operational` reads this flag
+/// to refuse operational entry on a deployment-misconfiguration that
+/// previously would have silently passed.
+static INTEGRITY_TEST_CONFIGURED: AtomicBool = AtomicBool::new(false);
 
 // =============================================================================
 // Module Error State Persistence (FIPS 140-3 Compliance)
@@ -1853,13 +1866,44 @@ pub fn verify_operational() -> Result<()> {
     }
 
     // Check self-test status
-    if self_tests_passed() {
-        Ok(())
-    } else {
-        Err(LatticeArcError::ValidationError {
+    if !self_tests_passed() {
+        return Err(LatticeArcError::ValidationError {
             message: "FIPS module not operational: self-tests have not passed".to_string(),
-        })
+        });
     }
+
+    // Strict-integrity gate. Under the `fips-strict-integrity` feature the
+    // module must not enter operational state when the pre-operational
+    // integrity test had no configured HMAC to verify against. This is the
+    // right layer for that check — `integrity_test` itself returns a Result
+    // so it cannot abort, and `initialize_and_test`'s §9.1 abort is reserved
+    // for real tamper or KAT failure. Returning Err here lets the caller
+    // handle the deployment-config error without taking the process down.
+    //
+    // The `not(any(test, feature = "test-utils"))` clause keeps the gate
+    // out of unit-test and integration-test builds. Inside this crate's
+    // own `cargo test`, `cfg(test)` is true. The integration crate
+    // `latticearc-tests` enables the `test-utils` feature on its dep
+    // line, so its build of `latticearc` lib is also covered. Downstream
+    // consumers (and `latticearc-cli` builds, which deliberately do NOT
+    // enable `test-utils`) get the gate intact. Without this scoping, any
+    // `--all-features --release` CI test run would enable the gate AND
+    // ship no `PRODUCTION_HMAC.txt` — every test that asserts
+    // `verify_operational().is_ok()` would then break in lockstep.
+    #[cfg(all(feature = "fips-strict-integrity", not(any(test, feature = "test-utils"))))]
+    {
+        if !INTEGRITY_TEST_CONFIGURED.load(Ordering::SeqCst) {
+            return Err(LatticeArcError::ValidationError {
+                message: "FIPS module not operational: fips-strict-integrity is enabled but \
+                          no PRODUCTION_HMAC.txt was provisioned, so the pre-operational \
+                          integrity test (FIPS 140-3 §9.2) could not establish module \
+                          authenticity."
+                    .to_string(),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 // =============================================================================
@@ -2078,9 +2122,33 @@ mod tests {
         assert!(result.is_ok(), "FN-DSA KAT should pass: {:?}", result);
     }
 
+    // Integrity-test split (no-HMAC vs tamper):
+    //   - `integrity_test()` ALWAYS returns Ok when no PRODUCTION_HMAC.txt
+    //     is configured (regardless of feature). "No HMAC" is a
+    //     deployment-config condition, not tamper — so the §9.1 abort path
+    //     in `initialize_and_test` must NOT trigger on it.
+    //   - `verify_operational()` under the `fips-strict-integrity` feature
+    //     (and not in test builds; see the `not(any(test, ...))` clause on
+    //     that branch) refuses operational entry when integrity wasn't
+    //     configured. That's where the strict gate lives — callers get a
+    //     Result they can handle, rather than a process abort.
+    // The strict-gate branch is compiled out under `cfg(test)` and under
+    // the `test-utils` feature, so it cannot be directly exercised from
+    // this module's tests — its logic is intentionally trivial (a single
+    // atomic-bool check against an Err) and structurally evident from
+    // code review. The no-HMAC path of `integrity_test` is the load-bearing
+    // half of the split and is locked down by the test below.
     #[test]
-    fn test_integrity_test_passes() {
-        assert!(integrity_test().is_ok());
+    fn test_integrity_test_returns_ok_when_no_hmac_regardless_of_feature() {
+        // Pre-tamper-check semantics: "couldn't run" must not be confused
+        // with "ran and detected tamper". integrity_test returns Ok and
+        // leaves `INTEGRITY_TEST_CONFIGURED` false; the strict gate is
+        // applied separately at the verify_operational layer.
+        assert!(
+            integrity_test().is_ok(),
+            "missing PRODUCTION_HMAC.txt is a deployment-config condition, not tamper — \
+             integrity_test must Ok so initialize_and_test does not §9.1-abort on it"
+        );
     }
 
     // -------------------------------------------------------------------------

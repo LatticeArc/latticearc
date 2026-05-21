@@ -1102,35 +1102,32 @@ pub fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-/// Sanitize data to prevent logging of sensitive information
+/// Sanitize data to prevent logging of sensitive information.
 ///
-/// This function replaces potentially sensitive byte sequences with
-/// safe placeholder text. Used automatically in logging macros.
+/// Wraps a byte slice in a `Display` adapter that emits the byte length
+/// only — never any function of the byte contents. Used automatically by
+/// the logging macros.
 #[must_use]
 pub fn sanitize_data(data: &[u8]) -> SanitizedData<'_> {
     SanitizedData(data)
 }
 
-/// Wrapper type for sanitized data display
+/// Wrapper type for sanitized data display.
+///
+/// The `Display` impl emits exactly `[<N> bytes]` — no hash, no truncated
+/// preview, no per-secret fingerprint. An earlier revision emitted a
+/// truncated BLAKE2s digest for inputs longer than 32 bytes; that was a
+/// deterministic, content-dependent fingerprint of the secret, which an
+/// attacker with log access can brute-force against candidate inputs to
+/// recover the original. The deterministic-fingerprint branch was removed
+/// in the 0.8.x audit follow-up so the safe-logging path is purely
+/// length-based regardless of input size.
 pub struct SanitizedData<'a>(&'a [u8]);
 
 impl<'a> fmt::Display for SanitizedData<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // For small data, show length only
-        if self.0.len() <= 32 {
-            write!(f, "[{} bytes]", self.0.len())
-        } else {
-            // For larger data, show truncated hash-like representation
-            let hash = blake2_hash(self.0);
-            write!(f, "[{} bytes, hash: {}]", self.0.len(), &hash[..16])
-        }
+        write!(f, "[{} bytes]", self.0.len())
     }
-}
-
-/// Compute a simple hash for data identification without revealing content
-fn blake2_hash(data: &[u8]) -> String {
-    // Route through the primitives wrapper rather than importing `blake2` directly.
-    hex::encode(crate::primitives::hash::blake2::blake2s_256(data))
 }
 
 /// Security-conscious logging macros
@@ -2019,20 +2016,18 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_data_large_has_correct_format() {
-        let data = vec![0u8; 100];
-        let sanitized = sanitize_data(&data);
-        let output = format!("{sanitized}");
-        assert!(output.contains("[100 bytes"));
-        assert!(output.contains("hash:"));
-    }
-
-    #[test]
-    fn test_blake2_hash_has_correct_format() {
-        let data = b"test data";
-        let hash = blake2_hash(data);
-        assert_eq!(hash.len(), 64); // Blake2s256 produces 32 bytes, hex encoded = 64 chars
-        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    fn test_sanitize_data_large_emits_length_only() {
+        // Large inputs (previously hashed for a "fingerprint") must now emit
+        // length only — no content-dependent output. Two different secrets of
+        // the same length must render identically so log access never reveals
+        // a brute-forceable per-secret fingerprint.
+        let data_a = vec![0u8; 100];
+        let data_b = vec![0xFFu8; 100];
+        let out_a = format!("{}", sanitize_data(&data_a));
+        let out_b = format!("{}", sanitize_data(&data_b));
+        assert_eq!(out_a, "[100 bytes]");
+        assert_eq!(out_b, "[100 bytes]");
+        assert_eq!(out_a, out_b);
     }
 
     // ========================================================================

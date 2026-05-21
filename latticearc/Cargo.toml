@@ -23,18 +23,31 @@ default = []
 # FIPS 140-3 validated backend (requires CMake + Go build tools).
 # Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only).
 #
-# Note: this feature TRANSITIVELY enables `fips-self-test`. FIPS 140-3
-# §10.3.1 requires power-on self-tests for an approved cryptographic
-# module, so a `--features fips` build that didn't run self-tests would
-# be a false compliance claim. If you specifically want the validated
-# backend without the self-test wiring (e.g., third-party module that
-# runs its own POST), set `default-features = false` and enable
-# `aws-lc-rs/fips` directly.
-fips = ["aws-lc-rs/fips", "fips-self-test"]
+# Note: this feature TRANSITIVELY enables `fips-self-test` and
+# `fips-strict-integrity`. FIPS 140-3 §9 (Pre-Operational and Conditional
+# Self-Tests) requires the pre-operational integrity test to either pass
+# or inhibit data output before the module enters operational state, so a
+# `--features fips` build whose integrity test silently warned-and-continued
+# would be a false compliance claim. If you specifically want the validated
+# backend without the self-test wiring (e.g., third-party module that runs
+# its own POST), set `default-features = false` and enable `aws-lc-rs/fips`
+# directly.
+fips = ["aws-lc-rs/fips", "fips-self-test", "fips-strict-integrity"]
 # Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA).
 # Pulled in transitively by `fips`; can be enabled standalone for non-FIPS
 # builds that still want the self-test KAT coverage.
 fips-self-test = []
+# Strict FIPS 140-3 §9 pre-operational integrity-test posture. With this
+# feature enabled, `primitives::self_test::integrity_test` returns an error
+# (which `fips_verify_operational` surfaces as a self-test failure that
+# callers must abort on) when no `PRODUCTION_HMAC.txt` is configured.
+# Without it, the integrity test logs a `tracing::warn!` and returns Ok —
+# the dev-friendly posture suitable for downstream `cargo install` users.
+# Pulled in transitively by `fips`; the gate is feature-driven so it no
+# longer leaks into / depends on the `cfg(debug_assertions)` predicate
+# (which the workspace release profile now sets to `false` for parity with
+# `panic = "abort"`).
+fips-strict-integrity = []
 # Subscriber/init helpers for the `tracing` facade. Library code only
 # emits `tracing::{trace,debug,info,warn,error}!` events through the
 # `tracing` facade, which is always available; this feature gates the

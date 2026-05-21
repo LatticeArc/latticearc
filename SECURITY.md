@@ -98,41 +98,38 @@ LatticeArc supports compile-time and runtime compliance controls:
 
 Kani formally verifies that `requires_fips()` and `allows_hybrid()` return correct values for every `ComplianceMode` variant (exhaustive proofs).
 
-### FIPS Power-Up Integrity Test — Known Profile Coupling
+### FIPS Power-Up Integrity Test — Feature Gate
 
 The FIPS 140-3 power-up self-test (`primitives::self_test::integrity_test`)
 verifies the running binary's HMAC matches a known-good value before any
-cryptographic operation. In FIPS 140-3 §7.10 parlance, a failure must
-abort the module on the first crypto call. LatticeArc implements both
-postures, but the choice is coupled to `cfg(debug_assertions)`:
+cryptographic operation. FIPS 140-3 §9 (Pre-Operational and Conditional
+Self-Tests, in particular §9.2's pre-operational integrity test)
+requires that a failure inhibits all data output and prevents the module
+from entering operational state. LatticeArc implements both postures and
+selects between them at build time via the `fips-strict-integrity` Cargo
+feature (decoupled from `cfg(debug_assertions)` so a `--release` build is
+not forced into one posture by the optimisation profile):
 
-- **`cfg(debug_assertions)` true** — the integrity test logs an
-  informational warning when `PRODUCTION_HMAC.txt` is absent and
-  returns `Ok(())`. Suitable for development and the FIPS-self-test
-  workflow.
-- **`cfg(debug_assertions)` false** — the integrity test calls
-  `std::process::abort()` if `PRODUCTION_HMAC.txt` is absent. This is
-  the FIPS 140-3 §7.10 posture and what the module-policy doc claims.
+- **`fips-strict-integrity` disabled (default)** — the integrity test
+  logs a `tracing::warn!` event when `PRODUCTION_HMAC.txt` is absent
+  and returns `Ok(())`. Suitable for development, downstream
+  `cargo install latticearc-cli`, and any non-FIPS deployment.
+- **`fips-strict-integrity` enabled (transitively enabled by `fips`)** —
+  the integrity test returns an error if `PRODUCTION_HMAC.txt` is
+  absent, which `fips_verify_operational` surfaces as a self-test
+  failure that callers must abort on. This is the FIPS 140-3 §9.2
+  posture.
 
-The workspace `[profile.release]` in `Cargo.toml` keeps
-`debug-assertions = true` precisely so that an operator running
-`cargo install latticearc-cli` without first provisioning
-`PRODUCTION_HMAC.txt` doesn't immediately abort. That ergonomic choice
-also means a default `cargo install` produces a binary whose FIPS
-integrity-check posture is the dev-stub posture, not the strict
-abort-on-missing-HMAC posture.
+The workspace `[profile.release]` in `Cargo.toml` now sets
+`debug-assertions = false` (consistent with `panic = "abort"`); the
+integrity-test behaviour is governed solely by the feature, not the
+profile, so the two concerns no longer leak into each other.
 
-**For deployments claiming FIPS 140-3 §7.10 compliance:**
+**For deployments claiming FIPS 140-3 §9 compliance:**
 
-1. Build with `--profile release-strict` (`debug-assertions = false`)
-   or use the upcoming `fips-strict-integrity` feature flag (once it
-   ships), and
+1. Build with `--features fips` (which transitively enables
+   `fips-strict-integrity`), and
 2. Provision `PRODUCTION_HMAC.txt` per the deployment runbook.
-
-The structural fix — decouple the integrity-test gate from
-`cfg(debug_assertions)` via a dedicated `fips-strict-integrity`
-feature — is tracked as a follow-up. Until that lands, the
-profile-vs-deployment coupling described above is the operative rule.
 
 ### Defense in Depth
 
@@ -369,19 +366,29 @@ this codebase but are **not currently part of the PR-blocking CI matrix**.
 The `ctgrind` job (a Valgrind memcheck wrapper that flags branches and
 indices on secret-tainted bytes) runs on a weekly schedule (Tuesday)
 rather than on every PR; the `dudect` Welch's-t-statistic gate runs on
-a separate weekly schedule (Monday) with the current threshold
-`|max t| < 10`. Before tagging 1.0 we plan to:
+a separate weekly schedule (Monday) with per-benchmark thresholds:
+
+- `bench_verify_hmac_sha256` — **`|max t| < 10`** (the primary CT
+  gate; touches aws-lc-rs FFI which `ctgrind` cannot reason about
+  cleanly, so dudect is the only CT check for this path).
+- `bench_hybrid_secret_key_ct_eq` — **`|max t| < 50`** (a regression
+  sentry only; instruction-level CT is authoritatively established by
+  the ctgrind workflow on the same pure-Rust path, and shared-runner
+  variance has been observed up to `|t| ≈ 33` on this known-CT code).
+
+See `.github/workflows/dudect.yml` for the rationale behind each
+per-bench threshold. Before tagging 1.0 we plan to:
 
 - Promote the `ctgrind` (Valgrind `memcheck`) constant-time check from
   weekly to PR-blocking on `unified_api/convenience/api.rs` and the
   `subtle` call sites in `primitives/aead/`. (Note: `--tool=memcheck`
   is the correct CT-checking tool — `--tool=massif` is the heap
   profiler and is unrelated.)
-- Tighten the `dudect` Welch's-t threshold from the current
-  `|max t| < 10` (lenient, accommodates CI-runner jitter) to
-  `|t| > 4.5` (the standard publish threshold). The current `< 10`
-  bound catches order-of-magnitude regressions; `> 4.5` is the
-  research-grade gate we plan to enforce once we have a stable
+- Tighten the `dudect` Welch's-t thresholds from the current
+  per-bench bounds (10 / 50, lenient and accommodating CI-runner
+  jitter) to `|t| > 4.5` (the standard publish threshold). The
+  current bounds catch order-of-magnitude regressions; `> 4.5` is
+  the research-grade gate we plan to enforce once we have a stable
   CI-runner cycle-count baseline.
 - Wire `cargo +nightly miri` runs against the secret-comparison code
   paths to flag UB-class compiler optimizations that could break

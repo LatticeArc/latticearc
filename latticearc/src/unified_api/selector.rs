@@ -95,13 +95,14 @@ impl CryptoPolicyEngine {
     /// for future compatibility with validation logic.
     #[must_use = "scheme recommendation should be used for algorithm selection"]
     pub fn recommend_scheme(use_case: &UseCase, config: &CoreConfig) -> Result<String> {
-        // surface the no-op so it's not silent.
-        // Default `SecurityLevel` is `High`; anything else means the
-        // caller passed it explicitly and would reasonably expect it
-        // to influence selection. It does not — log so the divergence
-        // is visible.
+        // Default `SecurityLevel` is `High`; anything else means the caller
+        // passed it explicitly and would reasonably expect it to influence
+        // selection. The use-case path does NOT honour `security_level` (it
+        // is purely use-case-driven by design). Emit at WARN — not DEBUG —
+        // so the divergence is visible under default production log filters
+        // (DEBUG is suppressed by typical `RUST_LOG=info` configurations).
         if config.security_level != SecurityLevel::default() {
-            tracing::debug!(
+            tracing::warn!(
                 use_case = ?use_case,
                 requested_level = ?config.security_level,
                 "recommend_scheme: config.security_level is not consulted in the use-case path; \
@@ -126,7 +127,12 @@ impl CryptoPolicyEngine {
             UseCase::Authentication => Ok("hybrid-ml-dsa-87-ed25519".to_string()),
             UseCase::SessionToken => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
             UseCase::DigitalCertificate => Ok("hybrid-ml-dsa-87-ed25519".to_string()),
-            UseCase::KeyExchange => Ok("hybrid-ml-kem-1024-x25519".to_string()),
+            // Must match the typed sibling `recommend_encryption_scheme` and parse via
+            // `EncryptionScheme::parse_str` — every returned identifier here is a key in
+            // that parser. ML-KEM provides the PQ-side key exchange; the symmetric AEAD
+            // is part of the same scheme identifier so the string path and the typed path
+            // resolve to the same `EncryptionScheme` variant.
+            UseCase::KeyExchange => Ok("hybrid-ml-kem-1024-aes-256-gcm".to_string()),
 
             // Financial & Legal
             UseCase::FinancialTransactions => Ok("hybrid-ml-dsa-65-ed25519".to_string()),
@@ -986,6 +992,54 @@ mod tests {
         let config = CoreConfig::default();
         let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::SecureMessaging, &config)?;
         assert_eq!(scheme, "hybrid-ml-kem-768-aes-256-gcm");
+        Ok(())
+    }
+
+    /// Regression: the string-API output for every encryption use case MUST
+    /// round-trip through `EncryptionScheme::parse_str` AND match what the
+    /// typed sibling `recommend_encryption_scheme` returns. Audit M1 caught
+    /// `KeyExchange` returning `"hybrid-ml-kem-1024-x25519"`, which is not
+    /// a key in `parse_str` and disagreed with the typed selector's
+    /// `HybridMlKem1024Aes256Gcm`. Exhaustively walking every `UseCase`
+    /// closes the cross-product gap that per-axis tests don't catch.
+    #[test]
+    fn test_recommend_scheme_string_and_typed_paths_agree_for_every_use_case() -> Result<()> {
+        use crate::unified_api::crypto_types::EncryptionScheme;
+        const ENCRYPTION_USE_CASES: &[UseCase] = &[
+            UseCase::SecureMessaging,
+            UseCase::EmailEncryption,
+            UseCase::VpnTunnel,
+            UseCase::ApiSecurity,
+            UseCase::FileStorage,
+            UseCase::DatabaseEncryption,
+            UseCase::CloudStorage,
+            UseCase::BackupArchive,
+            UseCase::ConfigSecrets,
+            UseCase::SessionToken,
+            UseCase::KeyExchange,
+            UseCase::HealthcareRecords,
+            UseCase::GovernmentClassified,
+            UseCase::PaymentCard,
+            UseCase::IoTDevice,
+            UseCase::AuditLog,
+        ];
+        let config = CoreConfig::default();
+        for uc in ENCRYPTION_USE_CASES {
+            let string_form = CryptoPolicyEngine::recommend_scheme(uc, &config)?;
+            let parsed = EncryptionScheme::parse_str(&string_form).ok_or_else(|| {
+                TypeError::UnknownScheme(format!(
+                    "recommend_scheme({:?}) returned {:?}, which is not parseable by \
+                     EncryptionScheme::parse_str — string-API and typed-API diverged",
+                    uc, string_form
+                ))
+            })?;
+            let typed = CryptoPolicyEngine::recommend_encryption_scheme(uc, &config)?;
+            assert_eq!(
+                parsed, typed,
+                "recommend_scheme({:?}) parsed to {:?} but recommend_encryption_scheme returned {:?}",
+                uc, parsed, typed
+            );
+        }
         Ok(())
     }
 

@@ -210,18 +210,25 @@ negative_test_suite!(
     num_coeffs: 1024
 );
 
-/// Verify that an all-zeros encapsulation key is rejected (all coefficients are 0,
-/// which is technically valid, but the rho portion would be all-zero, which
-/// generates degenerate matrix A). This tests edge case handling.
+/// Verify the documented behaviour of an all-zeros encapsulation key.
+///
+/// All-zero bytes ByteEncode12-decode to all-zero coefficients in `Z_q`. Per
+/// FIPS 203 §6.2 the modulus check requires every coefficient to be strictly
+/// less than `q = 3329` — `0 < q` holds, so the parse MUST succeed. The key
+/// is cryptographically useless (the SHAKE-derived matrix `A` is degenerate
+/// because `rho = 0x00..00`) but it is structurally a well-formed `EncapsKey`,
+/// and a correct FIPS 203 implementation has no grounds to reject it at the
+/// deserialization layer.
 #[test]
-fn test_all_zero_key_roundtrip() {
-    // An all-zeros key has all coefficients = 0 (valid) and rho = 0x00..00
-    // Whether fips203 accepts or rejects this is implementation-defined,
-    // but it should NOT panic.
+fn test_all_zero_key_parses_per_fips203_modulus_check() {
     let zero_key = [0u8; 1184]; // ML-KEM-768 EK_LEN
     let result = fips203::ml_kem_768::EncapsKey::try_from_bytes(zero_key);
-    // Just verify no panic — the result can be Some or None
-    let _ = result;
+    assert!(
+        result.is_ok(),
+        "FIPS 203 §6.2 modulus check accepts all-zero coefficients (0 < q=3329); \
+         parse must succeed even though the resulting key has a degenerate matrix A \
+         derived from rho = 0x00..00"
+    );
 }
 
 /// Verify that corrupting just the rho (last 32 bytes) still produces a

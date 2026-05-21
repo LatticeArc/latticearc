@@ -227,36 +227,20 @@ opt-level = 3
 debug = false
 strip = true
 overflow-checks = true  # Enable for crypto safety
-debug-assertions = true  # See note below — coupled to the FIPS integrity test.
-incremental = false     # Reproducible builds
-
-# originally proposed turning `debug-assertions` off in
-# `release` and moving it to a separate `release-validation` profile,
-# on the (audit-flagged) reasoning that downstream `cargo install`
-# consumers shouldn't carry debug-assertion overhead. That was
-# reverted in the same round because the FIPS power-up integrity
-# test (`primitives/self_test.rs::integrity_test`) uses
-# `cfg(debug_assertions)` to gate development-vs-production
-# behaviour: with `debug-assertions = false`, every release build
-# without a configured `PRODUCTION_HMAC.txt` aborts via
-# `process::abort` on first cryptographic operation.
+# `debug-assertions = false` matches `panic = "abort"`: production release
+# builds run zero panic-path code, including `debug_assert!`. The two
+# production `debug_assert!` sites (`types/domains.rs`,
+# `primitives/kem/ml_kem.rs`) both follow up with an explicit release-mode
+# error return, so disabling debug assertions does not turn a previously
+# checked invariant into a silent UB path.
 #
-# The structural fix is to decouple the integrity-test gate from the
-# `cfg(debug_assertions)` predicate (e.g., a feature flag like
-# `fips-strict-integrity`) and only THEN flip `debug-assertions` off
-# in release. Until that decoupling lands, this profile keeps both
-# values aligned with what the integrity test expects.
-
-[profile.release-strict]
-# FIPS 140-3 §7.10 deployment profile: `debug-assertions = false`
-# flips `primitives::self_test::integrity_test` from its dev-stub
-# posture (warn + Ok(()) when PRODUCTION_HMAC.txt is absent) to the
-# strict posture (`process::abort()` on first crypto call). Pair
-# with a provisioned `PRODUCTION_HMAC.txt` per the deployment runbook
-# in SECURITY.md "FIPS Power-Up Integrity Test — Known Profile Coupling".
-# Identical to `[profile.release]` apart from the debug-assertions flip.
-inherits = "release"
+# The FIPS power-up integrity test is no longer coupled to this flag —
+# `primitives::self_test::integrity_test` is gated by the
+# `fips-strict-integrity` Cargo feature (transitively enabled by
+# `--features fips`). See SECURITY.md "FIPS Power-Up Integrity Test —
+# Feature Gate" for the deployment runbook.
 debug-assertions = false
+incremental = false     # Reproducible builds
 
 [profile.valgrind]
 inherits = "release"
