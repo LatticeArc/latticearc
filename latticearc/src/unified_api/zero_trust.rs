@@ -93,6 +93,7 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
+use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN;
 use crate::types::traits::{
     ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
 };
@@ -617,8 +618,24 @@ pub struct ZeroTrustAuth {
 /// `(pk || sig || ts_micros)` entries and a per-PK count alongside.
 /// The two maps are mutated together under the surrounding `Mutex` so
 /// the per-PK count is always exact, never a stale approximation.
-#[derive(Default)]
+///
+/// `pk_len` is fixed at construction (currently
+/// [`ED25519_PUBLIC_KEY_LEN`]) and is the authoritative length of the
+/// public-key prefix in every entry key. Mixing entries with different
+/// PK lengths would break the inverse-of-insert assumption in
+/// `expire_older_than` (the prefix slice would misidentify which entry
+/// belongs to which PK), silently leak per-PK quota state, and degrade
+/// the M2 fail-closed replay invariant. The `pk_len` field plus the
+/// debug-assert in [`Self::insert`] enforce uniformity at the
+/// API boundary so a future PoP type with a different PK length cannot
+/// silently coexist with the current one — adding such a type must
+/// either create a separate cache instance or extend the entry-key
+/// encoding to disambiguate.
 struct PopReplayCache {
+    /// Authoritative public-key prefix length. Set once at
+    /// construction; every `insert` debug-asserts that the supplied
+    /// `pk_bytes` length matches this value.
+    pk_len: usize,
     /// Full keys (PK || sig || ts_micros) → insertion timestamp (seconds).
     entries: std::collections::HashMap<Vec<u8>, i64>,
     /// Public-key bytes → count of `entries` belonging to that PK.
@@ -627,10 +644,26 @@ struct PopReplayCache {
 }
 
 impl PopReplayCache {
+    /// Construct an empty cache for entries whose PK prefix is exactly
+    /// `pk_len` bytes. Today the only caller passes
+    /// [`ED25519_PUBLIC_KEY_LEN`]; if a future PoP type uses a
+    /// different PK length, give it its own `PopReplayCache` rather
+    /// than mixing prefixes here.
+    fn new(pk_len: usize) -> Self {
+        Self {
+            pk_len,
+            entries: std::collections::HashMap::new(),
+            per_pk_counts: std::collections::HashMap::new(),
+        }
+    }
+
     /// Remove entries older than `max_age_secs` and update per-PK counts
-    /// to match. The leading `pk_len` bytes of every entry key are the
-    /// public-key bytes; this is the inverse of how `insert` builds the key.
-    fn expire_older_than(&mut self, now_secs: i64, max_age_secs: i64, pk_len: usize) {
+    /// to match. The leading `self.pk_len` bytes of every entry key are
+    /// the public-key bytes; this is the inverse of how `insert` builds
+    /// the key, and is only well-defined because `insert` debug-asserts
+    /// every inserted `pk_bytes` matches `self.pk_len`.
+    fn expire_older_than(&mut self, now_secs: i64, max_age_secs: i64) {
+        let pk_len = self.pk_len;
         let entries = &mut self.entries;
         let per_pk = &mut self.per_pk_counts;
         entries.retain(|key, ts| {
@@ -661,6 +694,20 @@ impl PopReplayCache {
     }
 
     fn insert(&mut self, pk_bytes: &[u8], full_key: Vec<u8>, ts_secs: i64) {
+        // Guards the `pk_len` uniformity invariant the rest of this
+        // type relies on. A mismatch here means the caller mixed PoP
+        // types into one cache; the per-PK count would key off a
+        // wrong-length prefix and `expire_older_than` would never
+        // decrement it, silently leaking quota. Dev/CI surface only —
+        // production stays branch-free in the hot path.
+        debug_assert_eq!(
+            pk_bytes.len(),
+            self.pk_len,
+            "PopReplayCache: pk_bytes.len()={} does not match cache pk_len={}; \
+             mixing PoP key types in one cache silently breaks per-PK quota tracking",
+            pk_bytes.len(),
+            self.pk_len,
+        );
         if self.entries.insert(full_key, ts_secs).is_none() {
             let slot = self.per_pk_counts.entry(pk_bytes.to_vec()).or_insert(0);
             *slot = slot.saturating_add(1);
@@ -689,7 +736,7 @@ impl ZeroTrustAuth {
             // `None` until the first successful proof verification —
             // see field doc.
             last_verification: Mutex::new(None),
-            pop_replay_cache: Mutex::new(PopReplayCache::default()),
+            pop_replay_cache: Mutex::new(PopReplayCache::new(ED25519_PUBLIC_KEY_LEN)),
         })
     }
 
@@ -716,7 +763,7 @@ impl ZeroTrustAuth {
             config,
             session_start: now,
             last_verification: Mutex::new(None),
-            pop_replay_cache: Mutex::new(PopReplayCache::default()),
+            pop_replay_cache: Mutex::new(PopReplayCache::new(ED25519_PUBLIC_KEY_LEN)),
         })
     }
 
@@ -1011,9 +1058,14 @@ impl ProofOfPossession for ZeroTrustAuth {
             let pk_bytes = pop.public_key().as_slice();
             let pk_len = pk_bytes.len();
             // Evict expired entries opportunistically; per-PK counts are
-            // decremented in lockstep so they stay exact.
+            // decremented in lockstep so they stay exact. `pk_len` is
+            // owned by the cache (locked at construction) so this call
+            // no longer carries it as a parameter — the previous shape
+            // accepted any pk_len per-call and would silently produce a
+            // wrong-length prefix slice if a future PoP type had a
+            // different PK length than the cache was built for.
             let now_secs = Utc::now().timestamp();
-            cache.expire_older_than(now_secs, PROOF_OF_POSSESSION_MAX_AGE_SECS, pk_len);
+            cache.expire_older_than(now_secs, PROOF_OF_POSSESSION_MAX_AGE_SECS);
             // Cache key combines PK + signature + microsecond timestamp;
             // collisions require either a cryptographic break or a
             // deliberate replay (the latter is what we're rejecting here).

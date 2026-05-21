@@ -9,6 +9,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (audit-round-7 latent-finding sweep, 4 findings)
+
+- **N-NEW-1 — `PopReplayCache::expire_older_than` assumed uniform PK
+  length, documented but unenforced.** Cache built via `Default`,
+  `pk_len` accepted as a per-call parameter from caller-supplied bytes.
+  Today every PoP is Ed25519 (32-byte PK), so the assumption holds; a
+  future PoP type with a different PK length added without scoping the
+  cache would have caused `expire_older_than` to slice the wrong prefix
+  out of mixed-length entry keys, leaving the per-PK counter map keyed
+  off truncated/wrong bytes — entries would never get decremented,
+  per-PK quota would silently leak, and the M2 fail-closed replay
+  invariant would degrade. Now `pk_len` is a field of `PopReplayCache`
+  set once at construction via `PopReplayCache::new(pk_len)`; the two
+  `ZeroTrustAuth` constructors both pass `ED25519_PUBLIC_KEY_LEN`,
+  pinning the cache to the only PoP type the unified API verifies
+  today. `expire_older_than` no longer accepts `pk_len` as a parameter
+  (it reads `self.pk_len`), and `insert` `debug_assert_eq!`s
+  `pk_bytes.len() == self.pk_len` so any future mixed-PK-length
+  introduction trips in dev/CI before it can ship. Production release
+  builds stay branch-free in the hot path (debug_assert is compiled
+  out). Adding a new PoP key type now requires either constructing a
+  second `PopReplayCache` or extending the entry-key encoding to
+  carry a per-entry length / discriminant — silent coexistence is
+  no longer possible.
+
+- **R9-I1 — `secret_type_audit.sh` I-1 regex missed path-qualified
+  `impl zeroize::Zeroize for X`.** The per-struct Zeroize-impl probe
+  required the trait name to immediately follow `impl[<generics>]`
+  with no path prefix. The codebase universally uses
+  `use zeroize::{Zeroize, ZeroizeOnDrop};` + bare-trait syntax so no
+  current struct false-positived, but a future contributor writing
+  the path-qualified form without `#[derive(Zeroize)]` or a wrapper
+  field would be falsely flagged. Trait alternation now accepts an
+  optional `(zeroize::)?` prefix.
+
+- **R9-I2 — I-4 awk impl-block walker assumed bodied impls span
+  multiple lines.** The opener-detection branch and the body-scan
+  branch were mutually exclusive on the same iteration: a
+  hypothetical single-line `impl Foo { fn expose_secret(...) }`
+  would set `in_impl = 1` on its opener line but never get scanned
+  for `expose_*secret` until the next line, leaving the body content
+  silently invisible. rustfmt never produces single-line impls with
+  bodied methods, so the gap is unreachable for normal contributions;
+  the walker now scans the same line it opens on, with explicit
+  comments noting the rustfmt-multi-line assumption and why the
+  `^}` close detector cannot accidentally fire on an opener line.
+
+- **R9-I3 — I-2 `assert_not_impl_any!` fallback grep excluded the
+  top-level `tests/` workspace member.** The grep searched
+  `latticearc/tests latticearc/src` only; the workspace
+  (`Cargo.toml: "tests"`) has a separate top-level `tests/` member
+  with `tests/src/`, `tests/tests/`, and `tests/examples/`
+  subdirectories. No I-2 assertions live there today (canonical
+  location remains `latticearc/tests/no_partial_eq_on_secret_types.rs`),
+  but if a future contributor relocated or duplicated the assertion
+  file into the top-level tests crate, the gate would have silently
+  bypassed I-2 for the matching struct — a *false-negative* class of
+  regression, the worse kind. Search path now includes `tests`; the
+  inline comment pins the canonical location and explains why the
+  broader search is defensive rather than authoritative.
+
 ### Fixed (audit-round-7 follow-ups)
 
 - **M-NEW-1 — `scripts/ci/secret_type_audit.sh` replicated the file-wide

@@ -301,8 +301,14 @@ while IFS= read -r file; do
         # I-2: ConstantTimeEq impl present OR I-6 equality-forbidden assertion
         # exists (no `==` operator means no timing channel to protect).
         if ! grep -qE "^impl[^{]*\bConstantTimeEq\b[^{]*for[[:space:]]+${name}\b" "$file"; then
+            # R9-I3: include the top-level `tests/` workspace member
+            # (`Cargo.toml: "tests"`) so an assertion placed in
+            # `tests/src/` or `tests/tests/` is still found. Canonical
+            # location remains `latticearc/tests/no_partial_eq_on_secret_types.rs`,
+            # but if a future contributor relocates the file, the gate
+            # must not silently bypass I-2.
             if ! grep -rqE "assert_not_impl_any!\(${name}([[:space:]]*<[^>]*>)?[[:space:]]*:[[:space:]]*PartialEq" \
-                latticearc/tests latticearc/src 2>/dev/null; then
+                latticearc/tests latticearc/src tests 2>/dev/null; then
                 echo "$file:$line_no :: $name :: I-2 violated — no impl ConstantTimeEq and no assert_not_impl_any!(…: PartialEq) anywhere" >> "$DETAIL"
                 VIOLATIONS=$((VIOLATIONS + 1))
             fi
@@ -323,8 +329,13 @@ while IFS= read -r file; do
         if echo "$attr_block" | grep -qE '#\[derive\([^)]*\b(Zeroize|ZeroizeOnDrop)\b[^)]*\)\]'; then
             has_zeroize=1
         fi
+        # R9-I1: accept both bare `impl Zeroize for X` (the codebase
+        # convention, established via `use zeroize::Zeroize;`) AND the
+        # path-qualified `impl zeroize::Zeroize for X`. A contributor
+        # writing the path-qualified form without `#[derive(Zeroize)]`
+        # or a wrapper field was previously falsely flagged.
         if [ "$has_zeroize" = "0" ] \
-            && grep -qE "^impl([[:space:]]*<[^>]*>)?[[:space:]]+(Zeroize|ZeroizeOnDrop)([[:space:]]*<[^>]*>)?[[:space:]]+for[[:space:]]+${name}\b" "$file"; then
+            && grep -qE "^impl([[:space:]]*<[^>]*>)?[[:space:]]+(zeroize::)?(Zeroize|ZeroizeOnDrop)([[:space:]]*<[^>]*>)?[[:space:]]+for[[:space:]]+${name}\b" "$file"; then
             has_zeroize=1
         fi
         if [ "$has_zeroize" = "0" ]; then
@@ -367,19 +378,29 @@ while IFS= read -r file; do
                     }
                     BEGIN { in_impl = 0; found = 0 }
                     {
-                        if (in_impl == 0) {
-                            if ($0 ~ /^impl[[:space:]<]/ && impl_target($0) == name) {
-                                in_impl = 1
-                            }
-                        } else {
-                            if ($0 ~ /^\}[[:space:]]*$/) {
-                                in_impl = 0
-                            } else if ($0 ~ /fn[[:space:]]+expose_[a-z_]*secret([^A-Za-z0-9_]|$)/) {
+                        # Opener detection runs before body/close checks so a
+                        # hypothetical single-line `impl Foo { fn
+                        # expose_secret(...) }` (R9-I2) is scanned on its own
+                        # line, not skipped. rustfmt reflows such lines into
+                        # multi-line bodies in practice, so the in-the-wild
+                        # behavior is unchanged.
+                        if (in_impl == 0 && $0 ~ /^impl[[:space:]<]/ && impl_target($0) == name) {
+                            in_impl = 1
+                        }
+                        if (in_impl == 1) {
+                            if ($0 ~ /fn[[:space:]]+expose_[a-z_]*secret([^A-Za-z0-9_]|$)/) {
                                 # POSIX awk has no `\b`; use explicit
                                 # non-identifier terminator so `expose_secret(`
                                 # and `expose_secret <` both match while
                                 # `expose_secretly` (hypothetical) would not.
                                 found = 1
+                            }
+                            # The opener line starts with `impl`, so `^}`
+                            # cannot match it; close detection only fires
+                            # on a subsequent line whose first char is `}`
+                            # at column 0 (rustfmt convention).
+                            if ($0 ~ /^\}[[:space:]]*$/) {
+                                in_impl = 0
                             }
                         }
                     }
