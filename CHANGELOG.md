@@ -9,6 +9,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (audit-round-7 follow-ups)
+
+- **M-NEW-1 — `scripts/ci/secret_type_audit.sh` replicated the file-wide
+  grep anti-pattern for I-1 and I-4.** The Zeroize-coverage check and
+  the sealed-accessor check both used `grep -qE … "$file"`, identical
+  in shape to the M5 bug that round-6 had just fixed. A file containing
+  any Zeroize-related text — a `use zeroize::Zeroize;` import, a doc
+  reference, or one struct's `#[derive(Zeroize)]` — silently passed
+  every other struct in the same file through I-1 without a per-body
+  check; an `expose_secret` accessor on any struct in the file did the
+  same for I-4. Both checks are now per-struct: I-1 inspects the 10-line
+  attribute block above the struct for a `#[derive(...Zeroize...)]` or
+  `#[derive(...ZeroizeOnDrop...)]`, then falls back to an
+  `impl (Zeroize|ZeroizeOnDrop) for ${name}` match scoped to the
+  specific struct, then to transitive composition via a known
+  secret-wrapping field type. I-4 uses an awk walk that opens `impl`
+  blocks whose target type is the struct under audit (inherent
+  `impl NAME { ... }` or trait `impl TRAIT for NAME { ... }`) and only
+  accepts an `expose_[a-z_]*secret` method declared *inside* that impl.
+  POSIX-awk-portable: the previous draft used `\b` (not in POSIX ERE);
+  this revision uses an explicit `([^A-Za-z0-9_]|$)` terminator so the
+  match works on both Linux gawk and macOS bsd awk. The known
+  secret-wrapping field list (`SECRET_WRAPPERS_RE`) was extended to
+  include `MlKemSecretKey` (explicit `impl Zeroize` + `impl ZeroizeOnDrop`
+  at `latticearc/src/primitives/kem/ml_kem.rs:641`), `EphemeralPrivateKey`
+  (aws-lc-rs Drop handles zeroization for the X25519 and ECDH P-256/384/521
+  KeyPair types), and `DecapsulationKey` (aws-lc-rs Drop handles
+  zeroization for `MlKemDecapsulationKeyPair`); each addition is
+  documented inline with the corresponding zeroization rationale.
+  `HybridKemSecretKey` was added to `EXEMPT_NAMES` with a comment
+  explaining that its sealed accessor (`ml_kem_sk_bytes()` /
+  `ecdh_seed_bytes()` returning `Zeroizing<…>`) satisfies the I-4
+  invariant in substance but uses the underlying aws-lc-rs naming
+  convention rather than `expose_*secret`.
+
+- **M-NEW-1 regression guard — `--self-test` mode added.** The script
+  now accepts a `--self-test` flag that plants two synthetic
+  file-wide-grep reproducers (one for I-1 and one for I-4) in a scratch
+  directory, recurses into itself with `LATTICEARC_AUDIT_SCAN_DIR`
+  pointing at the scratch dir, and asserts that the audit (a) exits
+  non-zero and (b) reports the planted structs by name under the
+  expected invariant. If a future change ever regresses either check to
+  file-wide grep, the self-test fails before the live-tree audit runs.
+
+- **L-NEW-1 — `scripts/ci/secret_type_audit.sh` was unwired.** Round-6
+  added the script but did not invoke it from any CI workflow,
+  pre-commit hook, or Makefile target, leaving the doc claim at
+  `docs/SECRET_TYPE_INVARIANTS.md:182` (described it as a "live CI gate
+  enforcing four invariants") unbacked. A new `secret-type-invariants`
+  job has been added to `.github/workflows/security.yml`. The job runs
+  `--self-test` first (M-NEW-1 regression guard), then the live-tree
+  audit. The job is listed in the security-report aggregation so its
+  status appears in the GitHub step summary alongside the existing
+  scans. The summary-generation and overall-status steps were
+  refactored to read the `needs.*.result` values via the job-level
+  `env:` block instead of inlining `${{ … }}` substitutions inside
+  `run:` scripts; this matches the GitHub Actions workflow-injection
+  guidance even though `needs.*.result` is an internal value and not
+  attacker-controlled.
+
+- **`docs/SECRET_TYPE_INVARIANTS.md`** updated to reflect the per-struct
+  semantics, the extended wrapper list, the M-NEW-1 fix history note,
+  and the regression-guard self-test wired into CI.
+
 ### Fixed (audit-round-6 follow-ups, 10-finding sweep)
 
 - **M4 — `scripts/ci-local.sh` audit step always reported success.** Line

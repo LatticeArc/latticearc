@@ -225,33 +225,63 @@ jobs:
         path: dependency_tree.txt
         retention-days: 30
 
+  secret-type-invariants:
+    name: Secret-Type Invariants
+    runs-on: ubuntu-latest
+    # No Rust toolchain needed — pure bash/awk/grep gate over source text.
+    # Documented at docs/SECRET_TYPE_INVARIANTS.md; previously documented
+    # as a CI gate but unwired (audit finding L-NEW-1).
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Self-test the audit (M-NEW-1 regression guard)
+      # Plant synthetic I-1 and I-4 file-wide-grep reproducers and confirm
+      # the gate catches them. If the gate ever regresses to file-wide
+      # grep, this step fails before the live audit runs.
+      run: bash scripts/ci/secret_type_audit.sh --self-test
+
+    - name: Audit live source tree
+      run: bash scripts/ci/secret_type_audit.sh
+
   security-report:
     name: Security Report
     runs-on: ubuntu-latest
-    needs: [security-audit, clippy-security, memory-safety, side-channel-analysis, cryptographic-tests, dependency-scan]
+    needs: [security-audit, clippy-security, memory-safety, side-channel-analysis, cryptographic-tests, dependency-scan, secret-type-invariants]
     if: always()
+    env:
+      SECURITY_AUDIT_RESULT: ${{ needs.security-audit.result }}
+      CLIPPY_SECURITY_RESULT: ${{ needs.clippy-security.result }}
+      MEMORY_SAFETY_RESULT: ${{ needs.memory-safety.result }}
+      SIDE_CHANNEL_RESULT: ${{ needs.side-channel-analysis.result }}
+      CRYPTO_TESTS_RESULT: ${{ needs.cryptographic-tests.result }}
+      DEPENDENCY_SCAN_RESULT: ${{ needs.dependency-scan.result }}
+      SECRET_TYPE_RESULT: ${{ needs.secret-type-invariants.result }}
     steps:
     - name: Generate security summary
       run: |
-        echo "# Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Security Audit | ${{ needs.security-audit.result }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Clippy Security | ${{ needs.clippy-security.result }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Memory Safety | ${{ needs.memory-safety.result }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Side Channel Analysis | ${{ needs.side-channel-analysis.result }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Cryptographic Tests | ${{ needs.cryptographic-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+        {
+          echo "# Security Scan Summary"
+          echo ""
+          echo "| Check | Status |"
+          echo "|-------|--------|"
+          echo "| Security Audit | $SECURITY_AUDIT_RESULT |"
+          echo "| Clippy Security | $CLIPPY_SECURITY_RESULT |"
+          echo "| Memory Safety | $MEMORY_SAFETY_RESULT |"
+          echo "| Side Channel Analysis | $SIDE_CHANNEL_RESULT |"
+          echo "| Cryptographic Tests | $CRYPTO_TESTS_RESULT |"
+          echo "| Dependency Scan | $DEPENDENCY_SCAN_RESULT |"
+          echo "| Secret-Type Invariants | $SECRET_TYPE_RESULT |"
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Check overall status
       run: |
-        if [[ "${{ needs.security-audit.result }}" == "failure" || \
-              "${{ needs.clippy-security.result }}" == "failure" || \
-              "${{ needs.memory-safety.result }}" == "failure" || \
-              "${{ needs.side-channel-analysis.result }}" == "failure" || \
-              "${{ needs.cryptographic-tests.result }}" == "failure" || \
-              "${{ needs.dependency-scan.result }}" == "failure" ]]; then
+        if [[ "$SECURITY_AUDIT_RESULT" == "failure" || \
+              "$CLIPPY_SECURITY_RESULT" == "failure" || \
+              "$MEMORY_SAFETY_RESULT" == "failure" || \
+              "$SIDE_CHANNEL_RESULT" == "failure" || \
+              "$CRYPTO_TESTS_RESULT" == "failure" || \
+              "$DEPENDENCY_SCAN_RESULT" == "failure" || \
+              "$SECRET_TYPE_RESULT" == "failure" ]]; then
           echo "❌ Security scan failed!"
           exit 1
         else
