@@ -9,6 +9,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (audit-round-6 follow-ups, 10-finding sweep)
+
+- **M4 — `scripts/ci-local.sh` audit step always reported success.** Line
+  66 invoked `cargo audit --deny warnings 2>&1 || true` inside an `eval`'d
+  command string, so the outer `run_check` saw exit 0 regardless of how
+  many advisories were present. The local pre-push helper has been lying
+  about advisory status since the `|| true` was added. Suffix dropped;
+  audit failures now block the local check the same way the adjacent
+  `cargo deny check all` already did.
+- **M5 — `resource_limits_coverage.sh` exempted every `pub fn` in a file
+  with any validator call.** The validator-presence check was a
+  file-level grep: once any function in a file referenced
+  `validate_encryption_size` (etc.), every other `pub fn …&[u8]` added to
+  the same file passed the gate without its own body being checked. Now
+  each function body is extracted individually (top-level `^}` delimited)
+  and checked in isolation. The 45 convenience wrappers that delegate to
+  validating `*_internal` siblings are explicitly listed in the coverage
+  doc so the inverse-grep escape hatch carries the rationale instead of
+  silently relying on a sibling's call.
+- **M6 — mutation-score gate exited 0 when `TOTAL == 0`.** The composite
+  action at `.github/actions/mutation-score-gate/action.yml:47-50`
+  printed `⚠️ No viable mutants produced.` and returned exit 0, so any
+  broken harness, malformed `outcomes.json`, or filter excluding every
+  candidate silently passed the PR gate. Now exits 1 with the
+  per-bucket counts in the step summary; a zero-mutant run cannot
+  demonstrate a score above the floor and must not pretend otherwise.
+- **L8 — documented `scripts/ci/secret_type_audit.sh` did not exist.**
+  `docs/SECRET_TYPE_INVARIANTS.md:182` described the script as a live CI
+  gate enforcing four invariants (Zeroize, ConstantTimeEq, manual Debug,
+  `expose_secret`), but only the I-6 partner test
+  (`tests/no_partial_eq_on_secret_types.rs`) was actually enforcing
+  anything. The enforcer is now present and active: for each struct
+  whose name matches `(Secret|Private|Signing|Keypair|KeyPair)` it
+  asserts I-1 through I-4. I-1 accepts transitive composition via
+  known secret-wrapping fields; I-2 is satisfied vacuously when a
+  corresponding `assert_not_impl_any!` forbids `==` entirely; I-4
+  accepts `expose_*_secret` for multi-secret hybrid types. 23 secret
+  types currently audited, zero violations. Doc updated to match.
+- **L9 — `hooks/pre-commit:28` interpolated filenames into a regex
+  pattern.** `grep -q "^$file$"` matched against unquoted, regex-active
+  filename text; a path containing `.`, `*`, `[`, or `(` could match
+  more than the literal filename. Replaced with `grep -Fxq -- "$file"`
+  (fixed-string, exact-line, end-of-flags marker).
+- **L10 — `hooks/pre-commit` wrote test output to a fixed path.**
+  `TEST_LOG="${LATTICEARC_HOOK_TMPDIR:-/tmp}/pre-commit-test-output.log"`
+  used a predictable name in a shared directory; two concurrent commits
+  raced on the same file, and a planted symlink at that path could
+  redirect 100 MB of cargo output anywhere readable by the hook user.
+  Now constructed via `mktemp` for a per-run unique path; preserved on
+  failure for diagnostic value, removed on success via an EXIT trap.
+- **I1 — `hooks/pre-commit` ran without `-uo pipefail`.** `set -e`
+  alone silently swallowed pipeline failures (mid-pipe non-zero
+  exits) and treated typo'd variable references as empty strings.
+  `set -euo pipefail` now applies. Two reporting-only pipelines
+  needed the `|| true` guard the script already used for
+  `TEST_FAILED`, `REAL_FAILURES`, `DEAD_CODE_HITS`, and
+  `FUZZ_CHANGED`: `print_split_counts` pairs `printf` with `head -n
+  N` (which sends SIGPIPE upstream once it has its lines), and
+  `TARGETS=$(grep | awk | sort)` would otherwise abort the hook when
+  `grep` matches zero lines. Partial or empty output is not a
+  hook-blocking condition for those reporting paths.
+- **I2 — parent-directory fsync result silently discarded.**
+  `unified_api::atomic_write.rs` opened the parent directory and called
+  `sync_all()`, but the documented durability claim ("the rename is
+  durable across a power-loss event") depended on a fsync the code threw
+  away with `let _ = …`. A real EIO or EACCES would leave the caller
+  believing the write was durable when it was not. The result is now
+  propagated as `CoreError::Internal`; only the two well-known
+  "filesystem does not support directory fsync" returns
+  (`io::ErrorKind::Unsupported` for ENOTSUP, `InvalidInput` for the
+  EINVAL that tmpfs and some FUSE mounts emit) are accepted quietly,
+  matching the non-Unix branch's best-effort posture.
+- **N1 — `SKIPPED_TESTS` and the success-path KAT identifier
+  disagreed on the FN-DSA name.** `primitives::self_test.rs:297` listed
+  `"FN-DSA"` in the inhibited-tests array, while line 458 emitted
+  `"FN-DSA-512"` on the success path. A report consumer correlating by
+  the `algorithm` field saw the same KAT under two different
+  identifiers depending on whether the integrity test passed or failed.
+  Aligned both paths on `"FN-DSA-512"`.
+- **N2 — global PoP cache cap blocked legitimate verifiers when any
+  PK saturated the cache.** Audit-round-5's M2 fix correctly closed the
+  silent-replay-window hole by rejecting new PoPs at `seen.len() >=
+  POP_CACHE_MAX`, but a single noisy public key flooding 16 384
+  legitimate PoPs in five minutes locked out every other PK until the
+  freshness window elapsed. Added a per-PK quota (64) so one PK can
+  fill at most that slice of the cache; the global cap (16 384) is
+  retained as a backstop. `ZeroTrustAuth.pop_replay_cache` now holds a
+  `PopReplayCache` helper that tracks `(pk → count)` in lockstep with
+  the entries map for O(1) quota checks. A ≥ 256-distinct-PK
+  concurrent legitimate load is still required to fill the global cap;
+  a single attacker PK now affects only its own quota, not other
+  callers.
+
 ### Fixed (audit-round-5 follow-ups, 9-finding sweep)
 
 - **`sanitize_bytes` retained the brute-force-oracle fingerprint that

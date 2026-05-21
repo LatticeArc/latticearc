@@ -63,7 +63,7 @@ run_check "Docs" "RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps"
 
 # 5. Security audit
 if command -v cargo-audit &> /dev/null; then
-    run_check "Audit" "cargo audit --deny warnings 2>&1 || true"
+    run_check "Audit" "cargo audit --deny warnings"
 else
     echo -e "${YELLOW}[Audit]${NC} Skipped (cargo-audit not installed)"
 fi

@@ -108,6 +108,27 @@ Unified API — AES-GCM convenience facade (primitive layer already caps; conven
 - `convenience::aes_gcm::encrypt_aes_gcm_unverified`, `encrypt_aes_gcm_with_aad`, `encrypt_aes_gcm_with_aad_unverified`, `encrypt_aes_gcm_with_config`, `encrypt_aes_gcm_with_config_unverified`
 - `convenience::aes_gcm::decrypt_aes_gcm_unverified`, `decrypt_aes_gcm_with_aad`, `decrypt_aes_gcm_with_aad_unverified`, `decrypt_aes_gcm_with_config`, `decrypt_aes_gcm_with_config_unverified`
 
+Unified API — ML-KEM / signature / hashing convenience facades (each public
+variant is a thin wrapper around an `*_internal` function — same module, same
+file — that calls the appropriate `validate_*` helper before doing work; the
+public wrappers themselves only thread `mode.validate()?` and call the
+internal). The CI gate operates at the per-function-body level and cannot see
+through delegation, so each wrapper is listed here:
+
+- `convenience::pq_kem::encrypt_pq_ml_kem_unverified`, `encrypt_pq_ml_kem_with_config`, `encrypt_pq_ml_kem_with_config_unverified`
+- `convenience::pq_kem::decrypt_pq_ml_kem_unverified`, `decrypt_pq_ml_kem_with_config`, `decrypt_pq_ml_kem_with_config_unverified`
+- `convenience::pq_sig::sign_pq_ml_dsa`, `sign_pq_ml_dsa_unverified`, `sign_pq_ml_dsa_with_config`, `sign_pq_ml_dsa_with_config_unverified`
+- `convenience::pq_sig::verify_pq_ml_dsa`, `verify_pq_ml_dsa_unverified`, `verify_pq_ml_dsa_with_config`, `verify_pq_ml_dsa_with_config_unverified`
+- `convenience::pq_sig::sign_pq_slh_dsa`, `sign_pq_slh_dsa_unverified`, `sign_pq_slh_dsa_with_config`, `sign_pq_slh_dsa_with_config_unverified`
+- `convenience::pq_sig::verify_pq_slh_dsa`, `verify_pq_slh_dsa_unverified`, `verify_pq_slh_dsa_with_config`, `verify_pq_slh_dsa_with_config_unverified`
+- `convenience::pq_sig::sign_pq_fn_dsa`, `sign_pq_fn_dsa_unverified`, `sign_pq_fn_dsa_with_config`, `sign_pq_fn_dsa_with_config_unverified`
+- `convenience::pq_sig::verify_pq_fn_dsa`, `verify_pq_fn_dsa_unverified`, `verify_pq_fn_dsa_with_config`, `verify_pq_fn_dsa_with_config_unverified`
+- `convenience::hybrid_sig::sign_hybrid_unverified`, `sign_hybrid_with_config`
+- `convenience::hybrid_sig::verify_hybrid_signature_unverified`, `verify_hybrid_signature_with_config`
+- `convenience::hashing::derive_key_unverified`, `derive_key_with_config`, `derive_key_with_config_unverified`, `derive_key_with_info`, `derive_key_with_info_unverified`
+- `convenience::hashing::hmac_unverified`, `hmac_with_config`, `hmac_with_config_unverified`
+- `convenience::hashing::hmac_check_unverified`, `hmac_check_with_config`, `hmac_check_with_config_unverified`
+
 Unified API — Ed25519 convenience facade:
 
 - `convenience::ed25519::sign_ed25519_unverified`, `sign_ed25519_with_config`, `sign_ed25519_with_config_unverified`

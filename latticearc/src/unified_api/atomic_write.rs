@@ -298,10 +298,35 @@ impl<'a> AtomicWrite<'a> {
         // the file inode but before the rename, leaving the file
         // unrecoverable. Best-effort on non-Unix platforms (Windows
         // doesn't expose a parent-fsync primitive in the same way).
+        //
+        // Failures here are surfaced as `CoreError::Internal` rather than
+        // swallowed: a caller that asked for a durable atomic write must
+        // be told if the durability part could not be guaranteed. The two
+        // accepted-quietly cases are filesystems that fundamentally do
+        // not implement directory fsync — `Unsupported` (ENOTSUP, returned
+        // by some FUSE mounts) and `InvalidInput` (EINVAL, returned by
+        // tmpfs). On those filesystems the kernel cannot offer the
+        // guarantee and there is nothing the caller can do; the rename
+        // itself has already succeeded, matching the non-Unix branch.
         #[cfg(unix)]
         {
-            if let Ok(dir) = std::fs::File::open(parent) {
-                let _ = dir.sync_all();
+            let dir = std::fs::File::open(parent).map_err(|e| {
+                CoreError::Internal(format!(
+                    "atomic_write parent fsync: open({}) failed: {e}",
+                    parent.display()
+                ))
+            })?;
+            if let Err(e) = dir.sync_all() {
+                let acceptable = matches!(
+                    e.kind(),
+                    std::io::ErrorKind::Unsupported | std::io::ErrorKind::InvalidInput
+                );
+                if !acceptable {
+                    return Err(CoreError::Internal(format!(
+                        "atomic_write parent fsync({}) failed: {e}",
+                        parent.display()
+                    )));
+                }
             }
         }
 

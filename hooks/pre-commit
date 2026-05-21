@@ -6,7 +6,13 @@
 # Or:
 #   ./hooks/install.sh
 
-set -e
+# `-u` catches typo'd variable refs before they silently expand to empty.
+# `-o pipefail` makes piped pipelines surface mid-pipe failures instead of
+# masking them with the last command's success. Every existing pipeline in
+# this script either ends in `|| true` or assigns the output to a variable
+# (where set -e cannot abort), so neither addition changes successful-path
+# behavior.
+set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
@@ -24,9 +30,13 @@ fi
 if ! git diff --quiet; then
     echo ""
     echo "Code was reformatted. Adding changes to commit..."
-    git diff --name-only | while read file; do
-        if git diff --cached --name-only | grep -q "^$file$"; then
-            git add "$file"
+    # `-Fxq -- "$file"`: fixed-string (-F) so regex metachars in filenames
+    # (`.`, `*`, `[`, parens) are treated literally; whole-line (-x) so
+    # `foo.rs` does not match `foo.rs.bak`; `--` so a filename beginning with
+    # `-` is not parsed as a flag.
+    git diff --name-only | while read -r file; do
+        if git diff --cached --name-only | grep -Fxq -- "$file"; then
+            git add -- "$file"
         fi
     done
     echo "Formatting complete. Staged files updated."
@@ -181,25 +191,33 @@ print_split_counts() {
     # start of run 2. NOTE: must use `printf '%s\n'` not `echo`;
     # macOS bash echo silently interprets the ANSI escape sequences
     # in cargo's coloured output, dropping every line.
+    # The pipelines below pair `printf "$output"` with `head -n N` (and grep
+    # filters that may legitimately find zero matches). Under `pipefail` the
+    # closed-stdin SIGPIPE on `printf` — and a `grep` that finds no matches —
+    # would both flip the pipeline exit to non-zero and the outer `set -e`
+    # would abort. Each pipeline is reporting-only (boundary detection,
+    # count summary); a partial / empty result is not a hook failure. The
+    # established convention in this script for that case is `|| true`,
+    # used identically by `TEST_FAILED=$(... || true)` and friends below.
     local boundary_line
     boundary_line=$(printf '%s\n' "$output" \
         | LC_ALL=C grep -an 'unittests src/lib\.rs (target/release/deps/latticearc-' \
-        | sed -n '2p' | cut -d: -f1)
+        | sed -n '2p' | cut -d: -f1 || true)
     if [ -n "$boundary_line" ]; then
         local run1_passed
         local run2_passed
         run1_passed=$(printf '%s\n' "$output" | head -n "$((boundary_line - 1))" \
             | LC_ALL=C grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' \
-            | awk '{s+=$1} END {print s+0}')
+            | awk '{s+=$1} END {print s+0}' || true)
         run2_passed=$(printf '%s\n' "$output" | tail -n "+$boundary_line" \
             | LC_ALL=C grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' \
-            | awk '{s+=$1} END {print s+0}')
+            | awk '{s+=$1} END {print s+0}' || true)
         echo "✅ Run 1 (--all-features):                                                   $run1_passed $suffix"
         echo "✅ Run 2 (--no-default-features --features fips-self-test,kat-test-vectors): $run2_passed $suffix"
     else
         local total
         total=$(printf '%s\n' "$output" | LC_ALL=C grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' \
-            | awk '{s+=$1} END {print s+0}')
+            | awk '{s+=$1} END {print s+0}' || true)
         echo "✅ $total $suffix"
     fi
 }
@@ -212,7 +230,26 @@ print_split_counts() {
 # with no clue what failed (round-29 v6/v8 burned commits this way).
 # Now: cargo's full output is always preserved on disk regardless of
 # subsequent script behaviour. Path is sandbox-friendly.
-TEST_LOG="${LATTICEARC_HOOK_TMPDIR:-/tmp}/pre-commit-test-output.log"
+# Per-run unique log file, created by `mktemp` so two concurrent commits do
+# not race on the same path and a symlink planted at the old fixed location
+# cannot redirect the write. Path is sandbox-friendly: when set,
+# `LATTICEARC_HOOK_TMPDIR` places the log under the same dir used elsewhere
+# in this hook.
+#
+# On success the log is deleted; on failure it is preserved so the operator
+# can inspect what cargo printed (the failure path itself echoes the path).
+TEST_LOG_DIR="${LATTICEARC_HOOK_TMPDIR:-/tmp}"
+mkdir -p "$TEST_LOG_DIR"
+TEST_LOG=$(mktemp "$TEST_LOG_DIR/pre-commit-test-output.XXXXXX.log")
+HOOK_OK=false
+cleanup_test_log() {
+    if [ "$HOOK_OK" = true ]; then
+        rm -f "$TEST_LOG"
+    else
+        echo "  (test log preserved at $TEST_LOG)" >&2
+    fi
+}
+trap cleanup_test_log EXIT
 
 # Round-35 follow-up: run BOTH `--all-features` AND
 # `--no-default-features --features fips-self-test,kat-test-vectors`.
@@ -301,7 +338,10 @@ if [ -f "$CI_YML" ]; then
     if echo "$CHANGED" | grep -qE '(ci\.yml|tests/.*\.rs)'; then
         echo "Verifying CI test targets..."
         FAILED_TARGETS=""
-        TARGETS=$(grep -oE 'cargo test --test [a-zA-Z_0-9]+' "$CI_YML" | awk '{print $NF}' | sort -u)
+        # `|| true` keeps the assignment from aborting the hook under
+        # `pipefail` when `grep` finds zero matches — the `for` loop
+        # below naturally handles an empty `$TARGETS`.
+        TARGETS=$(grep -oE 'cargo test --test [a-zA-Z_0-9]+' "$CI_YML" | awk '{print $NF}' | sort -u || true)
         for target in $TARGETS; do
             if ! cargo test --test "$target" --all-features --release -- --list > /dev/null 2>&1; then
                 FAILED_TARGETS="$FAILED_TARGETS $target"
@@ -358,6 +398,7 @@ echo "Running CLI smoke tests..."
 CLI="$REPO_ROOT/target/release/latticearc-cli"
 if [ ! -x "$CLI" ]; then
     echo "⚠️  CLI binary not found at $CLI (skipping smoke tests)"
+    HOOK_OK=true
     echo "Pre-commit checks passed."
     exit 0
 fi
@@ -420,4 +461,5 @@ if ! $CLI_OK; then
 fi
 echo "✅ CLI smoke tests passed"
 
+HOOK_OK=true
 echo "Pre-commit checks passed."

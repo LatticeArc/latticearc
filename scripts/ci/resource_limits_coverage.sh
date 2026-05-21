@@ -46,16 +46,23 @@ STALE_MISSES="${STALE}.misses"
 # doesn't silently replace the earlier cleanup.
 trap 'rm -f "$DETAIL" "$STALE" "$STALE_MISSES" "${STALE}.candidates"' EXIT
 
-# A `pub fn` with a `&[u8]` parameter.
-# Body check is permissive: the file must reference one of the validators
-# anywhere OR the function name must appear in the coverage doc.
+# Per-function body extraction.
+#
+# For each `pub fn NAME(...) ... { ... }` whose signature mentions `&[u8]`,
+# emit one record `NAME<TAB>HAS_VALIDATOR` where HAS_VALIDATOR is 1 iff that
+# function's own body calls one of the validate_* helpers. Body span is
+# delimited by Rust's top-level closing convention: `^}` at column 0. Nested
+# `{...}` inside the body (closures, if-blocks, format!()) does not match
+# `^}`, so the count stays correct for rustfmt'd code.
+#
+# A file containing some validator-aware fn no longer exempts unrelated fns
+# in the same file from the check.
 for dir in "${SCOPE[@]}"; do
   if [ ! -d "$dir" ]; then continue; fi
   while IFS= read -r file; do
-    # Extract `pub fn NAME(` lines that reference `&[u8]`.
-    while IFS= read -r fn_name; do
+    while IFS=$'\t' read -r fn_name has_validator; do
       TOTAL=$((TOTAL + 1))
-      if grep -qE 'validate_(encryption_size|decryption_size|signature_size|key_derivation_count)' "$file"; then
+      if [ "$has_validator" = "1" ]; then
         continue
       fi
       if grep -qE "\b${fn_name}\b" "$COVERAGE_DOC"; then
@@ -64,19 +71,39 @@ for dir in "${SCOPE[@]}"; do
       echo "$file :: $fn_name" >> "$DETAIL"
       VIOLATIONS=$((VIOLATIONS + 1))
     done < <(
-      # Join continuation lines so a `pub fn` signature spanning multiple
-      # lines becomes a single record, then grep for &[u8] and extract the
-      # function name. POSIX-awk only (no match() with array arg).
       awk '
-        /^pub fn / {
+        BEGIN { state = "out" }
+        state == "out" && /^pub fn / {
           sig = $0
+          # Join continuation lines until we see a body-open `{` or a `;`
+          # (trait method declaration).
           while (sig !~ /\{/ && sig !~ /;/) {
-            if ((getline line) <= 0) break
+            if ((getline line) <= 0) { sig = sig ";"; break }
             sig = sig " " line
           }
-          if (sig ~ /&\[u8\]/) print sig
+          if (sig ~ /;/) next        # forward decl, no body
+          if (sig !~ /&\[u8\]/) next # out of scope
+          name = sig
+          sub(/^pub fn +/, "", name)
+          sub(/[^A-Za-z0-9_].*/, "", name)
+          body = sig
+          state = "in"
+          next
         }
-      ' "$file" | sed -E 's/^pub fn +([A-Za-z0-9_]+).*/\1/'
+        state == "in" {
+          body = body "\n" $0
+          # `^}` at column 0 closes a top-level fn body in rustfmt output.
+          if ($0 ~ /^}/) {
+            if (body ~ /validate_(encryption_size|decryption_size|signature_size|key_derivation_count)/) {
+              print name "\t1"
+            } else {
+              print name "\t0"
+            }
+            state = "out"
+            body = ""
+          }
+        }
+      ' "$file"
     )
   done < <(find "$dir" -type f -name '*.rs' -not -path '*/tests/*')
 done

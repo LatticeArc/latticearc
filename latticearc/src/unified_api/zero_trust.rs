@@ -594,17 +594,78 @@ pub struct ZeroTrustAuth {
     /// shared between Tokio workers must compile.
     last_verification: Mutex<Option<DateTime<Utc>>>,
     /// Replay cache for proofs-of-possession.
+    ///
     /// Keyed on `pk || sig || ts_micros_be` (microsecond precision —
     /// see the M16 follow-up note in `generate_pop` for why second
     /// precision was insufficient under Ed25519's deterministic
     /// signatures). Values are the wall-clock seconds-since-epoch at
     /// which the entry was inserted (used to bound cache lifetime to
-    /// the 5-minute PoP freshness window). The cache is
-    /// opportunistically evicted on each `verify_pop` call and capped
-    /// at 16 KiB entries to bound memory under attack. `Mutex` rather
-    /// than `RefCell` so the type stays `Sync` for use across
+    /// the 5-minute PoP freshness window).
+    ///
+    /// Carries a parallel `per_pk_counts` map so the per-PK quota check
+    /// is O(1). Without it, the global cap alone would let a single
+    /// noisy public key fill the cache and lock out every other PK
+    /// (DoS against legitimate verifiers); with it, each PK is bounded
+    /// to `POP_CACHE_PER_PK_MAX` entries and other PKs proceed normally.
+    ///
+    /// `Mutex` (not `RefCell`) so the type stays `Sync` for use across
     /// async/multi-threaded callers.
-    pop_replay_cache: Mutex<std::collections::HashMap<Vec<u8>, i64>>,
+    pop_replay_cache: Mutex<PopReplayCache>,
+}
+
+/// Internal helper: a replay cache that tracks both the full
+/// `(pk || sig || ts_micros)` entries and a per-PK count alongside.
+/// The two maps are mutated together under the surrounding `Mutex` so
+/// the per-PK count is always exact, never a stale approximation.
+#[derive(Default)]
+struct PopReplayCache {
+    /// Full keys (PK || sig || ts_micros) → insertion timestamp (seconds).
+    entries: std::collections::HashMap<Vec<u8>, i64>,
+    /// Public-key bytes → count of `entries` belonging to that PK.
+    /// Maintained in lockstep with `entries`; never read independently.
+    per_pk_counts: std::collections::HashMap<Vec<u8>, usize>,
+}
+
+impl PopReplayCache {
+    /// Remove entries older than `max_age_secs` and update per-PK counts
+    /// to match. The leading `pk_len` bytes of every entry key are the
+    /// public-key bytes; this is the inverse of how `insert` builds the key.
+    fn expire_older_than(&mut self, now_secs: i64, max_age_secs: i64, pk_len: usize) {
+        let entries = &mut self.entries;
+        let per_pk = &mut self.per_pk_counts;
+        entries.retain(|key, ts| {
+            let fresh = now_secs.saturating_sub(*ts) <= max_age_secs;
+            if !fresh
+                && let Some(pk_bytes) = key.get(..pk_len)
+                && let Some(count) = per_pk.get_mut(pk_bytes)
+            {
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    per_pk.remove(pk_bytes);
+                }
+            }
+            fresh
+        });
+    }
+
+    fn contains(&self, key: &[u8]) -> bool {
+        self.entries.contains_key(key)
+    }
+
+    fn count_for_pk(&self, pk_bytes: &[u8]) -> usize {
+        self.per_pk_counts.get(pk_bytes).copied().unwrap_or(0)
+    }
+
+    fn total(&self) -> usize {
+        self.entries.len()
+    }
+
+    fn insert(&mut self, pk_bytes: &[u8], full_key: Vec<u8>, ts_secs: i64) {
+        if self.entries.insert(full_key, ts_secs).is_none() {
+            let slot = self.per_pk_counts.entry(pk_bytes.to_vec()).or_insert(0);
+            *slot = slot.saturating_add(1);
+        }
+    }
 }
 
 impl ZeroTrustAuth {
@@ -628,7 +689,7 @@ impl ZeroTrustAuth {
             // `None` until the first successful proof verification —
             // see field doc.
             last_verification: Mutex::new(None),
-            pop_replay_cache: Mutex::new(std::collections::HashMap::new()),
+            pop_replay_cache: Mutex::new(PopReplayCache::default()),
         })
     }
 
@@ -655,7 +716,7 @@ impl ZeroTrustAuth {
             config,
             session_start: now,
             last_verification: Mutex::new(None),
-            pop_replay_cache: Mutex::new(std::collections::HashMap::new()),
+            pop_replay_cache: Mutex::new(PopReplayCache::default()),
         })
     }
 
@@ -944,53 +1005,70 @@ impl ProofOfPossession for ZeroTrustAuth {
         // so the cache key only needs to disambiguate within a single
         // microsecond.
         if valid {
-            let mut seen = self.pop_replay_cache.lock().map_err(|_poison| {
+            let mut cache = self.pop_replay_cache.lock().map_err(|_poison| {
                 CoreError::InvalidInput("PoP replay cache poisoned".to_string())
             })?;
-            // Evict expired entries opportunistically.
+            let pk_bytes = pop.public_key().as_slice();
+            let pk_len = pk_bytes.len();
+            // Evict expired entries opportunistically; per-PK counts are
+            // decremented in lockstep so they stay exact.
             let now_secs = Utc::now().timestamp();
-            seen.retain(|_, ts| now_secs.saturating_sub(*ts) <= PROOF_OF_POSSESSION_MAX_AGE_SECS);
+            cache.expire_older_than(now_secs, PROOF_OF_POSSESSION_MAX_AGE_SECS, pk_len);
             // Cache key combines PK + signature + microsecond timestamp;
             // collisions require either a cryptographic break or a
             // deliberate replay (the latter is what we're rejecting here).
-            let key_cap = pop
-                .public_key()
-                .as_slice()
-                .len()
-                .saturating_add(pop.signature().len())
-                .saturating_add(8);
+            let key_cap = pk_len.saturating_add(pop.signature().len()).saturating_add(8);
             let mut key = Vec::with_capacity(key_cap);
-            key.extend_from_slice(pop.public_key().as_slice());
+            key.extend_from_slice(pk_bytes);
             key.extend_from_slice(pop.signature());
             key.extend_from_slice(&ts_micros.to_be_bytes());
-            if seen.contains_key(&key) {
+            if cache.contains(&key) {
                 tracing::debug!(ts_micros, "PoP rejected: replay within 5-min window");
                 return Err(CoreError::InvalidInput(
                     "Proof-of-possession replay detected".to_string(),
                 ));
             }
-            // Bounded cache. The eviction above already removed entries
-            // older than the freshness window, so reaching the cap means
-            // ≥ `POP_CACHE_MAX` distinct legitimate PoPs were verified
-            // inside a single 5-minute window — that is DoS-class load.
-            // Previously the insert was silently skipped here, which lifted
-            // the replay window: subsequent presentations of the same PoP
-            // would not see it in the cache and would be accepted again.
-            // Fail closed instead: reject the new PoP with a clear error
-            // and warn so operators can resize the cap or rate-limit upstream.
+            // Per-PK quota. Bounds the damage a single noisy public key can
+            // do: an attacker submitting many legitimate PoPs from one PK
+            // fills only their own slice of the cache, leaving every other
+            // PK's quota untouched. A 64-flight legitimate client (long
+            // poll, batched signing) still fits; ≥ 256 distinct PKs are
+            // required before the global cap can be saturated.
+            const POP_CACHE_PER_PK_MAX: usize = 64;
+            if cache.count_for_pk(pk_bytes) >= POP_CACHE_PER_PK_MAX {
+                tracing::warn!(
+                    per_pk_cap = POP_CACHE_PER_PK_MAX,
+                    "PoP per-key quota exhausted; rejecting new PoP from this PK \
+                     (other PKs unaffected)"
+                );
+                return Err(CoreError::InvalidInput(
+                    "Proof-of-possession per-key quota exceeded; retry after the \
+                     freshness window elapses"
+                        .to_string(),
+                ));
+            }
+            // Global cap. The opportunistic eviction above already removed
+            // entries older than the freshness window, so reaching this
+            // cap means ≥ `POP_CACHE_MAX` distinct legitimate PoPs from
+            // ≥ `POP_CACHE_MAX / POP_CACHE_PER_PK_MAX` distinct PKs were
+            // verified inside a single 5-minute window — that is DoS-class
+            // load. Silently skipping the insert would lift the replay
+            // window for subsequent presentations of the same PoP. Fail
+            // closed instead.
             const POP_CACHE_MAX: usize = 16 * 1024;
-            if seen.len() >= POP_CACHE_MAX {
+            if cache.total() >= POP_CACHE_MAX {
                 tracing::warn!(
                     cap = POP_CACHE_MAX,
-                    "PoP replay cache full; rejecting new PoP rather than skipping insert \
-                     (silently skipping would re-open the 5-minute replay window)"
+                    "PoP global replay cache full; rejecting new PoP rather than \
+                     skipping insert (silently skipping would re-open the 5-minute \
+                     replay window)"
                 );
                 return Err(CoreError::InvalidInput(
                     "Proof-of-possession replay cache at capacity; retry later or scale up"
                         .to_string(),
                 ));
             }
-            seen.insert(key, now_secs);
+            cache.insert(pk_bytes, key, now_secs);
         }
 
         Ok(valid)

@@ -45,8 +45,13 @@ runs:
           echo "| Unviable (not counted) | $UNVIABLE |"
         } >> "$GITHUB_STEP_SUMMARY"
         if [ "$TOTAL" -eq 0 ]; then
-          echo "⚠️ No viable mutants produced." >> "$GITHUB_STEP_SUMMARY"
-          exit 0
+          {
+            echo ""
+            echo "❌ Zero viable mutants — harness broken, outcomes.json malformed, or filter excluded every candidate."
+            echo "Counts: Caught=$CAUGHT Missed=$MISSED Timeout=$TIMEOUT Unviable=$UNVIABLE"
+            echo "Failing the gate: a zero-mutant run cannot demonstrate a score above the floor."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
         fi
         SCORE=$(echo "scale=1; $CAUGHT * 100 / $TOTAL" | bc)
         echo "| **Score** | **${SCORE}%** |" >> "$GITHUB_STEP_SUMMARY"

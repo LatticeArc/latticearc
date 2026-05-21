@@ -180,10 +180,12 @@ When the feature is enabled, construction may fail if the kernel limit is exceed
 1. **`latticearc/tests/no_partial_eq_on_secret_types.rs`** — must list every secret type. Missing entries fail type-check.
 
 2. **`scripts/ci/secret_type_audit.sh`** — greps for structs whose name matches `(Secret|Private|Signing|Keypair|KeyPair)` and asserts:
-   - Definition file contains `#[derive(.*Zeroize.*)]` or `impl Zeroize for`
-   - Definition file contains `impl.*ConstantTimeEq`
-   - Definition file contains manual `Debug` (no `#[derive(Debug)]`)
-   - Definition file contains `expose_secret` method
+   - **I-1**: definition file contains `Zeroize` / `ZeroizeOnDrop` / `Zeroizing`, OR the struct body references a known secret-wrapping field type (`SecretBytes`, `SecretVec`, `PrivateKey`, `SymmetricKey`, `Zeroizing<_>`). Transitive composition via these wrappers satisfies the wipe-on-drop invariant without requiring an explicit re-derive.
+   - **I-2**: definition file contains `impl ConstantTimeEq for THIS_STRUCT`, OR a corresponding `assert_not_impl_any!(THIS_STRUCT: PartialEq, Eq)` exists somewhere under `latticearc/tests/` or `latticearc/src/` (I-6 enforcement). A type with no `==` operator cannot leak through equality timing, so I-2 is satisfied vacuously.
+   - **I-3**: no `#[derive(...Debug...)]` attribute on the struct, AND `impl <fmt::>Debug for THIS_STRUCT` exists in the same file.
+   - **I-4**: definition file contains a method whose name matches `expose_[a-z_]*secret` (covers single-secret holders with `expose_secret` and hybrid multi-secret types with `expose_ml_dsa_secret` / `expose_ed25519_secret`). `KeyPair`/`Keypair` composition wrappers are exempt — secret material is reached through inner-field accessors that each carry their own sealed accessor.
+
+   Exemptions (struct names that match the regex but are not secret holders) are listed in `EXEMPT_NAMES` inside the script with a rationale comment for each entry. Companion to invariant I-6 (`tests/no_partial_eq_on_secret_types.rs`); the remaining invariants (I-5 mlock, I-7 mem::take refusal, I-8 no AsRef<[u8]>) require semantic analysis and are reviewed manually.
 
 3. **Clippy deny lints** (workspace-level):
    - `clippy::derive_partial_eq_without_eq` — already on

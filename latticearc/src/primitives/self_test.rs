@@ -285,6 +285,11 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
         // exactly which tests were inhibited by the §9.2.2 halt. We don't
         // execute the underlying KAT functions — running tamper-suspect
         // crypto code is precisely what §9.2.2 forbids.
+        // Names MUST match the success-path KAT identifiers byte-for-byte —
+        // a downstream report consumer that filters or correlates by the
+        // `algorithm` field must see the same identifier whether the test
+        // ran or was inhibited. The success branches below populate
+        // `algorithm: "<NAME>".to_string()`; this list mirrors them.
         const SKIPPED_TESTS: &[&str] = &[
             "SHA-256",
             "HKDF-SHA256",
@@ -294,7 +299,7 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
             "ML-KEM-768",
             "ML-DSA-44",
             "SLH-DSA-SHAKE-192s",
-            "FN-DSA",
+            "FN-DSA-512",
         ];
         for name in SKIPPED_TESTS {
             tests.push(IndividualTestResult {
