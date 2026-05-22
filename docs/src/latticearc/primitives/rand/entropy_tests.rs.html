@@ -227,675 +227,734 @@
 <a href=#227 id=227 data-nosnippet>227</a>    // For a Poisson distribution with lambda = expected_count, the probability of
 <a href=#228 id=228 data-nosnippet>228</a>    // seeing k occurrences drops rapidly. We use a heuristic that allows for
 <a href=#229 id=229 data-nosnippet>229</a>    // reasonable variation without being overly permissive.
-<a href=#230 id=230 data-nosnippet>230</a>    </span><span class="kw">let </span>max_deviation = <span class="kw">if </span>total_bytes &lt; <span class="number">512 </span>{
-<a href=#231 id=231 data-nosnippet>231</a>        <span class="comment">// For very small samples (&lt; 512 bytes), be very lenient
-<a href=#232 id=232 data-nosnippet>232</a>        // With 256 bytes, expected = 1, we should allow up to ~8 (extreme but possible)
-<a href=#233 id=233 data-nosnippet>233</a>        // With 512 bytes, expected = 2, we should allow up to ~10
-<a href=#234 id=234 data-nosnippet>234</a>        </span>(expected_count_f64 * <span class="number">6.0</span>).max(<span class="number">8.0</span>)
-<a href=#235 id=235 data-nosnippet>235</a>    } <span class="kw">else if </span>total_bytes &lt; <span class="number">1024 </span>{
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="comment">// For small samples, use a higher threshold
-<a href=#237 id=237 data-nosnippet>237</a>        // This allows for natural statistical variation
-<a href=#238 id=238 data-nosnippet>238</a>        </span>(expected_count_f64 * <span class="number">4.0</span>).max(<span class="number">6.0</span>)
-<a href=#239 id=239 data-nosnippet>239</a>    } <span class="kw">else if </span>total_bytes &lt; <span class="number">4096 </span>{
-<a href=#240 id=240 data-nosnippet>240</a>        <span class="comment">// Medium samples
-<a href=#241 id=241 data-nosnippet>241</a>        </span>expected_count_f64 * <span class="number">3.0
-<a href=#242 id=242 data-nosnippet>242</a>    </span>} <span class="kw">else </span>{
-<a href=#243 id=243 data-nosnippet>243</a>        <span class="comment">// Large samples - can be stricter
-<a href=#244 id=244 data-nosnippet>244</a>        </span>expected_count_f64 * (<span class="number">1.0 </span>+ MAX_FREQUENCY_DEVIATION_RATIO)
-<a href=#245 id=245 data-nosnippet>245</a>    };
-<a href=#246 id=246 data-nosnippet>246</a>
-<a href=#247 id=247 data-nosnippet>247</a>    <span class="comment">// Check if any byte value is significantly over-represented
-<a href=#248 id=248 data-nosnippet>248</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>max_count = <span class="number">0u32</span>;
-<a href=#249 id=249 data-nosnippet>249</a>    <span class="kw">let </span><span class="kw-2">mut </span>max_byte = <span class="number">0u8</span>;
-<a href=#250 id=250 data-nosnippet>250</a>
-<a href=#251 id=251 data-nosnippet>251</a>    <span class="kw">for </span>(byte_val, count) <span class="kw">in </span>counts.iter().enumerate() {
-<a href=#252 id=252 data-nosnippet>252</a>        <span class="kw">if </span><span class="kw-2">*</span>count &gt; max_count {
-<a href=#253 id=253 data-nosnippet>253</a>            max_count = <span class="kw-2">*</span>count;
-<a href=#254 id=254 data-nosnippet>254</a>            <span class="comment">// Safe conversion: byte_val is always 0-255 since counts has exactly 256 elements
-<a href=#255 id=255 data-nosnippet>255</a>            // Using try_from with unwrap_or for safety (though truncation won't occur)
-<a href=#256 id=256 data-nosnippet>256</a>            </span>max_byte = u8::try_from(byte_val).unwrap_or(<span class="number">0</span>);
-<a href=#257 id=257 data-nosnippet>257</a>        }
-<a href=#258 id=258 data-nosnippet>258</a>    }
-<a href=#259 id=259 data-nosnippet>259</a>
-<a href=#260 id=260 data-nosnippet>260</a>    <span class="comment">// Convert max_count to f64 for comparison
-<a href=#261 id=261 data-nosnippet>261</a>    </span><span class="kw">let </span>max_count_f64 = f64::from(max_count);
-<a href=#262 id=262 data-nosnippet>262</a>
-<a href=#263 id=263 data-nosnippet>263</a>    <span class="kw">if </span>max_count_f64 &gt; max_deviation {
-<a href=#264 id=264 data-nosnippet>264</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#265 id=265 data-nosnippet>265</a>            message: <span class="macro">format!</span>(
-<a href=#266 id=266 data-nosnippet>266</a>                <span class="string">"Frequency test failed: byte 0x{:02X} appears {} times \
-<a href=#267 id=267 data-nosnippet>267</a>                 (expected ~{:.1}, max allowed {:.1})"</span>,
-<a href=#268 id=268 data-nosnippet>268</a>                max_byte, max_count, expected_count_f64, max_deviation
-<a href=#269 id=269 data-nosnippet>269</a>            ),
-<a href=#270 id=270 data-nosnippet>270</a>        });
-<a href=#271 id=271 data-nosnippet>271</a>    }
-<a href=#272 id=272 data-nosnippet>272</a>
-<a href=#273 id=273 data-nosnippet>273</a>    <span class="comment">// Also check for under-representation (all zeros for some values might
-<a href=#274 id=274 data-nosnippet>274</a>    // indicate a bias in the lower bits)
-<a href=#275 id=275 data-nosnippet>275</a>    // For samples &gt;= 512 bytes, at least some byte values should appear
-<a href=#276 id=276 data-nosnippet>276</a>    </span><span class="kw">if </span>total_bytes &gt;= <span class="number">512 </span>{
-<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let </span>zero_count = counts.iter().filter(|&amp;&amp;c| c == <span class="number">0</span>).count();
-<a href=#278 id=278 data-nosnippet>278</a>        <span class="comment">// Allow up to 50% of byte values to be missing in smaller samples
-<a href=#279 id=279 data-nosnippet>279</a>        // For larger samples, this threshold decreases
-<a href=#280 id=280 data-nosnippet>280</a>        // Using integer arithmetic to avoid float-to-int casting issues
-<a href=#281 id=281 data-nosnippet>281</a>        </span><span class="kw">let </span>max_zeros = <span class="kw">if </span>total_bytes &gt;= <span class="number">2048 </span>{
-<a href=#282 id=282 data-nosnippet>282</a>            <span class="number">64 </span><span class="comment">// 25% of 256
-<a href=#283 id=283 data-nosnippet>283</a>        </span>} <span class="kw">else </span>{
-<a href=#284 id=284 data-nosnippet>284</a>            <span class="number">128 </span><span class="comment">// 50% of 256
-<a href=#285 id=285 data-nosnippet>285</a>        </span>};
-<a href=#286 id=286 data-nosnippet>286</a>
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">if </span>zero_count &gt; max_zeros {
-<a href=#288 id=288 data-nosnippet>288</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#289 id=289 data-nosnippet>289</a>                message: <span class="macro">format!</span>(
-<a href=#290 id=290 data-nosnippet>290</a>                    <span class="string">"Frequency test failed: {} out of 256 byte values never appeared \
-<a href=#291 id=291 data-nosnippet>291</a>                     (max allowed {} for {} byte sample)"</span>,
-<a href=#292 id=292 data-nosnippet>292</a>                    zero_count, max_zeros, total_bytes
-<a href=#293 id=293 data-nosnippet>293</a>                ),
-<a href=#294 id=294 data-nosnippet>294</a>            });
-<a href=#295 id=295 data-nosnippet>295</a>        }
-<a href=#296 id=296 data-nosnippet>296</a>    }
-<a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a>    <span class="prelude-val">Ok</span>(())
-<a href=#299 id=299 data-nosnippet>299</a>}
-<a href=#300 id=300 data-nosnippet>300</a>
-<a href=#301 id=301 data-nosnippet>301</a><span class="comment">// =============================================================================
-<a href=#302 id=302 data-nosnippet>302</a>// Monobit Test (NIST SP 800-22 Section 2.1)
-<a href=#303 id=303 data-nosnippet>303</a>// =============================================================================
-<a href=#304 id=304 data-nosnippet>304</a>
-<a href=#305 id=305 data-nosnippet>305</a></span><span class="doccomment">/// Monobit (Frequency) Test for bit-level balance.
-<a href=#306 id=306 data-nosnippet>306</a>///
-<a href=#307 id=307 data-nosnippet>307</a>/// This test checks whether the number of ones and zeros in a sequence are
-<a href=#308 id=308 data-nosnippet>308</a>/// approximately the same, as would be expected for a truly random sequence.
-<a href=#309 id=309 data-nosnippet>309</a>/// Per NIST SP 800-22, this is a fundamental test for randomness.
-<a href=#310 id=310 data-nosnippet>310</a>///
-<a href=#311 id=311 data-nosnippet>311</a>/// # Arguments
-<a href=#312 id=312 data-nosnippet>312</a>///
-<a href=#313 id=313 data-nosnippet>313</a>/// * `bytes` - The random bytes to test
-<a href=#314 id=314 data-nosnippet>314</a>///
-<a href=#315 id=315 data-nosnippet>315</a>/// # Returns
-<a href=#316 id=316 data-nosnippet>316</a>///
-<a href=#317 id=317 data-nosnippet>317</a>/// * `Ok(())` - If the test passes (bit frequencies are balanced)
-<a href=#318 id=318 data-nosnippet>318</a>/// * `Err(LatticeArcError::ValidationError)` - If the test fails
-<a href=#319 id=319 data-nosnippet>319</a>///
-<a href=#320 id=320 data-nosnippet>320</a>/// # Errors
-<a href=#321 id=321 data-nosnippet>321</a>///
-<a href=#322 id=322 data-nosnippet>322</a>/// Returns `LatticeArcError::ValidationError` if:
-<a href=#323 id=323 data-nosnippet>323</a>/// - Input is empty
-<a href=#324 id=324 data-nosnippet>324</a>/// - Bit frequencies are significantly unbalanced (&gt;60% or &lt;40% ones)
-<a href=#325 id=325 data-nosnippet>325</a></span><span class="attr">#[expect(
-<a href=#326 id=326 data-nosnippet>326</a>    clippy::cast_precision_loss,
-<a href=#327 id=327 data-nosnippet>327</a>    reason = <span class="string">"Intentional: statistical calculations require float conversion"
-<a href=#328 id=328 data-nosnippet>328</a></span>)]
-<a href=#329 id=329 data-nosnippet>329</a></span><span class="kw">pub fn </span>monobit_test(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#330 id=330 data-nosnippet>330</a>    <span class="kw">if </span>bytes.is_empty() {
-<a href=#331 id=331 data-nosnippet>331</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#332 id=332 data-nosnippet>332</a>            message: <span class="string">"Monobit test requires non-empty input"</span>.to_string(),
-<a href=#333 id=333 data-nosnippet>333</a>        });
-<a href=#334 id=334 data-nosnippet>334</a>    }
-<a href=#335 id=335 data-nosnippet>335</a>
-<a href=#336 id=336 data-nosnippet>336</a>    <span class="comment">// Count the number of 1-bits
-<a href=#337 id=337 data-nosnippet>337</a>    </span><span class="kw">let </span>one_count: u64 = bytes.iter().map(|b| u64::from(b.count_ones())).sum();
-<a href=#338 id=338 data-nosnippet>338</a>    <span class="kw">let </span>total_bits = (bytes.len() <span class="kw">as </span>u64).saturating_mul(<span class="number">8</span>);
-<a href=#339 id=339 data-nosnippet>339</a>
-<a href=#340 id=340 data-nosnippet>340</a>    <span class="comment">// Calculate the proportion of ones
-<a href=#341 id=341 data-nosnippet>341</a>    // Safety: total_bits &gt; 0 since bytes is non-empty
-<a href=#342 id=342 data-nosnippet>342</a>    </span><span class="kw">let </span>proportion = one_count <span class="kw">as </span>f64 / total_bits <span class="kw">as </span>f64;
-<a href=#343 id=343 data-nosnippet>343</a>
-<a href=#344 id=344 data-nosnippet>344</a>    <span class="comment">// For random data, we expect approximately 50% ones
-<a href=#345 id=345 data-nosnippet>345</a>    // Allow a reasonable deviation (40%-60% range for smaller samples)
-<a href=#346 id=346 data-nosnippet>346</a>    </span><span class="kw">let </span>min_proportion = <span class="kw">if </span>total_bits &lt; <span class="number">1000 </span>{ <span class="number">0.35 </span>} <span class="kw">else </span>{ <span class="number">0.40 </span>};
-<a href=#347 id=347 data-nosnippet>347</a>    <span class="kw">let </span>max_proportion = <span class="kw">if </span>total_bits &lt; <span class="number">1000 </span>{ <span class="number">0.65 </span>} <span class="kw">else </span>{ <span class="number">0.60 </span>};
-<a href=#348 id=348 data-nosnippet>348</a>
-<a href=#349 id=349 data-nosnippet>349</a>    <span class="kw">if </span>proportion &lt; min_proportion || proportion &gt; max_proportion {
+<a href=#230 id=230 data-nosnippet>230</a>    // Per-byte counts are approximately Poisson(λ = total_bytes / 256).
+<a href=#231 id=231 data-nosnippet>231</a>    // The decision rule below compares the MAX count across all 256 byte
+<a href=#232 id=232 data-nosnippet>232</a>    // values to a single threshold — so the per-attempt false-positive
+<a href=#233 id=233 data-nosnippet>233</a>    // rate is `P(any of 256 values exceeds threshold)`, NOT the
+<a href=#234 id=234 data-nosnippet>234</a>    // per-value tail. Without Bonferroni-correcting the threshold for
+<a href=#235 id=235 data-nosnippet>235</a>    // that 256-fold multiple-comparison, the test trips far more often
+<a href=#236 id=236 data-nosnippet>236</a>    // than the NIST SP 800-22 α = 0.01 target. Calibration target per
+<a href=#237 id=237 data-nosnippet>237</a>    // band: choose k such that `1 − (1 − P(X &gt; k|Poisson(λ)))^256 ≤ 0.01`.
+<a href=#238 id=238 data-nosnippet>238</a>    </span><span class="kw">let </span>max_deviation = <span class="kw">if </span>total_bytes &lt; <span class="number">512 </span>{
+<a href=#239 id=239 data-nosnippet>239</a>        <span class="comment">// λ ≤ 1; tails are wide on small samples. The 6× / floor-8
+<a href=#240 id=240 data-nosnippet>240</a>        // shape keeps small-sample FPR ≈ NIST α; do not tighten without
+<a href=#241 id=241 data-nosnippet>241</a>        // re-probing.
+<a href=#242 id=242 data-nosnippet>242</a>        </span>(expected_count_f64 * <span class="number">6.0</span>).max(<span class="number">8.0</span>)
+<a href=#243 id=243 data-nosnippet>243</a>    } <span class="kw">else if </span>total_bytes &lt; <span class="number">1024 </span>{
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="comment">// λ ∈ [2, 4). 4× expected with a floor of 6 keeps the
+<a href=#245 id=245 data-nosnippet>245</a>        // multiple-comparison-corrected FPR ≈ 1% per attempt.
+<a href=#246 id=246 data-nosnippet>246</a>        </span>(expected_count_f64 * <span class="number">4.0</span>).max(<span class="number">6.0</span>)
+<a href=#247 id=247 data-nosnippet>247</a>    } <span class="kw">else if </span>total_bytes &lt; <span class="number">4096 </span>{
+<a href=#248 id=248 data-nosnippet>248</a>        <span class="comment">// λ ∈ [4, 16). Earlier shape was `3.0× expected`, which placed
+<a href=#249 id=249 data-nosnippet>249</a>        // the threshold at k = 12 for the 1024-byte case (the
+<a href=#250 id=250 data-nosnippet>250</a>        // `run_entropy_health_tests()` default). The MAX over 256
+<a href=#251 id=251 data-nosnippet>251</a>        // values then tripped at P(max &gt; 12 | Poisson(4)) ≈ 7%, blowing
+<a href=#252 id=252 data-nosnippet>252</a>        // the NIST α budget by ~7× and producing the May 2026 CI flake
+<a href=#253 id=253 data-nosnippet>253</a>        // (entropy health tests failing twice in a row across
+<a href=#254 id=254 data-nosnippet>254</a>        // independent retries on the GitHub runner matrix). 4× expected
+<a href=#255 id=255 data-nosnippet>255</a>        // moves the threshold to k = 16, bringing per-attempt FPR to
+<a href=#256 id=256 data-nosnippet>256</a>        // ~0.4% per the same Poisson tail bound — within α budget and
+<a href=#257 id=257 data-nosnippet>257</a>        // still flagging any genuinely-skewed byte distribution
+<a href=#258 id=258 data-nosnippet>258</a>        // (≥ 4× over-representation of a single byte value).
+<a href=#259 id=259 data-nosnippet>259</a>        </span>expected_count_f64 * <span class="number">4.0
+<a href=#260 id=260 data-nosnippet>260</a>    </span>} <span class="kw">else </span>{
+<a href=#261 id=261 data-nosnippet>261</a>        <span class="comment">// λ ≥ 16. At this point the per-byte distribution narrows and
+<a href=#262 id=262 data-nosnippet>262</a>        // the original constant-relative threshold is appropriate.
+<a href=#263 id=263 data-nosnippet>263</a>        </span>expected_count_f64 * (<span class="number">1.0 </span>+ MAX_FREQUENCY_DEVIATION_RATIO)
+<a href=#264 id=264 data-nosnippet>264</a>    };
+<a href=#265 id=265 data-nosnippet>265</a>
+<a href=#266 id=266 data-nosnippet>266</a>    <span class="comment">// Check if any byte value is significantly over-represented
+<a href=#267 id=267 data-nosnippet>267</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>max_count = <span class="number">0u32</span>;
+<a href=#268 id=268 data-nosnippet>268</a>    <span class="kw">let </span><span class="kw-2">mut </span>max_byte = <span class="number">0u8</span>;
+<a href=#269 id=269 data-nosnippet>269</a>
+<a href=#270 id=270 data-nosnippet>270</a>    <span class="kw">for </span>(byte_val, count) <span class="kw">in </span>counts.iter().enumerate() {
+<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">if </span><span class="kw-2">*</span>count &gt; max_count {
+<a href=#272 id=272 data-nosnippet>272</a>            max_count = <span class="kw-2">*</span>count;
+<a href=#273 id=273 data-nosnippet>273</a>            <span class="comment">// Safe conversion: byte_val is always 0-255 since counts has exactly 256 elements
+<a href=#274 id=274 data-nosnippet>274</a>            // Using try_from with unwrap_or for safety (though truncation won't occur)
+<a href=#275 id=275 data-nosnippet>275</a>            </span>max_byte = u8::try_from(byte_val).unwrap_or(<span class="number">0</span>);
+<a href=#276 id=276 data-nosnippet>276</a>        }
+<a href=#277 id=277 data-nosnippet>277</a>    }
+<a href=#278 id=278 data-nosnippet>278</a>
+<a href=#279 id=279 data-nosnippet>279</a>    <span class="comment">// Convert max_count to f64 for comparison
+<a href=#280 id=280 data-nosnippet>280</a>    </span><span class="kw">let </span>max_count_f64 = f64::from(max_count);
+<a href=#281 id=281 data-nosnippet>281</a>
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">if </span>max_count_f64 &gt; max_deviation {
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
+<a href=#284 id=284 data-nosnippet>284</a>            message: <span class="macro">format!</span>(
+<a href=#285 id=285 data-nosnippet>285</a>                <span class="string">"Frequency test failed: byte 0x{:02X} appears {} times \
+<a href=#286 id=286 data-nosnippet>286</a>                 (expected ~{:.1}, max allowed {:.1})"</span>,
+<a href=#287 id=287 data-nosnippet>287</a>                max_byte, max_count, expected_count_f64, max_deviation
+<a href=#288 id=288 data-nosnippet>288</a>            ),
+<a href=#289 id=289 data-nosnippet>289</a>        });
+<a href=#290 id=290 data-nosnippet>290</a>    }
+<a href=#291 id=291 data-nosnippet>291</a>
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="comment">// Also check for under-representation (all zeros for some values might
+<a href=#293 id=293 data-nosnippet>293</a>    // indicate a bias in the lower bits)
+<a href=#294 id=294 data-nosnippet>294</a>    // For samples &gt;= 512 bytes, at least some byte values should appear
+<a href=#295 id=295 data-nosnippet>295</a>    </span><span class="kw">if </span>total_bytes &gt;= <span class="number">512 </span>{
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span>zero_count = counts.iter().filter(|&amp;&amp;c| c == <span class="number">0</span>).count();
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="comment">// Allow up to 50% of byte values to be missing in smaller samples
+<a href=#298 id=298 data-nosnippet>298</a>        // For larger samples, this threshold decreases
+<a href=#299 id=299 data-nosnippet>299</a>        // Using integer arithmetic to avoid float-to-int casting issues
+<a href=#300 id=300 data-nosnippet>300</a>        </span><span class="kw">let </span>max_zeros = <span class="kw">if </span>total_bytes &gt;= <span class="number">2048 </span>{
+<a href=#301 id=301 data-nosnippet>301</a>            <span class="number">64 </span><span class="comment">// 25% of 256
+<a href=#302 id=302 data-nosnippet>302</a>        </span>} <span class="kw">else </span>{
+<a href=#303 id=303 data-nosnippet>303</a>            <span class="number">128 </span><span class="comment">// 50% of 256
+<a href=#304 id=304 data-nosnippet>304</a>        </span>};
+<a href=#305 id=305 data-nosnippet>305</a>
+<a href=#306 id=306 data-nosnippet>306</a>        <span class="kw">if </span>zero_count &gt; max_zeros {
+<a href=#307 id=307 data-nosnippet>307</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
+<a href=#308 id=308 data-nosnippet>308</a>                message: <span class="macro">format!</span>(
+<a href=#309 id=309 data-nosnippet>309</a>                    <span class="string">"Frequency test failed: {} out of 256 byte values never appeared \
+<a href=#310 id=310 data-nosnippet>310</a>                     (max allowed {} for {} byte sample)"</span>,
+<a href=#311 id=311 data-nosnippet>311</a>                    zero_count, max_zeros, total_bytes
+<a href=#312 id=312 data-nosnippet>312</a>                ),
+<a href=#313 id=313 data-nosnippet>313</a>            });
+<a href=#314 id=314 data-nosnippet>314</a>        }
+<a href=#315 id=315 data-nosnippet>315</a>    }
+<a href=#316 id=316 data-nosnippet>316</a>
+<a href=#317 id=317 data-nosnippet>317</a>    <span class="prelude-val">Ok</span>(())
+<a href=#318 id=318 data-nosnippet>318</a>}
+<a href=#319 id=319 data-nosnippet>319</a>
+<a href=#320 id=320 data-nosnippet>320</a><span class="comment">// =============================================================================
+<a href=#321 id=321 data-nosnippet>321</a>// Monobit Test (NIST SP 800-22 Section 2.1)
+<a href=#322 id=322 data-nosnippet>322</a>// =============================================================================
+<a href=#323 id=323 data-nosnippet>323</a>
+<a href=#324 id=324 data-nosnippet>324</a></span><span class="doccomment">/// Monobit (Frequency) Test for bit-level balance.
+<a href=#325 id=325 data-nosnippet>325</a>///
+<a href=#326 id=326 data-nosnippet>326</a>/// This test checks whether the number of ones and zeros in a sequence are
+<a href=#327 id=327 data-nosnippet>327</a>/// approximately the same, as would be expected for a truly random sequence.
+<a href=#328 id=328 data-nosnippet>328</a>/// Per NIST SP 800-22, this is a fundamental test for randomness.
+<a href=#329 id=329 data-nosnippet>329</a>///
+<a href=#330 id=330 data-nosnippet>330</a>/// # Arguments
+<a href=#331 id=331 data-nosnippet>331</a>///
+<a href=#332 id=332 data-nosnippet>332</a>/// * `bytes` - The random bytes to test
+<a href=#333 id=333 data-nosnippet>333</a>///
+<a href=#334 id=334 data-nosnippet>334</a>/// # Returns
+<a href=#335 id=335 data-nosnippet>335</a>///
+<a href=#336 id=336 data-nosnippet>336</a>/// * `Ok(())` - If the test passes (bit frequencies are balanced)
+<a href=#337 id=337 data-nosnippet>337</a>/// * `Err(LatticeArcError::ValidationError)` - If the test fails
+<a href=#338 id=338 data-nosnippet>338</a>///
+<a href=#339 id=339 data-nosnippet>339</a>/// # Errors
+<a href=#340 id=340 data-nosnippet>340</a>///
+<a href=#341 id=341 data-nosnippet>341</a>/// Returns `LatticeArcError::ValidationError` if:
+<a href=#342 id=342 data-nosnippet>342</a>/// - Input is empty
+<a href=#343 id=343 data-nosnippet>343</a>/// - Bit frequencies are significantly unbalanced (&gt;60% or &lt;40% ones)
+<a href=#344 id=344 data-nosnippet>344</a></span><span class="attr">#[expect(
+<a href=#345 id=345 data-nosnippet>345</a>    clippy::cast_precision_loss,
+<a href=#346 id=346 data-nosnippet>346</a>    reason = <span class="string">"Intentional: statistical calculations require float conversion"
+<a href=#347 id=347 data-nosnippet>347</a></span>)]
+<a href=#348 id=348 data-nosnippet>348</a></span><span class="kw">pub fn </span>monobit_test(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#349 id=349 data-nosnippet>349</a>    <span class="kw">if </span>bytes.is_empty() {
 <a href=#350 id=350 data-nosnippet>350</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#351 id=351 data-nosnippet>351</a>            message: <span class="macro">format!</span>(
-<a href=#352 id=352 data-nosnippet>352</a>                <span class="string">"Monobit test failed: {:.1}% ones (expected {:.0}-{:.0}% for {} bits)"</span>,
-<a href=#353 id=353 data-nosnippet>353</a>                proportion * <span class="number">100.0</span>,
-<a href=#354 id=354 data-nosnippet>354</a>                min_proportion * <span class="number">100.0</span>,
-<a href=#355 id=355 data-nosnippet>355</a>                max_proportion * <span class="number">100.0</span>,
-<a href=#356 id=356 data-nosnippet>356</a>                total_bits
-<a href=#357 id=357 data-nosnippet>357</a>            ),
-<a href=#358 id=358 data-nosnippet>358</a>        });
-<a href=#359 id=359 data-nosnippet>359</a>    }
-<a href=#360 id=360 data-nosnippet>360</a>
-<a href=#361 id=361 data-nosnippet>361</a>    <span class="prelude-val">Ok</span>(())
-<a href=#362 id=362 data-nosnippet>362</a>}
-<a href=#363 id=363 data-nosnippet>363</a>
-<a href=#364 id=364 data-nosnippet>364</a><span class="comment">// =============================================================================
-<a href=#365 id=365 data-nosnippet>365</a>// Runs Test (NIST SP 800-22 Section 2.3)
-<a href=#366 id=366 data-nosnippet>366</a>// =============================================================================
+<a href=#351 id=351 data-nosnippet>351</a>            message: <span class="string">"Monobit test requires non-empty input"</span>.to_string(),
+<a href=#352 id=352 data-nosnippet>352</a>        });
+<a href=#353 id=353 data-nosnippet>353</a>    }
+<a href=#354 id=354 data-nosnippet>354</a>
+<a href=#355 id=355 data-nosnippet>355</a>    <span class="comment">// Count the number of 1-bits
+<a href=#356 id=356 data-nosnippet>356</a>    </span><span class="kw">let </span>one_count: u64 = bytes.iter().map(|b| u64::from(b.count_ones())).sum();
+<a href=#357 id=357 data-nosnippet>357</a>    <span class="kw">let </span>total_bits = (bytes.len() <span class="kw">as </span>u64).saturating_mul(<span class="number">8</span>);
+<a href=#358 id=358 data-nosnippet>358</a>
+<a href=#359 id=359 data-nosnippet>359</a>    <span class="comment">// Calculate the proportion of ones
+<a href=#360 id=360 data-nosnippet>360</a>    // Safety: total_bits &gt; 0 since bytes is non-empty
+<a href=#361 id=361 data-nosnippet>361</a>    </span><span class="kw">let </span>proportion = one_count <span class="kw">as </span>f64 / total_bits <span class="kw">as </span>f64;
+<a href=#362 id=362 data-nosnippet>362</a>
+<a href=#363 id=363 data-nosnippet>363</a>    <span class="comment">// For random data, we expect approximately 50% ones
+<a href=#364 id=364 data-nosnippet>364</a>    // Allow a reasonable deviation (40%-60% range for smaller samples)
+<a href=#365 id=365 data-nosnippet>365</a>    </span><span class="kw">let </span>min_proportion = <span class="kw">if </span>total_bits &lt; <span class="number">1000 </span>{ <span class="number">0.35 </span>} <span class="kw">else </span>{ <span class="number">0.40 </span>};
+<a href=#366 id=366 data-nosnippet>366</a>    <span class="kw">let </span>max_proportion = <span class="kw">if </span>total_bits &lt; <span class="number">1000 </span>{ <span class="number">0.65 </span>} <span class="kw">else </span>{ <span class="number">0.60 </span>};
 <a href=#367 id=367 data-nosnippet>367</a>
-<a href=#368 id=368 data-nosnippet>368</a></span><span class="doccomment">/// Runs Test for consecutive bit sequences.
-<a href=#369 id=369 data-nosnippet>369</a>///
-<a href=#370 id=370 data-nosnippet>370</a>/// This test checks for the expected number of "runs" in a sequence, where a
-<a href=#371 id=371 data-nosnippet>371</a>/// run is an uninterrupted sequence of identical bits. For random data, there
-<a href=#372 id=372 data-nosnippet>372</a>/// should be an expected distribution of run lengths.
-<a href=#373 id=373 data-nosnippet>373</a>///
-<a href=#374 id=374 data-nosnippet>374</a>/// # Arguments
-<a href=#375 id=375 data-nosnippet>375</a>///
-<a href=#376 id=376 data-nosnippet>376</a>/// * `bytes` - The random bytes to test
-<a href=#377 id=377 data-nosnippet>377</a>///
-<a href=#378 id=378 data-nosnippet>378</a>/// # Returns
-<a href=#379 id=379 data-nosnippet>379</a>///
-<a href=#380 id=380 data-nosnippet>380</a>/// * `Ok(())` - If the test passes
-<a href=#381 id=381 data-nosnippet>381</a>/// * `Err(LatticeArcError::ValidationError)` - If the test fails
-<a href=#382 id=382 data-nosnippet>382</a>///
-<a href=#383 id=383 data-nosnippet>383</a>/// # Errors
-<a href=#384 id=384 data-nosnippet>384</a>///
-<a href=#385 id=385 data-nosnippet>385</a>/// Returns `LatticeArcError::ValidationError` if:
-<a href=#386 id=386 data-nosnippet>386</a>/// - Input is too small (&lt;8 bytes)
-<a href=#387 id=387 data-nosnippet>387</a>/// - The number of runs is significantly different from expected
-<a href=#388 id=388 data-nosnippet>388</a></span><span class="attr">#[expect(
-<a href=#389 id=389 data-nosnippet>389</a>    clippy::cast_precision_loss,
-<a href=#390 id=390 data-nosnippet>390</a>    reason = <span class="string">"Intentional: statistical calculations require float conversion"
-<a href=#391 id=391 data-nosnippet>391</a></span>)]
-<a href=#392 id=392 data-nosnippet>392</a>#[expect(
-<a href=#393 id=393 data-nosnippet>393</a>    clippy::cast_possible_truncation,
-<a href=#394 id=394 data-nosnippet>394</a>    reason = <span class="string">"Intentional: converting float ratio to integer bounds"
-<a href=#395 id=395 data-nosnippet>395</a></span>)]
-<a href=#396 id=396 data-nosnippet>396</a>#[expect(clippy::cast_sign_loss, reason = <span class="string">"Safe: values are always positive in this context"</span>)]
-<a href=#397 id=397 data-nosnippet>397</a>#[expect(clippy::indexing_slicing, reason = <span class="string">"Safe: checked len &gt;= 8 before indexing"</span>)]
-<a href=#398 id=398 data-nosnippet>398</a></span><span class="kw">pub fn </span>runs_test(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#399 id=399 data-nosnippet>399</a>    <span class="kw">if </span>bytes.len() &lt; <span class="number">8 </span>{
-<a href=#400 id=400 data-nosnippet>400</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#401 id=401 data-nosnippet>401</a>            message: <span class="string">"Runs test requires at least 8 bytes"</span>.to_string(),
-<a href=#402 id=402 data-nosnippet>402</a>        });
-<a href=#403 id=403 data-nosnippet>403</a>    }
-<a href=#404 id=404 data-nosnippet>404</a>
-<a href=#405 id=405 data-nosnippet>405</a>    <span class="comment">// Convert bytes to bits and count runs
-<a href=#406 id=406 data-nosnippet>406</a>    // Safety: len &gt;= 8, so this won't overflow
-<a href=#407 id=407 data-nosnippet>407</a>    </span><span class="kw">let </span>total_bits = bytes.len().saturating_mul(<span class="number">8</span>);
-<a href=#408 id=408 data-nosnippet>408</a>    <span class="kw">let </span><span class="kw-2">mut </span>runs: u64 = <span class="number">1</span>; <span class="comment">// Start with 1 run
-<a href=#409 id=409 data-nosnippet>409</a>    // Safety: len &gt;= 8 checked above
-<a href=#410 id=410 data-nosnippet>410</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>prev_bit = (bytes[<span class="number">0</span>] &gt;&gt; <span class="number">7</span>) &amp; <span class="number">1</span>;
-<a href=#411 id=411 data-nosnippet>411</a>
-<a href=#412 id=412 data-nosnippet>412</a>    <span class="kw">for </span>(i, <span class="kw-2">&amp;</span>byte) <span class="kw">in </span>bytes.iter().enumerate() {
-<a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">let </span>start_bit = <span class="kw">if </span>i == <span class="number">0 </span>{ <span class="number">6 </span>} <span class="kw">else </span>{ <span class="number">7 </span>}; <span class="comment">// Skip first bit of first byte
-<a href=#414 id=414 data-nosnippet>414</a>        </span><span class="kw">for </span>bit_pos <span class="kw">in </span>(<span class="number">0</span>..=start_bit).rev() {
-<a href=#415 id=415 data-nosnippet>415</a>            <span class="kw">let </span>current_bit = (byte &gt;&gt; bit_pos) &amp; <span class="number">1</span>;
-<a href=#416 id=416 data-nosnippet>416</a>            <span class="kw">if </span><span class="macro">current_bit !</span>= prev_bit {
-<a href=#417 id=417 data-nosnippet>417</a>                runs = runs.saturating_add(<span class="number">1</span>);
-<a href=#418 id=418 data-nosnippet>418</a>                prev_bit = current_bit;
-<a href=#419 id=419 data-nosnippet>419</a>            }
-<a href=#420 id=420 data-nosnippet>420</a>        }
-<a href=#421 id=421 data-nosnippet>421</a>    }
-<a href=#422 id=422 data-nosnippet>422</a>
-<a href=#423 id=423 data-nosnippet>423</a>    <span class="comment">// For truly random data, expected number of runs is approximately:
-<a href=#424 id=424 data-nosnippet>424</a>    // E(runs) = (2 * n * pi) / n + 1 ≈ n/2 + 1 where n is total bits
-<a href=#425 id=425 data-nosnippet>425</a>    // But more precisely: E(runs) = 2*n0*n1/n + 1 where n0, n1 are counts of 0s and 1s
-<a href=#426 id=426 data-nosnippet>426</a>    // For balanced data: E(runs) ≈ n/2
-<a href=#427 id=427 data-nosnippet>427</a>
-<a href=#428 id=428 data-nosnippet>428</a>    </span><span class="kw">let </span>expected_runs = total_bits <span class="kw">as </span>f64 / <span class="number">2.0</span>;
-<a href=#429 id=429 data-nosnippet>429</a>
-<a href=#430 id=430 data-nosnippet>430</a>    <span class="comment">// Allow significant deviation for the statistical nature of the test
-<a href=#431 id=431 data-nosnippet>431</a>    // Use ±30% range for smaller samples, ±25% for larger
-<a href=#432 id=432 data-nosnippet>432</a>    </span><span class="kw">let </span>deviation = <span class="kw">if </span>total_bits &lt; <span class="number">1000 </span>{ <span class="number">0.35 </span>} <span class="kw">else </span>{ <span class="number">0.30 </span>};
-<a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">let </span>min_runs = (expected_runs * (<span class="number">1.0 </span>- deviation)) <span class="kw">as </span>u64;
-<a href=#434 id=434 data-nosnippet>434</a>    <span class="kw">let </span>max_runs = (expected_runs * (<span class="number">1.0 </span>+ deviation)) <span class="kw">as </span>u64;
-<a href=#435 id=435 data-nosnippet>435</a>
-<a href=#436 id=436 data-nosnippet>436</a>    <span class="kw">if </span>runs &lt; min_runs || runs &gt; max_runs {
-<a href=#437 id=437 data-nosnippet>437</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#438 id=438 data-nosnippet>438</a>            message: <span class="macro">format!</span>(
-<a href=#439 id=439 data-nosnippet>439</a>                <span class="string">"Runs test failed: {} runs found (expected {}-{} for {} bits)"</span>,
-<a href=#440 id=440 data-nosnippet>440</a>                runs, min_runs, max_runs, total_bits
-<a href=#441 id=441 data-nosnippet>441</a>            ),
-<a href=#442 id=442 data-nosnippet>442</a>        });
-<a href=#443 id=443 data-nosnippet>443</a>    }
-<a href=#444 id=444 data-nosnippet>444</a>
-<a href=#445 id=445 data-nosnippet>445</a>    <span class="prelude-val">Ok</span>(())
-<a href=#446 id=446 data-nosnippet>446</a>}
-<a href=#447 id=447 data-nosnippet>447</a>
-<a href=#448 id=448 data-nosnippet>448</a><span class="comment">// =============================================================================
-<a href=#449 id=449 data-nosnippet>449</a>// Adaptive Proportion Test (SP 800-90B Section 4.4.2)
-<a href=#450 id=450 data-nosnippet>450</a>// =============================================================================
-<a href=#451 id=451 data-nosnippet>451</a>
-<a href=#452 id=452 data-nosnippet>452</a></span><span class="doccomment">/// Adaptive Proportion Test per NIST SP 800-90B Section 4.4.2.
-<a href=#453 id=453 data-nosnippet>453</a>///
-<a href=#454 id=454 data-nosnippet>454</a>/// Monitors for an excessive proportion of a single value within a sliding
-<a href=#455 id=455 data-nosnippet>455</a>/// window — a signature of entropy degradation toward a stuck source.
-<a href=#456 id=456 data-nosnippet>456</a>///
-<a href=#457 id=457 data-nosnippet>457</a>/// # Cutoff calculation (SP 800-90B §4.4.2)
-<a href=#458 id=458 data-nosnippet>458</a>///
-<a href=#459 id=459 data-nosnippet>459</a>/// The standard defines the cutoff `C` as
-<a href=#460 id=460 data-nosnippet>460</a>///
-<a href=#461 id=461 data-nosnippet>461</a>/// ```text
-<a href=#462 id=462 data-nosnippet>462</a>///   C = 1 + CRITBINOM(W, 2^-H, 1 - α)
-<a href=#463 id=463 data-nosnippet>463</a>/// ```
-<a href=#464 id=464 data-nosnippet>464</a>///
-<a href=#465 id=465 data-nosnippet>465</a>/// where `W` is the window size, `H` is the assumed min-entropy per
-<a href=#466 id=466 data-nosnippet>466</a>/// symbol (in bits), and `α` is the false-positive rate. For our default
-<a href=#467 id=467 data-nosnippet>467</a>/// configuration `(W = 512, H = 8, α = 2^-30)` the binomial inverse
-<a href=#468 id=468 data-nosnippet>468</a>/// gives `C = 16`, i.e. a window passes only if no single byte appears
-<a href=#469 id=469 data-nosnippet>469</a>/// more than 16 times out of 512 (≈ 3.12%). The previous implementation
-<a href=#470 id=470 data-nosnippet>470</a>/// hard-coded `cutoff_ratio = 0.4` (40%), which would only flag near-
-<a href=#471 id=471 data-nosnippet>471</a>/// stuck sources and silently passed sources with significant entropy
-<a href=#472 id=472 data-nosnippet>472</a>/// degradation while claiming SP 800-90B compliance.
-<a href=#473 id=473 data-nosnippet>473</a>///
-<a href=#474 id=474 data-nosnippet>474</a>/// # Arguments
+<a href=#368 id=368 data-nosnippet>368</a>    <span class="kw">if </span>proportion &lt; min_proportion || proportion &gt; max_proportion {
+<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
+<a href=#370 id=370 data-nosnippet>370</a>            message: <span class="macro">format!</span>(
+<a href=#371 id=371 data-nosnippet>371</a>                <span class="string">"Monobit test failed: {:.1}% ones (expected {:.0}-{:.0}% for {} bits)"</span>,
+<a href=#372 id=372 data-nosnippet>372</a>                proportion * <span class="number">100.0</span>,
+<a href=#373 id=373 data-nosnippet>373</a>                min_proportion * <span class="number">100.0</span>,
+<a href=#374 id=374 data-nosnippet>374</a>                max_proportion * <span class="number">100.0</span>,
+<a href=#375 id=375 data-nosnippet>375</a>                total_bits
+<a href=#376 id=376 data-nosnippet>376</a>            ),
+<a href=#377 id=377 data-nosnippet>377</a>        });
+<a href=#378 id=378 data-nosnippet>378</a>    }
+<a href=#379 id=379 data-nosnippet>379</a>
+<a href=#380 id=380 data-nosnippet>380</a>    <span class="prelude-val">Ok</span>(())
+<a href=#381 id=381 data-nosnippet>381</a>}
+<a href=#382 id=382 data-nosnippet>382</a>
+<a href=#383 id=383 data-nosnippet>383</a><span class="comment">// =============================================================================
+<a href=#384 id=384 data-nosnippet>384</a>// Runs Test (NIST SP 800-22 Section 2.3)
+<a href=#385 id=385 data-nosnippet>385</a>// =============================================================================
+<a href=#386 id=386 data-nosnippet>386</a>
+<a href=#387 id=387 data-nosnippet>387</a></span><span class="doccomment">/// Runs Test for consecutive bit sequences.
+<a href=#388 id=388 data-nosnippet>388</a>///
+<a href=#389 id=389 data-nosnippet>389</a>/// This test checks for the expected number of "runs" in a sequence, where a
+<a href=#390 id=390 data-nosnippet>390</a>/// run is an uninterrupted sequence of identical bits. For random data, there
+<a href=#391 id=391 data-nosnippet>391</a>/// should be an expected distribution of run lengths.
+<a href=#392 id=392 data-nosnippet>392</a>///
+<a href=#393 id=393 data-nosnippet>393</a>/// # Arguments
+<a href=#394 id=394 data-nosnippet>394</a>///
+<a href=#395 id=395 data-nosnippet>395</a>/// * `bytes` - The random bytes to test
+<a href=#396 id=396 data-nosnippet>396</a>///
+<a href=#397 id=397 data-nosnippet>397</a>/// # Returns
+<a href=#398 id=398 data-nosnippet>398</a>///
+<a href=#399 id=399 data-nosnippet>399</a>/// * `Ok(())` - If the test passes
+<a href=#400 id=400 data-nosnippet>400</a>/// * `Err(LatticeArcError::ValidationError)` - If the test fails
+<a href=#401 id=401 data-nosnippet>401</a>///
+<a href=#402 id=402 data-nosnippet>402</a>/// # Errors
+<a href=#403 id=403 data-nosnippet>403</a>///
+<a href=#404 id=404 data-nosnippet>404</a>/// Returns `LatticeArcError::ValidationError` if:
+<a href=#405 id=405 data-nosnippet>405</a>/// - Input is too small (&lt;8 bytes)
+<a href=#406 id=406 data-nosnippet>406</a>/// - The number of runs is significantly different from expected
+<a href=#407 id=407 data-nosnippet>407</a></span><span class="attr">#[expect(
+<a href=#408 id=408 data-nosnippet>408</a>    clippy::cast_precision_loss,
+<a href=#409 id=409 data-nosnippet>409</a>    reason = <span class="string">"Intentional: statistical calculations require float conversion"
+<a href=#410 id=410 data-nosnippet>410</a></span>)]
+<a href=#411 id=411 data-nosnippet>411</a>#[expect(
+<a href=#412 id=412 data-nosnippet>412</a>    clippy::cast_possible_truncation,
+<a href=#413 id=413 data-nosnippet>413</a>    reason = <span class="string">"Intentional: converting float ratio to integer bounds"
+<a href=#414 id=414 data-nosnippet>414</a></span>)]
+<a href=#415 id=415 data-nosnippet>415</a>#[expect(clippy::cast_sign_loss, reason = <span class="string">"Safe: values are always positive in this context"</span>)]
+<a href=#416 id=416 data-nosnippet>416</a>#[expect(clippy::indexing_slicing, reason = <span class="string">"Safe: checked len &gt;= 8 before indexing"</span>)]
+<a href=#417 id=417 data-nosnippet>417</a></span><span class="kw">pub fn </span>runs_test(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">if </span>bytes.len() &lt; <span class="number">8 </span>{
+<a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
+<a href=#420 id=420 data-nosnippet>420</a>            message: <span class="string">"Runs test requires at least 8 bytes"</span>.to_string(),
+<a href=#421 id=421 data-nosnippet>421</a>        });
+<a href=#422 id=422 data-nosnippet>422</a>    }
+<a href=#423 id=423 data-nosnippet>423</a>
+<a href=#424 id=424 data-nosnippet>424</a>    <span class="comment">// Convert bytes to bits and count runs
+<a href=#425 id=425 data-nosnippet>425</a>    // Safety: len &gt;= 8, so this won't overflow
+<a href=#426 id=426 data-nosnippet>426</a>    </span><span class="kw">let </span>total_bits = bytes.len().saturating_mul(<span class="number">8</span>);
+<a href=#427 id=427 data-nosnippet>427</a>    <span class="kw">let </span><span class="kw-2">mut </span>runs: u64 = <span class="number">1</span>; <span class="comment">// Start with 1 run
+<a href=#428 id=428 data-nosnippet>428</a>    // Safety: len &gt;= 8 checked above
+<a href=#429 id=429 data-nosnippet>429</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>prev_bit = (bytes[<span class="number">0</span>] &gt;&gt; <span class="number">7</span>) &amp; <span class="number">1</span>;
+<a href=#430 id=430 data-nosnippet>430</a>
+<a href=#431 id=431 data-nosnippet>431</a>    <span class="kw">for </span>(i, <span class="kw-2">&amp;</span>byte) <span class="kw">in </span>bytes.iter().enumerate() {
+<a href=#432 id=432 data-nosnippet>432</a>        <span class="kw">let </span>start_bit = <span class="kw">if </span>i == <span class="number">0 </span>{ <span class="number">6 </span>} <span class="kw">else </span>{ <span class="number">7 </span>}; <span class="comment">// Skip first bit of first byte
+<a href=#433 id=433 data-nosnippet>433</a>        </span><span class="kw">for </span>bit_pos <span class="kw">in </span>(<span class="number">0</span>..=start_bit).rev() {
+<a href=#434 id=434 data-nosnippet>434</a>            <span class="kw">let </span>current_bit = (byte &gt;&gt; bit_pos) &amp; <span class="number">1</span>;
+<a href=#435 id=435 data-nosnippet>435</a>            <span class="kw">if </span><span class="macro">current_bit !</span>= prev_bit {
+<a href=#436 id=436 data-nosnippet>436</a>                runs = runs.saturating_add(<span class="number">1</span>);
+<a href=#437 id=437 data-nosnippet>437</a>                prev_bit = current_bit;
+<a href=#438 id=438 data-nosnippet>438</a>            }
+<a href=#439 id=439 data-nosnippet>439</a>        }
+<a href=#440 id=440 data-nosnippet>440</a>    }
+<a href=#441 id=441 data-nosnippet>441</a>
+<a href=#442 id=442 data-nosnippet>442</a>    <span class="comment">// For truly random data, expected number of runs is approximately:
+<a href=#443 id=443 data-nosnippet>443</a>    // E(runs) = (2 * n * pi) / n + 1 ≈ n/2 + 1 where n is total bits
+<a href=#444 id=444 data-nosnippet>444</a>    // But more precisely: E(runs) = 2*n0*n1/n + 1 where n0, n1 are counts of 0s and 1s
+<a href=#445 id=445 data-nosnippet>445</a>    // For balanced data: E(runs) ≈ n/2
+<a href=#446 id=446 data-nosnippet>446</a>
+<a href=#447 id=447 data-nosnippet>447</a>    </span><span class="kw">let </span>expected_runs = total_bits <span class="kw">as </span>f64 / <span class="number">2.0</span>;
+<a href=#448 id=448 data-nosnippet>448</a>
+<a href=#449 id=449 data-nosnippet>449</a>    <span class="comment">// Allow significant deviation for the statistical nature of the test
+<a href=#450 id=450 data-nosnippet>450</a>    // Use ±30% range for smaller samples, ±25% for larger
+<a href=#451 id=451 data-nosnippet>451</a>    </span><span class="kw">let </span>deviation = <span class="kw">if </span>total_bits &lt; <span class="number">1000 </span>{ <span class="number">0.35 </span>} <span class="kw">else </span>{ <span class="number">0.30 </span>};
+<a href=#452 id=452 data-nosnippet>452</a>    <span class="kw">let </span>min_runs = (expected_runs * (<span class="number">1.0 </span>- deviation)) <span class="kw">as </span>u64;
+<a href=#453 id=453 data-nosnippet>453</a>    <span class="kw">let </span>max_runs = (expected_runs * (<span class="number">1.0 </span>+ deviation)) <span class="kw">as </span>u64;
+<a href=#454 id=454 data-nosnippet>454</a>
+<a href=#455 id=455 data-nosnippet>455</a>    <span class="kw">if </span>runs &lt; min_runs || runs &gt; max_runs {
+<a href=#456 id=456 data-nosnippet>456</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
+<a href=#457 id=457 data-nosnippet>457</a>            message: <span class="macro">format!</span>(
+<a href=#458 id=458 data-nosnippet>458</a>                <span class="string">"Runs test failed: {} runs found (expected {}-{} for {} bits)"</span>,
+<a href=#459 id=459 data-nosnippet>459</a>                runs, min_runs, max_runs, total_bits
+<a href=#460 id=460 data-nosnippet>460</a>            ),
+<a href=#461 id=461 data-nosnippet>461</a>        });
+<a href=#462 id=462 data-nosnippet>462</a>    }
+<a href=#463 id=463 data-nosnippet>463</a>
+<a href=#464 id=464 data-nosnippet>464</a>    <span class="prelude-val">Ok</span>(())
+<a href=#465 id=465 data-nosnippet>465</a>}
+<a href=#466 id=466 data-nosnippet>466</a>
+<a href=#467 id=467 data-nosnippet>467</a><span class="comment">// =============================================================================
+<a href=#468 id=468 data-nosnippet>468</a>// Adaptive Proportion Test (SP 800-90B Section 4.4.2)
+<a href=#469 id=469 data-nosnippet>469</a>// =============================================================================
+<a href=#470 id=470 data-nosnippet>470</a>
+<a href=#471 id=471 data-nosnippet>471</a></span><span class="doccomment">/// Adaptive Proportion Test per NIST SP 800-90B Section 4.4.2.
+<a href=#472 id=472 data-nosnippet>472</a>///
+<a href=#473 id=473 data-nosnippet>473</a>/// Monitors for an excessive proportion of a single value within a sliding
+<a href=#474 id=474 data-nosnippet>474</a>/// window — a signature of entropy degradation toward a stuck source.
 <a href=#475 id=475 data-nosnippet>475</a>///
-<a href=#476 id=476 data-nosnippet>476</a>/// * `bytes` - The random bytes to test
+<a href=#476 id=476 data-nosnippet>476</a>/// # Cutoff calculation (SP 800-90B §4.4.2)
 <a href=#477 id=477 data-nosnippet>477</a>///
-<a href=#478 id=478 data-nosnippet>478</a>/// # Errors
+<a href=#478 id=478 data-nosnippet>478</a>/// The standard defines the cutoff `C` as
 <a href=#479 id=479 data-nosnippet>479</a>///
-<a href=#480 id=480 data-nosnippet>480</a>/// Returns `LatticeArcError::ValidationError` if any window of 512 bytes
-<a href=#481 id=481 data-nosnippet>481</a>/// has a single byte value appearing 16 or more times.
-<a href=#482 id=482 data-nosnippet>482</a></span><span class="kw">pub fn </span>adaptive_proportion_test(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#483 id=483 data-nosnippet>483</a>    <span class="comment">// SP 800-90B compliant cutoff: CRITBINOM(512, 2^-8, 1 - 2^-30) + 1 = 16.
-<a href=#484 id=484 data-nosnippet>484</a>    // Computed offline; recomputing every call would require a binomial
-<a href=#485 id=485 data-nosnippet>485</a>    // CDF which has no FIPS-approved Rust implementation in our deps.
-<a href=#486 id=486 data-nosnippet>486</a>    // Callers wanting non-default W/H/α use `_with_params` and pass their
-<a href=#487 id=487 data-nosnippet>487</a>    // own pre-computed cutoff (as a ratio in [0, 1]).
-<a href=#488 id=488 data-nosnippet>488</a>    //   16 / 512 = 0.03125 (exact in IEEE-754 f64, so no precision-loss
-<a href=#489 id=489 data-nosnippet>489</a>    //   tail-bits creep into the comparison).
-<a href=#490 id=490 data-nosnippet>490</a>    </span><span class="kw">const </span>STANDARD_WINDOW: usize = <span class="number">512</span>;
-<a href=#491 id=491 data-nosnippet>491</a>    <span class="kw">const </span>COMPLIANT_CUTOFF_RATIO: f64 = <span class="number">0.031_25</span>;
-<a href=#492 id=492 data-nosnippet>492</a>    adaptive_proportion_test_with_params(bytes, STANDARD_WINDOW, COMPLIANT_CUTOFF_RATIO)
-<a href=#493 id=493 data-nosnippet>493</a>}
-<a href=#494 id=494 data-nosnippet>494</a>
-<a href=#495 id=495 data-nosnippet>495</a><span class="doccomment">/// Adaptive Proportion Test with custom `(window_size, cutoff_ratio)`.
+<a href=#480 id=480 data-nosnippet>480</a>/// ```text
+<a href=#481 id=481 data-nosnippet>481</a>///   C = 1 + CRITBINOM(W, 2^-H, 1 - α)
+<a href=#482 id=482 data-nosnippet>482</a>/// ```
+<a href=#483 id=483 data-nosnippet>483</a>///
+<a href=#484 id=484 data-nosnippet>484</a>/// where `W` is the window size, `H` is the assumed min-entropy per
+<a href=#485 id=485 data-nosnippet>485</a>/// symbol (in bits), and `α` is the false-positive rate. For our default
+<a href=#486 id=486 data-nosnippet>486</a>/// configuration `(W = 512, H = 8, α = 2^-30)` the binomial inverse
+<a href=#487 id=487 data-nosnippet>487</a>/// gives `C = 16`, i.e. a window passes only if no single byte appears
+<a href=#488 id=488 data-nosnippet>488</a>/// more than 16 times out of 512 (≈ 3.12%). The previous implementation
+<a href=#489 id=489 data-nosnippet>489</a>/// hard-coded `cutoff_ratio = 0.4` (40%), which would only flag near-
+<a href=#490 id=490 data-nosnippet>490</a>/// stuck sources and silently passed sources with significant entropy
+<a href=#491 id=491 data-nosnippet>491</a>/// degradation while claiming SP 800-90B compliance.
+<a href=#492 id=492 data-nosnippet>492</a>///
+<a href=#493 id=493 data-nosnippet>493</a>/// # Arguments
+<a href=#494 id=494 data-nosnippet>494</a>///
+<a href=#495 id=495 data-nosnippet>495</a>/// * `bytes` - The random bytes to test
 <a href=#496 id=496 data-nosnippet>496</a>///
-<a href=#497 id=497 data-nosnippet>497</a>/// Callers MUST compute `cutoff_ratio` from the SP 800-90B formula
-<a href=#498 id=498 data-nosnippet>498</a>/// `(1 + CRITBINOM(W, 2^-H, 1 - α)) / W` for their target `(W, H, α)`
-<a href=#499 id=499 data-nosnippet>499</a>/// — passing an arbitrary ratio defeats the standard. The
-<a href=#500 id=500 data-nosnippet>500</a>/// no-argument [`adaptive_proportion_test`] uses the standard's
-<a href=#501 id=501 data-nosnippet>501</a>/// default configuration.
-<a href=#502 id=502 data-nosnippet>502</a>///
-<a href=#503 id=503 data-nosnippet>503</a>/// # Errors
-<a href=#504 id=504 data-nosnippet>504</a>///
-<a href=#505 id=505 data-nosnippet>505</a>/// Returns `LatticeArcError::ValidationError` if any window exceeds the cutoff.
-<a href=#506 id=506 data-nosnippet>506</a></span><span class="attr">#[expect(
-<a href=#507 id=507 data-nosnippet>507</a>    clippy::cast_precision_loss,
-<a href=#508 id=508 data-nosnippet>508</a>    reason = <span class="string">"Intentional: statistical calculations require float conversion"
-<a href=#509 id=509 data-nosnippet>509</a></span>)]
-<a href=#510 id=510 data-nosnippet>510</a>#[expect(clippy::indexing_slicing, reason = <span class="string">"Safe: loop bounds ensure valid indices"</span>)]
-<a href=#511 id=511 data-nosnippet>511</a></span><span class="kw">pub fn </span>adaptive_proportion_test_with_params(
-<a href=#512 id=512 data-nosnippet>512</a>    bytes: <span class="kw-2">&amp;</span>[u8],
-<a href=#513 id=513 data-nosnippet>513</a>    window_size: usize,
-<a href=#514 id=514 data-nosnippet>514</a>    cutoff_ratio: f64,
-<a href=#515 id=515 data-nosnippet>515</a>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#516 id=516 data-nosnippet>516</a>    <span class="kw">if </span>bytes.len() &lt; window_size || window_size == <span class="number">0 </span>{
-<a href=#517 id=517 data-nosnippet>517</a>        <span class="comment">// Not enough data for this test, skip silently
-<a href=#518 id=518 data-nosnippet>518</a>        </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#519 id=519 data-nosnippet>519</a>    }
-<a href=#520 id=520 data-nosnippet>520</a>
-<a href=#521 id=521 data-nosnippet>521</a>    <span class="comment">// Slide window through the data
-<a href=#522 id=522 data-nosnippet>522</a>    // Safety: checked len &gt;= window_size above
-<a href=#523 id=523 data-nosnippet>523</a>    </span><span class="kw">let </span>end = bytes.len().saturating_sub(window_size);
-<a href=#524 id=524 data-nosnippet>524</a>    <span class="kw">for </span>window_start <span class="kw">in </span><span class="number">0</span>..=end {
-<a href=#525 id=525 data-nosnippet>525</a>        <span class="kw">let </span>window_end = window_start.saturating_add(window_size);
-<a href=#526 id=526 data-nosnippet>526</a>        <span class="kw">let </span>window = bytes.get(window_start..window_end).unwrap_or(<span class="kw-2">&amp;</span>[]);
-<a href=#527 id=527 data-nosnippet>527</a>
-<a href=#528 id=528 data-nosnippet>528</a>        <span class="comment">// Count occurrences of each byte value in window
-<a href=#529 id=529 data-nosnippet>529</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>counts = [<span class="number">0u32</span>; <span class="number">256</span>];
-<a href=#530 id=530 data-nosnippet>530</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>byte <span class="kw">in </span>window {
-<a href=#531 id=531 data-nosnippet>531</a>            <span class="kw">let </span>idx = byte <span class="kw">as </span>usize;
-<a href=#532 id=532 data-nosnippet>532</a>            counts[idx] = counts[idx].saturating_add(<span class="number">1</span>);
-<a href=#533 id=533 data-nosnippet>533</a>        }
-<a href=#534 id=534 data-nosnippet>534</a>
-<a href=#535 id=535 data-nosnippet>535</a>        <span class="comment">// Find the maximum count
-<a href=#536 id=536 data-nosnippet>536</a>        </span><span class="kw">let </span>max_count = counts.iter().max().copied().unwrap_or(<span class="number">0</span>);
-<a href=#537 id=537 data-nosnippet>537</a>        <span class="kw">let </span>max_ratio = f64::from(max_count) / window_size <span class="kw">as </span>f64;
-<a href=#538 id=538 data-nosnippet>538</a>
-<a href=#539 id=539 data-nosnippet>539</a>        <span class="kw">if </span>max_ratio &gt; cutoff_ratio {
-<a href=#540 id=540 data-nosnippet>540</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#541 id=541 data-nosnippet>541</a>                message: <span class="macro">format!</span>(
-<a href=#542 id=542 data-nosnippet>542</a>                    <span class="string">"Adaptive proportion test failed at offset {}: \
-<a href=#543 id=543 data-nosnippet>543</a>                     most common byte appears {:.1}% of window (max {:.1}%)"</span>,
-<a href=#544 id=544 data-nosnippet>544</a>                    window_start,
-<a href=#545 id=545 data-nosnippet>545</a>                    max_ratio * <span class="number">100.0</span>,
-<a href=#546 id=546 data-nosnippet>546</a>                    cutoff_ratio * <span class="number">100.0
-<a href=#547 id=547 data-nosnippet>547</a>                </span>),
-<a href=#548 id=548 data-nosnippet>548</a>            });
-<a href=#549 id=549 data-nosnippet>549</a>        }
-<a href=#550 id=550 data-nosnippet>550</a>    }
-<a href=#551 id=551 data-nosnippet>551</a>
-<a href=#552 id=552 data-nosnippet>552</a>    <span class="prelude-val">Ok</span>(())
-<a href=#553 id=553 data-nosnippet>553</a>}
-<a href=#554 id=554 data-nosnippet>554</a>
-<a href=#555 id=555 data-nosnippet>555</a><span class="comment">// =============================================================================
-<a href=#556 id=556 data-nosnippet>556</a>// Longest Run Test (NIST SP 800-22 Section 2.4)
-<a href=#557 id=557 data-nosnippet>557</a>// =============================================================================
-<a href=#558 id=558 data-nosnippet>558</a>
-<a href=#559 id=559 data-nosnippet>559</a></span><span class="doccomment">/// Longest Run Test - checks that no single bit value runs too long.
-<a href=#560 id=560 data-nosnippet>560</a>///
-<a href=#561 id=561 data-nosnippet>561</a>/// This test verifies that there are no excessively long runs of consecutive
-<a href=#562 id=562 data-nosnippet>562</a>/// identical bits, which would indicate a stuck-at fault or bias.
-<a href=#563 id=563 data-nosnippet>563</a>///
-<a href=#564 id=564 data-nosnippet>564</a>/// # Arguments
-<a href=#565 id=565 data-nosnippet>565</a>///
-<a href=#566 id=566 data-nosnippet>566</a>/// * `bytes` - The random bytes to test
-<a href=#567 id=567 data-nosnippet>567</a>///
-<a href=#568 id=568 data-nosnippet>568</a>/// # Returns
-<a href=#569 id=569 data-nosnippet>569</a>///
-<a href=#570 id=570 data-nosnippet>570</a>/// * `Ok(())` - If no excessively long runs are found
-<a href=#571 id=571 data-nosnippet>571</a>/// * `Err(LatticeArcError::ValidationError)` - If the test fails
-<a href=#572 id=572 data-nosnippet>572</a>///
-<a href=#573 id=573 data-nosnippet>573</a>/// # Errors
-<a href=#574 id=574 data-nosnippet>574</a>///
-<a href=#575 id=575 data-nosnippet>575</a>/// Returns `LatticeArcError::ValidationError` if a run exceeds the threshold.
-<a href=#576 id=576 data-nosnippet>576</a></span><span class="attr">#[expect(clippy::indexing_slicing, reason = <span class="string">"Safe: checked non-empty before indexing"</span>)]
-<a href=#577 id=577 data-nosnippet>577</a></span><span class="kw">pub fn </span>longest_run_test(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#578 id=578 data-nosnippet>578</a>    <span class="kw">if </span>bytes.is_empty() {
-<a href=#579 id=579 data-nosnippet>579</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#580 id=580 data-nosnippet>580</a>            message: <span class="string">"Longest run test requires non-empty input"</span>.to_string(),
-<a href=#581 id=581 data-nosnippet>581</a>        });
-<a href=#582 id=582 data-nosnippet>582</a>    }
-<a href=#583 id=583 data-nosnippet>583</a>
-<a href=#584 id=584 data-nosnippet>584</a>    <span class="comment">// Safety: checked non-empty above
-<a href=#585 id=585 data-nosnippet>585</a>    </span><span class="kw">let </span>total_bits = bytes.len().saturating_mul(<span class="number">8</span>);
-<a href=#586 id=586 data-nosnippet>586</a>
-<a href=#587 id=587 data-nosnippet>587</a>    <span class="comment">// Maximum expected run length for truly random data:
-<a href=#588 id=588 data-nosnippet>588</a>    // For n bits, expected longest run is approximately log2(n)
-<a href=#589 id=589 data-nosnippet>589</a>    // We allow some margin above this
-<a href=#590 id=590 data-nosnippet>590</a>    </span><span class="kw">let </span>max_allowed_run = <span class="kw">if </span>total_bits &lt; <span class="number">100 </span>{
-<a href=#591 id=591 data-nosnippet>591</a>        <span class="number">12 </span><span class="comment">// Very small samples
-<a href=#592 id=592 data-nosnippet>592</a>    </span>} <span class="kw">else if </span>total_bits &lt; <span class="number">1000 </span>{
-<a href=#593 id=593 data-nosnippet>593</a>        <span class="number">16 </span><span class="comment">// Small samples
-<a href=#594 id=594 data-nosnippet>594</a>    </span>} <span class="kw">else if </span>total_bits &lt; <span class="number">10000 </span>{
-<a href=#595 id=595 data-nosnippet>595</a>        <span class="number">20 </span><span class="comment">// Medium samples
-<a href=#596 id=596 data-nosnippet>596</a>    </span>} <span class="kw">else </span>{
-<a href=#597 id=597 data-nosnippet>597</a>        <span class="number">26 </span><span class="comment">// Large samples - log2(10000) ≈ 13, so 26 is 2x margin
-<a href=#598 id=598 data-nosnippet>598</a>    </span>};
-<a href=#599 id=599 data-nosnippet>599</a>
-<a href=#600 id=600 data-nosnippet>600</a>    <span class="kw">let </span><span class="kw-2">mut </span>current_run: usize = <span class="number">1</span>;
-<a href=#601 id=601 data-nosnippet>601</a>    <span class="kw">let </span><span class="kw-2">mut </span>longest_run: usize = <span class="number">1</span>;
-<a href=#602 id=602 data-nosnippet>602</a>    <span class="comment">// Safety: checked non-empty above
-<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>prev_bit = (bytes[<span class="number">0</span>] &gt;&gt; <span class="number">7</span>) &amp; <span class="number">1</span>;
-<a href=#604 id=604 data-nosnippet>604</a>
-<a href=#605 id=605 data-nosnippet>605</a>    <span class="kw">for </span>(i, <span class="kw-2">&amp;</span>byte) <span class="kw">in </span>bytes.iter().enumerate() {
-<a href=#606 id=606 data-nosnippet>606</a>        <span class="kw">let </span>start_bit = <span class="kw">if </span>i == <span class="number">0 </span>{ <span class="number">6 </span>} <span class="kw">else </span>{ <span class="number">7 </span>};
-<a href=#607 id=607 data-nosnippet>607</a>        <span class="kw">for </span>bit_pos <span class="kw">in </span>(<span class="number">0</span>..=start_bit).rev() {
-<a href=#608 id=608 data-nosnippet>608</a>            <span class="kw">let </span>current_bit = (byte &gt;&gt; bit_pos) &amp; <span class="number">1</span>;
-<a href=#609 id=609 data-nosnippet>609</a>            <span class="kw">if </span>current_bit == prev_bit {
-<a href=#610 id=610 data-nosnippet>610</a>                current_run = current_run.saturating_add(<span class="number">1</span>);
-<a href=#611 id=611 data-nosnippet>611</a>                <span class="kw">if </span>current_run &gt; longest_run {
-<a href=#612 id=612 data-nosnippet>612</a>                    longest_run = current_run;
-<a href=#613 id=613 data-nosnippet>613</a>                }
-<a href=#614 id=614 data-nosnippet>614</a>            } <span class="kw">else </span>{
-<a href=#615 id=615 data-nosnippet>615</a>                current_run = <span class="number">1</span>;
-<a href=#616 id=616 data-nosnippet>616</a>                prev_bit = current_bit;
-<a href=#617 id=617 data-nosnippet>617</a>            }
-<a href=#618 id=618 data-nosnippet>618</a>        }
-<a href=#619 id=619 data-nosnippet>619</a>    }
-<a href=#620 id=620 data-nosnippet>620</a>
-<a href=#621 id=621 data-nosnippet>621</a>    <span class="kw">if </span>longest_run &gt; max_allowed_run {
-<a href=#622 id=622 data-nosnippet>622</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#623 id=623 data-nosnippet>623</a>            message: <span class="macro">format!</span>(
-<a href=#624 id=624 data-nosnippet>624</a>                <span class="string">"Longest run test failed: found run of {} bits (max allowed {} for {} total bits)"</span>,
-<a href=#625 id=625 data-nosnippet>625</a>                longest_run, max_allowed_run, total_bits
-<a href=#626 id=626 data-nosnippet>626</a>            ),
-<a href=#627 id=627 data-nosnippet>627</a>        });
-<a href=#628 id=628 data-nosnippet>628</a>    }
-<a href=#629 id=629 data-nosnippet>629</a>
-<a href=#630 id=630 data-nosnippet>630</a>    <span class="prelude-val">Ok</span>(())
-<a href=#631 id=631 data-nosnippet>631</a>}
-<a href=#632 id=632 data-nosnippet>632</a>
-<a href=#633 id=633 data-nosnippet>633</a><span class="comment">// =============================================================================
-<a href=#634 id=634 data-nosnippet>634</a>// Combined Health Tests
-<a href=#635 id=635 data-nosnippet>635</a>// =============================================================================
-<a href=#636 id=636 data-nosnippet>636</a>
-<a href=#637 id=637 data-nosnippet>637</a></span><span class="doccomment">/// Run all entropy health tests on fresh random bytes.
-<a href=#638 id=638 data-nosnippet>638</a>///
-<a href=#639 id=639 data-nosnippet>639</a>/// This function generates fresh random bytes using the system CSPRNG
-<a href=#640 id=640 data-nosnippet>640</a>/// and runs all implemented entropy health tests on them. This should
-<a href=#641 id=641 data-nosnippet>641</a>/// be called periodically to verify the entropy source is functioning
-<a href=#642 id=642 data-nosnippet>642</a>/// correctly.
-<a href=#643 id=643 data-nosnippet>643</a>///
-<a href=#644 id=644 data-nosnippet>644</a>/// # Returns
-<a href=#645 id=645 data-nosnippet>645</a>///
-<a href=#646 id=646 data-nosnippet>646</a>/// * `Ok(())` - If all health tests pass
-<a href=#647 id=647 data-nosnippet>647</a>/// * `Err(LatticeArcError::ValidationError)` - If any health test fails
-<a href=#648 id=648 data-nosnippet>648</a>///
-<a href=#649 id=649 data-nosnippet>649</a>/// # Example
-<a href=#650 id=650 data-nosnippet>650</a>///
-<a href=#651 id=651 data-nosnippet>651</a>/// ```no_run
-<a href=#652 id=652 data-nosnippet>652</a>/// use latticearc::primitives::rand::entropy_tests::run_entropy_health_tests;
-<a href=#653 id=653 data-nosnippet>653</a>///
-<a href=#654 id=654 data-nosnippet>654</a>/// // Run during initialization or periodically
-<a href=#655 id=655 data-nosnippet>655</a>/// match run_entropy_health_tests() {
-<a href=#656 id=656 data-nosnippet>656</a>///     Ok(()) =&gt; println!("Entropy source healthy"),
-<a href=#657 id=657 data-nosnippet>657</a>///     Err(e) =&gt; eprintln!("WARNING: {}", e),
-<a href=#658 id=658 data-nosnippet>658</a>/// }
-<a href=#659 id=659 data-nosnippet>659</a>/// ```
-<a href=#660 id=660 data-nosnippet>660</a>///
-<a href=#661 id=661 data-nosnippet>661</a>/// # Errors
-<a href=#662 id=662 data-nosnippet>662</a>///
-<a href=#663 id=663 data-nosnippet>663</a>/// Returns `LatticeArcError::ValidationError` if any entropy test fails.
-<a href=#664 id=664 data-nosnippet>664</a></span><span class="kw">pub fn </span>run_entropy_health_tests() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#665 id=665 data-nosnippet>665</a>    <span class="kw">use </span><span class="kw">super</span>::random_bytes;
-<a href=#666 id=666 data-nosnippet>666</a>
-<a href=#667 id=667 data-nosnippet>667</a>    <span class="comment">// Generate fresh random bytes for testing
-<a href=#668 id=668 data-nosnippet>668</a>    </span><span class="kw">let </span>bytes = random_bytes(DEFAULT_SAMPLE_SIZE);
-<a href=#669 id=669 data-nosnippet>669</a>
-<a href=#670 id=670 data-nosnippet>670</a>    <span class="comment">// SP 800-90B basic tests
-<a href=#671 id=671 data-nosnippet>671</a>    </span>repetition_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#672 id=672 data-nosnippet>672</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
-<a href=#673 id=673 data-nosnippet>673</a>    })<span class="question-mark">?</span>;
-<a href=#674 id=674 data-nosnippet>674</a>
-<a href=#675 id=675 data-nosnippet>675</a>    frequency_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#676 id=676 data-nosnippet>676</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
-<a href=#677 id=677 data-nosnippet>677</a>    })<span class="question-mark">?</span>;
-<a href=#678 id=678 data-nosnippet>678</a>
-<a href=#679 id=679 data-nosnippet>679</a>    <span class="comment">// NIST SP 800-22 tests
-<a href=#680 id=680 data-nosnippet>680</a>    </span>monobit_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#681 id=681 data-nosnippet>681</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
-<a href=#682 id=682 data-nosnippet>682</a>    })<span class="question-mark">?</span>;
-<a href=#683 id=683 data-nosnippet>683</a>
-<a href=#684 id=684 data-nosnippet>684</a>    runs_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#685 id=685 data-nosnippet>685</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
-<a href=#686 id=686 data-nosnippet>686</a>    })<span class="question-mark">?</span>;
-<a href=#687 id=687 data-nosnippet>687</a>
-<a href=#688 id=688 data-nosnippet>688</a>    longest_run_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#689 id=689 data-nosnippet>689</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
-<a href=#690 id=690 data-nosnippet>690</a>    })<span class="question-mark">?</span>;
-<a href=#691 id=691 data-nosnippet>691</a>
-<a href=#692 id=692 data-nosnippet>692</a>    <span class="comment">// SP 800-90B adaptive proportion test
-<a href=#693 id=693 data-nosnippet>693</a>    </span>adaptive_proportion_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#694 id=694 data-nosnippet>694</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
-<a href=#695 id=695 data-nosnippet>695</a>    })<span class="question-mark">?</span>;
-<a href=#696 id=696 data-nosnippet>696</a>
-<a href=#697 id=697 data-nosnippet>697</a>    <span class="prelude-val">Ok</span>(())
-<a href=#698 id=698 data-nosnippet>698</a>}
-<a href=#699 id=699 data-nosnippet>699</a>
-<a href=#700 id=700 data-nosnippet>700</a><span class="doccomment">/// Run entropy health tests on provided bytes.
-<a href=#701 id=701 data-nosnippet>701</a>///
-<a href=#702 id=702 data-nosnippet>702</a>/// This variant allows testing specific byte sequences, useful for
-<a href=#703 id=703 data-nosnippet>703</a>/// validation or when integrating with external entropy sources.
-<a href=#704 id=704 data-nosnippet>704</a>///
-<a href=#705 id=705 data-nosnippet>705</a>/// # Arguments
-<a href=#706 id=706 data-nosnippet>706</a>///
-<a href=#707 id=707 data-nosnippet>707</a>/// * `bytes` - The bytes to test
-<a href=#708 id=708 data-nosnippet>708</a>///
-<a href=#709 id=709 data-nosnippet>709</a>/// # Returns
-<a href=#710 id=710 data-nosnippet>710</a>///
-<a href=#711 id=711 data-nosnippet>711</a>/// * `Ok(())` - If all health tests pass
-<a href=#712 id=712 data-nosnippet>712</a>/// * `Err(LatticeArcError::ValidationError)` - If any health test fails
-<a href=#713 id=713 data-nosnippet>713</a>///
-<a href=#714 id=714 data-nosnippet>714</a>/// # Errors
-<a href=#715 id=715 data-nosnippet>715</a>///
-<a href=#716 id=716 data-nosnippet>716</a>/// Returns `LatticeArcError::ValidationError` if any entropy test fails.
-<a href=#717 id=717 data-nosnippet>717</a></span><span class="kw">pub fn </span>run_entropy_health_tests_on_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#718 id=718 data-nosnippet>718</a>    <span class="comment">// SP 800-90B basic tests
-<a href=#719 id=719 data-nosnippet>719</a>    </span>repetition_test(bytes)<span class="question-mark">?</span>;
-<a href=#720 id=720 data-nosnippet>720</a>    frequency_test(bytes)<span class="question-mark">?</span>;
-<a href=#721 id=721 data-nosnippet>721</a>
-<a href=#722 id=722 data-nosnippet>722</a>    <span class="comment">// NIST SP 800-22 tests
-<a href=#723 id=723 data-nosnippet>723</a>    </span>monobit_test(bytes)<span class="question-mark">?</span>;
-<a href=#724 id=724 data-nosnippet>724</a>    runs_test(bytes)<span class="question-mark">?</span>;
-<a href=#725 id=725 data-nosnippet>725</a>    longest_run_test(bytes)<span class="question-mark">?</span>;
-<a href=#726 id=726 data-nosnippet>726</a>
-<a href=#727 id=727 data-nosnippet>727</a>    <span class="comment">// SP 800-90B adaptive proportion test
-<a href=#728 id=728 data-nosnippet>728</a>    </span>adaptive_proportion_test(bytes)<span class="question-mark">?</span>;
-<a href=#729 id=729 data-nosnippet>729</a>
-<a href=#730 id=730 data-nosnippet>730</a>    <span class="prelude-val">Ok</span>(())
-<a href=#731 id=731 data-nosnippet>731</a>}
-<a href=#732 id=732 data-nosnippet>732</a>
-<a href=#733 id=733 data-nosnippet>733</a><span class="comment">// =============================================================================
-<a href=#734 id=734 data-nosnippet>734</a>// Tests
-<a href=#735 id=735 data-nosnippet>735</a>// =============================================================================
-<a href=#736 id=736 data-nosnippet>736</a>
-<a href=#737 id=737 data-nosnippet>737</a></span><span class="attr">#[cfg(test)]
-<a href=#738 id=738 data-nosnippet>738</a></span><span class="kw">mod </span>tests {
-<a href=#739 id=739 data-nosnippet>739</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#740 id=740 data-nosnippet>740</a>
-<a href=#741 id=741 data-nosnippet>741</a>    <span class="comment">// -------------------------------------------------------------------------
-<a href=#742 id=742 data-nosnippet>742</a>    // Repetition Test
-<a href=#743 id=743 data-nosnippet>743</a>    // -------------------------------------------------------------------------
-<a href=#744 id=744 data-nosnippet>744</a>
-<a href=#745 id=745 data-nosnippet>745</a>    </span><span class="attr">#[test]
-<a href=#746 id=746 data-nosnippet>746</a>    </span><span class="kw">fn </span>test_repetition_test_passes_on_varied_input_succeeds() {
-<a href=#747 id=747 data-nosnippet>747</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>, <span class="number">0x05</span>, <span class="number">0x06</span>, <span class="number">0x07</span>, <span class="number">0x08</span>];
-<a href=#748 id=748 data-nosnippet>748</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
-<a href=#749 id=749 data-nosnippet>749</a>    }
-<a href=#750 id=750 data-nosnippet>750</a>
-<a href=#751 id=751 data-nosnippet>751</a>    <span class="attr">#[test]
-<a href=#752 id=752 data-nosnippet>752</a>    </span><span class="kw">fn </span>test_repetition_test_passes_with_max_allowed_consecutive_succeeds() {
-<a href=#753 id=753 data-nosnippet>753</a>        <span class="comment">// 5 consecutive identical bytes should pass
-<a href=#754 id=754 data-nosnippet>754</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>];
-<a href=#755 id=755 data-nosnippet>755</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
-<a href=#756 id=756 data-nosnippet>756</a>    }
-<a href=#757 id=757 data-nosnippet>757</a>
-<a href=#758 id=758 data-nosnippet>758</a>    <span class="attr">#[test]
-<a href=#759 id=759 data-nosnippet>759</a>    </span><span class="kw">fn </span>test_repetition_test_fails_with_6_consecutive_fails() {
-<a href=#760 id=760 data-nosnippet>760</a>        <span class="comment">// 6 consecutive identical bytes should fail
-<a href=#761 id=761 data-nosnippet>761</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>];
-<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>result = repetition_test(<span class="kw-2">&amp;</span>bytes);
-<a href=#763 id=763 data-nosnippet>763</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#764 id=764 data-nosnippet>764</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(LatticeArcError::ValidationError { .. })));
-<a href=#765 id=765 data-nosnippet>765</a>    }
+<a href=#497 id=497 data-nosnippet>497</a>/// # Errors
+<a href=#498 id=498 data-nosnippet>498</a>///
+<a href=#499 id=499 data-nosnippet>499</a>/// Returns `LatticeArcError::ValidationError` if any window of 512 bytes
+<a href=#500 id=500 data-nosnippet>500</a>/// has a single byte value appearing 16 or more times.
+<a href=#501 id=501 data-nosnippet>501</a></span><span class="kw">pub fn </span>adaptive_proportion_test(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#502 id=502 data-nosnippet>502</a>    <span class="comment">// SP 800-90B compliant cutoff: CRITBINOM(512, 2^-8, 1 - 2^-30) + 1 = 16.
+<a href=#503 id=503 data-nosnippet>503</a>    // Computed offline; recomputing every call would require a binomial
+<a href=#504 id=504 data-nosnippet>504</a>    // CDF which has no FIPS-approved Rust implementation in our deps.
+<a href=#505 id=505 data-nosnippet>505</a>    // Callers wanting non-default W/H/α use `_with_params` and pass their
+<a href=#506 id=506 data-nosnippet>506</a>    // own pre-computed cutoff (as a ratio in [0, 1]).
+<a href=#507 id=507 data-nosnippet>507</a>    //   16 / 512 = 0.03125 (exact in IEEE-754 f64, so no precision-loss
+<a href=#508 id=508 data-nosnippet>508</a>    //   tail-bits creep into the comparison).
+<a href=#509 id=509 data-nosnippet>509</a>    </span><span class="kw">const </span>STANDARD_WINDOW: usize = <span class="number">512</span>;
+<a href=#510 id=510 data-nosnippet>510</a>    <span class="kw">const </span>COMPLIANT_CUTOFF_RATIO: f64 = <span class="number">0.031_25</span>;
+<a href=#511 id=511 data-nosnippet>511</a>    adaptive_proportion_test_with_params(bytes, STANDARD_WINDOW, COMPLIANT_CUTOFF_RATIO)
+<a href=#512 id=512 data-nosnippet>512</a>}
+<a href=#513 id=513 data-nosnippet>513</a>
+<a href=#514 id=514 data-nosnippet>514</a><span class="doccomment">/// Adaptive Proportion Test with custom `(window_size, cutoff_ratio)`.
+<a href=#515 id=515 data-nosnippet>515</a>///
+<a href=#516 id=516 data-nosnippet>516</a>/// Callers MUST compute `cutoff_ratio` from the SP 800-90B formula
+<a href=#517 id=517 data-nosnippet>517</a>/// `(1 + CRITBINOM(W, 2^-H, 1 - α)) / W` for their target `(W, H, α)`
+<a href=#518 id=518 data-nosnippet>518</a>/// — passing an arbitrary ratio defeats the standard. The
+<a href=#519 id=519 data-nosnippet>519</a>/// no-argument [`adaptive_proportion_test`] uses the standard's
+<a href=#520 id=520 data-nosnippet>520</a>/// default configuration.
+<a href=#521 id=521 data-nosnippet>521</a>///
+<a href=#522 id=522 data-nosnippet>522</a>/// # Errors
+<a href=#523 id=523 data-nosnippet>523</a>///
+<a href=#524 id=524 data-nosnippet>524</a>/// Returns `LatticeArcError::ValidationError` if any window exceeds the cutoff.
+<a href=#525 id=525 data-nosnippet>525</a></span><span class="attr">#[expect(
+<a href=#526 id=526 data-nosnippet>526</a>    clippy::cast_precision_loss,
+<a href=#527 id=527 data-nosnippet>527</a>    reason = <span class="string">"Intentional: statistical calculations require float conversion"
+<a href=#528 id=528 data-nosnippet>528</a></span>)]
+<a href=#529 id=529 data-nosnippet>529</a>#[expect(clippy::indexing_slicing, reason = <span class="string">"Safe: loop bounds ensure valid indices"</span>)]
+<a href=#530 id=530 data-nosnippet>530</a></span><span class="kw">pub fn </span>adaptive_proportion_test_with_params(
+<a href=#531 id=531 data-nosnippet>531</a>    bytes: <span class="kw-2">&amp;</span>[u8],
+<a href=#532 id=532 data-nosnippet>532</a>    window_size: usize,
+<a href=#533 id=533 data-nosnippet>533</a>    cutoff_ratio: f64,
+<a href=#534 id=534 data-nosnippet>534</a>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#535 id=535 data-nosnippet>535</a>    <span class="kw">if </span>bytes.len() &lt; window_size || window_size == <span class="number">0 </span>{
+<a href=#536 id=536 data-nosnippet>536</a>        <span class="comment">// Not enough data for this test, skip silently
+<a href=#537 id=537 data-nosnippet>537</a>        </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
+<a href=#538 id=538 data-nosnippet>538</a>    }
+<a href=#539 id=539 data-nosnippet>539</a>
+<a href=#540 id=540 data-nosnippet>540</a>    <span class="comment">// Slide window through the data
+<a href=#541 id=541 data-nosnippet>541</a>    // Safety: checked len &gt;= window_size above
+<a href=#542 id=542 data-nosnippet>542</a>    </span><span class="kw">let </span>end = bytes.len().saturating_sub(window_size);
+<a href=#543 id=543 data-nosnippet>543</a>    <span class="kw">for </span>window_start <span class="kw">in </span><span class="number">0</span>..=end {
+<a href=#544 id=544 data-nosnippet>544</a>        <span class="kw">let </span>window_end = window_start.saturating_add(window_size);
+<a href=#545 id=545 data-nosnippet>545</a>        <span class="kw">let </span>window = bytes.get(window_start..window_end).unwrap_or(<span class="kw-2">&amp;</span>[]);
+<a href=#546 id=546 data-nosnippet>546</a>
+<a href=#547 id=547 data-nosnippet>547</a>        <span class="comment">// Count occurrences of each byte value in window
+<a href=#548 id=548 data-nosnippet>548</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>counts = [<span class="number">0u32</span>; <span class="number">256</span>];
+<a href=#549 id=549 data-nosnippet>549</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>byte <span class="kw">in </span>window {
+<a href=#550 id=550 data-nosnippet>550</a>            <span class="kw">let </span>idx = byte <span class="kw">as </span>usize;
+<a href=#551 id=551 data-nosnippet>551</a>            counts[idx] = counts[idx].saturating_add(<span class="number">1</span>);
+<a href=#552 id=552 data-nosnippet>552</a>        }
+<a href=#553 id=553 data-nosnippet>553</a>
+<a href=#554 id=554 data-nosnippet>554</a>        <span class="comment">// Find the maximum count
+<a href=#555 id=555 data-nosnippet>555</a>        </span><span class="kw">let </span>max_count = counts.iter().max().copied().unwrap_or(<span class="number">0</span>);
+<a href=#556 id=556 data-nosnippet>556</a>        <span class="kw">let </span>max_ratio = f64::from(max_count) / window_size <span class="kw">as </span>f64;
+<a href=#557 id=557 data-nosnippet>557</a>
+<a href=#558 id=558 data-nosnippet>558</a>        <span class="kw">if </span>max_ratio &gt; cutoff_ratio {
+<a href=#559 id=559 data-nosnippet>559</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
+<a href=#560 id=560 data-nosnippet>560</a>                message: <span class="macro">format!</span>(
+<a href=#561 id=561 data-nosnippet>561</a>                    <span class="string">"Adaptive proportion test failed at offset {}: \
+<a href=#562 id=562 data-nosnippet>562</a>                     most common byte appears {:.1}% of window (max {:.1}%)"</span>,
+<a href=#563 id=563 data-nosnippet>563</a>                    window_start,
+<a href=#564 id=564 data-nosnippet>564</a>                    max_ratio * <span class="number">100.0</span>,
+<a href=#565 id=565 data-nosnippet>565</a>                    cutoff_ratio * <span class="number">100.0
+<a href=#566 id=566 data-nosnippet>566</a>                </span>),
+<a href=#567 id=567 data-nosnippet>567</a>            });
+<a href=#568 id=568 data-nosnippet>568</a>        }
+<a href=#569 id=569 data-nosnippet>569</a>    }
+<a href=#570 id=570 data-nosnippet>570</a>
+<a href=#571 id=571 data-nosnippet>571</a>    <span class="prelude-val">Ok</span>(())
+<a href=#572 id=572 data-nosnippet>572</a>}
+<a href=#573 id=573 data-nosnippet>573</a>
+<a href=#574 id=574 data-nosnippet>574</a><span class="comment">// =============================================================================
+<a href=#575 id=575 data-nosnippet>575</a>// Longest Run Test (NIST SP 800-22 Section 2.4)
+<a href=#576 id=576 data-nosnippet>576</a>// =============================================================================
+<a href=#577 id=577 data-nosnippet>577</a>
+<a href=#578 id=578 data-nosnippet>578</a></span><span class="doccomment">/// Longest Run Test - checks that no single bit value runs too long.
+<a href=#579 id=579 data-nosnippet>579</a>///
+<a href=#580 id=580 data-nosnippet>580</a>/// This test verifies that there are no excessively long runs of consecutive
+<a href=#581 id=581 data-nosnippet>581</a>/// identical bits, which would indicate a stuck-at fault or bias.
+<a href=#582 id=582 data-nosnippet>582</a>///
+<a href=#583 id=583 data-nosnippet>583</a>/// # Arguments
+<a href=#584 id=584 data-nosnippet>584</a>///
+<a href=#585 id=585 data-nosnippet>585</a>/// * `bytes` - The random bytes to test
+<a href=#586 id=586 data-nosnippet>586</a>///
+<a href=#587 id=587 data-nosnippet>587</a>/// # Returns
+<a href=#588 id=588 data-nosnippet>588</a>///
+<a href=#589 id=589 data-nosnippet>589</a>/// * `Ok(())` - If no excessively long runs are found
+<a href=#590 id=590 data-nosnippet>590</a>/// * `Err(LatticeArcError::ValidationError)` - If the test fails
+<a href=#591 id=591 data-nosnippet>591</a>///
+<a href=#592 id=592 data-nosnippet>592</a>/// # Errors
+<a href=#593 id=593 data-nosnippet>593</a>///
+<a href=#594 id=594 data-nosnippet>594</a>/// Returns `LatticeArcError::ValidationError` if a run exceeds the threshold.
+<a href=#595 id=595 data-nosnippet>595</a></span><span class="attr">#[expect(clippy::indexing_slicing, reason = <span class="string">"Safe: checked non-empty before indexing"</span>)]
+<a href=#596 id=596 data-nosnippet>596</a></span><span class="kw">pub fn </span>longest_run_test(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#597 id=597 data-nosnippet>597</a>    <span class="kw">if </span>bytes.is_empty() {
+<a href=#598 id=598 data-nosnippet>598</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
+<a href=#599 id=599 data-nosnippet>599</a>            message: <span class="string">"Longest run test requires non-empty input"</span>.to_string(),
+<a href=#600 id=600 data-nosnippet>600</a>        });
+<a href=#601 id=601 data-nosnippet>601</a>    }
+<a href=#602 id=602 data-nosnippet>602</a>
+<a href=#603 id=603 data-nosnippet>603</a>    <span class="comment">// Safety: checked non-empty above
+<a href=#604 id=604 data-nosnippet>604</a>    </span><span class="kw">let </span>total_bits = bytes.len().saturating_mul(<span class="number">8</span>);
+<a href=#605 id=605 data-nosnippet>605</a>
+<a href=#606 id=606 data-nosnippet>606</a>    <span class="comment">// For n uniform random bits, the longest run of equal bits follows
+<a href=#607 id=607 data-nosnippet>607</a>    // approximately a Gumbel distribution centered near log2(n), with
+<a href=#608 id=608 data-nosnippet>608</a>    // P(longest_run &gt; log2(n) + k) ≈ 2^(−k). The earlier `20`-bit
+<a href=#609 id=609 data-nosnippet>609</a>    // threshold for the 1000–10000 band sat at log2(8192) + 7 ≈ 0.78%
+<a href=#610 id=610 data-nosnippet>610</a>    // per attempt — right at the NIST α = 0.01 boundary, and the
+<a href=#611 id=611 data-nosnippet>611</a>    // dominant secondary contributor (~8%) to the May 2026 CI flake
+<a href=#612 id=612 data-nosnippet>612</a>    // alongside the frequency test. Adding 2 bits (k = 9) cuts that to
+<a href=#613 id=613 data-nosnippet>613</a>    // ~0.2% per attempt while still flagging any genuinely-skewed
+<a href=#614 id=614 data-nosnippet>614</a>    // entropy source (a 22-bit run of identical bits in 8 KiB is
+<a href=#615 id=615 data-nosnippet>615</a>    // 2^14 × less likely than expected by chance).
+<a href=#616 id=616 data-nosnippet>616</a>    </span><span class="kw">let </span>max_allowed_run = <span class="kw">if </span>total_bits &lt; <span class="number">100 </span>{
+<a href=#617 id=617 data-nosnippet>617</a>        <span class="number">12 </span><span class="comment">// Very small samples
+<a href=#618 id=618 data-nosnippet>618</a>    </span>} <span class="kw">else if </span>total_bits &lt; <span class="number">1000 </span>{
+<a href=#619 id=619 data-nosnippet>619</a>        <span class="number">16 </span><span class="comment">// Small samples
+<a href=#620 id=620 data-nosnippet>620</a>    </span>} <span class="kw">else if </span>total_bits &lt; <span class="number">10000 </span>{
+<a href=#621 id=621 data-nosnippet>621</a>        <span class="number">22 </span><span class="comment">// Medium samples — bumped from 20 (Bonferroni headroom)
+<a href=#622 id=622 data-nosnippet>622</a>    </span>} <span class="kw">else </span>{
+<a href=#623 id=623 data-nosnippet>623</a>        <span class="number">26 </span><span class="comment">// Large samples - log2(10000) ≈ 13, so 26 is 2x margin
+<a href=#624 id=624 data-nosnippet>624</a>    </span>};
+<a href=#625 id=625 data-nosnippet>625</a>
+<a href=#626 id=626 data-nosnippet>626</a>    <span class="kw">let </span><span class="kw-2">mut </span>current_run: usize = <span class="number">1</span>;
+<a href=#627 id=627 data-nosnippet>627</a>    <span class="kw">let </span><span class="kw-2">mut </span>longest_run: usize = <span class="number">1</span>;
+<a href=#628 id=628 data-nosnippet>628</a>    <span class="comment">// Safety: checked non-empty above
+<a href=#629 id=629 data-nosnippet>629</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>prev_bit = (bytes[<span class="number">0</span>] &gt;&gt; <span class="number">7</span>) &amp; <span class="number">1</span>;
+<a href=#630 id=630 data-nosnippet>630</a>
+<a href=#631 id=631 data-nosnippet>631</a>    <span class="kw">for </span>(i, <span class="kw-2">&amp;</span>byte) <span class="kw">in </span>bytes.iter().enumerate() {
+<a href=#632 id=632 data-nosnippet>632</a>        <span class="kw">let </span>start_bit = <span class="kw">if </span>i == <span class="number">0 </span>{ <span class="number">6 </span>} <span class="kw">else </span>{ <span class="number">7 </span>};
+<a href=#633 id=633 data-nosnippet>633</a>        <span class="kw">for </span>bit_pos <span class="kw">in </span>(<span class="number">0</span>..=start_bit).rev() {
+<a href=#634 id=634 data-nosnippet>634</a>            <span class="kw">let </span>current_bit = (byte &gt;&gt; bit_pos) &amp; <span class="number">1</span>;
+<a href=#635 id=635 data-nosnippet>635</a>            <span class="kw">if </span>current_bit == prev_bit {
+<a href=#636 id=636 data-nosnippet>636</a>                current_run = current_run.saturating_add(<span class="number">1</span>);
+<a href=#637 id=637 data-nosnippet>637</a>                <span class="kw">if </span>current_run &gt; longest_run {
+<a href=#638 id=638 data-nosnippet>638</a>                    longest_run = current_run;
+<a href=#639 id=639 data-nosnippet>639</a>                }
+<a href=#640 id=640 data-nosnippet>640</a>            } <span class="kw">else </span>{
+<a href=#641 id=641 data-nosnippet>641</a>                current_run = <span class="number">1</span>;
+<a href=#642 id=642 data-nosnippet>642</a>                prev_bit = current_bit;
+<a href=#643 id=643 data-nosnippet>643</a>            }
+<a href=#644 id=644 data-nosnippet>644</a>        }
+<a href=#645 id=645 data-nosnippet>645</a>    }
+<a href=#646 id=646 data-nosnippet>646</a>
+<a href=#647 id=647 data-nosnippet>647</a>    <span class="kw">if </span>longest_run &gt; max_allowed_run {
+<a href=#648 id=648 data-nosnippet>648</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
+<a href=#649 id=649 data-nosnippet>649</a>            message: <span class="macro">format!</span>(
+<a href=#650 id=650 data-nosnippet>650</a>                <span class="string">"Longest run test failed: found run of {} bits (max allowed {} for {} total bits)"</span>,
+<a href=#651 id=651 data-nosnippet>651</a>                longest_run, max_allowed_run, total_bits
+<a href=#652 id=652 data-nosnippet>652</a>            ),
+<a href=#653 id=653 data-nosnippet>653</a>        });
+<a href=#654 id=654 data-nosnippet>654</a>    }
+<a href=#655 id=655 data-nosnippet>655</a>
+<a href=#656 id=656 data-nosnippet>656</a>    <span class="prelude-val">Ok</span>(())
+<a href=#657 id=657 data-nosnippet>657</a>}
+<a href=#658 id=658 data-nosnippet>658</a>
+<a href=#659 id=659 data-nosnippet>659</a><span class="comment">// =============================================================================
+<a href=#660 id=660 data-nosnippet>660</a>// Combined Health Tests
+<a href=#661 id=661 data-nosnippet>661</a>// =============================================================================
+<a href=#662 id=662 data-nosnippet>662</a>
+<a href=#663 id=663 data-nosnippet>663</a></span><span class="doccomment">/// Run all entropy health tests on fresh random bytes.
+<a href=#664 id=664 data-nosnippet>664</a>///
+<a href=#665 id=665 data-nosnippet>665</a>/// This function generates fresh random bytes using the system CSPRNG
+<a href=#666 id=666 data-nosnippet>666</a>/// and runs all implemented entropy health tests on them. This should
+<a href=#667 id=667 data-nosnippet>667</a>/// be called periodically to verify the entropy source is functioning
+<a href=#668 id=668 data-nosnippet>668</a>/// correctly.
+<a href=#669 id=669 data-nosnippet>669</a>///
+<a href=#670 id=670 data-nosnippet>670</a>/// # Returns
+<a href=#671 id=671 data-nosnippet>671</a>///
+<a href=#672 id=672 data-nosnippet>672</a>/// * `Ok(())` - If all health tests pass
+<a href=#673 id=673 data-nosnippet>673</a>/// * `Err(LatticeArcError::ValidationError)` - If any health test fails
+<a href=#674 id=674 data-nosnippet>674</a>///
+<a href=#675 id=675 data-nosnippet>675</a>/// # Example
+<a href=#676 id=676 data-nosnippet>676</a>///
+<a href=#677 id=677 data-nosnippet>677</a>/// ```no_run
+<a href=#678 id=678 data-nosnippet>678</a>/// use latticearc::primitives::rand::entropy_tests::run_entropy_health_tests;
+<a href=#679 id=679 data-nosnippet>679</a>///
+<a href=#680 id=680 data-nosnippet>680</a>/// // Run during initialization or periodically
+<a href=#681 id=681 data-nosnippet>681</a>/// match run_entropy_health_tests() {
+<a href=#682 id=682 data-nosnippet>682</a>///     Ok(()) =&gt; println!("Entropy source healthy"),
+<a href=#683 id=683 data-nosnippet>683</a>///     Err(e) =&gt; eprintln!("WARNING: {}", e),
+<a href=#684 id=684 data-nosnippet>684</a>/// }
+<a href=#685 id=685 data-nosnippet>685</a>/// ```
+<a href=#686 id=686 data-nosnippet>686</a>///
+<a href=#687 id=687 data-nosnippet>687</a>/// # Errors
+<a href=#688 id=688 data-nosnippet>688</a>///
+<a href=#689 id=689 data-nosnippet>689</a>/// Returns `LatticeArcError::ValidationError` if any entropy test fails.
+<a href=#690 id=690 data-nosnippet>690</a></span><span class="kw">pub fn </span>run_entropy_health_tests() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#691 id=691 data-nosnippet>691</a>    <span class="kw">use </span><span class="kw">super</span>::random_bytes;
+<a href=#692 id=692 data-nosnippet>692</a>
+<a href=#693 id=693 data-nosnippet>693</a>    <span class="comment">// Generate fresh random bytes for testing
+<a href=#694 id=694 data-nosnippet>694</a>    </span><span class="kw">let </span>bytes = random_bytes(DEFAULT_SAMPLE_SIZE);
+<a href=#695 id=695 data-nosnippet>695</a>
+<a href=#696 id=696 data-nosnippet>696</a>    <span class="comment">// SP 800-90B basic tests
+<a href=#697 id=697 data-nosnippet>697</a>    </span>repetition_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
+<a href=#698 id=698 data-nosnippet>698</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#699 id=699 data-nosnippet>699</a>    })<span class="question-mark">?</span>;
+<a href=#700 id=700 data-nosnippet>700</a>
+<a href=#701 id=701 data-nosnippet>701</a>    frequency_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
+<a href=#702 id=702 data-nosnippet>702</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#703 id=703 data-nosnippet>703</a>    })<span class="question-mark">?</span>;
+<a href=#704 id=704 data-nosnippet>704</a>
+<a href=#705 id=705 data-nosnippet>705</a>    <span class="comment">// NIST SP 800-22 tests
+<a href=#706 id=706 data-nosnippet>706</a>    </span>monobit_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
+<a href=#707 id=707 data-nosnippet>707</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#708 id=708 data-nosnippet>708</a>    })<span class="question-mark">?</span>;
+<a href=#709 id=709 data-nosnippet>709</a>
+<a href=#710 id=710 data-nosnippet>710</a>    runs_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
+<a href=#711 id=711 data-nosnippet>711</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#712 id=712 data-nosnippet>712</a>    })<span class="question-mark">?</span>;
+<a href=#713 id=713 data-nosnippet>713</a>
+<a href=#714 id=714 data-nosnippet>714</a>    longest_run_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
+<a href=#715 id=715 data-nosnippet>715</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#716 id=716 data-nosnippet>716</a>    })<span class="question-mark">?</span>;
+<a href=#717 id=717 data-nosnippet>717</a>
+<a href=#718 id=718 data-nosnippet>718</a>    <span class="comment">// SP 800-90B adaptive proportion test
+<a href=#719 id=719 data-nosnippet>719</a>    </span>adaptive_proportion_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
+<a href=#720 id=720 data-nosnippet>720</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#721 id=721 data-nosnippet>721</a>    })<span class="question-mark">?</span>;
+<a href=#722 id=722 data-nosnippet>722</a>
+<a href=#723 id=723 data-nosnippet>723</a>    <span class="prelude-val">Ok</span>(())
+<a href=#724 id=724 data-nosnippet>724</a>}
+<a href=#725 id=725 data-nosnippet>725</a>
+<a href=#726 id=726 data-nosnippet>726</a><span class="doccomment">/// Run entropy health tests on provided bytes.
+<a href=#727 id=727 data-nosnippet>727</a>///
+<a href=#728 id=728 data-nosnippet>728</a>/// This variant allows testing specific byte sequences, useful for
+<a href=#729 id=729 data-nosnippet>729</a>/// validation or when integrating with external entropy sources.
+<a href=#730 id=730 data-nosnippet>730</a>///
+<a href=#731 id=731 data-nosnippet>731</a>/// # Arguments
+<a href=#732 id=732 data-nosnippet>732</a>///
+<a href=#733 id=733 data-nosnippet>733</a>/// * `bytes` - The bytes to test
+<a href=#734 id=734 data-nosnippet>734</a>///
+<a href=#735 id=735 data-nosnippet>735</a>/// # Returns
+<a href=#736 id=736 data-nosnippet>736</a>///
+<a href=#737 id=737 data-nosnippet>737</a>/// * `Ok(())` - If all health tests pass
+<a href=#738 id=738 data-nosnippet>738</a>/// * `Err(LatticeArcError::ValidationError)` - If any health test fails
+<a href=#739 id=739 data-nosnippet>739</a>///
+<a href=#740 id=740 data-nosnippet>740</a>/// # Errors
+<a href=#741 id=741 data-nosnippet>741</a>///
+<a href=#742 id=742 data-nosnippet>742</a>/// Returns `LatticeArcError::ValidationError` if any entropy test fails.
+<a href=#743 id=743 data-nosnippet>743</a></span><span class="kw">pub fn </span>run_entropy_health_tests_on_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#744 id=744 data-nosnippet>744</a>    <span class="comment">// SP 800-90B basic tests
+<a href=#745 id=745 data-nosnippet>745</a>    </span>repetition_test(bytes)<span class="question-mark">?</span>;
+<a href=#746 id=746 data-nosnippet>746</a>    frequency_test(bytes)<span class="question-mark">?</span>;
+<a href=#747 id=747 data-nosnippet>747</a>
+<a href=#748 id=748 data-nosnippet>748</a>    <span class="comment">// NIST SP 800-22 tests
+<a href=#749 id=749 data-nosnippet>749</a>    </span>monobit_test(bytes)<span class="question-mark">?</span>;
+<a href=#750 id=750 data-nosnippet>750</a>    runs_test(bytes)<span class="question-mark">?</span>;
+<a href=#751 id=751 data-nosnippet>751</a>    longest_run_test(bytes)<span class="question-mark">?</span>;
+<a href=#752 id=752 data-nosnippet>752</a>
+<a href=#753 id=753 data-nosnippet>753</a>    <span class="comment">// SP 800-90B adaptive proportion test
+<a href=#754 id=754 data-nosnippet>754</a>    </span>adaptive_proportion_test(bytes)<span class="question-mark">?</span>;
+<a href=#755 id=755 data-nosnippet>755</a>
+<a href=#756 id=756 data-nosnippet>756</a>    <span class="prelude-val">Ok</span>(())
+<a href=#757 id=757 data-nosnippet>757</a>}
+<a href=#758 id=758 data-nosnippet>758</a>
+<a href=#759 id=759 data-nosnippet>759</a><span class="comment">// =============================================================================
+<a href=#760 id=760 data-nosnippet>760</a>// Tests
+<a href=#761 id=761 data-nosnippet>761</a>// =============================================================================
+<a href=#762 id=762 data-nosnippet>762</a>
+<a href=#763 id=763 data-nosnippet>763</a></span><span class="attr">#[cfg(test)]
+<a href=#764 id=764 data-nosnippet>764</a></span><span class="kw">mod </span>tests {
+<a href=#765 id=765 data-nosnippet>765</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#766 id=766 data-nosnippet>766</a>
-<a href=#767 id=767 data-nosnippet>767</a>    <span class="attr">#[test]
-<a href=#768 id=768 data-nosnippet>768</a>    </span><span class="kw">fn </span>test_repetition_test_fails_on_all_same_fails() {
-<a href=#769 id=769 data-nosnippet>769</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0xFF</span>; <span class="number">100</span>];
-<a href=#770 id=770 data-nosnippet>770</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
-<a href=#771 id=771 data-nosnippet>771</a>    }
-<a href=#772 id=772 data-nosnippet>772</a>
-<a href=#773 id=773 data-nosnippet>773</a>    <span class="attr">#[test]
-<a href=#774 id=774 data-nosnippet>774</a>    </span><span class="kw">fn </span>test_repetition_test_empty_input_fails() {
-<a href=#775 id=775 data-nosnippet>775</a>        <span class="kw">let </span>bytes: Vec&lt;u8&gt; = <span class="macro">vec!</span>[];
-<a href=#776 id=776 data-nosnippet>776</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
-<a href=#777 id=777 data-nosnippet>777</a>    }
-<a href=#778 id=778 data-nosnippet>778</a>
-<a href=#779 id=779 data-nosnippet>779</a>    <span class="attr">#[test]
-<a href=#780 id=780 data-nosnippet>780</a>    </span><span class="kw">fn </span>test_repetition_test_single_byte_succeeds() {
-<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>];
-<a href=#782 id=782 data-nosnippet>782</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
-<a href=#783 id=783 data-nosnippet>783</a>    }
-<a href=#784 id=784 data-nosnippet>784</a>
-<a href=#785 id=785 data-nosnippet>785</a>    <span class="attr">#[test]
-<a href=#786 id=786 data-nosnippet>786</a>    </span><span class="kw">fn </span>test_repetition_test_two_same_bytes_succeeds() {
-<a href=#787 id=787 data-nosnippet>787</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>, <span class="number">0x42</span>];
-<a href=#788 id=788 data-nosnippet>788</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
-<a href=#789 id=789 data-nosnippet>789</a>    }
-<a href=#790 id=790 data-nosnippet>790</a>
-<a href=#791 id=791 data-nosnippet>791</a>    <span class="comment">// -------------------------------------------------------------------------
-<a href=#792 id=792 data-nosnippet>792</a>    // Frequency Test
-<a href=#793 id=793 data-nosnippet>793</a>    // -------------------------------------------------------------------------
-<a href=#794 id=794 data-nosnippet>794</a>
-<a href=#795 id=795 data-nosnippet>795</a>    </span><span class="attr">#[test]
-<a href=#796 id=796 data-nosnippet>796</a>    </span><span class="kw">fn </span>test_frequency_test_passes_on_uniform_succeeds() {
-<a href=#797 id=797 data-nosnippet>797</a>        <span class="comment">// Create a roughly uniform distribution
-<a href=#798 id=798 data-nosnippet>798</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(<span class="number">256</span>);
-<a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..=<span class="number">255u8 </span>{
-<a href=#800 id=800 data-nosnippet>800</a>            bytes.push(i);
-<a href=#801 id=801 data-nosnippet>801</a>        }
-<a href=#802 id=802 data-nosnippet>802</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_ok());
+<a href=#767 id=767 data-nosnippet>767</a>    <span class="comment">// -------------------------------------------------------------------------
+<a href=#768 id=768 data-nosnippet>768</a>    // Repetition Test
+<a href=#769 id=769 data-nosnippet>769</a>    // -------------------------------------------------------------------------
+<a href=#770 id=770 data-nosnippet>770</a>
+<a href=#771 id=771 data-nosnippet>771</a>    </span><span class="attr">#[test]
+<a href=#772 id=772 data-nosnippet>772</a>    </span><span class="kw">fn </span>test_repetition_test_passes_on_varied_input_succeeds() {
+<a href=#773 id=773 data-nosnippet>773</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>, <span class="number">0x05</span>, <span class="number">0x06</span>, <span class="number">0x07</span>, <span class="number">0x08</span>];
+<a href=#774 id=774 data-nosnippet>774</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
+<a href=#775 id=775 data-nosnippet>775</a>    }
+<a href=#776 id=776 data-nosnippet>776</a>
+<a href=#777 id=777 data-nosnippet>777</a>    <span class="attr">#[test]
+<a href=#778 id=778 data-nosnippet>778</a>    </span><span class="kw">fn </span>test_repetition_test_passes_with_max_allowed_consecutive_succeeds() {
+<a href=#779 id=779 data-nosnippet>779</a>        <span class="comment">// 5 consecutive identical bytes should pass
+<a href=#780 id=780 data-nosnippet>780</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>];
+<a href=#781 id=781 data-nosnippet>781</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
+<a href=#782 id=782 data-nosnippet>782</a>    }
+<a href=#783 id=783 data-nosnippet>783</a>
+<a href=#784 id=784 data-nosnippet>784</a>    <span class="attr">#[test]
+<a href=#785 id=785 data-nosnippet>785</a>    </span><span class="kw">fn </span>test_repetition_test_fails_with_6_consecutive_fails() {
+<a href=#786 id=786 data-nosnippet>786</a>        <span class="comment">// 6 consecutive identical bytes should fail
+<a href=#787 id=787 data-nosnippet>787</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>];
+<a href=#788 id=788 data-nosnippet>788</a>        <span class="kw">let </span>result = repetition_test(<span class="kw-2">&amp;</span>bytes);
+<a href=#789 id=789 data-nosnippet>789</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#790 id=790 data-nosnippet>790</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(LatticeArcError::ValidationError { .. })));
+<a href=#791 id=791 data-nosnippet>791</a>    }
+<a href=#792 id=792 data-nosnippet>792</a>
+<a href=#793 id=793 data-nosnippet>793</a>    <span class="attr">#[test]
+<a href=#794 id=794 data-nosnippet>794</a>    </span><span class="kw">fn </span>test_repetition_test_fails_on_all_same_fails() {
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0xFF</span>; <span class="number">100</span>];
+<a href=#796 id=796 data-nosnippet>796</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
+<a href=#797 id=797 data-nosnippet>797</a>    }
+<a href=#798 id=798 data-nosnippet>798</a>
+<a href=#799 id=799 data-nosnippet>799</a>    <span class="attr">#[test]
+<a href=#800 id=800 data-nosnippet>800</a>    </span><span class="kw">fn </span>test_repetition_test_empty_input_fails() {
+<a href=#801 id=801 data-nosnippet>801</a>        <span class="kw">let </span>bytes: Vec&lt;u8&gt; = <span class="macro">vec!</span>[];
+<a href=#802 id=802 data-nosnippet>802</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
 <a href=#803 id=803 data-nosnippet>803</a>    }
 <a href=#804 id=804 data-nosnippet>804</a>
 <a href=#805 id=805 data-nosnippet>805</a>    <span class="attr">#[test]
-<a href=#806 id=806 data-nosnippet>806</a>    </span><span class="kw">fn </span>test_frequency_test_fails_on_all_same_fails() {
-<a href=#807 id=807 data-nosnippet>807</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>; <span class="number">256</span>];
-<a href=#808 id=808 data-nosnippet>808</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_err());
+<a href=#806 id=806 data-nosnippet>806</a>    </span><span class="kw">fn </span>test_repetition_test_single_byte_succeeds() {
+<a href=#807 id=807 data-nosnippet>807</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>];
+<a href=#808 id=808 data-nosnippet>808</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
 <a href=#809 id=809 data-nosnippet>809</a>    }
 <a href=#810 id=810 data-nosnippet>810</a>
 <a href=#811 id=811 data-nosnippet>811</a>    <span class="attr">#[test]
-<a href=#812 id=812 data-nosnippet>812</a>    </span><span class="kw">fn </span>test_frequency_test_too_small_sample_fails() {
-<a href=#813 id=813 data-nosnippet>813</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>];
-<a href=#814 id=814 data-nosnippet>814</a>        <span class="kw">let </span>result = frequency_test(<span class="kw-2">&amp;</span>bytes);
-<a href=#815 id=815 data-nosnippet>815</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#816 id=816 data-nosnippet>816</a>        <span class="kw">if let </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError { message }) = result {
-<a href=#817 id=817 data-nosnippet>817</a>            <span class="macro">assert!</span>(message.contains(<span class="string">"at least"</span>));
-<a href=#818 id=818 data-nosnippet>818</a>        }
-<a href=#819 id=819 data-nosnippet>819</a>    }
+<a href=#812 id=812 data-nosnippet>812</a>    </span><span class="kw">fn </span>test_repetition_test_two_same_bytes_succeeds() {
+<a href=#813 id=813 data-nosnippet>813</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>, <span class="number">0x42</span>];
+<a href=#814 id=814 data-nosnippet>814</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
+<a href=#815 id=815 data-nosnippet>815</a>    }
+<a href=#816 id=816 data-nosnippet>816</a>
+<a href=#817 id=817 data-nosnippet>817</a>    <span class="comment">// -------------------------------------------------------------------------
+<a href=#818 id=818 data-nosnippet>818</a>    // Frequency Test
+<a href=#819 id=819 data-nosnippet>819</a>    // -------------------------------------------------------------------------
 <a href=#820 id=820 data-nosnippet>820</a>
-<a href=#821 id=821 data-nosnippet>821</a>    <span class="attr">#[test]
-<a href=#822 id=822 data-nosnippet>822</a>    #[expect(
-<a href=#823 id=823 data-nosnippet>823</a>        clippy::cast_possible_truncation,
-<a href=#824 id=824 data-nosnippet>824</a>        reason = <span class="string">"truncation guarded by callsite preconditions"
-<a href=#825 id=825 data-nosnippet>825</a>    </span>)]
-<a href=#826 id=826 data-nosnippet>826</a>    </span><span class="kw">fn </span>test_frequency_test_min_sample_size_has_correct_size() {
-<a href=#827 id=827 data-nosnippet>827</a>        <span class="comment">// Create a sample at exactly minimum size with some variation
-<a href=#828 id=828 data-nosnippet>828</a>        // Cast is safe: i % 256 always fits in u8
-<a href=#829 id=829 data-nosnippet>829</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(MIN_SAMPLE_SIZE);
-<a href=#830 id=830 data-nosnippet>830</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..MIN_SAMPLE_SIZE {
-<a href=#831 id=831 data-nosnippet>831</a>            bytes.push((i % <span class="number">256</span>) <span class="kw">as </span>u8);
-<a href=#832 id=832 data-nosnippet>832</a>        }
-<a href=#833 id=833 data-nosnippet>833</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_ok());
-<a href=#834 id=834 data-nosnippet>834</a>    }
-<a href=#835 id=835 data-nosnippet>835</a>
-<a href=#836 id=836 data-nosnippet>836</a>    <span class="attr">#[test]
-<a href=#837 id=837 data-nosnippet>837</a>    </span><span class="kw">fn </span>test_frequency_test_heavily_biased_succeeds() {
-<a href=#838 id=838 data-nosnippet>838</a>        <span class="comment">// Create a heavily biased distribution
-<a href=#839 id=839 data-nosnippet>839</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>; <span class="number">200</span>];
-<a href=#840 id=840 data-nosnippet>840</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0x01</span>; <span class="number">56</span>]);
-<a href=#841 id=841 data-nosnippet>841</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_err());
-<a href=#842 id=842 data-nosnippet>842</a>    }
-<a href=#843 id=843 data-nosnippet>843</a>
-<a href=#844 id=844 data-nosnippet>844</a>    <span class="comment">// -------------------------------------------------------------------------
-<a href=#845 id=845 data-nosnippet>845</a>    // Combined Tests
-<a href=#846 id=846 data-nosnippet>846</a>    // -------------------------------------------------------------------------
-<a href=#847 id=847 data-nosnippet>847</a>
-<a href=#848 id=848 data-nosnippet>848</a>    </span><span class="attr">#[test]
-<a href=#849 id=849 data-nosnippet>849</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_passes_on_csprng_output_succeeds() {
-<a href=#850 id=850 data-nosnippet>850</a>        <span class="comment">// CSPRNG statistical tests can occasionally fail on CI runners
-<a href=#851 id=851 data-nosnippet>851</a>        // (virtualized environments, resource contention). Retry once
-<a href=#852 id=852 data-nosnippet>852</a>        // with a fresh sample before declaring failure.
-<a href=#853 id=853 data-nosnippet>853</a>        </span><span class="kw">if </span>run_entropy_health_tests().is_err() {
-<a href=#854 id=854 data-nosnippet>854</a>            <span class="comment">// Second attempt with fresh random bytes
-<a href=#855 id=855 data-nosnippet>855</a>            </span><span class="macro">assert!</span>(
-<a href=#856 id=856 data-nosnippet>856</a>                run_entropy_health_tests().is_ok(),
-<a href=#857 id=857 data-nosnippet>857</a>                <span class="string">"entropy health tests failed twice in a row"
-<a href=#858 id=858 data-nosnippet>858</a>            </span>);
-<a href=#859 id=859 data-nosnippet>859</a>        }
+<a href=#821 id=821 data-nosnippet>821</a>    </span><span class="attr">#[test]
+<a href=#822 id=822 data-nosnippet>822</a>    </span><span class="kw">fn </span>test_frequency_test_passes_on_uniform_succeeds() {
+<a href=#823 id=823 data-nosnippet>823</a>        <span class="comment">// Create a roughly uniform distribution
+<a href=#824 id=824 data-nosnippet>824</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(<span class="number">256</span>);
+<a href=#825 id=825 data-nosnippet>825</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..=<span class="number">255u8 </span>{
+<a href=#826 id=826 data-nosnippet>826</a>            bytes.push(i);
+<a href=#827 id=827 data-nosnippet>827</a>        }
+<a href=#828 id=828 data-nosnippet>828</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_ok());
+<a href=#829 id=829 data-nosnippet>829</a>    }
+<a href=#830 id=830 data-nosnippet>830</a>
+<a href=#831 id=831 data-nosnippet>831</a>    <span class="attr">#[test]
+<a href=#832 id=832 data-nosnippet>832</a>    </span><span class="kw">fn </span>test_frequency_test_fails_on_all_same_fails() {
+<a href=#833 id=833 data-nosnippet>833</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>; <span class="number">256</span>];
+<a href=#834 id=834 data-nosnippet>834</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_err());
+<a href=#835 id=835 data-nosnippet>835</a>    }
+<a href=#836 id=836 data-nosnippet>836</a>
+<a href=#837 id=837 data-nosnippet>837</a>    <span class="attr">#[test]
+<a href=#838 id=838 data-nosnippet>838</a>    </span><span class="kw">fn </span>test_frequency_test_too_small_sample_fails() {
+<a href=#839 id=839 data-nosnippet>839</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>];
+<a href=#840 id=840 data-nosnippet>840</a>        <span class="kw">let </span>result = frequency_test(<span class="kw-2">&amp;</span>bytes);
+<a href=#841 id=841 data-nosnippet>841</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#842 id=842 data-nosnippet>842</a>        <span class="kw">if let </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError { message }) = result {
+<a href=#843 id=843 data-nosnippet>843</a>            <span class="macro">assert!</span>(message.contains(<span class="string">"at least"</span>));
+<a href=#844 id=844 data-nosnippet>844</a>        }
+<a href=#845 id=845 data-nosnippet>845</a>    }
+<a href=#846 id=846 data-nosnippet>846</a>
+<a href=#847 id=847 data-nosnippet>847</a>    <span class="attr">#[test]
+<a href=#848 id=848 data-nosnippet>848</a>    #[expect(
+<a href=#849 id=849 data-nosnippet>849</a>        clippy::cast_possible_truncation,
+<a href=#850 id=850 data-nosnippet>850</a>        reason = <span class="string">"truncation guarded by callsite preconditions"
+<a href=#851 id=851 data-nosnippet>851</a>    </span>)]
+<a href=#852 id=852 data-nosnippet>852</a>    </span><span class="kw">fn </span>test_frequency_test_min_sample_size_has_correct_size() {
+<a href=#853 id=853 data-nosnippet>853</a>        <span class="comment">// Create a sample at exactly minimum size with some variation
+<a href=#854 id=854 data-nosnippet>854</a>        // Cast is safe: i % 256 always fits in u8
+<a href=#855 id=855 data-nosnippet>855</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(MIN_SAMPLE_SIZE);
+<a href=#856 id=856 data-nosnippet>856</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..MIN_SAMPLE_SIZE {
+<a href=#857 id=857 data-nosnippet>857</a>            bytes.push((i % <span class="number">256</span>) <span class="kw">as </span>u8);
+<a href=#858 id=858 data-nosnippet>858</a>        }
+<a href=#859 id=859 data-nosnippet>859</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_ok());
 <a href=#860 id=860 data-nosnippet>860</a>    }
 <a href=#861 id=861 data-nosnippet>861</a>
 <a href=#862 id=862 data-nosnippet>862</a>    <span class="attr">#[test]
-<a href=#863 id=863 data-nosnippet>863</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_on_good_bytes_succeeds() {
-<a href=#864 id=864 data-nosnippet>864</a>        <span class="comment">// Create a good sample with no repetitions and reasonable distribution
-<a href=#865 id=865 data-nosnippet>865</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(<span class="number">256</span>);
-<a href=#866 id=866 data-nosnippet>866</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..=<span class="number">255u8 </span>{
-<a href=#867 id=867 data-nosnippet>867</a>            bytes.push(i);
-<a href=#868 id=868 data-nosnippet>868</a>        }
-<a href=#869 id=869 data-nosnippet>869</a>        <span class="comment">// Shuffle a bit to avoid perfect uniformity
-<a href=#870 id=870 data-nosnippet>870</a>        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..bytes.len() {
-<a href=#871 id=871 data-nosnippet>871</a>            <span class="kw">let </span>j = (i.wrapping_mul(<span class="number">7</span>).wrapping_add(<span class="number">13</span>)) % bytes.len();
-<a href=#872 id=872 data-nosnippet>872</a>            bytes.swap(i, j);
-<a href=#873 id=873 data-nosnippet>873</a>        }
-<a href=#874 id=874 data-nosnippet>874</a>        <span class="macro">assert!</span>(run_entropy_health_tests_on_bytes(<span class="kw-2">&amp;</span>bytes).is_ok());
-<a href=#875 id=875 data-nosnippet>875</a>    }
-<a href=#876 id=876 data-nosnippet>876</a>
-<a href=#877 id=877 data-nosnippet>877</a>    <span class="attr">#[test]
-<a href=#878 id=878 data-nosnippet>878</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_on_bad_bytes_returns_error() {
-<a href=#879 id=879 data-nosnippet>879</a>        <span class="comment">// Create a bad sample with many repetitions
-<a href=#880 id=880 data-nosnippet>880</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>; <span class="number">256</span>];
-<a href=#881 id=881 data-nosnippet>881</a>        <span class="macro">assert!</span>(run_entropy_health_tests_on_bytes(<span class="kw-2">&amp;</span>bytes).is_err());
-<a href=#882 id=882 data-nosnippet>882</a>    }
-<a href=#883 id=883 data-nosnippet>883</a>
-<a href=#884 id=884 data-nosnippet>884</a>    <span class="attr">#[test]
-<a href=#885 id=885 data-nosnippet>885</a>    </span><span class="kw">fn </span>test_repetition_at_end_fails_detection_fails() {
-<a href=#886 id=886 data-nosnippet>886</a>        <span class="comment">// Test repetition detection at the end of the sequence
-<a href=#887 id=887 data-nosnippet>887</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>];
-<a href=#888 id=888 data-nosnippet>888</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0xFF</span>; <span class="number">6</span>]); <span class="comment">// 6 consecutive at end
-<a href=#889 id=889 data-nosnippet>889</a>        </span><span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
-<a href=#890 id=890 data-nosnippet>890</a>    }
-<a href=#891 id=891 data-nosnippet>891</a>
-<a href=#892 id=892 data-nosnippet>892</a>    <span class="attr">#[test]
-<a href=#893 id=893 data-nosnippet>893</a>    </span><span class="kw">fn </span>test_repetition_in_middle_fails_detection_fails() {
-<a href=#894 id=894 data-nosnippet>894</a>        <span class="comment">// Test repetition detection in the middle of the sequence
-<a href=#895 id=895 data-nosnippet>895</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>];
-<a href=#896 id=896 data-nosnippet>896</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0xAA</span>; <span class="number">6</span>]); <span class="comment">// 6 consecutive in middle
-<a href=#897 id=897 data-nosnippet>897</a>        </span>bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0x03</span>, <span class="number">0x04</span>]);
-<a href=#898 id=898 data-nosnippet>898</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
-<a href=#899 id=899 data-nosnippet>899</a>    }
-<a href=#900 id=900 data-nosnippet>900</a>}
+<a href=#863 id=863 data-nosnippet>863</a>    </span><span class="kw">fn </span>test_frequency_test_heavily_biased_succeeds() {
+<a href=#864 id=864 data-nosnippet>864</a>        <span class="comment">// Create a heavily biased distribution
+<a href=#865 id=865 data-nosnippet>865</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>; <span class="number">200</span>];
+<a href=#866 id=866 data-nosnippet>866</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0x01</span>; <span class="number">56</span>]);
+<a href=#867 id=867 data-nosnippet>867</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_err());
+<a href=#868 id=868 data-nosnippet>868</a>    }
+<a href=#869 id=869 data-nosnippet>869</a>
+<a href=#870 id=870 data-nosnippet>870</a>    <span class="comment">// -------------------------------------------------------------------------
+<a href=#871 id=871 data-nosnippet>871</a>    // Combined Tests
+<a href=#872 id=872 data-nosnippet>872</a>    // -------------------------------------------------------------------------
+<a href=#873 id=873 data-nosnippet>873</a>
+<a href=#874 id=874 data-nosnippet>874</a>    </span><span class="attr">#[test]
+<a href=#875 id=875 data-nosnippet>875</a>    #[expect(
+<a href=#876 id=876 data-nosnippet>876</a>        clippy::panic,
+<a href=#877 id=877 data-nosnippet>877</a>        reason = <span class="string">"test failure path; diagnostic message must surface every \
+<a href=#878 id=878 data-nosnippet>878</a>                  failed attempt's underlying sub-test error so a future CI \
+<a href=#879 id=879 data-nosnippet>879</a>                  flake names the culprit rather than the generic 'failed N \
+<a href=#880 id=880 data-nosnippet>880</a>                  times' that the earlier `assert!` version exposed. The \
+<a href=#881 id=881 data-nosnippet>881</a>                  original of *this* test forced a multi-session investigation \
+<a href=#882 id=882 data-nosnippet>882</a>                  to identify the frequency-test Bonferroni-correction bug."
+<a href=#883 id=883 data-nosnippet>883</a>    </span>)]
+<a href=#884 id=884 data-nosnippet>884</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_passes_on_csprng_output_succeeds() {
+<a href=#885 id=885 data-nosnippet>885</a>        <span class="comment">// `run_entropy_health_tests` chains six statistical sub-tests
+<a href=#886 id=886 data-nosnippet>886</a>        // (repetition, frequency, monobit, runs, longest-run,
+<a href=#887 id=887 data-nosnippet>887</a>        // adaptive-proportion) on a single fresh 1024-byte CSPRNG draw.
+<a href=#888 id=888 data-nosnippet>888</a>        // Per-attempt FPR is the union of the individual sub-test FPRs.
+<a href=#889 id=889 data-nosnippet>889</a>        //
+<a href=#890 id=890 data-nosnippet>890</a>        // History (May 2026): with the earlier thresholds, measured
+<a href=#891 id=891 data-nosnippet>891</a>        // per-attempt FPR was 7.2% on macOS / aws-lc-rs (n=500): the
+<a href=#892 id=892 data-nosnippet>892</a>        // frequency test took the MAX byte count over 256 buckets and
+<a href=#893 id=893 data-nosnippet>893</a>        // compared it to `3× expected = 12` for the 1024-byte band
+<a href=#894 id=894 data-nosnippet>894</a>        // without Bonferroni-correcting for 256-fold multiple
+<a href=#895 id=895 data-nosnippet>895</a>        // comparison, giving P(any bucket &gt; 12 | Poisson(4)) ≈ 7%.
+<a href=#896 id=896 data-nosnippet>896</a>        // The longest-run test threshold of 20 bits for ≥1000-bit
+<a href=#897 id=897 data-nosnippet>897</a>        // samples sat at log2(8192) + 7 ≈ 0.78% — at the α boundary.
+<a href=#898 id=898 data-nosnippet>898</a>        // Both were tightened to their NIST-α-budgeted values
+<a href=#899 id=899 data-nosnippet>899</a>        // (frequency: 4× expected = 16; longest-run: 22) in
+<a href=#900 id=900 data-nosnippet>900</a>        // `frequency_test` / `longest_run_test`. Post-fix per-attempt
+<a href=#901 id=901 data-nosnippet>901</a>        // FPR is ~0.6% (predominantly from the remaining longest-run
+<a href=#902 id=902 data-nosnippet>902</a>        // tail); one retry compounds to ~4e-5 per CI run, well below
+<a href=#903 id=903 data-nosnippet>903</a>        // any practical flake threshold.
+<a href=#904 id=904 data-nosnippet>904</a>        //
+<a href=#905 id=905 data-nosnippet>905</a>        // The retry exists as defense in depth against runner-specific
+<a href=#906 id=906 data-nosnippet>906</a>        // OS-RNG patho­logies, not as the primary FPR mechanism. If the
+<a href=#907 id=907 data-nosnippet>907</a>        // diagnostic panic ever fires in CI, the message lists every
+<a href=#908 id=908 data-nosnippet>908</a>        // attempt's failing sub-test by name so the cause is
+<a href=#909 id=909 data-nosnippet>909</a>        // identifiable without rerunning the matrix.
+<a href=#910 id=910 data-nosnippet>910</a>        </span><span class="kw">const </span>MAX_ATTEMPTS: usize = <span class="number">2</span>;
+<a href=#911 id=911 data-nosnippet>911</a>        <span class="kw">let </span><span class="kw-2">mut </span>errors: Vec&lt;String&gt; = Vec::with_capacity(MAX_ATTEMPTS);
+<a href=#912 id=912 data-nosnippet>912</a>        <span class="kw">for </span>attempt <span class="kw">in </span><span class="number">1</span>..=MAX_ATTEMPTS {
+<a href=#913 id=913 data-nosnippet>913</a>            <span class="kw">match </span>run_entropy_health_tests() {
+<a href=#914 id=914 data-nosnippet>914</a>                <span class="prelude-val">Ok</span>(()) =&gt; <span class="kw">return</span>,
+<a href=#915 id=915 data-nosnippet>915</a>                <span class="prelude-val">Err</span>(e) =&gt; errors.push(<span class="macro">format!</span>(<span class="string">"  attempt {attempt}: {e}"</span>)),
+<a href=#916 id=916 data-nosnippet>916</a>            }
+<a href=#917 id=917 data-nosnippet>917</a>        }
+<a href=#918 id=918 data-nosnippet>918</a>        <span class="macro">panic!</span>(<span class="string">"entropy health tests failed {MAX_ATTEMPTS} times in a row:\n{}"</span>, errors.join(<span class="string">"\n"</span>));
+<a href=#919 id=919 data-nosnippet>919</a>    }
+<a href=#920 id=920 data-nosnippet>920</a>
+<a href=#921 id=921 data-nosnippet>921</a>    <span class="attr">#[test]
+<a href=#922 id=922 data-nosnippet>922</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_on_good_bytes_succeeds() {
+<a href=#923 id=923 data-nosnippet>923</a>        <span class="comment">// Create a good sample with no repetitions and reasonable distribution
+<a href=#924 id=924 data-nosnippet>924</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(<span class="number">256</span>);
+<a href=#925 id=925 data-nosnippet>925</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..=<span class="number">255u8 </span>{
+<a href=#926 id=926 data-nosnippet>926</a>            bytes.push(i);
+<a href=#927 id=927 data-nosnippet>927</a>        }
+<a href=#928 id=928 data-nosnippet>928</a>        <span class="comment">// Shuffle a bit to avoid perfect uniformity
+<a href=#929 id=929 data-nosnippet>929</a>        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..bytes.len() {
+<a href=#930 id=930 data-nosnippet>930</a>            <span class="kw">let </span>j = (i.wrapping_mul(<span class="number">7</span>).wrapping_add(<span class="number">13</span>)) % bytes.len();
+<a href=#931 id=931 data-nosnippet>931</a>            bytes.swap(i, j);
+<a href=#932 id=932 data-nosnippet>932</a>        }
+<a href=#933 id=933 data-nosnippet>933</a>        <span class="macro">assert!</span>(run_entropy_health_tests_on_bytes(<span class="kw-2">&amp;</span>bytes).is_ok());
+<a href=#934 id=934 data-nosnippet>934</a>    }
+<a href=#935 id=935 data-nosnippet>935</a>
+<a href=#936 id=936 data-nosnippet>936</a>    <span class="attr">#[test]
+<a href=#937 id=937 data-nosnippet>937</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_on_bad_bytes_returns_error() {
+<a href=#938 id=938 data-nosnippet>938</a>        <span class="comment">// Create a bad sample with many repetitions
+<a href=#939 id=939 data-nosnippet>939</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>; <span class="number">256</span>];
+<a href=#940 id=940 data-nosnippet>940</a>        <span class="macro">assert!</span>(run_entropy_health_tests_on_bytes(<span class="kw-2">&amp;</span>bytes).is_err());
+<a href=#941 id=941 data-nosnippet>941</a>    }
+<a href=#942 id=942 data-nosnippet>942</a>
+<a href=#943 id=943 data-nosnippet>943</a>    <span class="attr">#[test]
+<a href=#944 id=944 data-nosnippet>944</a>    </span><span class="kw">fn </span>test_repetition_at_end_fails_detection_fails() {
+<a href=#945 id=945 data-nosnippet>945</a>        <span class="comment">// Test repetition detection at the end of the sequence
+<a href=#946 id=946 data-nosnippet>946</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>];
+<a href=#947 id=947 data-nosnippet>947</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0xFF</span>; <span class="number">6</span>]); <span class="comment">// 6 consecutive at end
+<a href=#948 id=948 data-nosnippet>948</a>        </span><span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
+<a href=#949 id=949 data-nosnippet>949</a>    }
+<a href=#950 id=950 data-nosnippet>950</a>
+<a href=#951 id=951 data-nosnippet>951</a>    <span class="attr">#[test]
+<a href=#952 id=952 data-nosnippet>952</a>    </span><span class="kw">fn </span>test_repetition_in_middle_fails_detection_fails() {
+<a href=#953 id=953 data-nosnippet>953</a>        <span class="comment">// Test repetition detection in the middle of the sequence
+<a href=#954 id=954 data-nosnippet>954</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>];
+<a href=#955 id=955 data-nosnippet>955</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0xAA</span>; <span class="number">6</span>]); <span class="comment">// 6 consecutive in middle
+<a href=#956 id=956 data-nosnippet>956</a>        </span>bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0x03</span>, <span class="number">0x04</span>]);
+<a href=#957 id=957 data-nosnippet>957</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
+<a href=#958 id=958 data-nosnippet>958</a>    }
+<a href=#959 id=959 data-nosnippet>959</a>}
 </code></pre></div></section></main></body></html>
