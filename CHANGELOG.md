@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (entropy-test CI flake — Bonferroni-correction bug)
+
+- **`frequency_test` 1024-byte band lacked Bonferroni correction.** For
+  the default `run_entropy_health_tests()` sample (1024 bytes), the
+  per-byte expected count under `Poisson(λ=4)` is 4, and the test
+  compared the MAX count over 256 byte buckets to a single `3× expected
+  = 12` threshold. Without Bonferroni-correcting for the 256-fold
+  multiple-comparison, the per-attempt false-positive rate was
+  `1 − (1 − P(X > 12 | Poisson(4)))^256 ≈ 7.4%` — about 7× the NIST
+  SP 800-22 α = 0.01 budget. Measured locally (n=500,
+  `--no-default-features --features kat-test-vectors`,
+  `MAX_ATTEMPTS=1`): 36/500 = 7.2% per single-attempt FPR, with the
+  frequency test responsible for 33/36 = 92% of failures. With the
+  existing single-retry policy in
+  `test_run_entropy_health_tests_passes_on_csprng_output_succeeds`
+  the per-CI-run FPR was ~0.5%, and the GitHub-Actions feature-flag
+  matrix (~5 slots/push) amplified that into multiple observed
+  failures across pushes (May 2026 CI runs on commits `fcc6818cf` and
+  `948c1f6a3`). Threshold bumped to `4× expected = 16` for the
+  1024–4096-byte band — Poisson(4) tail bound puts the
+  Bonferroni-corrected per-attempt FPR at ~0.4% (within α budget),
+  while still flagging any genuinely-skewed byte distribution
+  (≥ 4× over-representation of a single value).
+
+- **`longest_run_test` 1000–10000-bit band sat at the α boundary.** For
+  8192-bit samples (1024-byte default), the longest run of equal bits
+  follows approximately a Gumbel distribution centered near
+  `log2(8192) = 13`, with tail `P(longest_run > log2(n) + k) ≈ 2^(−k)`.
+  The earlier threshold of 20 bits gave `k = 7` → P ≈ 0.78%, right at
+  the α = 0.01 boundary and the secondary contributor (3/36 = 8% of
+  failures) to the CI flake. Bumped to 22 (`k = 9`, P ≈ 0.2%) — still
+  flags any genuine entropy degradation since a 22-bit run of identical
+  bits in 8 KiB is 2¹⁴ × less likely than expected by chance, but
+  comfortably inside the α budget.
+
+- **`test_run_entropy_health_tests_passes_on_csprng_output_succeeds`
+  diagnostic preservation.** Earlier test panicked with the generic
+  message `"entropy health tests failed twice in a row"`, discarding
+  each attempt's sub-test error string — root-causing the May 2026
+  CI flake required a multi-session investigation that should have
+  been a one-glance review of the CI log. The test now collects every
+  attempt's error message and panics with a per-attempt enumeration so
+  the next CI flake names the culprit sub-test directly. Retry count
+  stays at 2 (one retry) — the original NIST-style minimum, since the
+  threshold fixes above bring per-attempt FPR back inside α budget and
+  raising retries would have papered over the underlying calibration
+  bug. Post-fix verification: 1000/1000 pass (n=1000,
+  `--no-default-features --features kat-test-vectors`).
+
 ### Fixed (audit-round-7 latent-finding sweep, 4 findings)
 
 - **N-NEW-1 — `PopReplayCache::expire_older_than` assumed uniform PK
