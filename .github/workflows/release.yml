@@ -177,18 +177,48 @@ jobs:
         continue-on-error: true
       - name: Generate SBOM (CycloneDX)
         run: |
-          # cargo-cyclonedx writes to bom.json/bom.xml in the project dir, not stdout.
-          # Use explicit if/then/else — `A && B || C` evaluates as
-          # `(A && B) || C`, so a successful generate followed by a
-          # failed mv would have overwritten the just-generated SBOM
-          # with the empty fallback.
-          if cargo cyclonedx --all --format json; then
-            mv -f bom.json sbom.cdx.json || echo '{}' > sbom.cdx.json
+          # cargo-cyclonedx 0.5.9 with `--all` writes one SBOM per
+          # workspace member at `<member-dir>/<crate-name>.cdx.<fmt>`,
+          # NOT a single `bom.json` at the workspace root (the earlier
+          # comment claiming `bom.json/bom.xml` was correct for an
+          # older cargo-cyclonedx; the file layout changed by 0.5.x).
+          # The v0.8.3 release failed at the strict-SBOM-signing gate
+          # because this step silently fell through to its
+          # `echo '{}' > sbom.cdx.json` fallback when `mv bom.json` could
+          # not find a file. We collect the SBOM for the **published**
+          # crate (latticearc) — its dep graph is what crates.io consumers
+          # care about; latticearc-cli and the test crate are not
+          # published and their per-crate SBOMs are not exposed via the
+          # release artifact.
+          #
+          # Explicit if/then/else (not `A && B || C`) because the latter
+          # parses as `(A && B) || C` — a successful generate followed by
+          # a failed mv would overwrite the just-generated SBOM with the
+          # empty fallback, exactly the bug this step is recovering from.
+          # cargo-cyclonedx 0.5.9 does not honor a `-p <pkg>` selector
+          # (verified locally: `cargo cyclonedx -p latticearc` exits 2
+          # with "Usage"). It always walks the entire workspace and
+          # emits one SBOM per member. Generate once per format and
+          # pick up the published crate's file.
+          SBOM_JSON_SRC="latticearc/latticearc.cdx.json"
+          SBOM_XML_SRC="latticearc/latticearc.cdx.xml"
+          if cargo cyclonedx --format json; then
+            if [ -f "$SBOM_JSON_SRC" ]; then
+              mv -f "$SBOM_JSON_SRC" sbom.cdx.json
+            else
+              echo "ERROR: cargo cyclonedx --format json exited 0 but $SBOM_JSON_SRC missing" >&2
+              echo '{}' > sbom.cdx.json
+            fi
           else
             echo '{}' > sbom.cdx.json
           fi
-          if cargo cyclonedx --all --format xml; then
-            mv -f bom.xml sbom.cdx.xml || echo '<bom/>' > sbom.cdx.xml
+          if cargo cyclonedx --format xml; then
+            if [ -f "$SBOM_XML_SRC" ]; then
+              mv -f "$SBOM_XML_SRC" sbom.cdx.xml
+            else
+              echo "ERROR: cargo cyclonedx --format xml exited 0 but $SBOM_XML_SRC missing" >&2
+              echo '<bom/>' > sbom.cdx.xml
+            fi
           else
             echo '<bom/>' > sbom.cdx.xml
           fi
