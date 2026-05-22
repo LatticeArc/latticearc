@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-05-22
+
 ### Fixed (entropy-test CI flake — Bonferroni-correction bug)
 
 - **`frequency_test` 1024-byte band lacked Bonferroni correction.** For

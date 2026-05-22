@@ -1,10 +1,10 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.8.2
+**Module Version**: 0.8.3
 **Module Type**: Software (FIPS 140-3 Level 1)
-**Date**: 2026-05-18
-**Last Reviewed**: 2026-05-10
+**Date**: 2026-05-22
+**Last Reviewed**: 2026-05-22
 **Status**: Pre-submission draft — not yet CMVP validated
 
 > **IMPORTANT**: LatticeArc is NOT FIPS 140-3 certified. Only the aws-lc-rs
@@ -19,7 +19,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.8.2 |
+| Module Version | 0.8.3 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |
@@ -293,6 +293,7 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.8.3 | 2026-05-22 | Patch: PoP replay-cache `pk_len` uniformity enforced at the type level (`PopReplayCache::new(pk_len)` + `debug_assert_eq!` on insert), preventing silent per-PK quota leak if a future PoP type with a different PK length is added without scoping the cache; entropy health-test thresholds Bonferroni-corrected (`frequency_test` 1024-byte band 3× → 4× expected, `longest_run_test` 1000–10000-bit band 20 → 22) — fixed a long-standing CI flake where per-attempt FPR was 7.2% vs the NIST SP 800-22 α = 0.01 budget; the entropy health-check test now panics with per-attempt diagnostics; CI secret-type-invariants gate (`scripts/ci/secret_type_audit.sh`) is now per-struct (file-wide-grep anti-pattern removed for I-1 and I-4) and wired into the `Security Scan` workflow with a `--self-test` regression guard; accumulated audit-round-5/6/7 follow-ups across formal-verification docs, CI gates, hooks, lifecycle tamper-checks, signing-pipeline hardening |
 | 0.8.2 | 2026-05-18 | Patch: `generate_signing_keypair` returns the named-field `SigningKeypair` type (private fields, redacting Debug, `into_parts()`); `EncryptedOutput::new` shape errors mapped to `ConfigurationError` across all encrypt arms; MemorySanitizer CI wall-clock budget raised |
 | 0.8.1 | 2026-05-16 | Patch: ChaCha20-Poly1305 decrypt error-mapping symmetry, `encrypt_pq_only` HKDF-info doc correction, non-FIPS CI clippy gating, release-workflow body overflow fix |
 | 0.8.0 | 2026-05-13 | Normative Secret Type Invariants ratified (`docs/SECRET_TYPE_INVARIANTS.md`): sealed `expose_secret()` accessor on every secret-bearing type, `SecretBytes<N>`/`SecretVec` primitives, optional `secret-mlock` feature, compile-time barrier test. Multiple external audit rounds folded in (FIPS 203 §6.1 SK/PK cross-check, SP 800-57 §8.3.1 pre-activation destruction, CT-equality canonicalisation, length-leak hardening, Ed25519 stack-temporary zeroization). |

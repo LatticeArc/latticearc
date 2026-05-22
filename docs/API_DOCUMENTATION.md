@@ -1,6 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.8.2 | **License**: Apache 2.0
+**Version**: 0.8.3 | **License**: Apache 2.0
 
 ---
 
