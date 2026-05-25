@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (CI — dropped MSan + scheduled mutation full-runs)
+
+- **MSan removed from the weekly `Sanitizers` workflow.** Comparable
+  Rust crypto wrappers (aws-lc-rs, ring, rustls, dalek,
+  fips204/fips205, RustCrypto/signatures) do not run MSan on the Rust
+  side; uninitialized-read coverage for the aws-lc C sources lives
+  in the upstream C library's own CI. The job was hitting the 4h
+  GitHub-Actions job cap on every run (SLH-DSA hash chains and
+  Argon2id passphrase derivation are minutes-per-test under MSan
+  with `-Zsanitizer-memory-track-origins`); the workspace does not
+  fit in the budget. ASan / TSan / LSan continue to run weekly and
+  cover Rust-side memory errors.
+- **Scheduled per-module mutation runs dropped.** The PR-diff
+  mutation gate (`--in-diff`, 80% score floor) still blocks
+  regressions on touched crypto code; the three full-module weekly
+  jobs were also hitting the 4h cap (`mutate-primitives`,
+  `mutate-unified-api`, `mutate-hybrid`) and re-tested unchanged
+  code. The module jobs survive as `workflow_dispatch` only for
+  ad-hoc audits. Upstream RustCrypto/signatures runs mutation
+  testing weekly but warning-only (no score floor); the PR-diff
+  gate is a stricter form of the same coverage for changed code.
+
 ## [0.8.3] — 2026-05-22
 
 ### Fixed (entropy-test CI flake — Bonferroni-correction bug)

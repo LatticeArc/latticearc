@@ -4,13 +4,12 @@
 # Gating strategy:
 #   - On pull_request: `mutate-pr-diff` runs cargo-mutants against only the changed
 #     crypto files (`--in-diff`), with a hard 80% score floor. A missed mutant in
-#     changed code now blocks the PR.
-#   - On schedule (weekly Sunday) and workflow_dispatch: full per-module runs with
-#     the same 80% floor. These are the coverage gates for unchanged code.
-#
-# Historical note: prior to this workflow, mutation was workflow_dispatch-only and
-# every step carried `continue-on-error: true`, which made the score a suggestion
-# rather than a gate. v0.7.0 landed the flip.
+#     changed code blocks the PR.
+#   - On workflow_dispatch: optional per-module full runs are available for ad-hoc
+#     audits but are NOT scheduled. The weekly cron was dropped after consistently
+#     hitting the 4h GitHub job cap on SLH-DSA mutations. Upstream RustCrypto/signatures
+#     runs mutation testing weekly but warning-only (no score floor); we keep the
+#     stronger PR-diff gate on changed code instead.
 
 name: Mutation Testing
 
@@ -22,8 +21,6 @@ on:
       - 'latticearc/src/hybrid/**'
       - 'tests/**'
       - '.github/workflows/mutation.yml'
-  schedule:
-    - cron: '0 6 * * 0'  # Weekly on Sunday at 6 AM UTC
   workflow_dispatch:
     inputs:
       packages:
@@ -147,7 +144,7 @@ jobs:
   # Scheduled / manual full runs — per-module, enforce the same floor.
   mutate-primitives:
     name: Mutate primitives module
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
@@ -201,7 +198,7 @@ jobs:
 
   mutate-unified-api:
     name: Mutate unified_api module
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
@@ -255,7 +252,7 @@ jobs:
 
   mutate-hybrid:
     name: Mutate hybrid module
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
@@ -311,7 +308,7 @@ jobs:
     name: Mutation Summary
     runs-on: ubuntu-latest
     needs: [mutate-primitives, mutate-unified-api, mutate-hybrid]
-    if: always() && github.event_name != 'pull_request'
+    if: always() && github.event_name == 'workflow_dispatch'
     steps:
       - name: Generate summary
         run: |

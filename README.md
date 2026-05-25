@@ -261,7 +261,7 @@ Multi-layered — each tier catches what the tier below cannot.
 - **Allocation budgets** — per-API-call ceiling on every crypto op, regression-gated via `stats_alloc`
 - **31 libfuzzer targets** — AEAD, KEM, signatures, KDF, serialization, DoS; weekly matrix; OSS-Fuzz scaffold in [`fuzz/oss-fuzz/`](fuzz/oss-fuzz/)
 - **`cargo-mutants --in-diff`** — 80% score floor, PR-blocking on changed crypto files
-- **Sanitizers** — ASan / TSan / LSan blocking on PR; MSan staged behind aws-lc-rs 1.16.3's `AWS_LC_SYS_SANITIZER=msan` (FIPS path awaits [aws/aws-lc#3167](https://github.com/aws/aws-lc/pull/3167))
+- **Sanitizers** — ASan / TSan / LSan run weekly (Rust-side coverage); C-side uninitialized-read coverage for `aws-lc` lives in the upstream library's own CI, matching aws-lc-rs / ring / rustls / RustCrypto practice
 - **`#![forbid(unsafe_code)]`** enforced at workspace level
 
 > Full proof inventory: [Formal Verification](docs/FORMAL_VERIFICATION.md)
