@@ -1357,6 +1357,13 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
         "liblatticearc.so",
         "liblatticearc.dylib",
         "latticearc.dll",
+        // Downstream binary name. The package is `latticearc-cli` but its
+        // `[[bin]] name = "latticearc"`, so `current_exe()` reports the
+        // short form — both spellings must be accepted to keep FIPS POST
+        // (which calls `path_looks_like_latticearc_module`) from rejecting
+        // legitimate cli invocations and SIGABRT-ing during keygen.
+        "latticearc",
+        "latticearc.exe",
         "latticearc-cli",
         "latticearc-cli.exe",
     ];
@@ -2070,6 +2077,8 @@ mod tests {
             "liblatticearc.so",
             "liblatticearc.dylib",
             "latticearc.dll",
+            "latticearc",
+            "latticearc.exe",
             "latticearc-cli",
             "latticearc-cli.exe",
         ] {
