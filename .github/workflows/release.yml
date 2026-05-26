@@ -30,7 +30,7 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Install cargo-audit
         # Pinned: see ci.yml security-tools install rationale.
-        uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e # main
+        uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # main
         with:
           tool: cargo-audit@0.22.1
       - name: Security audit
@@ -169,7 +169,7 @@ jobs:
         # the correct semantic now that the downstream sign step refuses
         # placeholder SBOMs: a tool-install failure should abort the
         # release here rather than continue and fail at signing.
-        uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e # main
+        uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # main
         with:
           tool: cargo-sbom@0.10.0,cargo-cyclonedx@0.5.9
       - name: Generate SBOM (SPDX)
