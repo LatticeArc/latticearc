@@ -188,7 +188,7 @@ parking_lot = { workspace = true }
 # =============================================================================
 elliptic-curve = { workspace = true, features = ["sec1"] }
 # Optional: ZKP serialization
-serde_with = { version = "3.17", optional = true }
+serde_with = { version = "3.20", optional = true }
 
 # Backed atomic-write helper (`unified_api::atomic_write::AtomicWrite`).
 # Used by `KeyFile::write_to_file_with_overwrite` and the CLI's

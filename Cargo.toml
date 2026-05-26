@@ -252,10 +252,10 @@ overflow-checks = true  # Enable even in debug for crypto safety
 
   [workspace.dependencies]
 # Core async runtime - latest stable version for security and performance
-tokio = { version = "1.52.1", features = ["full"] }
+tokio = { version = "1.52.3", features = ["full"] }
 # Serialization - latest stable with derive features
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = { version = "1.0.149" }
+serde_json = { version = "1.0.150" }
 # Random number generation. rand 0.9 (Jan 2025) renames `thread_rng()` →
 # `rng()`, `Rng::gen_*` → `random_*`, but keeps `OsRng.fill_bytes` on
 # RngCore. Bumped to fix RUSTSEC-2026-0097 (rand 0.8 reseed unsoundness)
@@ -338,7 +338,7 @@ x25519-dalek = { version = "=2.0.1", features = ["static_secrets"] }
 # Post-quantum cryptography - FIPS 140-3 validated via aws-lc-rs
 # aws-lc-rs provides ML-KEM with FIPS 140-3 certification (Certificate #4631, #4759, #4816)
 # Note: FIPS mode requires cmake and go build tools
-aws-lc-rs = { version = "1.16.3" }
+aws-lc-rs = { version = "1.17.0" }
 
 # Post-quantum signatures - aws-lc-rs ML-DSA is unstable and requires !fips feature
 # See: https://github.com/aws/aws-lc-rs/issues/964 (FIPS branch lacks ML-DSA)
@@ -375,7 +375,7 @@ clap = { version = "4.6", features = ["derive", "env", "wrap_help"] }
 # Secure password prompt — reads without echo. Used by `latticearc-cli` for
 # passphrase-based key protection. Transitively depends on `libc` (Unix) /
 # `windows-sys` (Windows); `libc` is already allowed via aws-lc-sys.
-rpassword = { version = "7.4" }
+rpassword = { version = "7.5" }
 
 # Common utilities
 parking_lot = { version = "0.12.5" }
