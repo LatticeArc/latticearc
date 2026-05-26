@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (Dependencies — patch/minor bumps to latest semver-compatible)
+
+- **`aws-lc-rs` 1.16.3 → 1.17.0** (+ `aws-lc-sys` 0.40 → 0.41). Brings
+  ML-DSA x86_64 native assembly (perf prep for future migration off
+  `fips204`), RSA `PublicKeyComponents → ParsedPublicKey` conversion,
+  `LessSafeKey::open_in_place_separate_tag` for split-tag AEAD
+  decryption, and `zig cc` cross-compile support. Does NOT add the
+  `msan` feature flag (#36 still pending on upstream PR #1077), nor
+  does it stabilize ML-DSA out of `aws_lc_rs::unstable` (#17 still
+  blocked).
+- **`tokio` 1.52.1 → 1.52.3.** Bug-fix patches: `mpsc::len()` underflow,
+  `OwnedPermit::release()` no-notify, `RwLock` accepting
+  `max_readers == 0`, and `try_recv()` returning `Disconnected` instead
+  of `Empty` when the channel was closed with outstanding permits.
+- **`rustls` 0.23.39 → 0.23.40.** ECH SNI inner-client-hello padding
+  brought into compliance with RFC recommendation; `ServerConfig::
+  require_ems` default now derived from the active `CryptoProvider`'s
+  FIPS status rather than the `fips` cargo feature — helpful for our
+  setup, where the FIPS-validated backend is provided by `aws-lc-rs`
+  rather than the `fips` feature.
+- **`reqwest` 0.13.2 → 0.13.4, `h2` 0.4.13 → 0.4.14, `tower-http` 0.6.8
+  → 0.6.11, `serde_json` 1.0.149 → 1.0.150, `serde_with` 3.18.0 →
+  3.20.0, `rpassword` 7.4.0 → 7.5.3, `crabgrind` 0.2.5 → 0.2.6**
+  (dev-dep, linux-only). All caret-compatible patch/minor updates;
+  no Cargo.toml changes required. `cargo check` /
+  `clippy --all-features -D warnings` / `cargo audit` /
+  `cargo deny check all` all PASS post-update.
+
 ### Changed (CI — dropped MSan + scheduled mutation full-runs)
 
 - **MSan removed from the weekly `Sanitizers` workflow.** Comparable
