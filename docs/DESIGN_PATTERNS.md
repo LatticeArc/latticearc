@@ -31,13 +31,13 @@ LatticeArc is a three-layer post-quantum cryptography platform:
 | Layer | Repository | Contents |
 |-------|-----------|----------|
 | **Layer 1 — Primitives** | `apache_repo` (Apache 2.0) | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-GCM, ChaCha20, X25519, Ed25519, HKDF, hybrid encryption, unified API |
-| **Layer 2 — Enterprise Capabilities** | `proprietary_repo` | Self-healing security ^[Implementation: K-Means anomaly detection over op telemetry; CVE-driven algorithm rotation. See `proprietary_repo/arc-enterprise-security/`.]^, zero-trust crypto ops, runtime-adaptive selection ^[Implementation: data-characteristic + hardware-capability scoring; see `proprietary_repo/arc-enterprise-perf/adaptive_selector.rs`.]^, Conditional Cryptography Engine (CCE) |
+| **Layer 2 — Enterprise Capabilities** | `proprietary_repo` | Self-healing security ^[Implementation: K-Means anomaly detection over op telemetry; CVE-driven algorithm rotation. See `proprietary_repo/arc-enterprise-security/`.]^, zero-trust crypto ops, runtime-adaptive selection ^[Implementation: data-characteristic + hardware-capability scoring; see `proprietary_repo/arc-enterprise-perf/adaptive_selector.rs`.]^ |
 | **Layer 3 — Products** | `proprietary_repo` | Migration Accelerator, CryptoSOC, Code Signing, Governed Database, Timelock, 45+ more |
 
-The apache core is published to crates.io as a single `latticearc` crate. The proprietary
-repo depends on it via Cargo. The CCE engine extends it with 17 condition dimensions
-(time, location, quorum, biometric, HSM, TEE, ZKP, etc.) that embed conditions into
-key derivation so decryption keys mathematically do not exist until all conditions are met.
+The apache core is published to crates.io as a single `latticearc` crate. The
+proprietary repo depends on it via Cargo. Capabilities and products that live
+in the proprietary repo are documented there; this document covers only the
+apache-side design patterns.
 
 **Every design pattern must work for both repositories.** A pattern that only works for the
 open-source core but breaks when enterprise code extends it is wrong.
@@ -708,9 +708,10 @@ different protocols accidentally use the same HKDF label, keys derived for one p
 can decrypt traffic from another — a catastrophic cross-protocol attack.
 
 Centralizing labels in one file with a formal proof makes collisions **impossible**, not just
-unlikely. This is especially critical for proprietary extensibility: the CCE engine adds
-17 dimension-specific key derivations. Each needs a unique label. Without a registry, a
-dimension author could accidentally collide with the core hybrid encryption label.
+unlikely. This is especially critical for downstream extensibility: any crate that depends
+on `latticearc` and adds new HKDF call sites must use a label that does not collide with
+the core registry. Without a single source of truth, an extension author could accidentally
+collide with the core hybrid encryption label.
 
 ### Rules
 1. Every HKDF `info` parameter must reference a constant from `types::domains::*`

@@ -203,14 +203,6 @@ pub enum KeyAlgorithm {
     /// ChaCha20 symmetric key (RFC 8439)
     #[serde(rename = "chacha20")]
     ChaCha20,
-    /// secp256k1 ECDSA / Schnorr signature key.
-    ///
-    /// Used by Bitcoin, Ethereum, the LatticeArc ZKP dimension, and other
-    /// blockchain-adjacent contexts. **Not a NIST-categorised algorithm**;
-    /// [`nist_security_level`](Self::nist_security_level) approximates the
-    /// ~128-bit classical strength of the curve. Quantum-vulnerable.
-    #[serde(rename = "secp256k1")]
-    Secp256k1,
 
     // --- Hybrid KEM ---
     /// Hybrid ML-KEM-768 + X25519
@@ -233,6 +225,16 @@ pub enum KeyAlgorithm {
     /// Hybrid ML-DSA-87 + Ed25519
     #[serde(rename = "hybrid-ml-dsa-87-ed25519")]
     HybridMlDsa87Ed25519,
+
+    // --- Classical (appended post-0.8.3 to preserve prior discriminants) ---
+    /// secp256k1 ECDSA / Schnorr signature key.
+    ///
+    /// Used by Bitcoin, Ethereum, the LatticeArc ZKP dimension, and other
+    /// blockchain-adjacent contexts. **Not a NIST-categorised algorithm**;
+    /// [`nist_security_level`](Self::nist_security_level) approximates the
+    /// ~128-bit classical strength of the curve. Quantum-vulnerable.
+    #[serde(rename = "secp256k1")]
+    Secp256k1,
 }
 
 /// Map an ML-KEM security level to the corresponding hybrid-KEM
@@ -3487,10 +3489,7 @@ mod tests {
     #[test]
     fn test_secp256k1_canonical_name() {
         assert_eq!(KeyAlgorithm::Secp256k1.canonical_name(), "secp256k1");
-        assert_eq!(
-            KeyAlgorithm::from_canonical_name("secp256k1"),
-            Some(KeyAlgorithm::Secp256k1)
-        );
+        assert_eq!(KeyAlgorithm::from_canonical_name("secp256k1"), Some(KeyAlgorithm::Secp256k1));
         assert_eq!(
             KeyAlgorithm::from_canonical_name("SECP256K1"),
             Some(KeyAlgorithm::Secp256k1),
@@ -3543,9 +3542,8 @@ mod tests {
     fn test_not_after_json_roundtrip() {
         let mut key =
             PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
-        let expiry = chrono::DateTime::parse_from_rfc3339("2027-01-01T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let expiry =
+            DateTime::parse_from_rfc3339("2027-01-01T00:00:00Z").unwrap().with_timezone(&Utc);
         key.set_not_after(Some(expiry));
 
         let json = key.to_json().expect("serialize");
@@ -3571,9 +3569,8 @@ mod tests {
     fn test_not_after_cbor_roundtrip() {
         let mut key =
             PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
-        let expiry = chrono::DateTime::parse_from_rfc3339("2027-01-01T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let expiry =
+            DateTime::parse_from_rfc3339("2027-01-01T00:00:00Z").unwrap().with_timezone(&Utc);
         key.set_not_after(Some(expiry));
 
         let cbor = key.to_cbor().expect("serialize");

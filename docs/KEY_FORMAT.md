@@ -251,7 +251,8 @@ CBOR is the recommended format for:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `metadata` | `Map<String, Value>` | Open map for enterprise extensions. Enterprise crates store additional fields (expiry, hardware binding, etc.) here via typed accessor traits. The base library preserves all entries during roundtrips. |
+| `not_after` | `DateTime<Utc>` | **Informational** expiry timestamp (v0.8.4+). Accessors: `not_after()`, `set_not_after()`, `is_expired_at(now)`, `is_expired()`. **Not a security gate** — see [Key Lifecycle](#key-lifecycle-not_after) below. Serialized with `skip_serializing_if = "Option::is_none"` so absence keeps the pre-0.8.4 wire shape. |
+| `metadata` | `Map<String, Value>` | Open map for enterprise extensions. Enterprise crates store additional fields (hardware binding, dimension components, etc.) here via typed accessor traits. The base library preserves all entries during roundtrips. |
 
 ## Algorithm Resolution
 
@@ -320,6 +321,12 @@ CBOR is the recommended format for:
 | `x25519` | RFC 7748 | 32 B | 32 B |
 | `aes-256` | FIPS 197 | — | 32 B |
 | `chacha20` | RFC 8439 | — | 32 B |
+| `secp256k1` | SEC 2 | 33 B (compressed) | 32 B |
+
+> `secp256k1` is **not a NIST-categorised algorithm**; `nist_security_level()`
+> approximates `Standard` (~128-bit classical strength), and the curve is
+> quantum-vulnerable. Use cases: Bitcoin / Ethereum signature material and
+> ZKP prover/verifier key pairs. Added in v0.8.4.
 
 ### Hybrid KEM
 
@@ -360,6 +367,37 @@ For large hybrid keys (ML-DSA-87 + Ed25519, 4,928 raw bytes SK):
 1. **Symmetric ↔ key type**: `aes-256` and `chacha20` require `KeyType::Symmetric`; non-symmetric algorithms reject `Symmetric` key type.
 2. **Hybrid ↔ composite data**: Hybrid algorithms require composite `KeyData` (`pq` + `classical`); non-hybrid algorithms require single `KeyData` (`raw`).
 3. **Base64 integrity**: All base64-encoded fields decode successfully.
+
+`validate()` deliberately does **not** check `not_after` — see below.
+
+## Key Lifecycle (`not_after`)
+
+`PortableKey` carries an optional `not_after: Option<DateTime<Utc>>` expiry
+timestamp (v0.8.4+). Accessors:
+
+```rust
+key.set_not_after(Some(expiry));   // None clears
+let exp: Option<DateTime<Utc>> = key.not_after();
+let expired_now: bool = key.is_expired();
+let expired_at_t: bool = key.is_expired_at(t);
+```
+
+**This field is a convention, NOT a security gate.** Specifically:
+
+- `PortableKey::validate()` does **not** reject keys past `not_after`. Callers
+  needing enforcement MUST call `is_expired()` (or `is_expired_at()`) themselves.
+- `not_after` is **not** part of the encryption AAD. An attacker holding a
+  ciphertext can re-serialize the plaintext key with an edited `not_after`
+  freely; gate enforcement above `validate()` must come from application logic.
+- Converting `not_after` into a tamper-resistant gate would require adding it
+  to `encryption_aad` and bumping `ENCRYPTED_ENVELOPE_VERSION` — deferred.
+- `ConstantTimeEq` **does** distinguish keys differing only in `not_after`
+  (the v0.8.3 impl would have silently compared them equal).
+
+Wire-format note: when `not_after` is `None`, the field is omitted from JSON
+and CBOR via `skip_serializing_if = "Option::is_none"`. Pre-0.8.4 key files
+parse unchanged, and post-0.8.4 keys with no expiry produce byte-identical
+output to pre-0.8.4 keys.
 
 ## Security Properties
 
@@ -440,19 +478,18 @@ Enterprise crates extend `PortableKey` via Rust extension traits — no base
 library modifications needed:
 
 ```rust
-// Enterprise crate — typed accessors over the metadata map
+// Enterprise crate — typed accessors over the metadata map.
+// Note: key expiry is a first-class field as of v0.8.4 (see Key Lifecycle
+// above); the metadata pattern below is for properties the base library
+// does NOT model directly (HSM binding, ZKP dimension components, etc.).
 trait EnterpriseKeyExt {
-    fn key_expiry(&self) -> Option<DateTime<Utc>>;
     fn hsm_slot(&self) -> Option<&str>;
     fn dimensions(&self) -> Option<Vec<String>>;
 }
 
 impl EnterpriseKeyExt for PortableKey {
-    fn key_expiry(&self) -> Option<DateTime<Utc>> {
-        self.metadata().get("expires")
-            .and_then(|v| v.as_str())
-            .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
-            .map(|dt| dt.with_timezone(&Utc))
+    fn hsm_slot(&self) -> Option<&str> {
+        self.metadata().get("hsm_slot").and_then(|v| v.as_str())
     }
     // ...
 }
@@ -465,5 +502,6 @@ added by extension crates survive serialization through the open-source library.
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2 | 2026-05-27 | Added `KeyAlgorithm::Secp256k1` variant (classical, ~128-bit, quantum-vulnerable). Added optional `not_after: Option<DateTime<Utc>>` lifecycle field with `not_after()` / `set_not_after()` / `is_expired_at()` / `is_expired()` accessors — informational, NOT enforced by `validate()`. `ConstantTimeEq` updated to distinguish keys differing only in `not_after`. Wire format unchanged when `not_after` is `None`. Shipped in latticearc v0.8.4. |
 | 1.1 | 2026-04-09 | Hybrid KEM secret keys now include `ml_kem_pk` in metadata for self-contained decryption. `to_hybrid_secret_key()` no longer requires a separate public key. |
 | 1 | 2026-03-19 | Initial release. JSON + CBOR dual format. UseCase/SecurityLevel-first design. |

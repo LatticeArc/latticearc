@@ -17,9 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   curve alongside the existing classical Ed25519 / X25519 variants. Not a
   NIST-categorised algorithm; `nist_security_level()` reports `Standard`
   (~128-bit classical, quantum-vulnerable). Use cases: Bitcoin / Ethereum
-  signature material, the LatticeArc CCE ZKP dimension's prover/verifier
-  key pair (which previously required a metadata-convention workaround
-  because no `KeyAlgorithm` variant existed). Behind the existing
+  signature material and downstream ZKP prover/verifier key pairs
+  (which previously required a metadata-convention workaround because no
+  `KeyAlgorithm` variant existed). Behind the existing
   `#[non_exhaustive]` enum guard, so consumers with wildcard match arms
   remain source-compatible.
 - **`PortableKey::not_after: Option<DateTime<Utc>>` field.** Informational
@@ -39,8 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Both additions are driven by downstream enterprise products that the
 crate's open-source surface should support without forks. The Secp256k1
-variant closes a workaround pattern in the CCE ZKP dimension and
-unblocks a planned blockchain-signing product. The `not_after` field
+variant closes a workaround pattern used by downstream ZKP integrations
+and unblocks a planned blockchain-signing product. The `not_after` field
 replaces ad-hoc `metadata["expiry"]` conventions across enterprise
 crates with a single typed, serde-roundtrippable field — without
 behavioral change for existing callers (the new field defaults to

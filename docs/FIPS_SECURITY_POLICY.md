@@ -1,7 +1,7 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.8.3
+**Module Version**: 0.8.4
 **Module Type**: Software (FIPS 140-3 Level 1)
 **Date**: 2026-05-22
 **Last Reviewed**: 2026-05-22
@@ -19,7 +19,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.8.3 |
+| Module Version | 0.8.4 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |
