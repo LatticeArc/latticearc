@@ -9,6 +9,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-05-27
+
+### Added (PortableKey lifecycle + algorithm coverage)
+
+- **`KeyAlgorithm::Secp256k1` variant.** Adds the secp256k1 ECDSA / Schnorr
+  curve alongside the existing classical Ed25519 / X25519 variants. Not a
+  NIST-categorised algorithm; `nist_security_level()` reports `Standard`
+  (~128-bit classical, quantum-vulnerable). Use cases: Bitcoin / Ethereum
+  signature material, the LatticeArc CCE ZKP dimension's prover/verifier
+  key pair (which previously required a metadata-convention workaround
+  because no `KeyAlgorithm` variant existed). Behind the existing
+  `#[non_exhaustive]` enum guard, so consumers with wildcard match arms
+  remain source-compatible.
+- **`PortableKey::not_after: Option<DateTime<Utc>>` field.** Informational
+  expiry timestamp. Accessors: `not_after()`, `set_not_after()`,
+  `is_expired_at(now)`, `is_expired()`. **Important**: this field is a
+  convention, NOT a security gate — `validate()` does not refuse a key
+  past its `not_after`. Callers needing enforcement must call
+  `is_expired()` themselves. To convert into a tamper-resistant gate
+  later, the field would need to be added to `encryption_aad` and
+  `ENCRYPTED_ENVELOPE_VERSION` bumped (an attacker holding the
+  ciphertext can otherwise edit a plaintext `not_after` freely).
+  Serialized with `skip_serializing_if = "Option::is_none"` so existing
+  pre-0.8.4 wire format is preserved when no expiry is set; new
+  ConstantTimeEq impl distinguishes keys differing only in `not_after`.
+
+### Why now
+
+Both additions are driven by downstream enterprise products that the
+crate's open-source surface should support without forks. The Secp256k1
+variant closes a workaround pattern in the CCE ZKP dimension and
+unblocks a planned blockchain-signing product. The `not_after` field
+replaces ad-hoc `metadata["expiry"]` conventions across enterprise
+crates with a single typed, serde-roundtrippable field — without
+behavioral change for existing callers (the new field defaults to
+`None` and isn't auto-enforced).
+
+### Migration
+
+Both changes are additive. No existing call sites need updates.
+- Wildcard `match` arms on `KeyAlgorithm` continue to work (the enum is
+  already `#[non_exhaustive]`).
+- `PortableKey` JSON/CBOR from older versions deserializes cleanly via
+  `#[serde(default)]` on the new field.
+- Code that compared `PortableKey` for equality via `ConstantTimeEq` now
+  also distinguishes the `not_after` value, which is the correct
+  behavior — previously two keys differing only in expiry would have
+  compared equal.
+
+---
+
+## [Unreleased]
+
 ### Changed (Dependencies — patch/minor bumps to latest semver-compatible)
 
 - **`aws-lc-rs` 1.16.3 → 1.17.0** (+ `aws-lc-sys` 0.40 → 0.41). Brings

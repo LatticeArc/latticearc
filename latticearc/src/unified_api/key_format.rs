@@ -203,6 +203,14 @@ pub enum KeyAlgorithm {
     /// ChaCha20 symmetric key (RFC 8439)
     #[serde(rename = "chacha20")]
     ChaCha20,
+    /// secp256k1 ECDSA / Schnorr signature key.
+    ///
+    /// Used by Bitcoin, Ethereum, the LatticeArc ZKP dimension, and other
+    /// blockchain-adjacent contexts. **Not a NIST-categorised algorithm**;
+    /// [`nist_security_level`](Self::nist_security_level) approximates the
+    /// ~128-bit classical strength of the curve. Quantum-vulnerable.
+    #[serde(rename = "secp256k1")]
+    Secp256k1,
 
     // --- Hybrid KEM ---
     /// Hybrid ML-KEM-768 + X25519
@@ -336,6 +344,7 @@ impl KeyAlgorithm {
                 | Self::SlhDsaShake256s
                 | Self::FnDsa512
                 | Self::FnDsa1024
+                | Self::Secp256k1
                 | Self::HybridMlDsa44Ed25519
                 | Self::HybridMlDsa65Ed25519
                 | Self::HybridMlDsa87Ed25519
@@ -364,6 +373,7 @@ impl KeyAlgorithm {
             | Self::FnDsa512
             | Self::Ed25519
             | Self::X25519
+            | Self::Secp256k1
             | Self::HybridMlKem512X25519
             | Self::HybridMlDsa44Ed25519 => SecurityLevel::Standard,
 
@@ -411,6 +421,7 @@ impl KeyAlgorithm {
             Self::X25519 => "x25519",
             Self::Aes256 => "aes-256",
             Self::ChaCha20 => "chacha20",
+            Self::Secp256k1 => "secp256k1",
             Self::HybridMlKem768X25519 => "hybrid-ml-kem-768-x25519",
             Self::HybridMlKem512X25519 => "hybrid-ml-kem-512-x25519",
             Self::HybridMlKem1024X25519 => "hybrid-ml-kem-1024-x25519",
@@ -452,6 +463,7 @@ impl KeyAlgorithm {
             "x25519" => Some(Self::X25519),
             "aes-256" | "aes256" => Some(Self::Aes256),
             "chacha20" | "chacha20-poly1305" => Some(Self::ChaCha20),
+            "secp256k1" => Some(Self::Secp256k1),
             "hybrid-ml-kem-512-x25519" => Some(Self::HybridMlKem512X25519),
             "hybrid-ml-kem-768-x25519" => Some(Self::HybridMlKem768X25519),
             "hybrid-ml-kem-1024-x25519" => Some(Self::HybridMlKem1024X25519),
@@ -849,6 +861,21 @@ pub struct PortableKey {
     /// Creation timestamp (UTC, ISO 8601).
     created: DateTime<Utc>,
 
+    /// Optional informational expiry timestamp.
+    ///
+    /// **This field is a convention, not a security gate.**
+    /// [`PortableKey::validate`] does NOT refuse a key past `not_after`;
+    /// callers should check [`is_expired`](Self::is_expired) themselves
+    /// before using the key.
+    ///
+    /// To convert this into a tamper-resistant security gate later, the
+    /// field must be added to [`encryption_aad`](Self::encryption_aad) and
+    /// `ENCRYPTED_ENVELOPE_VERSION` bumped — an attacker who already holds
+    /// the encrypted envelope can otherwise edit a plaintext `not_after`
+    /// field freely (it isn't part of the AEAD-authenticated data today).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    not_after: Option<DateTime<Utc>>,
+
     /// Open metadata map for enterprise extensions.
     /// Enterprise crates store additional fields (expiry, hardware binding,
     /// dimensions, etc.) here via extension traits. The base library preserves
@@ -872,6 +899,7 @@ impl std::fmt::Debug for PortableKey {
             .field("key_type", &self.key_type)
             .field("key_data", &key_data_display)
             .field("created", &self.created)
+            .field("not_after", &self.not_after)
             .field("metadata", &self.metadata)
             .finish()
     }
@@ -890,6 +918,7 @@ impl subtle::ConstantTimeEq for PortableKey {
             || self.use_case != other.use_case
             || self.security_level != other.security_level
             || self.created != other.created
+            || self.not_after != other.not_after
             || self.metadata != other.metadata
         {
             return subtle::Choice::from(0);
@@ -1027,7 +1056,43 @@ impl PortableKey {
             key_data: self.key_data.clone_for_transmission(),
             metadata: self.metadata.clone(),
             created: self.created,
+            not_after: self.not_after,
         }
+    }
+
+    /// Returns the optional informational expiry timestamp, if any.
+    ///
+    /// **This field is a convention, not a security gate.** See the
+    /// field documentation on [`PortableKey`] for the rationale.
+    #[must_use]
+    pub const fn not_after(&self) -> Option<DateTime<Utc>> {
+        self.not_after
+    }
+
+    /// Set or clear the optional informational expiry timestamp.
+    ///
+    /// **Informational only** — `validate()` does not refuse a key past
+    /// `not_after`. Callers requiring enforcement must check
+    /// [`is_expired`](Self::is_expired) before using the key.
+    pub const fn set_not_after(&mut self, not_after: Option<DateTime<Utc>>) {
+        self.not_after = not_after;
+    }
+
+    /// Returns `true` when `not_after` is set and is less than or equal to
+    /// the supplied `now` instant.
+    ///
+    /// Pass [`Utc::now()`] for the typical wall-clock check, or a fixed
+    /// instant for deterministic tests. Returns `false` when `not_after`
+    /// is `None` (no declared expiry).
+    #[must_use]
+    pub fn is_expired_at(&self, now: DateTime<Utc>) -> bool {
+        self.not_after.is_some_and(|t| t <= now)
+    }
+
+    /// Convenience: [`is_expired_at`](Self::is_expired_at) using `Utc::now()`.
+    #[must_use]
+    pub fn is_expired(&self) -> bool {
+        self.is_expired_at(Utc::now())
     }
 
     /// Create a key identified by use case. Algorithm is auto-derived.
@@ -1051,6 +1116,7 @@ impl PortableKey {
             key_data,
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         }
     }
 
@@ -1071,6 +1137,7 @@ impl PortableKey {
             key_data,
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         }
     }
 
@@ -1093,6 +1160,7 @@ impl PortableKey {
             key_data,
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         }
     }
 
@@ -1115,6 +1183,7 @@ impl PortableKey {
             key_data,
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         }
     }
 
@@ -1137,6 +1206,7 @@ impl PortableKey {
             key_data,
             created,
             metadata: BTreeMap::new(),
+            not_after: None,
         }
     }
 
@@ -1274,6 +1344,7 @@ impl PortableKey {
             key_data: KeyData::from_composite(pk.ml_kem_pk(), pk.ecdh_pk()),
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         };
 
         let ml_kem_sk = sk
@@ -1303,6 +1374,7 @@ impl PortableKey {
             key_data: KeyData::from_composite(&ml_kem_sk, &*ecdh_seed),
             created: Utc::now(),
             metadata: sk_metadata,
+            not_after: None,
         };
 
         Ok((pub_key, sec_key))
@@ -1448,6 +1520,7 @@ impl PortableKey {
             key_data: KeyData::from_composite(pk.ml_dsa_pk(), pk.ed25519_pk()),
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         };
 
         let sec_key = Self {
@@ -1462,6 +1535,7 @@ impl PortableKey {
             ),
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         };
 
         Ok((pub_key, sec_key))
@@ -1546,6 +1620,7 @@ impl PortableKey {
             key_data: KeyData::from_raw(public_key),
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         };
 
         let sec_key = Self {
@@ -1557,6 +1632,7 @@ impl PortableKey {
             key_data: KeyData::from_raw(private_key),
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         };
 
         (pub_key, sec_key)
@@ -1818,6 +1894,7 @@ impl PortableKey {
             key_data: KeyData::from_raw(key),
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         })
     }
 
@@ -3336,6 +3413,7 @@ mod tests {
             KeyAlgorithm::X25519,
             KeyAlgorithm::Aes256,
             KeyAlgorithm::ChaCha20,
+            KeyAlgorithm::Secp256k1,
             KeyAlgorithm::HybridMlKem512X25519,
             KeyAlgorithm::HybridMlKem768X25519,
             KeyAlgorithm::HybridMlKem1024X25519,
@@ -3371,6 +3449,7 @@ mod tests {
             (KeyAlgorithm::X25519, "\"x25519\""),
             (KeyAlgorithm::Aes256, "\"aes-256\""),
             (KeyAlgorithm::ChaCha20, "\"chacha20\""),
+            (KeyAlgorithm::Secp256k1, "\"secp256k1\""),
             (KeyAlgorithm::HybridMlKem768X25519, "\"hybrid-ml-kem-768-x25519\""),
             (KeyAlgorithm::HybridMlKem512X25519, "\"hybrid-ml-kem-512-x25519\""),
             (KeyAlgorithm::HybridMlKem1024X25519, "\"hybrid-ml-kem-1024-x25519\""),
@@ -3401,6 +3480,133 @@ mod tests {
         assert!(KeyAlgorithm::Aes256.is_symmetric());
         assert!(KeyAlgorithm::ChaCha20.is_symmetric());
         assert!(!KeyAlgorithm::MlKem768.is_symmetric());
+    }
+
+    // --- Secp256k1 variant (added 0.8.4) ---
+
+    #[test]
+    fn test_secp256k1_canonical_name() {
+        assert_eq!(KeyAlgorithm::Secp256k1.canonical_name(), "secp256k1");
+        assert_eq!(
+            KeyAlgorithm::from_canonical_name("secp256k1"),
+            Some(KeyAlgorithm::Secp256k1)
+        );
+        assert_eq!(
+            KeyAlgorithm::from_canonical_name("SECP256K1"),
+            Some(KeyAlgorithm::Secp256k1),
+            "from_canonical_name is case-insensitive"
+        );
+    }
+
+    #[test]
+    fn test_secp256k1_classification() {
+        assert!(KeyAlgorithm::Secp256k1.is_signature());
+        assert!(!KeyAlgorithm::Secp256k1.is_kem());
+        assert!(!KeyAlgorithm::Secp256k1.is_symmetric());
+        assert!(!KeyAlgorithm::Secp256k1.is_hybrid());
+        assert_eq!(
+            KeyAlgorithm::Secp256k1.nist_security_level(),
+            crate::types::types::SecurityLevel::Standard,
+        );
+    }
+
+    // --- not_after lifecycle field (added 0.8.4) ---
+
+    #[test]
+    fn test_not_after_default_is_none() {
+        let key =
+            PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+        assert!(key.not_after().is_none());
+        assert!(!key.is_expired());
+    }
+
+    #[test]
+    fn test_not_after_set_and_query() {
+        let mut key =
+            PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+        let future = Utc::now() + chrono::Duration::hours(1);
+        let past = Utc::now() - chrono::Duration::hours(1);
+
+        key.set_not_after(Some(future));
+        assert_eq!(key.not_after(), Some(future));
+        assert!(!key.is_expired_at(Utc::now()));
+
+        key.set_not_after(Some(past));
+        assert!(key.is_expired_at(Utc::now()));
+
+        key.set_not_after(None);
+        assert!(key.not_after().is_none());
+        assert!(!key.is_expired_at(Utc::now()));
+    }
+
+    #[test]
+    fn test_not_after_json_roundtrip() {
+        let mut key =
+            PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+        let expiry = chrono::DateTime::parse_from_rfc3339("2027-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        key.set_not_after(Some(expiry));
+
+        let json = key.to_json().expect("serialize");
+        assert!(json.contains("not_after"), "JSON must contain not_after field");
+        let restored = PortableKey::from_json(&json).expect("deserialize");
+        assert_eq!(restored.not_after(), Some(expiry));
+    }
+
+    #[test]
+    fn test_not_after_omitted_when_none_in_json() {
+        // skip_serializing_if = "Option::is_none" must keep the wire format
+        // backward-compatible with pre-0.8.4 keys (no not_after field at all).
+        let key =
+            PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+        let json = key.to_json().expect("serialize");
+        assert!(
+            !json.contains("not_after"),
+            "JSON must NOT contain not_after when None (preserves pre-0.8.4 wire shape)"
+        );
+    }
+
+    #[test]
+    fn test_not_after_cbor_roundtrip() {
+        let mut key =
+            PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+        let expiry = chrono::DateTime::parse_from_rfc3339("2027-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        key.set_not_after(Some(expiry));
+
+        let cbor = key.to_cbor().expect("serialize");
+        let restored = PortableKey::from_cbor(&cbor).expect("deserialize");
+        assert_eq!(restored.not_after(), Some(expiry));
+    }
+
+    #[test]
+    fn test_clone_for_transmission_preserves_not_after() {
+        let mut key =
+            PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+        let expiry = Utc::now() + chrono::Duration::days(30);
+        key.set_not_after(Some(expiry));
+
+        let cloned = key.clone_for_transmission();
+        assert_eq!(cloned.not_after(), Some(expiry));
+    }
+
+    #[test]
+    fn test_ct_eq_distinguishes_not_after() {
+        use subtle::ConstantTimeEq;
+        let mut a =
+            PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+        let mut b = a.clone_for_transmission();
+
+        let expiry = Utc::now() + chrono::Duration::days(30);
+        a.set_not_after(Some(expiry));
+        // b still has not_after = None; ct_eq must report inequality.
+        assert!(!bool::from(a.ct_eq(&b)));
+
+        b.set_not_after(Some(expiry));
+        // Now both have the same expiry; the rest of the key is identical.
+        assert!(bool::from(a.ct_eq(&b)));
     }
 
     // --- KeyType serde ---
@@ -3621,6 +3827,7 @@ mod tests {
             key_data: KeyData::Single { raw: "not-valid-base64!!!".to_string() },
             created: Utc::now(),
             metadata: BTreeMap::new(),
+            not_after: None,
         };
         assert!(key.validate().is_err());
     }
