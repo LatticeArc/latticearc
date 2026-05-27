@@ -58,10 +58,6 @@ Both changes are additive. No existing call sites need updates.
   behavior — previously two keys differing only in expiry would have
   compared equal.
 
----
-
-## [Unreleased]
-
 ### Changed (Dependencies — patch/minor bumps to latest semver-compatible)
 
 - **`aws-lc-rs` 1.16.3 → 1.17.0** (+ `aws-lc-sys` 0.40 → 0.41). Brings
@@ -111,6 +107,52 @@ Both changes are additive. No existing call sites need updates.
   ad-hoc audits. Upstream RustCrypto/signatures runs mutation
   testing weekly but warning-only (no score floor); the PR-diff
   gate is a stricter form of the same coverage for changed code.
+
+### Fixed (release hygiene)
+
+- **cargo-semver-checks green for the additive change.** The
+  initial v0.8.4 commit inserted `KeyAlgorithm::Secp256k1` between
+  `ChaCha20` and `HybridMlKem768X25519`, which shifted the implicit
+  discriminants of all 6 hybrid variants (15→16 … 20→21) and tripped
+  `enum_no_repr_variant_discriminant_changed`. Moved `Secp256k1` to
+  the end of the enum; pre-0.8.4 discriminants are now preserved
+  (truly additive). Wire format unaffected — (de)serialization keys
+  off `#[serde(rename = …)]` strings, not the numeric discriminant.
+- **`cargo fmt` and clippy `unused_qualifications` cleanups.** The
+  initial commit's `test_secp256k1_canonical_name` had a multi-line
+  `assert_eq!` where rustfmt expects single-line; `not_after`
+  JSON/CBOR roundtrip tests carried unneeded `chrono::` qualifiers
+  on `DateTime` (already in scope at file top). Both surfaced once
+  the formatting step's earlier failure was unblocked.
+- **`FIPS_SECURITY_POLICY.md` Module Version stamp** lagged
+  `[workspace.package].version` (0.8.3 vs 0.8.4); the
+  forbidden-patterns lint blocks on this because a published FIPS
+  policy with a wrong module version is a credibility failure.
+- **`fuzz/Cargo.lock` regenerated** to track `latticearc 0.8.3 →
+  0.8.4` (the `fuzz` crate is excluded from the workspace so its
+  lockfile does not auto-update on workspace version bumps).
+- **Doc surface version stamps refreshed** across
+  `docs/API_DOCUMENTATION.md`, `docs/DEPENDENCY_JUSTIFICATION.md`,
+  `docs/FIPS_SECURITY_POLICY.md` (new Revision History row +
+  Date/Last-Reviewed fields), and `tests/Cargo.toml` (path-dep
+  version constraint had been stuck at 0.8.1 — three releases
+  stale).
+- **LPK reference docs (`docs/KEY_FORMAT.md`) updated for v0.8.4.**
+  Added a `secp256k1` row to the Classical algorithm table; added
+  a `not_after` row to the Extension Fields table; new "Key
+  Lifecycle (`not_after`)" section after Validation Rules with the
+  "informational, NOT a security gate" caveat, the AAD-omission
+  rationale, and the `ConstantTimeEq` behavior change; updated the
+  Enterprise Extension Model example to drop the now-superseded
+  `key_expiry`-via-metadata pattern; appended a v1.2 row to the
+  Version History.
+- **`docs/ALGORITHM_SELECTION.md` clarified.** The `secp256k1`
+  entries under "Legacy (Outperformed)" and "Not Planned" now
+  distinguish the v0.8.4 enum-tag addition from the absence of a
+  sign/verify primitive at the apache layer.
+- **`docs/DESIGN_PATTERNS.md` scrubbed.** Three sites carried
+  proprietary-product references inherited from v0.5.0; replaced
+  with generic architectural language. The diff is authoritative.
 
 ## [0.8.3] — 2026-05-22
 
