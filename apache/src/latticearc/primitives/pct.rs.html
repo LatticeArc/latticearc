@@ -222,12 +222,12 @@
 <a href=#222 id=222 data-nosnippet>222</a>
 <a href=#223 id=223 data-nosnippet>223</a>    // Encapsulate
 <a href=#224 id=224 data-nosnippet>224</a>    </span><span class="kw">let </span>(ss_encap, ct) = MlKem::encapsulate(keypair.public_key())
-<a href=#225 id=225 data-nosnippet>225</a>        .map_err(|e| PctError::SigningFailed(<span class="macro">format!</span>(<span class="string">"ML-KEM encapsulation failed: {}"</span>, e)))<span class="question-mark">?</span>;
+<a href=#225 id=225 data-nosnippet>225</a>        .map_err(|e| PctError::SigningFailed(<span class="macro">format!</span>(<span class="string">"ML-KEM encapsulation failed: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#226 id=226 data-nosnippet>226</a>
 <a href=#227 id=227 data-nosnippet>227</a>    <span class="comment">// Decapsulate against the SAME keypair we just encapsulated to
 <a href=#228 id=228 data-nosnippet>228</a>    </span><span class="kw">let </span>ss_decap = keypair
 <a href=#229 id=229 data-nosnippet>229</a>        .decapsulate(<span class="kw-2">&amp;</span>ct)
-<a href=#230 id=230 data-nosnippet>230</a>        .map_err(|e| PctError::VerificationFailed(<span class="macro">format!</span>(<span class="string">"ML-KEM decapsulation failed: {}"</span>, e)))<span class="question-mark">?</span>;
+<a href=#230 id=230 data-nosnippet>230</a>        .map_err(|e| PctError::VerificationFailed(<span class="macro">format!</span>(<span class="string">"ML-KEM decapsulation failed: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#231 id=231 data-nosnippet>231</a>
 <a href=#232 id=232 data-nosnippet>232</a>    <span class="comment">// Constant-time comparison
 <a href=#233 id=233 data-nosnippet>233</a>    </span><span class="kw">let </span>is_valid = bool::from(ss_encap.expose_secret().ct_eq(ss_decap.expose_secret()));

@@ -695,29 +695,29 @@
 <a href=#695 id=695 data-nosnippet>695</a>
 <a href=#696 id=696 data-nosnippet>696</a>    <span class="comment">// SP 800-90B basic tests
 <a href=#697 id=697 data-nosnippet>697</a>    </span>repetition_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#698 id=698 data-nosnippet>698</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#698 id=698 data-nosnippet>698</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {e}"</span>),
 <a href=#699 id=699 data-nosnippet>699</a>    })<span class="question-mark">?</span>;
 <a href=#700 id=700 data-nosnippet>700</a>
 <a href=#701 id=701 data-nosnippet>701</a>    frequency_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#702 id=702 data-nosnippet>702</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#702 id=702 data-nosnippet>702</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {e}"</span>),
 <a href=#703 id=703 data-nosnippet>703</a>    })<span class="question-mark">?</span>;
 <a href=#704 id=704 data-nosnippet>704</a>
 <a href=#705 id=705 data-nosnippet>705</a>    <span class="comment">// NIST SP 800-22 tests
 <a href=#706 id=706 data-nosnippet>706</a>    </span>monobit_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#707 id=707 data-nosnippet>707</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#707 id=707 data-nosnippet>707</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {e}"</span>),
 <a href=#708 id=708 data-nosnippet>708</a>    })<span class="question-mark">?</span>;
 <a href=#709 id=709 data-nosnippet>709</a>
 <a href=#710 id=710 data-nosnippet>710</a>    runs_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#711 id=711 data-nosnippet>711</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#711 id=711 data-nosnippet>711</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {e}"</span>),
 <a href=#712 id=712 data-nosnippet>712</a>    })<span class="question-mark">?</span>;
 <a href=#713 id=713 data-nosnippet>713</a>
 <a href=#714 id=714 data-nosnippet>714</a>    longest_run_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#715 id=715 data-nosnippet>715</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#715 id=715 data-nosnippet>715</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {e}"</span>),
 <a href=#716 id=716 data-nosnippet>716</a>    })<span class="question-mark">?</span>;
 <a href=#717 id=717 data-nosnippet>717</a>
 <a href=#718 id=718 data-nosnippet>718</a>    <span class="comment">// SP 800-90B adaptive proportion test
 <a href=#719 id=719 data-nosnippet>719</a>    </span>adaptive_proportion_test(<span class="kw-2">&amp;</span>bytes).map_err(|e| LatticeArcError::ValidationError {
-<a href=#720 id=720 data-nosnippet>720</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {}"</span>, e),
+<a href=#720 id=720 data-nosnippet>720</a>        message: <span class="macro">format!</span>(<span class="string">"Entropy health check failed - {e}"</span>),
 <a href=#721 id=721 data-nosnippet>721</a>    })<span class="question-mark">?</span>;
 <a href=#722 id=722 data-nosnippet>722</a>
 <a href=#723 id=723 data-nosnippet>723</a>    <span class="prelude-val">Ok</span>(())

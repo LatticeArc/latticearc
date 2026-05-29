@@ -864,7 +864,7 @@
 <a href=#864 id=864 data-nosnippet>864</a>    /// Returns an error if key serialization fails.
 <a href=#865 id=865 data-nosnippet>865</a>    </span><span class="kw">pub fn </span>decaps_key_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Zeroizing&lt;Vec&lt;u8&gt;&gt;, MlKemError&gt; {
 <a href=#866 id=866 data-nosnippet>866</a>        <span class="kw">let </span>sk_bytes = <span class="self">self</span>.decaps_key.key_bytes().map_err(|e| {
-<a href=#867 id=867 data-nosnippet>867</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Key serialization failed: {}"</span>, e))
+<a href=#867 id=867 data-nosnippet>867</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Key serialization failed: {e}"</span>))
 <a href=#868 id=868 data-nosnippet>868</a>        })<span class="question-mark">?</span>;
 <a href=#869 id=869 data-nosnippet>869</a>        <span class="prelude-val">Ok</span>(Zeroizing::new(sk_bytes.as_ref().to_vec()))
 <a href=#870 id=870 data-nosnippet>870</a>    }
@@ -1034,22 +1034,22 @@
 <a href=#1034 id=1034 data-nosnippet>1034</a>
 <a href=#1035 id=1035 data-nosnippet>1035</a>        <span class="comment">// Generate keypair using aws-lc-rs
 <a href=#1036 id=1036 data-nosnippet>1036</a>        </span><span class="kw">let </span>decaps_key = DecapsulationKey::generate(algorithm).map_err(|e| {
-<a href=#1037 id=1037 data-nosnippet>1037</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"aws-lc-rs key generation failed: {}"</span>, e))
+<a href=#1037 id=1037 data-nosnippet>1037</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"aws-lc-rs key generation failed: {e}"</span>))
 <a href=#1038 id=1038 data-nosnippet>1038</a>        })<span class="question-mark">?</span>;
 <a href=#1039 id=1039 data-nosnippet>1039</a>
 <a href=#1040 id=1040 data-nosnippet>1040</a>        <span class="comment">// Get the encapsulation (public) key
 <a href=#1041 id=1041 data-nosnippet>1041</a>        </span><span class="kw">let </span>encaps_key = decaps_key.encapsulation_key().map_err(|e| {
-<a href=#1042 id=1042 data-nosnippet>1042</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to derive encapsulation key: {}"</span>, e))
+<a href=#1042 id=1042 data-nosnippet>1042</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to derive encapsulation key: {e}"</span>))
 <a href=#1043 id=1043 data-nosnippet>1043</a>        })<span class="question-mark">?</span>;
 <a href=#1044 id=1044 data-nosnippet>1044</a>
 <a href=#1045 id=1045 data-nosnippet>1045</a>        <span class="comment">// Serialize public key
 <a href=#1046 id=1046 data-nosnippet>1046</a>        </span><span class="kw">let </span>pk_bytes = encaps_key.key_bytes().map_err(|e| {
-<a href=#1047 id=1047 data-nosnippet>1047</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to serialize public key: {}"</span>, e))
+<a href=#1047 id=1047 data-nosnippet>1047</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to serialize public key: {e}"</span>))
 <a href=#1048 id=1048 data-nosnippet>1048</a>        })<span class="question-mark">?</span>;
 <a href=#1049 id=1049 data-nosnippet>1049</a>
 <a href=#1050 id=1050 data-nosnippet>1050</a>        <span class="comment">// Serialize secret key bytes via DecapsulationKey::key_bytes() (available since aws-lc-rs v1.16.0)
 <a href=#1051 id=1051 data-nosnippet>1051</a>        </span><span class="kw">let </span>sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
-<a href=#1052 id=1052 data-nosnippet>1052</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Key serialization failed: {}"</span>, e))
+<a href=#1052 id=1052 data-nosnippet>1052</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Key serialization failed: {e}"</span>))
 <a href=#1053 id=1053 data-nosnippet>1053</a>        })<span class="question-mark">?</span>;
 <a href=#1054 id=1054 data-nosnippet>1054</a>
 <a href=#1055 id=1055 data-nosnippet>1055</a>        <span class="kw">let </span>public_key = MlKemPublicKey::new(config.security_level, pk_bytes.as_ref().to_vec())<span class="question-mark">?</span>;
@@ -1108,19 +1108,19 @@
 <a href=#1108 id=1108 data-nosnippet>1108</a>        <span class="kw">let </span>algorithm = security_level.as_aws_algorithm();
 <a href=#1109 id=1109 data-nosnippet>1109</a>
 <a href=#1110 id=1110 data-nosnippet>1110</a>        <span class="kw">let </span>decaps_key = DecapsulationKey::generate(algorithm).map_err(|e| {
-<a href=#1111 id=1111 data-nosnippet>1111</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"aws-lc-rs key generation failed: {}"</span>, e))
+<a href=#1111 id=1111 data-nosnippet>1111</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"aws-lc-rs key generation failed: {e}"</span>))
 <a href=#1112 id=1112 data-nosnippet>1112</a>        })<span class="question-mark">?</span>;
 <a href=#1113 id=1113 data-nosnippet>1113</a>
 <a href=#1114 id=1114 data-nosnippet>1114</a>        <span class="kw">let </span>encaps_key = decaps_key.encapsulation_key().map_err(|e| {
-<a href=#1115 id=1115 data-nosnippet>1115</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to derive encapsulation key: {}"</span>, e))
+<a href=#1115 id=1115 data-nosnippet>1115</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to derive encapsulation key: {e}"</span>))
 <a href=#1116 id=1116 data-nosnippet>1116</a>        })<span class="question-mark">?</span>;
 <a href=#1117 id=1117 data-nosnippet>1117</a>
 <a href=#1118 id=1118 data-nosnippet>1118</a>        <span class="kw">let </span>pk_bytes = encaps_key.key_bytes().map_err(|e| {
-<a href=#1119 id=1119 data-nosnippet>1119</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to serialize public key: {}"</span>, e))
+<a href=#1119 id=1119 data-nosnippet>1119</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to serialize public key: {e}"</span>))
 <a href=#1120 id=1120 data-nosnippet>1120</a>        })<span class="question-mark">?</span>;
 <a href=#1121 id=1121 data-nosnippet>1121</a>
 <a href=#1122 id=1122 data-nosnippet>1122</a>        <span class="kw">let </span>sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
-<a href=#1123 id=1123 data-nosnippet>1123</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Key serialization failed: {}"</span>, e))
+<a href=#1123 id=1123 data-nosnippet>1123</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Key serialization failed: {e}"</span>))
 <a href=#1124 id=1124 data-nosnippet>1124</a>        })<span class="question-mark">?</span>;
 <a href=#1125 id=1125 data-nosnippet>1125</a>        <span class="kw">let </span>public_key = MlKemPublicKey::new(security_level, pk_bytes.as_ref().to_vec())<span class="question-mark">?</span>;
 <a href=#1126 id=1126 data-nosnippet>1126</a>        <span class="kw">let </span>keypair = MlKemDecapsulationKeyPair::new(public_key, decaps_key, security_level);

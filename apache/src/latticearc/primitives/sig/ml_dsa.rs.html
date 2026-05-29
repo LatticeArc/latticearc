@@ -752,7 +752,7 @@
 <a href=#752 id=752 data-nosnippet>752</a>    <span class="kw">let </span>(pk, sk) = <span class="kw">match </span>parameter_set {
 <a href=#753 id=753 data-nosnippet>753</a>        MlDsaParameterSet::MlDsa44 =&gt; {
 <a href=#754 id=754 data-nosnippet>754</a>            <span class="kw">let </span>(pk, sk) = ml_dsa_44::try_keygen().map_err(|e| {
-<a href=#755 id=755 data-nosnippet>755</a>                MlDsaError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"ML-DSA-44 key generation failed: {}"</span>, e))
+<a href=#755 id=755 data-nosnippet>755</a>                MlDsaError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"ML-DSA-44 key generation failed: {e}"</span>))
 <a href=#756 id=756 data-nosnippet>756</a>            })<span class="question-mark">?</span>;
 <a href=#757 id=757 data-nosnippet>757</a>            (
 <a href=#758 id=758 data-nosnippet>758</a>                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
@@ -761,7 +761,7 @@
 <a href=#761 id=761 data-nosnippet>761</a>        }
 <a href=#762 id=762 data-nosnippet>762</a>        MlDsaParameterSet::MlDsa65 =&gt; {
 <a href=#763 id=763 data-nosnippet>763</a>            <span class="kw">let </span>(pk, sk) = ml_dsa_65::try_keygen().map_err(|e| {
-<a href=#764 id=764 data-nosnippet>764</a>                MlDsaError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"ML-DSA-65 key generation failed: {}"</span>, e))
+<a href=#764 id=764 data-nosnippet>764</a>                MlDsaError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"ML-DSA-65 key generation failed: {e}"</span>))
 <a href=#765 id=765 data-nosnippet>765</a>            })<span class="question-mark">?</span>;
 <a href=#766 id=766 data-nosnippet>766</a>            (
 <a href=#767 id=767 data-nosnippet>767</a>                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
@@ -770,7 +770,7 @@
 <a href=#770 id=770 data-nosnippet>770</a>        }
 <a href=#771 id=771 data-nosnippet>771</a>        MlDsaParameterSet::MlDsa87 =&gt; {
 <a href=#772 id=772 data-nosnippet>772</a>            <span class="kw">let </span>(pk, sk) = ml_dsa_87::try_keygen().map_err(|e| {
-<a href=#773 id=773 data-nosnippet>773</a>                MlDsaError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"ML-DSA-87 key generation failed: {}"</span>, e))
+<a href=#773 id=773 data-nosnippet>773</a>                MlDsaError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"ML-DSA-87 key generation failed: {e}"</span>))
 <a href=#774 id=774 data-nosnippet>774</a>            })<span class="question-mark">?</span>;
 <a href=#775 id=775 data-nosnippet>775</a>            (
 <a href=#776 id=776 data-nosnippet>776</a>                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
@@ -782,7 +782,7 @@
 <a href=#782 id=782 data-nosnippet>782</a>    <span class="comment">// FIPS 140-3 Pairwise Consistency Test (PCT)
 <a href=#783 id=783 data-nosnippet>783</a>    // Sign and verify a test message to ensure the keypair is consistent
 <a href=#784 id=784 data-nosnippet>784</a>    </span><span class="kw">crate</span>::primitives::pct::pct_ml_dsa(<span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>sk)
-<a href=#785 id=785 data-nosnippet>785</a>        .map_err(|e| MlDsaError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"PCT failed: {}"</span>, e)))<span class="question-mark">?</span>;
+<a href=#785 id=785 data-nosnippet>785</a>        .map_err(|e| MlDsaError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"PCT failed: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#786 id=786 data-nosnippet>786</a>
 <a href=#787 id=787 data-nosnippet>787</a>    <span class="prelude-val">Ok</span>((pk, sk))
 <a href=#788 id=788 data-nosnippet>788</a>}
