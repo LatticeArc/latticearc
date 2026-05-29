@@ -34,8 +34,26 @@ Runtime-configurable via `ResourceLimitsManager::update_limits`.
 | `decrypt` | ciphertext length | `validate_decryption_size` | `api.rs:482` |
 | `sign_message` | message length | `validate_signature_size` | `api.rs:666` |
 | `verify` | signed-data length | `validate_signature_size` | `api.rs:791` |
+| `verify_with_anchor` | (delegates to `verify`) | transitively via `verify` | `api.rs:~1380` |
 
 Status: **covered**.
+
+`verify_with_anchor(signed, expected_pk, expected_scheme, config)` (H2
+audit fix) takes two additional `&[u8]` / `&str` inputs beyond the
+`signed` envelope. Neither is DoS-attackable from the wire:
+
+- `expected_pk: &[u8]` is the operator-pinned trust anchor — caller-owned,
+  fixed-size per algorithm (X25519 PK = 32 B, ML-KEM-768 PK = 1184 B,
+  ML-DSA-65 PK = 1952 B, hybrid composites are deterministic sums). An
+  explicit length-prefix guard in the function body short-circuits on
+  length mismatch before any CT comparison runs; the CT comparison
+  itself iterates a length already bounded by the operator.
+- `expected_scheme: &str` is canonicalised through the closed
+  `SigSchemeLabel::from_scheme_str` allowlist; an unknown scheme returns
+  `Ok(false)` before any cryptographic work runs.
+
+The envelope's `signed.data.len()` is gated by `validate_signature_size`
+inside the delegated `verify` call, so the cap applies transitively.
 
 ### Convenience facades
 

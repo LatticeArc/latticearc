@@ -1,7 +1,13 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.9.0 (preparing — no tag cut yet; sources still on 0.8.4)
+**Module Version**: 0.8.4
+
+> CI gate `fips-policy-version` (`lint-extras.yml`) enforces that this
+> stamp matches `[workspace.package].version` in `Cargo.toml` exactly.
+> The CHANGELOG `[0.9.0]` block describes the in-flight audit-fix series
+> that will ship as v0.9.0; this stamp re-syncs at the tag-cut commit
+> when the workspace version itself is bumped to 0.9.0.
 **Module Type**: Software (FIPS 140-3 Level 1)
 **Date**: 2026-05-27
 **Last Reviewed**: 2026-05-27
@@ -19,7 +25,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.9.0 (target; sources still on 0.8.4 until tag cut) |
+| Module Version | 0.8.4 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |
