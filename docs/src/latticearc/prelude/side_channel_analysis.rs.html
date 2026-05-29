@@ -420,10 +420,10 @@
 <a href=#420 id=420 data-nosnippet>420</a>        <span class="kw">let </span>low_count = assessments.iter().filter(|a| a.severity == Severity::Low).count();
 <a href=#421 id=421 data-nosnippet>421</a>
 <a href=#422 id=422 data-nosnippet>422</a>        report.push_str(<span class="string">"## Summary\n\n"</span>);
-<a href=#423 id=423 data-nosnippet>423</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- Critical Vulnerabilities: {}\n"</span>, critical_count));
-<a href=#424 id=424 data-nosnippet>424</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- High Vulnerabilities: {}\n"</span>, high_count));
-<a href=#425 id=425 data-nosnippet>425</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- Medium Vulnerabilities: {}\n"</span>, medium_count));
-<a href=#426 id=426 data-nosnippet>426</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- Low Vulnerabilities: {}\n\n"</span>, low_count));
+<a href=#423 id=423 data-nosnippet>423</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- Critical Vulnerabilities: {critical_count}\n"</span>));
+<a href=#424 id=424 data-nosnippet>424</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- High Vulnerabilities: {high_count}\n"</span>));
+<a href=#425 id=425 data-nosnippet>425</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- Medium Vulnerabilities: {medium_count}\n"</span>));
+<a href=#426 id=426 data-nosnippet>426</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- Low Vulnerabilities: {low_count}\n\n"</span>));
 <a href=#427 id=427 data-nosnippet>427</a>
 <a href=#428 id=428 data-nosnippet>428</a>        report.push_str(<span class="string">"## Detailed Findings\n\n"</span>);
 <a href=#429 id=429 data-nosnippet>429</a>        <span class="kw">for </span>assessment <span class="kw">in </span>assessments {
@@ -440,7 +440,7 @@
 <a href=#440 id=440 data-nosnippet>440</a>            report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"**Description:** {}\n"</span>, assessment.description));
 <a href=#441 id=441 data-nosnippet>441</a>            report.push_str(<span class="string">"**Mitigation Suggestions:**\n"</span>);
 <a href=#442 id=442 data-nosnippet>442</a>            <span class="kw">for </span>suggestion <span class="kw">in </span><span class="kw-2">&amp;</span>assessment.mitigation_suggestions {
-<a href=#443 id=443 data-nosnippet>443</a>                report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- {}\n"</span>, suggestion));
+<a href=#443 id=443 data-nosnippet>443</a>                report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- {suggestion}\n"</span>));
 <a href=#444 id=444 data-nosnippet>444</a>            }
 <a href=#445 id=445 data-nosnippet>445</a>            report.push(<span class="string">'\n'</span>);
 <a href=#446 id=446 data-nosnippet>446</a>        }

@@ -560,7 +560,7 @@
 <a href=#560 id=560 data-nosnippet>560</a>
 <a href=#561 id=561 data-nosnippet>561</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">100 </span>{
 <a href=#562 id=562 data-nosnippet>562</a>            <span class="kw">let </span>nonce = AesGcm128::generate_nonce();
-<a href=#563 id=563 data-nosnippet>563</a>            <span class="kw">let </span>plaintext = <span class="macro">format!</span>(<span class="string">"Message {}"</span>, i);
+<a href=#563 id=563 data-nosnippet>563</a>            <span class="kw">let </span>plaintext = <span class="macro">format!</span>(<span class="string">"Message {i}"</span>);
 <a href=#564 id=564 data-nosnippet>564</a>            <span class="kw">let </span>(ciphertext, tag) = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, plaintext.as_bytes(), <span class="prelude-val">None</span>).unwrap();
 <a href=#565 id=565 data-nosnippet>565</a>            <span class="kw">let </span>decrypted = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">None</span>).unwrap();
 <a href=#566 id=566 data-nosnippet>566</a>            <span class="macro">assert_eq!</span>(plaintext.as_bytes(), decrypted.as_slice());
@@ -574,7 +574,7 @@
 <a href=#574 id=574 data-nosnippet>574</a>
 <a href=#575 id=575 data-nosnippet>575</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">100 </span>{
 <a href=#576 id=576 data-nosnippet>576</a>            <span class="kw">let </span>nonce = AesGcm256::generate_nonce();
-<a href=#577 id=577 data-nosnippet>577</a>            <span class="kw">let </span>plaintext = <span class="macro">format!</span>(<span class="string">"Message {}"</span>, i);
+<a href=#577 id=577 data-nosnippet>577</a>            <span class="kw">let </span>plaintext = <span class="macro">format!</span>(<span class="string">"Message {i}"</span>);
 <a href=#578 id=578 data-nosnippet>578</a>            <span class="kw">let </span>(ciphertext, tag) = cipher.encrypt(<span class="kw-2">&amp;</span>nonce, plaintext.as_bytes(), <span class="prelude-val">None</span>).unwrap();
 <a href=#579 id=579 data-nosnippet>579</a>            <span class="kw">let </span>decrypted = cipher.decrypt(<span class="kw-2">&amp;</span>nonce, <span class="kw-2">&amp;</span>ciphertext, <span class="kw-2">&amp;</span>tag, <span class="prelude-val">None</span>).unwrap();
 <a href=#580 id=580 data-nosnippet>580</a>            <span class="macro">assert_eq!</span>(plaintext.as_bytes(), decrypted.as_slice());

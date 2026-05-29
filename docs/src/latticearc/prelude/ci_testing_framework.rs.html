@@ -172,7 +172,7 @@
 <a href=#172 id=172 data-nosnippet>172</a>        </span><span class="kw">let </span>encoded = hex::encode(<span class="kw-2">&amp;</span>test_data);
 <a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">if </span><span class="macro">encoded !</span>= <span class="string">"0001ff7f40" </span>{
 <a href=#174 id=174 data-nosnippet>174</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
-<a href=#175 id=175 data-nosnippet>175</a>                message: <span class="macro">format!</span>(<span class="string">"Expected '0001ff7f40', got '{}'"</span>, encoded),
+<a href=#175 id=175 data-nosnippet>175</a>                message: <span class="macro">format!</span>(<span class="string">"Expected '0001ff7f40', got '{encoded}'"</span>),
 <a href=#176 id=176 data-nosnippet>176</a>            });
 <a href=#177 id=177 data-nosnippet>177</a>        }
 <a href=#178 id=178 data-nosnippet>178</a>
@@ -358,7 +358,7 @@
 <a href=#358 id=358 data-nosnippet>358</a>                <span class="string">"❌ **ISSUES DETECTED**"
 <a href=#359 id=359 data-nosnippet>359</a>            </span>};
 <a href=#360 id=360 data-nosnippet>360</a>
-<a href=#361 id=361 data-nosnippet>361</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"**Overall Status:** {}\n\n"</span>, overall_status));
+<a href=#361 id=361 data-nosnippet>361</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"**Overall Status:** {overall_status}\n\n"</span>));
 <a href=#362 id=362 data-nosnippet>362</a>
 <a href=#363 id=363 data-nosnippet>363</a>        <span class="comment">// Test Results Summary
 <a href=#364 id=364 data-nosnippet>364</a>        </span>report.push_str(<span class="string">"### Test Results Summary\n\n"</span>);
@@ -388,7 +388,7 @@
 <a href=#388 id=388 data-nosnippet>388</a>            })
 <a href=#389 id=389 data-nosnippet>389</a>            .count();
 <a href=#390 id=390 data-nosnippet>390</a>
-<a href=#391 id=391 data-nosnippet>391</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- High/Critical Side-Channel Issues: {}\n"</span>, high_severity));
+<a href=#391 id=391 data-nosnippet>391</a>        report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"- High/Critical Side-Channel Issues: {high_severity}\n"</span>));
 <a href=#392 id=392 data-nosnippet>392</a>
 <a href=#393 id=393 data-nosnippet>393</a>        <span class="comment">// Performance Summary
 <a href=#394 id=394 data-nosnippet>394</a>        </span>report.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(

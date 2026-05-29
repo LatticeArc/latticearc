@@ -177,7 +177,7 @@
 <a href=#177 id=177 data-nosnippet>177</a>    </span><span class="kw">fn </span>test_hex_decode_succeeds(vector: <span class="kw-2">&amp;</span>UtilityTestVector) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
 <a href=#178 id=178 data-nosnippet>178</a>        <span class="comment">// Convert input to hex string
 <a href=#179 id=179 data-nosnippet>179</a>        </span><span class="kw">let </span>hex_string = std::str::from_utf8(<span class="kw-2">&amp;</span>vector.input_data)
-<a href=#180 id=180 data-nosnippet>180</a>            .map_err(|e| LatticeArcError::InvalidData(<span class="macro">format!</span>(<span class="string">"Invalid hex string: {}"</span>, e)))<span class="question-mark">?</span>;
+<a href=#180 id=180 data-nosnippet>180</a>            .map_err(|e| LatticeArcError::InvalidData(<span class="macro">format!</span>(<span class="string">"Invalid hex string: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#181 id=181 data-nosnippet>181</a>
 <a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">let </span>decoded = hex::decode(hex_string)<span class="question-mark">?</span>;
 <a href=#183 id=183 data-nosnippet>183</a>
@@ -229,7 +229,7 @@
 <a href=#229 id=229 data-nosnippet>229</a>    <span class="doccomment">/// Test domain constants.
 <a href=#230 id=230 data-nosnippet>230</a>    </span><span class="kw">fn </span>test_domain_constant_succeeds(vector: <span class="kw-2">&amp;</span>UtilityTestVector) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
 <a href=#231 id=231 data-nosnippet>231</a>        <span class="kw">let </span>domain_name = std::str::from_utf8(<span class="kw-2">&amp;</span>vector.input_data)
-<a href=#232 id=232 data-nosnippet>232</a>            .map_err(|e| LatticeArcError::InvalidData(<span class="macro">format!</span>(<span class="string">"Invalid domain name: {}"</span>, e)))<span class="question-mark">?</span>;
+<a href=#232 id=232 data-nosnippet>232</a>            .map_err(|e| LatticeArcError::InvalidData(<span class="macro">format!</span>(<span class="string">"Invalid domain name: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#233 id=233 data-nosnippet>233</a>
 <a href=#234 id=234 data-nosnippet>234</a>        <span class="kw">let </span>domain_constant = <span class="kw">match </span>domain_name {
 <a href=#235 id=235 data-nosnippet>235</a>            <span class="string">"CASCADE_OUTER" </span>=&gt; <span class="kw">crate</span>::types::domains::CASCADE_OUTER,
@@ -493,7 +493,7 @@
 <a href=#493 id=493 data-nosnippet>493</a>        <span class="number">73</span>, <span class="number">148</span>, <span class="number">90</span>, <span class="number">236</span>, <span class="number">60</span>, <span class="number">48</span>, <span class="number">59</span>, <span class="number">122</span>, <span class="number">175</span>, <span class="number">96</span>, <span class="number">1</span>, <span class="number">0</span>,
 <a href=#494 id=494 data-nosnippet>494</a>    ];
 <a href=#495 id=495 data-nosnippet>495</a>    <span class="kw">let </span>keypair = Ed25519KeyPair::from_secret_key(<span class="kw-2">&amp;</span>private_key_bytes).map_err(|e| {
-<a href=#496 id=496 data-nosnippet>496</a>        LatticeArcError::InvalidData(<span class="macro">format!</span>(<span class="string">"Ed25519 key construction failed: {}"</span>, e))
+<a href=#496 id=496 data-nosnippet>496</a>        LatticeArcError::InvalidData(<span class="macro">format!</span>(<span class="string">"Ed25519 key construction failed: {e}"</span>))
 <a href=#497 id=497 data-nosnippet>497</a>    })<span class="question-mark">?</span>;
 <a href=#498 id=498 data-nosnippet>498</a>    <span class="kw">let </span>message = <span class="string">b"test message for Ed25519"</span>.to_vec();
 <a href=#499 id=499 data-nosnippet>499</a>    <span class="kw">let </span>signature = keypair
@@ -802,7 +802,7 @@
 <a href=#802 id=802 data-nosnippet>802</a>        ] {
 <a href=#803 id=803 data-nosnippet>803</a>            <span class="kw">let </span><span class="kw-2">mut </span>tester = UtilityCavpTester::new();
 <a href=#804 id=804 data-nosnippet>804</a>            tester.load_test_vectors(<span class="macro">vec!</span>[UtilityTestVector {
-<a href=#805 id=805 data-nosnippet>805</a>                test_case_id: <span class="macro">format!</span>(<span class="string">"DOMAIN-{}"</span>, name),
+<a href=#805 id=805 data-nosnippet>805</a>                test_case_id: <span class="macro">format!</span>(<span class="string">"DOMAIN-{name}"</span>),
 <a href=#806 id=806 data-nosnippet>806</a>                function: <span class="string">"domain_constant"</span>.to_string(),
 <a href=#807 id=807 data-nosnippet>807</a>                input_data: name.as_bytes().to_vec(),
 <a href=#808 id=808 data-nosnippet>808</a>                expected_output: expected,

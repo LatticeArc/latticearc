@@ -480,7 +480,7 @@
 <a href=#480 id=480 data-nosnippet>480</a>        <span class="kw">let </span>keypair = Ed25519KeyPair::generate()<span class="question-mark">?</span>;
 <a href=#481 id=481 data-nosnippet>481</a>
 <a href=#482 id=482 data-nosnippet>482</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
-<a href=#483 id=483 data-nosnippet>483</a>            <span class="kw">let </span>message = <span class="macro">format!</span>(<span class="string">"Message number {}"</span>, i);
+<a href=#483 id=483 data-nosnippet>483</a>            <span class="kw">let </span>message = <span class="macro">format!</span>(<span class="string">"Message number {i}"</span>);
 <a href=#484 id=484 data-nosnippet>484</a>            <span class="kw">let </span>signature = keypair.sign(message.as_bytes())<span class="question-mark">?</span>;
 <a href=#485 id=485 data-nosnippet>485</a>            Ed25519Signature::verify(<span class="kw-2">&amp;</span>keypair.public_key_bytes(), message.as_bytes(), <span class="kw-2">&amp;</span>signature)<span class="question-mark">?</span>;
 <a href=#486 id=486 data-nosnippet>486</a>        }
