@@ -1385,8 +1385,25 @@ impl PortableKey {
     /// Extract a `HybridPublicKey` from a portable key.
     ///
     /// # Errors
-    /// Returns an error if the algorithm is not a hybrid KEM or key data is invalid.
+    /// Returns an error if the algorithm is not a hybrid KEM, the key file is
+    /// not marked [`KeyType::Public`], or key data is invalid.
+    ///
+    /// # M2 fix
+    ///
+    /// The companion [`to_hybrid_secret_key`](Self::to_hybrid_secret_key)
+    /// already required `key_type == Secret`; this extractor previously
+    /// accepted any `key_type` and would silently treat the embedded
+    /// composite of a [`KeyType::Secret`] file as a public key. Most real
+    /// callers were protected by downstream length validation inside
+    /// `HybridKemPublicKey::new`, but the asymmetry was a defense-in-depth
+    /// hole. The guard makes the contract structural.
     pub fn to_hybrid_public_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemPublicKey> {
+        if self.key_type != KeyType::Public {
+            return Err(CoreError::InvalidKey(
+                "Cannot extract hybrid public key from a non-public key file".to_string(),
+            ));
+        }
+
         let level =
             crate::primitives::kem::MlKemSecurityLevel::try_from(self.algorithm).map_err(|()| {
                 CoreError::InvalidKey(format!(
@@ -1546,10 +1563,22 @@ impl PortableKey {
     /// Extract a hybrid signature `HybridPublicKey` from a portable key.
     ///
     /// # Errors
-    /// Returns an error if the algorithm is not a hybrid signature or key data is invalid.
+    /// Returns an error if the algorithm is not a hybrid signature, the key
+    /// file is not marked [`KeyType::Public`], or key data is invalid.
+    ///
+    /// # M2 fix
+    ///
+    /// Mirrors [`to_hybrid_public_key`](Self::to_hybrid_public_key). See its
+    /// docs for the asymmetry rationale.
     pub fn to_hybrid_sig_public_key(
         &self,
     ) -> Result<crate::hybrid::sig_hybrid::HybridSigPublicKey> {
+        if self.key_type != KeyType::Public {
+            return Err(CoreError::InvalidKey(
+                "Cannot extract hybrid signature public key from a non-public key file".to_string(),
+            ));
+        }
+
         let parameter_set = crate::primitives::sig::ml_dsa::MlDsaParameterSet::try_from(
             self.algorithm,
         )
@@ -2015,7 +2044,11 @@ impl PortableKey {
                 // pk; we accept anything from `min_seed` (32) through
                 // the full secret-key size. Public-key composite
                 // values must match the level's pk size exactly.
-                Self::validate_composite_lengths(pq_bytes.len(), classical_bytes.len())?;
+                Self::validate_composite_lengths(
+                    self.algorithm,
+                    pq_bytes.len(),
+                    classical_bytes.len(),
+                )?;
             }
             KeyData::Encrypted { enc, kdf, kdf_iterations, kdf_salt, aead, nonce, ciphertext } => {
                 Self::validate_encrypted_envelope_fields(
@@ -2030,6 +2063,44 @@ impl PortableKey {
             }
         }
 
+        Ok(())
+    }
+
+    /// Validate this key AND reject it if it has expired at `now`.
+    ///
+    /// # M4 fix
+    ///
+    /// [`validate`](Self::validate) intentionally **does not** consult
+    /// `not_after` — that's a documented design choice ("informational
+    /// lifecycle field") so that consumers loading a possibly-expired key
+    /// for inspection or migration don't get failed at parse time. The
+    /// auditor flagged the absence of any "is this key safe to USE right
+    /// now?" gate as a footgun: a captured-but-expired key file is
+    /// indistinguishable from a fresh one to anyone calling `validate()`.
+    ///
+    /// This helper is the explicit gate. Callers about to perform a crypto
+    /// operation with the key should route through `validate_with_expiry`
+    /// instead of `validate`. Callers loading a key for reporting,
+    /// migration, or expiry-aware lifecycle handling continue to use
+    /// `validate` and check [`is_expired_at`](Self::is_expired_at)
+    /// themselves.
+    ///
+    /// `now` is passed explicitly so the call is testable without freezing
+    /// the system clock and so determinism is preserved on the verify
+    /// path. Pass `chrono::Utc::now()` from production callers.
+    ///
+    /// # Errors
+    ///
+    /// Returns the existing `validate()` errors on structural failures, or
+    /// `CoreError::InvalidKey("key has expired")` if `now >= not_after`.
+    /// The "expired" error is intentionally opaque: an attacker who can
+    /// see the error variant could otherwise binary-search the `not_after`
+    /// timestamp off-line via repeated calls with different `now` values.
+    pub fn validate_with_expiry(&self, now: DateTime<Utc>) -> Result<()> {
+        self.validate()?;
+        if self.is_expired_at(now) {
+            return Err(CoreError::InvalidKey("key has expired".to_string()));
+        }
         Ok(())
     }
 
@@ -2696,10 +2767,32 @@ impl PortableKey {
         Ok(())
     }
 
+    /// Expected classical-leg length for a hybrid algorithm.
+    ///
+    /// L6 fix: dispatch the classical-leg length per algorithm so a future
+    /// hybrid using a different classical curve (e.g. `Hybrid…+secp256k1`,
+    /// 65-byte uncompressed SEC1 PK) does not have to relax the global
+    /// `classical_len != 32` guard and re-open the loose-validation hole
+    /// the guard exists to close. Every current hybrid uses a 32-byte
+    /// classical leg (X25519 KEM, Ed25519 sig); non-hybrid algorithms are
+    /// not legitimate inputs to this dispatch and surface as `None`.
+    const fn expected_hybrid_classical_len(algorithm: KeyAlgorithm) -> Option<usize> {
+        match algorithm {
+            KeyAlgorithm::HybridMlKem512X25519
+            | KeyAlgorithm::HybridMlKem768X25519
+            | KeyAlgorithm::HybridMlKem1024X25519
+            | KeyAlgorithm::HybridMlDsa44Ed25519
+            | KeyAlgorithm::HybridMlDsa65Ed25519
+            | KeyAlgorithm::HybridMlDsa87Ed25519 => Some(32),
+            _ => None,
+        }
+    }
+
     /// bound the composite key component lengths against
     /// the expected sizes for the (algorithm, key_type) pair. The
-    /// classical leg is always 32 bytes (X25519 / Ed25519); the PQ leg
-    /// has algorithm- and key-type-dependent sizes.
+    /// classical leg length is dispatched per algorithm via
+    /// [`expected_hybrid_classical_len`](Self::expected_hybrid_classical_len);
+    /// the PQ leg has algorithm- and key-type-dependent sizes.
     ///
     /// We use ranges rather than exact equality because the `Composite`
     /// secret-key encoding holds the seed + embedded public key (the
@@ -2708,10 +2801,19 @@ impl PortableKey {
     /// 32 (any-curve seed); upper bound is the full SK size for the
     /// level. Public-key composites must match the level's PK size
     /// exactly because the SEC1/raw-bytes encoding is fixed.
-    fn validate_composite_lengths(pq_len: usize, classical_len: usize) -> Result<()> {
-        if classical_len != 32 {
+    fn validate_composite_lengths(
+        algorithm: KeyAlgorithm,
+        pq_len: usize,
+        classical_len: usize,
+    ) -> Result<()> {
+        let Some(expected_classical) = Self::expected_hybrid_classical_len(algorithm) else {
             return Err(CoreError::InvalidKey(format!(
-                "Hybrid key classical component must be 32 bytes (X25519 / Ed25519), got {classical_len}",
+                "Composite key data is not legitimate for non-hybrid algorithm {algorithm:?}"
+            )));
+        };
+        if classical_len != expected_classical {
+            return Err(CoreError::InvalidKey(format!(
+                "Hybrid key classical component for {algorithm:?} must be {expected_classical} bytes, got {classical_len}",
             )));
         }
         // Conservative PQ bounds — any future algorithm with larger
@@ -3498,7 +3600,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secp256k1_classification() {
+    fn test_secp256k1_keyalgorithm_classification_returns_classical() {
         assert!(KeyAlgorithm::Secp256k1.is_signature());
         assert!(!KeyAlgorithm::Secp256k1.is_kem());
         assert!(!KeyAlgorithm::Secp256k1.is_symmetric());

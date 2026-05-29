@@ -110,7 +110,10 @@ mod pq_sig;
 // Unified API
 // ============================================================================
 
-pub use api::{SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
+pub use api::{
+    SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify,
+    verify_with_anchor,
+};
 
 // ============================================================================
 // Hybrid Key Generation (ML-KEM + X25519)

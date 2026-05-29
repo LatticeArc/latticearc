@@ -198,29 +198,56 @@ latticearc-cli sign --input contract.pdf \
 ### `verify` — Verify a Signature
 
 Checks whether a signature is valid for a given file and public key. Returns
-exit code 0 if valid, non-zero if invalid.
+exit code 0 if valid, 1 if invalid (tampered / wrong key), or ≥2 on
+operator misuse (missing required flag, bad file, etc.).
 
 ```
 latticearc-cli verify --input <FILE> --signature <SIG_FILE> --key <PUBLIC_KEY>
-                  [--algorithm <ALGORITHM>]
+                  [--algorithm <ALGORITHM>] [--allow-embedded-key]
 ```
 
-The `--algorithm` flag is **optional** — the algorithm is automatically detected
-from the signature file's `"algorithm"` field.
+**`--key` is REQUIRED** for `SignedData` envelopes (produced by
+`sign --public-key`). The pre-fix default — trusting the public key the
+envelope itself carries — was a footgun: an attacker who forges an entire
+`(public_key, secret_key, signature)` triple under their own key would
+otherwise see "Signature is VALID" against their attacker-supplied key.
+Pass `--key <trust-anchor.pub.json>` to pin the public key you actually
+trust; the verifier rejects the signature when the operator's `--key`
+does not match the envelope's embedded key.
 
-**Example:**
+**`--allow-embedded-key`** opts back into the pre-fix trust shape (verify
+against whatever public key the envelope carries) with a stderr WARNING
+on every invocation. Reserved for content-addressed key distribution
+where the envelope itself IS the trust root.
+
+**`--algorithm`** is optional — the algorithm is automatically detected
+from the signature file's `"algorithm"` field for the legacy format, or
+from the `"scheme"` field for `SignedData` envelopes. The scheme strings
+in signature files MUST be the canonical lowercase form (e.g.,
+`"ml-dsa-65"`, `"hybrid-ml-dsa-65-ed25519"`, `"slh-dsa-shake-128s"`);
+uppercase or hand-rolled tags like `"ML-DSA-65"` or `"RSA-SHA256"` are
+rejected at deserialization.
+
+**Examples:**
 
 ```bash
-# Verify (algorithm auto-detected from signature file)
+# Verify with explicit trust anchor (recommended)
 latticearc-cli verify \
   --input firmware-v3.2.bin \
   --signature firmware-v3.2.sig.json \
   --key keys/ml-dsa-65.pub.json
+
+# Verify trusting envelope-embedded key (explicit opt-in)
+latticearc-cli verify \
+  --input firmware-v3.2.bin \
+  --signature firmware-v3.2.sig.json \
+  --allow-embedded-key
 ```
 
 **Exit codes:**
 - `0` — Signature is VALID
 - `1` — Signature is INVALID (tampered, wrong key, or corrupted)
+- `≥2` — Operator misuse (e.g., `--key` missing without `--allow-embedded-key`)
 
 ### `encrypt` — Encrypt Data
 
@@ -268,20 +295,35 @@ Decrypts a file previously encrypted with `encrypt`. If the file has been
 tampered with, decryption will fail (integrity check).
 
 ```
-latticearc-cli decrypt --input <ENCRYPTED_FILE> --key <KEY_FILE> [--output <FILE>]
+latticearc-cli decrypt --input <ENCRYPTED_FILE> --key <KEY_FILE>
+                       [--output <FILE>] [--print-to-tty]
 ```
 
 For **symmetric** decryption, provide the same key used for encryption.
 For **hybrid** decryption, provide the **secret key** — the public key is
 embedded in the secret key file (no separate public key file needed).
 
-If `--output` is omitted, decrypted data is printed to stdout (text) or as hex
-(binary).
+**Where the plaintext goes.** If `--output <file>` is passed, the decrypted
+data is written to the file (atomic, mode 0o600). If `--output` is
+omitted **and** stdout is being captured by a pipe / file redirect, the
+plaintext is written there. If `--output` is omitted **and** stdout is a
+TTY, the command **refuses to print** unless `--print-to-tty` is also
+passed — terminal output exposes the plaintext to shell scrollback,
+screen-sharing windows, session recorders, and CI log aggregators.
+
+Use `--output <file>` to write to disk with 0600 permissions, pipe stdout
+to a downstream tool, or pass `--print-to-tty` to explicitly opt into
+the visible-on-terminal trade-off (e.g., interactive inspection).
+
+**Encrypted-file wire format.** The deserializer requires the envelope's
+`version` field to be `2`; envelopes carrying other versions are rejected
+at parse time. Wire format produced by `latticearc-cli encrypt` is always
+version 2.
 
 **Examples:**
 
 ```bash
-# Symmetric decrypt
+# Symmetric decrypt to a file (recommended)
 latticearc-cli decrypt \
   --input database-backup.enc.json \
   --output database-backup.sql \
@@ -292,6 +334,14 @@ latticearc-cli decrypt \
   --input secret-report.enc.json \
   --output secret-report.pdf \
   --key keys/hybrid-kem.sec.json
+
+# Interactive inspection (plaintext shown on terminal)
+latticearc-cli decrypt --input note.enc.json \
+  --key keys/aes256.key.json \
+  --print-to-tty
+
+# Pipe to a downstream tool (no `--print-to-tty` needed: stdout is not a TTY)
+latticearc-cli decrypt --input log.enc.json --key keys/aes256.key.json | grep ERROR
 ```
 
 ### `hash` — Hash Data
@@ -330,7 +380,8 @@ Derives a cryptographic key from input material (a password or existing key).
 ```
 latticearc-cli kdf --algorithm <ALGORITHM> --input <TEXT> --salt <HEX>
                [--length <BYTES>] [--info <TEXT>] [--iterations <N>]
-               [--format <hex|base64>]
+               [--format <hex|base64>] [--print-to-tty]
+               [--allow-weak-iterations] [--allow-argv-secret]
 ```
 
 **Algorithms:**
@@ -340,24 +391,62 @@ latticearc-cli kdf --algorithm <ALGORITHM> --input <TEXT> --salt <HEX>
 | `hkdf` | SP 800-56C / RFC 5869 | Derive keys from existing key material |
 | `pbkdf2` | SP 800-132 | Derive keys from passwords |
 
-**HKDF Example** (derive a 32-byte key from existing key material):
+**TTY output.** Derived key bytes are not written to a terminal by
+default — `latticearc-cli kdf` refuses to print to a TTY unless
+`--print-to-tty` is passed. Pipe stdout to a file or downstream tool, or
+pass `--print-to-tty` to opt in (key material will then appear in shell
+scrollback / session recorders / log aggregators).
+
+**Reading the password / IKM securely.** For PBKDF2 specifically (where
+the input is by definition a password), prefer `--input-stdin` so the
+password is read from stdin and never visible to `ps`, `/proc/<pid>/cmdline`,
+or shell history. The `LATTICEARC_KDF_INPUT` env var is also accepted. For
+HKDF the input is keying material, so the same shell-visibility caveat
+applies if it is sensitive.
+
+**Unsafe-CLI escape hatches** (KAT replay / reproducibility only):
+
+| Flag | What it bypasses | Required env to honour |
+|------|------------------|------------------------|
+| `--allow-weak-iterations` | OWASP 2023 PBKDF2 iteration floor (600 k for HMAC-SHA256, 210 k for HMAC-SHA512) | `LATTICEARC_ALLOW_UNSAFE_CLI=1` |
+| `--allow-argv-secret` | Refusal to accept PBKDF2 passwords on argv | `LATTICEARC_ALLOW_UNSAFE_CLI=1` |
+
+Both flags are hard-refused without `LATTICEARC_ALLOW_UNSAFE_CLI=1` set
+explicitly in the environment. The env-gate is a second-factor opt-in so
+that shell-completion, copy-paste from a doc snippet, or a stale CI
+default cannot silently re-enable the escape hatches in production.
+
+**HKDF Example** (derive a 32-byte key from existing key material, write
+to a file for use by another tool):
 
 ```bash
 latticearc-cli kdf --algorithm hkdf \
   --input "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b" \
   --salt "000102030405060708090a0b0c" \
   --length 32 \
-  --info "encryption-key-v1"
+  --info "encryption-key-v1" > /run/secrets/derived.hex
 ```
 
-**PBKDF2 Example** (derive a key from a password):
+**PBKDF2 Example** (derive a key from a password supplied on stdin —
+**recommended** for any non-KAT use):
 
 ```bash
-latticearc-cli kdf --algorithm pbkdf2 \
-  --input "my-strong-password" \
+read -rs PASS
+printf '%s' "$PASS" | latticearc-cli kdf --algorithm pbkdf2 \
+  --input-stdin \
   --salt "73616c7473616c74" \
   --length 32 \
-  --iterations 600000
+  --iterations 600000 > /run/secrets/pbkdf2.hex
+```
+
+**KAT-replay example** (NOT for production — both unsafe flags AND the
+env-gate are needed):
+
+```bash
+LATTICEARC_ALLOW_UNSAFE_CLI=1 latticearc-cli kdf --algorithm pbkdf2 \
+  --allow-weak-iterations --allow-argv-secret \
+  --input "password" --salt "73616c74" --length 32 --iterations 1000 \
+  --print-to-tty
 ```
 
 > **Note:** For HKDF, `--input` is hex-encoded key material. For PBKDF2,

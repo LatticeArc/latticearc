@@ -113,19 +113,19 @@ impl CounterKdfParams {
     /// Create parameters for encryption key
     #[must_use]
     pub fn for_encryption() -> Self {
-        Self::new(b"Encryption Key")
+        Self::new(crate::types::domains::SP800_108_LABEL_ENCRYPTION)
     }
 
     /// Create parameters for MAC key
     #[must_use]
     pub fn for_mac() -> Self {
-        Self::new(b"MAC Key")
+        Self::new(crate::types::domains::SP800_108_LABEL_MAC)
     }
 
     /// Create parameters for IV/nonce
     #[must_use]
     pub fn for_iv() -> Self {
-        Self::new(b"IV Generation")
+        Self::new(crate::types::domains::SP800_108_LABEL_IV)
     }
 }
 
@@ -195,7 +195,7 @@ pub fn counter_kdf(
     // u64 bound above `usize::MAX` would saturate and make the guard dead.
     // Comparing in u64 keeps the bound correct on every target.
     let key_length_u64 = u64::try_from(key_length).map_err(|_e| {
-        LatticeArcError::InvalidParameter(format!("Key length {} exceeds u64", key_length))
+        LatticeArcError::InvalidParameter(format!("Key length {key_length} exceeds u64"))
     })?;
     if key_length_u64 > MAX_KEY_LEN_BYTES {
         return Err(LatticeArcError::InvalidParameter(format!(

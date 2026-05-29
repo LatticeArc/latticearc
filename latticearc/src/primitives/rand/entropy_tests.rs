@@ -695,29 +695,29 @@ pub fn run_entropy_health_tests() -> Result<()> {
 
     // SP 800-90B basic tests
     repetition_test(&bytes).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("Entropy health check failed - {}", e),
+        message: format!("Entropy health check failed - {e}"),
     })?;
 
     frequency_test(&bytes).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("Entropy health check failed - {}", e),
+        message: format!("Entropy health check failed - {e}"),
     })?;
 
     // NIST SP 800-22 tests
     monobit_test(&bytes).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("Entropy health check failed - {}", e),
+        message: format!("Entropy health check failed - {e}"),
     })?;
 
     runs_test(&bytes).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("Entropy health check failed - {}", e),
+        message: format!("Entropy health check failed - {e}"),
     })?;
 
     longest_run_test(&bytes).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("Entropy health check failed - {}", e),
+        message: format!("Entropy health check failed - {e}"),
     })?;
 
     // SP 800-90B adaptive proportion test
     adaptive_proportion_test(&bytes).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("Entropy health check failed - {}", e),
+        message: format!("Entropy health check failed - {e}"),
     })?;
 
     Ok(())

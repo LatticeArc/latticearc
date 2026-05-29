@@ -287,6 +287,7 @@ pub use zero_trust::{
 
 pub use convenience::{
     SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify,
+    verify_with_anchor,
 };
 
 // ============================================================================

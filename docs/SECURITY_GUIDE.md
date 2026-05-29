@@ -34,6 +34,13 @@ flowchart LR
 - **Compromised systems**: Malware, backdoored hardware
 - **Implementation bugs**: Despite extensive testing, bugs may exist
 - **Misuse**: Incorrect API usage voids security guarantees
+- **Embedded-key forgery on `SignedData` envelopes**: `verify()` checks
+  the signature against the public key the envelope itself carries. An
+  attacker who delivers an envelope chose what that key is, so plain
+  `verify()` cannot answer "was this signed by the key I trust?". The
+  caller MUST pin a trust anchor with [`verify_with_anchor`](#trust-anchor-pinned-signatures)
+  for that contract. The CLI enforces this for SignedData envelopes by
+  requiring `--key` (or an explicit `--allow-embedded-key` opt-in).
 
 ## Security Checklist
 
@@ -252,27 +259,64 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&hybrid_sk), CryptoConfig
 
 ### Signatures
 
+#### Trust-anchor pinned signatures
+
+For any signature delivered over an untrusted channel, the verifying
+caller MUST supply an operator-pinned trust anchor — the public key the
+caller actually trusts, obtained out-of-band (CA pin, configured signer
+roster, prior TOFU record). `verify_with_anchor` compares the trust
+anchor against the envelope's embedded public key in constant time and
+asserts the expected scheme through the M5 allowlist before delegating
+to the cryptographic verify.
+
 ```rust
 use latticearc::*;
-use latticearc::ZeroTrustAuth;
+use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 
-// Generate keypair + sign + verify
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
-let signed = sign_with_key(message, &sk, &pk, config.clone())?;
-let is_valid = verify(&signed, config)?;
+let kp = generate_signing_keypair(config.clone())?;
 
-// Post-quantum signatures (ML-DSA only, no classical)
-let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
-let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
+// Unified API (recommended): sign produces a self-describing SignedData
+// envelope; verify_with_anchor pins the trust anchor explicitly.
+let signed = sign_with_key(
+    message,
+    kp.expose_secret_key(),
+    kp.public_key(),
+    config.clone(),
+)?;
+let trust_anchor_pk = kp.public_key();   // operator-owned, out-of-band
+let is_valid = verify_with_anchor(
+    &signed,
+    trust_anchor_pk,
+    kp.scheme(),
+    CryptoConfig::new(),
+)?;
+```
 
-// Zero-trust authenticated signing
-let auth = ZeroTrustAuth::new(public_key, private_key)?;
-let challenge = auth.generate_challenge()?;
-let proof = auth.generate_proof(&challenge.data)?;
-if auth.verify_proof(&proof, &challenge.data)? {
-    // Proceed with signing
-}
+```rust
+// Direct ML-DSA primitive (no envelope, no scheme binding — for
+// callers that have their own protocol wire format).
+use latticearc::primitives::sig::ml_dsa::{generate_keypair, MlDsaParameterSet};
+
+let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)?;
+let signature = sk.sign(message, &[])?;
+let is_valid: bool = pk.verify(message, &signature, &[])?;
+```
+
+```rust
+// Zero-trust authenticated session — the session pre-establishes a
+// verified identity, then crypto operations run under that session.
+use latticearc::{generate_keypair, VerifiedSession};
+
+let (zt_pk, zt_sk) = generate_keypair()?;
+let session = VerifiedSession::establish(&zt_pk, zt_sk.expose_secret())?;
+let session_config = CryptoConfig::new().session(&session);
+let signed = sign_with_key(
+    message,
+    kp.expose_secret_key(),
+    kp.public_key(),
+    session_config,
+)?;
 ```
 
 **NEVER:**
@@ -414,6 +458,18 @@ export SECRET_KEY="..."
 # - HashiCorp Vault
 # - Azure Key Vault
 ```
+
+#### Env vars recognised by the CLI
+
+| Variable | Purpose | When to set |
+|---|---|---|
+| `LATTICEARC_KDF_INPUT` | PBKDF2 password / HKDF IKM source (alternative to `--input-stdin`) | Scripted KDF use where reading from stdin is inconvenient. Caller MUST `unset LATTICEARC_KDF_INPUT` immediately afterwards (`bash -c 'LATTICEARC_KDF_INPUT="$pwd" latticearc-cli kdf …'` keeps it scoped to the invocation). |
+| `LATTICEARC_PASSPHRASE` | Encrypted-key-file passphrase | Non-interactive `keygen --encrypt-key` / decrypt of an encrypted PortableKey. Same `unset` discipline. |
+| `LATTICEARC_ALLOW_UNSAFE_CLI` | Second-factor opt-in for `--allow-weak-iterations` / `--allow-argv-secret` on `kdf` | **Test / KAT-replay only.** Must be set to the literal string `"1"`. The env-gate exists so that shell completion, copy-paste from a doc example, or a stale CI default cannot silently re-enable the escape hatches in production. Never set this in a production deployment. |
+
+The CLI does NOT read any other env var. In particular, signing keys
+and ciphertexts are never sourced from env — they are always paths
+passed via `--key`, `--input`, `--signature`, etc.
 
 ### Logging Configuration
 

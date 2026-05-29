@@ -289,23 +289,34 @@ impl PqOnlySecretKey {
 
 /// Build the HKDF `info` string for PQ-only encryption.
 ///
-/// Thin wrapper over [`crate::types::domains::hkdf_kem_info_with_pk`] that
-/// pins the domain-separation label to
-/// [`HkdfKemLabel::PqOnlyEncryption`](crate::types::domains::HkdfKemLabel::PqOnlyEncryption).
-/// The shared helper is also used by
-/// [`crate::unified_api::convenience::pq_kem`] so encrypt/decrypt
-/// drift across the two parallel APIs is structurally impossible
-///.
+/// M3 fix: routes through [`hkdf_kem_info_with_pk_and_aad`] so the AAD is
+/// length-prefixed into the HKDF info — matching
+/// `encrypt_hybrid::derive_encryption_key`'s segment layout. Pre-M3 the
+/// AAD was only bound at the AEAD tag and had no key-separation role on
+/// the PQ-only path. Empty AAD is permitted and is distinguishable on the
+/// wire from "AAD field absent" (the `aad_len = 0` prefix consumes 4
+/// bytes).
 fn pq_only_encryption_info(
+    aad: &[u8],
     recipient_pk: &[u8],
     kem_ciphertext: &[u8],
 ) -> Result<Vec<u8>, PqOnlyError> {
-    crate::types::domains::hkdf_kem_info_with_pk(
+    crate::types::domains::hkdf_kem_info_with_pk_and_aad(
         crate::types::domains::HkdfKemLabel::PqOnlyEncryption,
+        aad,
         recipient_pk,
         kem_ciphertext,
     )
-    .map_err(|e| PqOnlyError::KdfError(e.to_string()))
+    .map_err(|e| {
+        // DP-H2 fix: opaque KDF info-construction error. The upstream
+        // `LatticeArcError` Display is internally-stable but the inputs
+        // it can carry (length-overflow detail, NUL-in-label) are
+        // adversary-controllable on the decrypt path via wire-format
+        // tampering. Route the actual cause to `tracing::debug!` and
+        // surface a fixed string in the typed `KdfError`.
+        tracing::debug!(error = %e, "pq_only HKDF info construction failed");
+        PqOnlyError::KdfError("KDF info construction failed".to_string())
+    })
 }
 
 /// Generate a PQ-only keypair at ML-KEM-768 (default security level).
@@ -454,16 +465,18 @@ pub fn encrypt_pq_only_with_aad(
         PqOnlyError::KemError("encapsulation failed".to_string())
     })?;
 
-    // HPKE / RFC 9180 §5.1 channel binding. Bind both:
+    // HPKE / RFC 9180 §5.1 channel binding. Bind:
+    //   - the AAD (M3 fix — gives AAD a key-separation role; pre-fix it
+    //     rode only on the AEAD tag),
     //   - the recipient's static public key (so an adversary who
     //     substitutes the recipient cannot reuse the ciphertext), and
     //   - the KEM ciphertext (so an adversary who finds two ciphertexts
     //     decapsulating to the same shared secret cannot swap them).
     //
-    // The decryption path constructs the same info from
-    // `sk.recipient_pk_bytes()` and the wire `kem_ciphertext`. Both
+    // The decryption path constructs the same info from the same AAD,
+    // `sk.recipient_pk_bytes()`, and the wire `kem_ciphertext`. Both
     // paths agree byte-for-byte on the transcript.
-    let info = pq_only_encryption_info(pk.ml_kem_pk_bytes(), kem_ct.as_bytes())
+    let info = pq_only_encryption_info(aad, pk.ml_kem_pk_bytes(), kem_ct.as_bytes())
         .map_err(|_e| PqOnlyError::KdfError("KDF info construction failed".to_string()))?;
     let hkdf_result = hkdf(shared_secret.expose_secret(), None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "HKDF failed");
@@ -564,12 +577,12 @@ pub fn decrypt_pq_only_with_aad(
     })?;
 
     // HKDF params must match encrypt_pq_only (salt=None, identical info).
-    // The encrypt path binds both `recipient_pk` and `kem_ciphertext`
-    // into the info string (HPKE / RFC 9180 §5.1). The recipient PK
-    // comes from the secret key — a substituted recipient cannot
-    // produce a colliding info string, so the AEAD tag fails.
-    let info =
-        pq_only_encryption_info(sk.recipient_pk_bytes(), kem_ciphertext).map_err(|_e| opaque())?;
+    // M3 fix: the encrypt path now also binds `aad` into the info string.
+    // A tampered AAD on the wire produces a different HKDF key here, so
+    // the AEAD tag fails closed — defense in depth alongside the AEAD's
+    // own AAD authentication.
+    let info = pq_only_encryption_info(aad, sk.recipient_pk_bytes(), kem_ciphertext)
+        .map_err(|_e| opaque())?;
     let hkdf_result = hkdf(shared_secret.expose_secret(), None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "HKDF failed");
         opaque()

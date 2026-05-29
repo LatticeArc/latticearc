@@ -222,12 +222,12 @@ pub fn pct_ml_kem(
 
     // Encapsulate
     let (ss_encap, ct) = MlKem::encapsulate(keypair.public_key())
-        .map_err(|e| PctError::SigningFailed(format!("ML-KEM encapsulation failed: {}", e)))?;
+        .map_err(|e| PctError::SigningFailed(format!("ML-KEM encapsulation failed: {e}")))?;
 
     // Decapsulate against the SAME keypair we just encapsulated to
     let ss_decap = keypair
         .decapsulate(&ct)
-        .map_err(|e| PctError::VerificationFailed(format!("ML-KEM decapsulation failed: {}", e)))?;
+        .map_err(|e| PctError::VerificationFailed(format!("ML-KEM decapsulation failed: {e}")))?;
 
     // Constant-time comparison
     let is_valid = bool::from(ss_encap.expose_secret().ct_eq(ss_decap.expose_secret()));

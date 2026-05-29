@@ -480,6 +480,22 @@ pub fn hmac_check_with_config(
 /// Different `info` values produce different keys from the same input keying
 /// material, enabling safe domain separation across multiple derivation contexts.
 ///
+/// # Caller responsibility (DP-M2)
+///
+/// The HKDF `info` parameter is intentionally caller-controlled per RFC 5869
+/// §3.2 — it is part of the application-protocol context, not a
+/// library-controlled domain-separation label. The caller MUST pick an
+/// `info` value that does not collide with the crate-internal HKDF labels
+/// in [`crate::types::domains`]: pick a value that begins with an
+/// application-specific prefix (e.g. `b"my-app-foo-v1"`) so it cannot
+/// accidentally match `LatticeArc-*-v1` prefixes used internally.
+/// Library-internal callers should route through the closed
+/// [`crate::types::domains::HkdfKemLabel`] (or equivalent registry-backed
+/// helper) instead of calling this function directly — Pattern 2 (Domain
+/// Separation Registry) treats hand-rolled labels at internal call sites
+/// as a design-smell because they sidestep the pairwise-distinctness
+/// guarantee the registered labels carry.
+///
 /// # Errors
 ///
 /// Returns an error if:

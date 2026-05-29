@@ -34,6 +34,14 @@ pub(crate) struct DecryptArgs {
     /// Overwrite the output file if it already exists. Default: false.
     #[arg(long)]
     pub force: bool,
+    /// Allow writing decrypted plaintext to a TTY. Without this flag the
+    /// command refuses to emit plaintext when stdout is a terminal — TTY
+    /// output exposes secrets to shell scrollback, session recorders,
+    /// screen sharing, and CI log aggregators. Use `--output <file>` to
+    /// write to disk (0600 perms) or pipe stdout; `--print-to-tty` is
+    /// reserved for explicit interactive inspection. (L9 fix)
+    #[arg(long)]
+    pub print_to_tty: bool,
 }
 
 /// Execute the decrypt command.
@@ -61,7 +69,7 @@ pub(crate) fn run(args: DecryptArgs) -> Result<()> {
         _ => anyhow::bail!("Unsupported KeyType variant"),
     };
 
-    write_output(&args.output, &plaintext, args.force)
+    write_output(&args.output, &plaintext, args.force, args.print_to_tty)
 }
 
 fn decrypt_symmetric(
@@ -154,7 +162,12 @@ fn read_input_string(path: &Option<PathBuf>) -> Result<String> {
     )
 }
 
-fn write_output(path: &Option<PathBuf>, data: &[u8], force: bool) -> Result<()> {
+fn write_output(
+    path: &Option<PathBuf>,
+    data: &[u8],
+    force: bool,
+    print_to_tty: bool,
+) -> Result<()> {
     if let Some(p) = path {
         // Atomic write with 0o600. `tempfile::NamedTempFile` already
         // creates files with mode 0o600 and `persist()` preserves that;
@@ -173,18 +186,20 @@ fn write_output(path: &Option<PathBuf>, data: &[u8], force: bool) -> Result<()> 
         // aggregation; route to tracing::debug! instead.
         tracing::debug!(path = %p.display(), "decrypted data written");
     } else {
-        // Stdout-as-default-target hazard: writing decrypted plaintext
-        // to a TTY exposes it to recorded shell sessions, screen
-        // sharing, scrollback, and any logging proxy. When the user is
-        // interactive, surface a one-line warning to stderr. Pipelines
-        // (`| tee`, file redirection) where stdout is not a TTY get no
-        // warning.
+        // L9 fix: writing decrypted plaintext to a TTY exposes it to
+        // recorded shell sessions, screen sharing, scrollback, and any
+        // logging proxy. The pre-fix warning was a soft gate; an
+        // operator who didn't read stderr (CI logs, fast shell, less |
+        // tail) would still leak. Hard-fail unless `--print-to-tty` is
+        // explicit; pipelines and file redirects (stdout not a TTY) are
+        // unaffected.
         use std::io::IsTerminal;
-        if std::io::stdout().is_terminal() {
-            eprintln!(
-                "warning: decrypted plaintext is being written to a TTY. \
-                 Pass --output <file> to write to disk with 0600 permissions, \
-                 or pipe stdout to avoid leaving secrets in scrollback."
+        if std::io::stdout().is_terminal() && !print_to_tty {
+            bail!(
+                "Refusing to write decrypted plaintext to a TTY. Pass --output <file> to write \
+                 to disk with 0600 permissions, pipe stdout to a downstream tool, or pass \
+                 --print-to-tty to explicitly opt in (the plaintext will then appear in shell \
+                 scrollback / session recorders / log aggregators)."
             );
         }
         // Try to print as UTF-8, fall back to hex. The hex encoding is

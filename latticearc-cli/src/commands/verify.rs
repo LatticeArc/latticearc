@@ -62,15 +62,23 @@ pub(crate) struct VerifyArgs {
     /// Signature file (SignedData JSON or legacy JSON).
     #[arg(short, long)]
     pub signature: PathBuf,
-    /// Public key file. Required for legacy format. Optional for
-    /// SignedData — but **WARNING**: omitting `--key` for a SignedData
-    /// envelope trusts the public key embedded in the envelope
-    /// itself, which an attacker who delivered the envelope chose.
-    /// Pass `--key` to enforce a specific trust anchor; the verifier
-    /// will reject the signature if the operator's `--key` does not
-    /// match the embedded public key.
+    /// Public key file. Required for legacy format. Required for
+    /// SignedData by default — the H2 fix flipped the default because
+    /// an envelope crafted with an attacker-controlled `(pk, sig)` pair
+    /// would otherwise print "Signature is VALID" against the
+    /// attacker's own key. Pass `--allow-embedded-key` to opt back into
+    /// the pre-fix behaviour (stderr WARNING emitted).
     #[arg(short, long)]
     pub key: Option<PathBuf>,
+    /// SignedData envelopes only: opt into trusting the public key
+    /// embedded in the envelope when `--key` is omitted. Pre-fix
+    /// behaviour; requires explicit acknowledgement of the trust shape
+    /// (an attacker who delivers the envelope chose the embedded key).
+    /// Emits a stderr WARNING on every invocation so operator audit
+    /// trails record the choice. Has no effect on legacy signature
+    /// format (which always required `--key`).
+    #[arg(long)]
+    pub allow_embedded_key: bool,
 }
 
 /// Execute the verify command.
@@ -168,32 +176,62 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
             return Ok(print_invalid());
         }
 
-        // SECURITY: if the operator passed `--key`, ENFORCE that the
-        // embedded `signed.metadata.public_key` matches. Without this
-        // check, a SignedData envelope crafted with an attacker's own
-        // (key, sig, data) triple verifies against ANY operator-
-        // trusted `--key` because `latticearc::verify` uses the
-        // embedded public key. The user-facing contract "verify this
-        // signature against my trusted key" silently becomes "verify
-        // this signature against the key it carries".
+        // H2 fix: `--key` is now REQUIRED for SignedData by default. The
+        // embedded `signed.metadata.public_key` is the public key the
+        // ENVELOPE chose; an attacker who fabricates an
+        // `(pk, sk, signature)` triple under their own key and delivers
+        // the envelope would otherwise see "Signature is VALID" — the
+        // user-facing contract "verify this signature against my trusted
+        // key" silently became "verify this signature against the key
+        // the file carries".
         //
-        // Mismatch is attacker-controllable and collapses to
-        // `print_invalid()` for Pattern-6 indistinguishability with
-        // crypto reject. Plain `==` is sufficient: both sides are
-        // public keys, not secret material, and the operator's key is
-        // fixed across the call so per-invocation timing cannot be
-        // amplified across runs.
+        // `--allow-embedded-key` opts back into the pre-fix behaviour
+        // with a stderr WARNING. This makes the trust-shape choice
+        // explicit and grep-able in operator audit logs (and trips on
+        // the CI gates that scan command lines for the flag).
         //
-        // `--key` for SignedData remains optional: omitting it falls
-        // through to the embedded-key trust shape, appropriate when
-        // the operator has not asserted a specific trust anchor.
-        if let Some(key_path) = args.key.as_ref() {
-            let pk_bytes = load_operator_public_key(key_path)?;
-            if *pk_bytes != signed.metadata.public_key {
-                tracing::debug!(
-                    "verify (SignedData path) rejected: --key bytes do not match embedded public_key"
+        // Operator misuse (missing both flags) is the ≥2 exit class —
+        // not `print_invalid()` — because it's NOT an attacker-
+        // attainable distinguisher: the attacker doesn't choose whether
+        // the operator passed --key, so distinguishing missing-flag
+        // from valid/invalid does not leak data the attacker controls.
+        match (args.key.as_ref(), args.allow_embedded_key) {
+            (Some(key_path), _allow) => {
+                // Operator pinned a trust anchor. Compare in length-
+                // checked, plain-eq mode: public-key bytes are not
+                // secret and the operator's key is fixed across the
+                // call, so per-invocation timing cannot be amplified
+                // across runs. Mismatch collapses to print_invalid for
+                // Pattern-6 indistinguishability with crypto reject.
+                let pk_bytes = load_operator_public_key(key_path)?;
+                if *pk_bytes != signed.metadata.public_key {
+                    tracing::debug!(
+                        "verify (SignedData path) rejected: --key bytes do not match embedded public_key"
+                    );
+                    return Ok(print_invalid());
+                }
+            }
+            (None, true) => {
+                // Explicit opt-in to the embedded-key trust shape.
+                // Stderr WARNING so operator-audit pipelines record the
+                // choice and shell history makes the reduced trust
+                // explicit. Not gated by RUST_LOG so the warning is
+                // visible in default CLI use.
+                eprintln!(
+                    "WARNING: --allow-embedded-key bypasses operator trust-anchor pinning. \
+                     The signature is being verified against the public key carried in the \
+                     envelope itself, which the envelope's author chose. Use --key <path> to \
+                     pin a specific trust anchor."
                 );
-                return Ok(print_invalid());
+            }
+            (None, false) => {
+                bail!(
+                    "Public key file (--key <path>) is required to verify a SignedData \
+                     envelope: without it, an attacker who fabricates an envelope under their \
+                     own key would see 'Signature is VALID'. Pass --key to pin your trust \
+                     anchor, or --allow-embedded-key to opt into trusting the envelope-\
+                     embedded key (a stderr WARNING will be emitted on every invocation)."
+                );
             }
         }
 

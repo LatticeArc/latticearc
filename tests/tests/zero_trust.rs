@@ -321,7 +321,7 @@ fn test_continuous_session_update_verification_succeeds() {
 }
 
 #[test]
-fn test_reauthentication_succeeds() {
+fn test_zero_trust_session_reauthentication_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key;

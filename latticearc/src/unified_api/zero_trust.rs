@@ -965,7 +965,7 @@ impl ProofOfPossession for ZeroTrustAuth {
         // within the 5-minute freshness window's resolution and make
         // each in-second PoP byte-unique.
         let ts_micros = timestamp.timestamp_micros();
-        let message = format!("proof-of-possession-{}", ts_micros);
+        let message = format!("proof-of-possession-{ts_micros}");
 
         let signature = crate::unified_api::convenience::ed25519::sign_ed25519_internal(
             message.as_bytes(),
@@ -1031,7 +1031,7 @@ impl ProofOfPossession for ZeroTrustAuth {
         // mirror generate_pop's use
         // of microsecond precision in the verified message.
         let ts_micros = pop.timestamp().timestamp_micros();
-        let message = format!("proof-of-possession-{}", ts_micros);
+        let message = format!("proof-of-possession-{ts_micros}");
 
         let valid = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
             message.as_bytes(),

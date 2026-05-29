@@ -21,9 +21,10 @@ Expert estimates vary widely (2030-2050+). However, "harvest now, decrypt later"
 ### Can I deploy LatticeArc in production today?
 
 LatticeArc implements NIST-standardized algorithms (FIPS 203–205, draft 206) and follows security best practices. Before deploying:
-- It has not yet undergone third-party security audit
+- It has not yet undergone **third-party** security audit. Internal audit rounds have run and their findings are addressed; see `CHANGELOG.md` and `SECURITY.md` for the audit history.
 - It is not FIPS 140-3 validated
 - Use hybrid mode for defense-in-depth
+- Pin trust anchors explicitly with `verify_with_anchor` (library) or `--key` (CLI). See the SECURITY_GUIDE for the embedded-key-forgery threat model.
 
 ## Algorithms
 
@@ -127,17 +128,34 @@ let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::n
 ### How do I sign data?
 
 ```rust
-use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
+use latticearc::{
+    generate_signing_keypair, sign_with_key, verify_with_anchor,
+    CryptoConfig,
+};
 
 // Generate hybrid signing keypair (ML-DSA-65 + Ed25519)
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
+let kp = generate_signing_keypair(config.clone())?;
 
 // Sign
-let signed = sign_with_key(b"message", &sk, &pk, config.clone())?;
+let signed = sign_with_key(
+    b"message",
+    kp.expose_secret_key(),
+    kp.public_key(),
+    config.clone(),
+)?;
 
-// Verify
-let is_valid = verify(&signed, config)?;
+// Verify against an OPERATOR-PINNED trust anchor. Bare `verify(&signed,
+// config)` exists too but trusts the public key the envelope itself
+// carries — appropriate only when the embedded key is the trust root.
+// See SECURITY_GUIDE.md "embedded-key forgery" for the threat model.
+let trust_anchor_pk = kp.public_key();
+let is_valid = verify_with_anchor(
+    &signed,
+    trust_anchor_pk,
+    kp.scheme(),
+    CryptoConfig::new(),
+)?;
 ```
 
 ### How do I use low-level primitives?
@@ -282,6 +300,17 @@ Common causes:
 1. Different keys used for encryption and decryption
 2. Ciphertext modified in transit (use authenticated encryption)
 3. Nonce reuse with AES-GCM
+4. `pq_only` ciphertext produced by a pre-fix build will not decrypt
+   under newer builds — AAD is now bound into the HKDF info segment
+   (defense-in-depth). Re-encrypt with the current build.
+5. `EncryptedOutput.version != 2` — the deserializer enforces version 2.
+   Pre-fix envelopes from very old releases must be regenerated.
+6. Signature verification reports INVALID even though the file looks
+   right? Signatures produced by pre-fix builds will not verify under
+   newer builds (every scheme now binds a per-scheme domain-separation
+   context into the signed transcript). Re-sign with the current build.
+7. CLI says `Refusing to write decrypted plaintext to a TTY`? Pass
+   `--output <file>` or `--print-to-tty` (see CLI README).
 
 ### Performance is slower than expected
 

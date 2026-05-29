@@ -172,7 +172,7 @@ impl PreludeCiTestSuite {
         let encoded = hex::encode(&test_data);
         if encoded != "0001ff7f40" {
             return Err(LatticeArcError::ValidationError {
-                message: format!("Expected '0001ff7f40', got '{}'", encoded),
+                message: format!("Expected '0001ff7f40', got '{encoded}'"),
             });
         }
 
@@ -358,7 +358,7 @@ impl PreludeCiReport {
                 "❌ **ISSUES DETECTED**"
             };
 
-        report.push_str(&format!("**Overall Status:** {}\n\n", overall_status));
+        report.push_str(&format!("**Overall Status:** {overall_status}\n\n"));
 
         // Test Results Summary
         report.push_str("### Test Results Summary\n\n");
@@ -388,7 +388,7 @@ impl PreludeCiReport {
             })
             .count();
 
-        report.push_str(&format!("- High/Critical Side-Channel Issues: {}\n", high_severity));
+        report.push_str(&format!("- High/Critical Side-Channel Issues: {high_severity}\n"));
 
         // Performance Summary
         report.push_str(&format!(

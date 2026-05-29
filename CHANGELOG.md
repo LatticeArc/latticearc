@@ -7,7 +7,235 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.9.0] — Unreleased
+
+> **Doc-side version target.** Sources still on `0.8.4`; the workspace
+> `Cargo.toml` will be bumped to `0.9.0` as part of the tag-cut
+> commit. This `[0.9.0]` heading signals the intended next release so
+> downstream consumers reading the CHANGELOG can identify the upcoming
+> breaking-change wave without scanning an `[Unreleased]` block.
+
+### ⚠️ BREAKING: signature wire format
+
+Every signature path (pure ML-DSA, pure SLH-DSA, pure FN-DSA, pure
+Ed25519, and hybrid ML-DSA + Ed25519) is now bound to its scheme via a
+per-scheme domain-separation context. Signatures produced by pre-fix
+versions of this crate will **not** verify under the new code, and
+signatures produced under the new code will not verify under pre-fix
+versions. Re-sign existing artifacts that need to round-trip across the
+boundary.
+
+### ⚠️ BREAKING: pq_only wire format
+
+`hybrid::pq_only::encrypt_pq_only_with_aad` / `decrypt_pq_only_with_aad`
+now bind the AAD into the HKDF info segment in addition to the AEAD tag
+(M3 fix). Existing pq_only ciphertexts produced without AAD-into-HKDF
+binding will not decrypt under the new code. This only affects callers
+of `pq_only::*`; the hybrid (`encrypt_hybrid`) and convenience
+(`encrypt` / `decrypt`) paths were already binding AAD into the info.
+
+### ⚠️ BREAKING: CLI verify default
+
+`latticearc-cli verify` for `SignedData` envelopes now requires either
+`--key <trust-anchor>` (the recommended trust-anchor pin) or
+`--allow-embedded-key` (explicit opt-in with a stderr WARNING on every
+invocation). The pre-fix default — trusting the public key embedded in
+the envelope itself — has been removed because envelopes are delivered
+over untrusted channels and an attacker who forges the entire
+`(pk, sk, signature)` triple under their own key would otherwise see
+`Signature is VALID`.
+
+### Security — audit findings closed
+
+Internal security audit covering the May 2026 SignedData / hybrid sig
+path. Wire-format breaks above are deliberate; behavioural-only fixes
+(allowlist, CT discipline, CLI gates) are listed below.
+
+- **H1 — sign/verify scheme confusion (hybrid → PQ-only downgrade).**
+  Every sign / verify path now binds the scheme identifier into the
+  signed transcript via a closed per-scheme context
+  (`types::domains::SigSchemeLabel`). ML-DSA and SLH-DSA pass the
+  context natively (FIPS 204 §5.2 / FIPS 205 §10.2); Ed25519 and FN-DSA
+  sign a `SHA-512(scheme_ctx || 0x00 || message)` digest because their
+  underlying primitives expose no native context. A previously-valid
+  `hybrid-ml-dsa-65-ed25519` envelope can no longer be re-labelled as
+  pure `ml-dsa-65` (or any other scheme) and re-verified successfully.
+- **H2 — `verify()` trusts embedded public key.** New
+  `latticearc::verify_with_anchor(signed, expected_pk, expected_scheme,
+  config)` library helper compares the operator-pinned trust anchor
+  against the envelope's embedded key (constant-time, length-prefixed)
+  AND asserts the expected scheme through the M5 allowlist before
+  dispatching the cryptographic verify. Existing `verify()` keeps its
+  signature but gains a security warning in the docstring pointing at
+  `verify_with_anchor`. CLI flip described above.
+- **M1 — domain separation across hybrid legs.** Folded into the H1
+  fix: both legs of a hybrid signature now carry the hybrid scheme
+  context, so the ML-DSA leg of a hybrid signature is no longer
+  byte-identical to a standalone ML-DSA signature.
+- **M2 — `KeyType::Public` guard on hybrid public-key extractors.**
+  `PortableKey::to_hybrid_public_key` and `to_hybrid_sig_public_key`
+  now reject non-public key files, mirroring the existing guards on
+  the secret-side `to_hybrid_secret_key` /
+  `to_hybrid_sig_secret_key`.
+- **M3 — AAD bound into pq_only HKDF info.** New
+  `types::domains::hkdf_kem_info_with_pk_and_aad` helper threads AAD as
+  a length-prefixed segment into the info string (matching
+  `encrypt_hybrid::derive_encryption_key`'s layout). AAD now has both
+  AEAD-tag and key-separation roles in pq_only encryption. See wire
+  format break above.
+- **M4 — `PortableKey::validate_with_expiry(now)`.** Explicit
+  expiry-aware validation gate. `validate()` itself remains
+  expiry-blind (preserves the documented "informational lifecycle"
+  contract from 0.8.4); callers about to *use* a key should route
+  through `validate_with_expiry` instead. New error variant maps to
+  `CoreError::InvalidKey("key has expired")`.
+- **M5 — closed allowlist at SignedData deserialization.**
+  `SerializableSignedData::TryFrom` now enforces that both `scheme`
+  and `metadata.signature_algorithm` map to a known `SigSchemeLabel`
+  variant, with alias canonicalisation (`pq-ml-dsa-65` ⇔ `ml-dsa-65`).
+  Unknown schemes (`"RSA-SHA256"`, `"TEST"`, etc.) are rejected
+  opaquely. The pre-fix string-equality cross-check accepted any
+  agreed-upon value, which was the root enabler of the H1 downgrade.
+- **M6 — secp256k1 transient signing-key scalar (verified closed).**
+  Source-inspection of `ecdsa 0.16.9` (which `k256 0.13.4` pins through
+  its default `arithmetic` feature) shows `SigningKey` already impls
+  both `Drop` (calling `secret_scalar.zeroize()`) and `ZeroizeOnDrop`
+  unconditionally on its `arithmetic` bounds — no Cargo feature opt-in
+  required. The audit finding was based on outdated information; our
+  source comment in `primitives/ec/secp256k1.rs` claimed the opposite
+  and has been corrected. The transient `SigningKey` reconstructed for
+  each operation now zeroizes its internal scalar at the implicit drop
+  on function exit, closing the residue concern.
+- **L1 — secp256k1 keygen RNG consistency.**
+  `primitives::ec::secp256k1::Secp256k1KeyPair::generate` now routes
+  through the crate's `secure_rng()` with a bounded scalar-validity
+  retry, removing the duplicate `rand_core_0_6::OsRng` dependency in
+  the keygen path. Both code paths resolved to `getrandom`; the change
+  is consistency / supply-chain footprint.
+- **L2 — PBKDF2 salt all-zero check is constant-time.**
+  `Pbkdf2Params::validate` now uses `ct::is_all_zero_bytes` to match
+  the pattern already used by `pbkdf2_with_floor`. Salt is public, so
+  this is CT discipline.
+- **L3 — P-256 / P-384 / P-521 zero-coordinate check is
+  constant-time.** All three curves use `ct::is_all_zero_bytes` for
+  the post-`from_bytes` defensive check. Public bytes, CT discipline.
+- **L4 — P-curve agreement adds all-zero shared-secret check.**
+  Defense-in-depth on every `agree_ephemeral` closure. aws-lc-rs /
+  BoringSSL already rejects degenerate agreements; the explicit check
+  here catches a future backend regression.
+- **L5 — `ConstantTimeEq` alongside derived `PartialEq` on public-key
+  types.** `X25519PublicKey`, `EcdhP256PublicKey`,
+  `EcdhP384PublicKey`, and `EcdhP521PublicKey` now impl
+  `subtle::ConstantTimeEq` (length-prefixed). The derived `PartialEq`
+  / `Eq` stays so the types remain usable as `HashMap` keys and in
+  test fixtures — public-key bytes are not secret material and the
+  varying-time `==` is cryptographically acceptable. Callers that
+  prefer CT discipline (operator trust-anchor pins, defense in depth)
+  now have an in-tree implementation rather than reaching for an
+  ad-hoc helper. Mirrors the prior-audit treatment of `PublicKey`.
+- **L6 — Composite key length check is per-algorithm.**
+  `validate_composite_lengths(algorithm, …)` dispatches the expected
+  classical-leg length through `expected_hybrid_classical_len`. All
+  current hybrid algorithms remain 32 bytes (X25519 / Ed25519);
+  non-hybrid algorithms with `Composite` `KeyData` are now rejected
+  by algorithm name. Future hybrids using a different classical curve
+  add one match arm rather than relaxing a global guard.
+- **L7 — `EncryptedOutput.version` validated at deserialization.**
+  `SerializableEncryptedOutput::try_from` now rejects any value other
+  than the current `version = 2`. Pre-fix the field was round-tripped
+  as opaque.
+- **L8 — CLI `--allow-weak-iterations` / `--allow-argv-secret`
+  env-gated.** `latticearc-cli kdf` now refuses to honour the
+  KAT-replay escape hatches unless `LATTICEARC_ALLOW_UNSAFE_CLI=1` is
+  set in the environment. Additionally, HKDF `--input` now emits the
+  same argv-visibility warning that PBKDF2 already had.
+- **L9 — CLI `--print-to-tty` required for TTY output.**
+  `latticearc-cli decrypt` / `kdf` hard-fail when stdout is a TTY
+  unless the new `--print-to-tty` flag is passed. Pipelines and file
+  redirects are unaffected. The pre-fix soft-warning was a footgun
+  for fast shells, CI log aggregators, and screen recorders.
+
+### Added — library API
+
+- `pub fn latticearc::verify_with_anchor(signed, expected_pk,
+  expected_scheme, config) -> Result<bool>`. See H2 above.
+- `pub fn PortableKey::validate_with_expiry(&self, now: DateTime<Utc>)
+  -> Result<()>`. See M4 above.
+
+### Added — CLI flags
+
+- `latticearc-cli verify --allow-embedded-key` — opt back into the
+  pre-fix embedded-key trust shape for SignedData envelopes
+  (stderr WARNING on every invocation). See H2 above.
+- `latticearc-cli decrypt --print-to-tty`,
+  `latticearc-cli kdf --print-to-tty` — explicit opt-in to writing
+  plaintext / derived key material to a terminal. See L9 above.
+
+### Internal — new closed enums and helpers
+
+- `types::domains::SigSchemeLabel` — closed `pub(crate)` enum of the
+  twelve recognised signature schemes plus their aliases. Source of
+  truth for both the M1 scheme-binding context and the M5
+  deserialization allowlist.
+- `types::domains::sig_context(label) -> &'static [u8]`,
+  `types::domains::hash_with_context(scheme_ctx, message) -> [u8; 64]`,
+  `types::domains::hkdf_kem_info_with_pk_and_aad(label, aad, pk, ct)`.
+- 12 `SIG_CONTEXT_*` byte-string constants, all NUL-free and pairwise
+  distinct (locked by unit tests).
+- New invariant tests: scheme-context NUL-free, pairwise distinct,
+  canonical-string round-trip, unknown-scheme rejection.
+
+### Tests
+
+- `latticearc/tests/audit_regression_signatures.rs` gains 20 new
+  regression tests covering H1, H2, M2, M3, M4, M5, L2, L3, L5, L6,
+  L7. Reverting any individual finding's fix must trip the
+  corresponding test.
+
+### Style / Design-pattern audit follow-up
+
+A targeted design-pattern audit against `docs/DESIGN_PATTERNS.md` ran
+alongside the security fixes. The only structural finding was 16 public
+enums missing `#[non_exhaustive]` — every other anti-pattern was already
+clean (no derived `Debug`/`Clone` on Secrets, no `==` on secret slices,
+no production `.unwrap()`, no `AsRef<[u8]>`/`Deref` on Secret wrappers,
+no public fields on crypto types, `#[instrument]` correctly skip-anno-
+tating secret params everywhere). Cleanup applied:
+
+- `#[non_exhaustive]` added to 16 public enums for forward-compat semver:
+  `types::types::{CryptoMode, SecurityLevel, ComplianceMode,
+  PerformancePreference, UseCase, CryptoScheme}`,
+  `types::traits::VerificationStatus`,
+  `types::config::ProofComplexity`,
+  `types::zero_trust::TrustLevel`,
+  `types::key_lifecycle::KeyLifecycleState`,
+  `primitives::self_test::ModuleErrorCode`,
+  `unified_api::key_format::{KeyType, KeyData}`,
+  `primitives::kem::ml_kem::MlKemSecurityLevel`,
+  `primitives::sig::slh_dsa::SlhDsaSecurityLevel`,
+  `primitives::sig::fndsa::FnDsaSecurityLevel`. Adding a new variant to
+  any of these is no longer a breaking change for downstream `match`
+  consumers.
+- `#[allow(clippy::expect_used, ...)]` on `atomic_write.rs`'s
+  `regression_tests` module migrated to `#[expect(...)]` per the
+  documented "prefer expect when the issue resolves later" convention.
+  One legitimate `#[allow]` was preserved at
+  `convenience/api.rs:1495` because the lint fires only under specific
+  feature configs and `#[expect]` would unfulfill in other configs (the
+  comment already documents this).
+- `~50` `format!("...{}", e)` legacy-positional sites migrated to the
+  captured-identifier `format!("...{e}")` shorthand for the simple-
+  identifier case. Complex receivers (method calls, indexing, struct
+  fields) intentionally left alone since the captured shorthand does
+  not apply.
+- Stale fixtures across `tests/serialization.rs`,
+  `tests/serialization_integration.rs`, and
+  `tests/version_compatibility.rs` updated from non-canonical
+  algorithm strings (`"ML-DSA-65"`, `"ML-DSA-65+Ed25519"`,
+  `"RSA-SHA256"`, etc.) to canonical lowercase wire strings the M5
+  allowlist accepts. Two `version_compatibility` tests inverted from
+  "legacy-name round-trips" to "legacy-name rejected by allowlist" —
+  matching the security intent of the fix.
 
 ## [0.8.4] — 2026-05-27
 
@@ -8402,8 +8630,10 @@ Security fixes, CLI hybrid decrypt, real KAT vectors, and Level 7 scenario tests
 
 Comprehensive design-pattern audit and remediation. Breaking API changes
 (field privatization, sealed traits, `#[non_exhaustive]` on all enums).
-See `docs/AUDIT_MIGRATION_IMPACT.md` for migration checklist and
-`docs/DESIGN_PATTERNS.md` for the complete pattern reference (1,541 lines).
+See `docs/DESIGN_PATTERNS.md` for the complete pattern reference (1,541 lines).
+Downstream-callsite migration guidance lives in each consuming repo's
+own runbook; see CHANGELOG entries below for the canonical breaking-change
+list a downstream maintainer should action.
 
 ### Security
 
@@ -8558,8 +8788,9 @@ See `docs/AUDIT_MIGRATION_IMPACT.md` for migration checklist and
   owning `Vec<u8>` callers).
 - **`SignatureScheme::FnDsa1024`** variant — the enum previously only had
   a single `FnDsa` variant that mapped ambiguously to Level 512.
-- **`docs/AUDIT_MIGRATION_IMPACT.md`** migration report for downstream
-  crates.
+- (Downstream-consumer call-site migration guidance is maintained in each
+  consuming repo's own runbook rather than inside this crate; the
+  authoritative breaking-change list lives in this CHANGELOG entry.)
 
 ### Changed
 

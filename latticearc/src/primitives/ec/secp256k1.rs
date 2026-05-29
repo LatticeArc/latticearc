@@ -12,7 +12,7 @@ use super::traits::{EcKeyPair, EcSignature, sealed};
 use crate::prelude::error::{LatticeArcError, Result};
 use crate::primitives::resource_limits::validate_signature_size;
 use k256::ecdsa::{Signature, SigningKey, VerifyingKey, signature::Signer, signature::Verifier};
-use rand_core_0_6::OsRng; // k256 uses rand_core 0.6
+use rand_core::RngCore;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
@@ -31,12 +31,22 @@ use zeroize::Zeroizing;
 /// (compressed) must re-encode to uncompressed before passing them to this
 /// type.
 ///
-/// # Zeroization strategy
+/// # Zeroization strategy (M6 verified closed)
 ///
-/// `k256 v0.13` does not expose a `zeroize` feature, so `k256::ecdsa::SigningKey`
-/// does not implement `ZeroizeOnDrop`. To guarantee zeroization of secret material,
-/// this type stores the raw key bytes in `Zeroizing<[u8; 32]>` (which zeroes on drop)
-/// and reconstructs a transient `SigningKey` via `signing_key()` for each operation.
+/// Persistent secret material is held in `Zeroizing<[u8; 32]>` so the
+/// canonical secret bytes are wiped on drop. The transient
+/// `k256::ecdsa::SigningKey` reconstructed by
+/// [`signing_key`](Self::signing_key) on every operation is itself
+/// zeroizing on drop — `ecdsa 0.16.9` (which `k256 0.13.4` depends on)
+/// impls both `Drop` (which calls `secret_scalar.zeroize()`) and
+/// `ZeroizeOnDrop` for `SigningKey` unconditionally on its `arithmetic`
+/// bounds; no opt-in feature flag is required. The May-2026 audit
+/// flagged this transient as residual scalar material on the assumption
+/// that `SigningKey` lacked a zeroizing `Drop`; reading the actual
+/// `ecdsa 0.16.9` source at `signing.rs:380-389` confirms the impl is
+/// present and the residue is zeroized at scope exit. (Verified by source
+/// inspection during the audit-followup pass; see CHANGELOG `[Unreleased]`
+/// entry for M6.)
 ///
 /// This type intentionally does not implement `Clone` to prevent
 /// accidental duplication of secret key material.
@@ -79,12 +89,38 @@ impl Secp256k1KeyPair {
 
 impl EcKeyPair for Secp256k1KeyPair {
     fn generate() -> Result<Self> {
-        let sk = SigningKey::random(&mut OsRng {});
+        // L1 fix: route through the crate's `secure_rng()` instead of
+        // re-importing `rand_core_0_6::OsRng`. Both end up at getrandom
+        // on every supported platform, but keeping a single CSPRNG
+        // surface area means there's exactly one site to audit for
+        // entropy-source changes and the dep graph doesn't carry two
+        // rand-core versions just for this one keygen path.
+        //
+        // The scalar-validity retry loop tolerates the (statistically
+        // negligible — ~2^-128) chance of drawing 0 or a value ≥ curve
+        // order. Bounded at 8 attempts so a wedged CSPRNG cannot spin
+        // here forever.
+        let mut secret_bytes = Zeroizing::new([0u8; 32]);
+        let mut rng = crate::primitives::rand::secure_rng();
+        let sk = {
+            let mut sk_opt: Option<SigningKey> = None;
+            for _ in 0..8u8 {
+                rng.fill_bytes(secret_bytes.as_mut_slice());
+                if let Ok(sk_candidate) = SigningKey::from_bytes((&secret_bytes[..]).into()) {
+                    sk_opt = Some(sk_candidate);
+                    break;
+                }
+            }
+            sk_opt.ok_or_else(|| {
+                LatticeArcError::KeyGenerationError(
+                    "secp256k1 keygen exhausted scalar-validity retries".to_string(),
+                )
+            })?
+        };
         let public_key = VerifyingKey::from(&sk);
 
-        let mut secret_bytes = Zeroizing::new([0u8; 32]);
-        secret_bytes.copy_from_slice(&sk.to_bytes());
-        // `sk` drops here; we retain only the zeroized byte buffer.
+        // `sk` drops here; we retain only the zeroized byte buffer that
+        // the loop wrote `secret_bytes` from.
         drop(sk);
 
         let keypair = Self { public_key, secret_bytes };
@@ -270,8 +306,12 @@ impl Secp256k1KeyPair {
             return Err(LatticeArcError::MessageTooLong);
         }
 
-        // Reconstruct a transient SigningKey from the zeroized byte buffer.
-        // The SigningKey is dropped at end of function, leaving only the zeroized bytes.
+        // Reconstruct a transient SigningKey from the zeroized byte
+        // buffer. M6 verified closed: `ecdsa 0.16.9`'s `SigningKey` impls
+        // `Drop` (zeroizes `secret_scalar`) and `ZeroizeOnDrop`
+        // unconditionally; the transient scalar is wiped at the implicit
+        // drop on function exit. See the type's "Zeroization strategy"
+        // docs above.
         let sk = self.signing_key()?;
         let signature: Signature = sk.sign(message);
 

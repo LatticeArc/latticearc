@@ -123,7 +123,7 @@ fn test_hmac_create_verify_succeeds() {
 }
 
 #[test]
-fn test_hash_deterministic() {
+fn test_hash_same_input_returns_deterministic_output() {
     let data = b"Hash this data twice";
     let hash1 = hash_data(data);
     let hash2 = hash_data(data);

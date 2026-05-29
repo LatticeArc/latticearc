@@ -1,8 +1,8 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Post-Quantum Cryptography Library
-**Version:** 0.8.4
-**Date:** 2026-05-27
+**Version:** 0.9.0 (preparing — no tag cut yet; sources still on 0.8.4)
+**Date:** 2026-05-29 (last doc update)
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
 ## Executive Summary
@@ -12,7 +12,7 @@ All dependencies vetted for security (audits, memory safety), licensing (Apache/
 ```mermaid
 flowchart TB
     subgraph "latticearc"
-        LA[LatticeArc 0.8.4]
+        LA[LatticeArc 0.9.0 target]
     end
 
     subgraph "FIPS-Validated"
@@ -159,7 +159,7 @@ flowchart TB
 - **Security Audit**: RustCrypto audited
 - **Usage**: `latticearc::primitives` (AEAD)
 
-#### 9. aes (v0.8.4)
+#### 9. aes (v0.9.1)
 - **Purpose**: Low-level AES block cipher
 - **Justification**:
   - Required by aes-gcm

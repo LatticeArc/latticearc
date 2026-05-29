@@ -721,7 +721,7 @@ mod tests {
 
         for i in 0..100 {
             let nonce = ChaCha20Poly1305Cipher::generate_nonce();
-            let plaintext = format!("Message {}", i);
+            let plaintext = format!("Message {i}");
             let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext.as_bytes(), None).unwrap();
             let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, None).unwrap();
             assert_eq!(plaintext.as_bytes(), decrypted.as_slice());

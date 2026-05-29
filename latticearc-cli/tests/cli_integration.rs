@@ -134,9 +134,17 @@ fn cli_bin() -> PathBuf {
 }
 
 /// Spawn the CLI with `args`, wait for completion, return raw `Output`.
+///
+/// Sets `LATTICEARC_ALLOW_UNSAFE_CLI=1` so the L8 env-gate doesn't reject
+/// tests that exercise `--allow-weak-iterations` / `--allow-argv-secret`
+/// for KAT-replay / reproducibility (which is the documented purpose of
+/// those flags). Also sets `--print-to-tty` semantics via flag: child
+/// stdout is not a TTY when captured by `.output()`, so the L9 hard-fail
+/// doesn't fire and no extra opt-in is needed.
 fn execute_cli(args: &[&str]) -> std::process::Output {
     Command::new(cli_bin())
         .args(args)
+        .env("LATTICEARC_ALLOW_UNSAFE_CLI", "1")
         .output()
         .unwrap_or_else(|e| panic!("Failed to execute CLI: {e}"))
 }
@@ -4354,12 +4362,16 @@ fn use_case_keygen_sign_verify_roundtrip(use_case: &str, expected_scheme: &str) 
         sig_path.to_str().unwrap(),
     ]);
 
+    // H2: SignedData verify requires either `--key` (trust-anchor pin) or
+    // `--allow-embedded-key`. Use --key to demonstrate the right pattern.
     let verify_out = run_ok(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
         "--signature",
         sig_path.to_str().unwrap(),
+        "--key",
+        pk_path.to_str().unwrap(),
     ]);
     assert!(
         verify_out.contains("VALID"),
@@ -4442,12 +4454,15 @@ fn pure_pq_keygen_sign_verify_roundtrip(algorithm: &str, expected_scheme: &str) 
         sig_path.to_str().unwrap(),
     ]);
 
+    // H2: SignedData verify requires `--key` to pin the trust anchor.
     let verify_out = run_ok(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
         "--signature",
         sig_path.to_str().unwrap(),
+        "--key",
+        pk_path.to_str().unwrap(),
     ]);
     assert!(
         verify_out.contains("VALID") && verify_out.contains(expected_scheme),

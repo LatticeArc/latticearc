@@ -56,12 +56,24 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 **Digital signatures** — ML-DSA-65 + Ed25519 hybrid:
 
 ```rust
-use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
+use latticearc::{
+    generate_signing_keypair, sign_with_key, verify_with_anchor, CryptoConfig,
+};
 
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
-let signed = sign_with_key(b"document", &sk, &pk, config.clone())?;
-assert!(verify(&signed, config)?);
+let kp = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(
+    b"document",
+    kp.expose_secret_key(),
+    kp.public_key(),
+    config.clone(),
+)?;
+
+// Production verify pins the trust anchor. Bare `verify(&signed, config)`
+// also exists but trusts the public key the envelope itself carries —
+// appropriate only when the embedded key IS the trust root. See
+// `docs/SECURITY_GUIDE.md` for the embedded-key threat model.
+assert!(verify_with_anchor(&signed, kp.public_key(), kp.scheme(), CryptoConfig::new())?);
 ```
 
 ### CLI

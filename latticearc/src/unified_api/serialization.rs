@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
+use crate::types::domains::SigSchemeLabel;
 use crate::unified_api::crypto_types::{EncryptedOutput, EncryptionScheme, HybridComponents};
 use crate::unified_api::{
     error::{CoreError, Result},
@@ -181,16 +182,37 @@ impl TryFrom<SerializableSignedData> for SignedData {
         let public_key =
             decode_b64_opaque(&serializable.metadata.public_key, "metadata.public_key")?;
 
-        // Cross-verify the metadata `signature_algorithm` against the
-        // top-level `scheme`. Without this check `signature_algorithm`
-        // is a decorative field — verify dispatches on `scheme`, so an
-        // attacker could replace `signature_algorithm` with arbitrary
-        // text and verification would still succeed, misleading any
-        // consumer that displays or logs it for audit / UX purposes.
-        // The sign side sets both to the same value, so disagreement
-        // signals tampering. Both fields are attacker-controlled, so
-        // the typed error must not echo them.
-        if serializable.metadata.signature_algorithm != serializable.scheme {
+        // M5 fix: both `scheme` and `metadata.signature_algorithm` are
+        // attacker-controlled JSON fields. The previous string-equality check
+        // confirmed they agreed but did not confirm the agreed-upon value was
+        // even a known signature scheme — verify dispatched on the raw string
+        // and silently took the "ignore" arm for unknown schemes, which was
+        // the root enabler of the H1 downgrade. Now both fields must map to
+        // the same closed `SigSchemeLabel` variant, with aliases
+        // (`pq-ml-dsa-65` vs `ml-dsa-65`) collapsed to the canonical label.
+        // Unknown schemes are rejected with an opaque error; the raw values
+        // ride only `tracing::debug!` since both could carry attacker-chosen
+        // bytes (Pattern 6).
+        let scheme_label =
+            SigSchemeLabel::from_scheme_str(&serializable.scheme).ok_or_else(|| {
+                tracing::debug!(
+                    scheme = %serializable.scheme,
+                    "SignedData rejected: unknown signature scheme (not in M5 allowlist)"
+                );
+                CoreError::SerializationError("Unknown signature scheme".to_string())
+            })?;
+        let metadata_label =
+            SigSchemeLabel::from_scheme_str(&serializable.metadata.signature_algorithm)
+                .ok_or_else(|| {
+                    tracing::debug!(
+                        metadata_algorithm = %serializable.metadata.signature_algorithm,
+                        "SignedData rejected: unknown metadata.signature_algorithm"
+                    );
+                    CoreError::SerializationError(
+                        "Unknown signature scheme in metadata".to_string(),
+                    )
+                })?;
+        if scheme_label != metadata_label {
             tracing::debug!(
                 metadata_algorithm = %serializable.metadata.signature_algorithm,
                 scheme = %serializable.scheme,
@@ -342,6 +364,25 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
     type Error = CoreError;
 
     fn try_from(ser: SerializableEncryptedOutput) -> Result<Self> {
+        // L7 fix: the `version` field is written by the serializer but was
+        // previously accepted as-is by this `TryFrom` body. An adversary
+        // who flips it to an unsupported value (e.g. `99`) would have an
+        // envelope that other readers might interpret differently. Reject
+        // unknown versions before any byte-payload work happens; the value
+        // is bounded (`u8`), so echoing it in the typed error is safe.
+        const CURRENT_VERSION: u8 = 2;
+        if ser.version != CURRENT_VERSION {
+            tracing::debug!(
+                received_version = ser.version,
+                expected_version = CURRENT_VERSION,
+                "EncryptedOutput rejected: unsupported wire-format version"
+            );
+            return Err(CoreError::SerializationError(format!(
+                "Unsupported EncryptedOutput version {}, expected {CURRENT_VERSION}",
+                ser.version
+            )));
+        }
+
         // Defense-in-depth: reject excessively large serialized
         // payloads before base64 decode. Caps are per-field, not just
         // on `ciphertext`: a crafted envelope with a 10 MiB nonce
@@ -533,21 +574,21 @@ mod tests {
     fn make_signed_data() -> SignedData {
         // The production sign path (`api.rs:1019-1029`) sets
         // `metadata.signature_algorithm = scheme.clone()` — the two
-        // fields must agree on every produced record.'s S4
-        // fix elevates that producer-side guarantee to a deserializer
-        // invariant, so test fixtures must match the production
-        // shape. The earlier test data here used a mismatched pair
-        // (`"ML-DSA-65"` vs `"ML-DSA-65+Ed25519"`), which only
-        // worked because the deserializer was previously a passthrough.
+        // fields must agree on every produced record. The M5 fix
+        // (`SigSchemeLabel::from_scheme_str`) further requires both
+        // fields to map to a known scheme in the closed allowlist; the
+        // earlier `"ML-DSA-65+Ed25519"` magic string was never a real
+        // production scheme tag and now fails deserialization. Use the
+        // canonical hybrid scheme tag the dispatcher actually emits.
         CryptoPayload::new(
             vec![1, 2, 3, 4],
             SignedMetadata::new(
                 vec![0xBB; 64],
-                "ML-DSA-65+Ed25519".to_string(),
+                "hybrid-ml-dsa-65-ed25519".to_string(),
                 vec![0xCC; 32],
                 Some("sig-key-001".to_string()),
             ),
-            "ML-DSA-65+Ed25519".to_string(),
+            "hybrid-ml-dsa-65-ed25519".to_string(),
             1700000002,
         )
     }
@@ -581,7 +622,7 @@ mod tests {
         let original = make_signed_data();
         let serializable = SerializableSignedData::from(&original);
         assert!(!serializable.data.is_empty());
-        assert_eq!(serializable.metadata.signature_algorithm, "ML-DSA-65+Ed25519");
+        assert_eq!(serializable.metadata.signature_algorithm, "hybrid-ml-dsa-65-ed25519");
     }
 
     #[test]
@@ -644,7 +685,7 @@ mod tests {
     // --- KeyPair serialization ---
 
     #[test]
-    fn test_keypair_roundtrip() {
+    fn test_keypair_json_serialize_deserialize_roundtrip_succeeds() {
         let original = make_keypair();
         let json = serialize_keypair(&original).unwrap();
         let deserialized = deserialize_keypair(&json).unwrap();

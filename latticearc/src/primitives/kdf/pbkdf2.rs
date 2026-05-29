@@ -191,7 +191,12 @@ impl Pbkdf2Params {
                 Self::MIN_SALT_LEN,
             )));
         }
-        if self.salt.iter().all(|&b| b == 0) {
+        // L2 fix: constant-time all-zero check. Salt is not strictly secret
+        // (NIST SP 800-132 §5.1 treats it as a public, random value), but
+        // `pbkdf2_with_floor` already uses the CT helper for the same
+        // invariant — matching here keeps the pattern uniform and prevents
+        // a copy-paste of the variable-time form from migrating elsewhere.
+        if crate::primitives::ct::is_all_zero_bytes(&self.salt) {
             return Err(LatticeArcError::InvalidParameter(
                 "Salt is all-zero (uninitialised-memory guard)".to_string(),
             ));

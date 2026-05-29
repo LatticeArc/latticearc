@@ -98,7 +98,7 @@ fn fiat_shamir_challenge(
 
         // ~104 bytes — well below the 1 GiB SHA-256 DoS cap.
         let hash = sha256(&buf)
-            .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+            .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?;
         // Reject `c == 0` symmetrically with the nonce path
         // (`Schnorr::prove` lines ~290): if the challenge were zero,
         // the response would collapse to `s = k + 0·x = k`, exposing
@@ -239,7 +239,7 @@ impl SchnorrProver {
             zeroize::Zeroizing::new(secret_key.to_bytes().into());
         let public_bytes: [u8; 33] = <[u8; 33]>::try_from(public_key.to_sec1_bytes().as_ref())
             .map_err(|e| {
-                ZkpError::SerializationError(format!("Failed to serialize public key: {}", e))
+                ZkpError::SerializationError(format!("Failed to serialize public key: {e}"))
             })?;
 
         let prover = Self { secret: *secret_bytes_zeroizing, public_key: public_bytes };
@@ -258,7 +258,7 @@ impl SchnorrProver {
 
         let public_bytes: [u8; 33] = <[u8; 33]>::try_from(public_key.to_sec1_bytes().as_ref())
             .map_err(|e| {
-                ZkpError::SerializationError(format!("Failed to serialize public key: {}", e))
+                ZkpError::SerializationError(format!("Failed to serialize public key: {e}"))
             })?;
 
         let prover = Self { secret: *secret, public_key: public_bytes };
@@ -321,7 +321,7 @@ impl SchnorrProver {
         // Compute commitment R = k*G
         let r_point = ProjectivePoint::GENERATOR * *k;
         let r_bytes: [u8; 33] = <[u8; 33]>::try_from(r_point.to_affine().to_bytes().as_slice())
-            .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize R: {}", e)))?;
+            .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize R: {e}")))?;
 
         // Compute challenge c = H(G || P || R || context)
         let c = fiat_shamir_challenge(&self.public_key, &r_bytes, context)?;
@@ -404,7 +404,7 @@ impl SchnorrVerifier {
         use k256::elliptic_curve::sec1::FromEncodedPoint;
 
         let encoded = EncodedPoint::from_bytes(bytes)
-            .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {}", e)))?;
+            .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {e}")))?;
         let point: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded).into();
         let p = point.ok_or(ZkpError::InvalidPublicKey)?;
         if bool::from(p.is_identity()) {

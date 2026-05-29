@@ -31,7 +31,7 @@ fn test_version_has_semver_format_has_correct_size() {
 // ==========================================================================
 
 #[test]
-fn test_init_succeeds() {
+fn test_unified_api_init_succeeds() {
     let result = latticearc::unified_api::init();
     assert!(result.is_ok(), "init() should succeed: {:?}", result.err());
 }

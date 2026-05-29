@@ -974,7 +974,7 @@ impl FileAuditStorage {
         // `sha256` only fails on inputs larger than 1 GiB (resource-limit guard),
         // which no reasonable audit event approaches.
         let digest = crate::primitives::hash::sha2::sha256(&buf)
-            .map_err(|e| CoreError::AuditError(format!("integrity hash failed: {}", e)))?;
+            .map_err(|e| CoreError::AuditError(format!("integrity hash failed: {e}")))?;
         Ok(hex::encode(digest))
     }
 
@@ -1053,7 +1053,7 @@ impl FileAuditStorage {
                     old_state.current_size
                 );
                 old_state.writer.flush().map_err(|e| {
-                    CoreError::AuditError(format!("Failed to flush audit file: {}", e))
+                    CoreError::AuditError(format!("Failed to flush audit file: {e}"))
                 })?;
                 rotation_link = Some((old_filename, old_hash));
             }
@@ -1109,15 +1109,14 @@ impl FileAuditStorage {
             prev.clone_from(&anchor.integrity_hash);
         }
 
-        let json = serde_json::to_string(&anchor).map_err(|e| {
-            CoreError::AuditError(format!("Failed to serialize chain anchor: {}", e))
-        })?;
-        let line = format!("{}\n", json);
+        let json = serde_json::to_string(&anchor)
+            .map_err(|e| CoreError::AuditError(format!("Failed to serialize chain anchor: {e}")))?;
+        let line = format!("{json}\n");
         let line_bytes = line.as_bytes();
         state
             .writer
             .write_all(line_bytes)
-            .map_err(|e| CoreError::AuditError(format!("Failed to write chain anchor: {}", e)))?;
+            .map_err(|e| CoreError::AuditError(format!("Failed to write chain anchor: {e}")))?;
         let line_len_u64 = u64::try_from(line_bytes.len()).unwrap_or(u64::MAX);
         state.current_size = state.current_size.saturating_add(line_len_u64);
         Ok(())
@@ -1311,12 +1310,12 @@ impl FileAuditStorage {
             state
                 .writer
                 .flush()
-                .map_err(|e| CoreError::AuditError(format!("verify_chain flush failed: {}", e)))?;
+                .map_err(|e| CoreError::AuditError(format!("verify_chain flush failed: {e}")))?;
         }
 
         let mut log_files: Vec<PathBuf> = Vec::new();
         let entries = fs::read_dir(&self.config.storage_path)
-            .map_err(|e| CoreError::AuditError(format!("Failed to read audit dir: {}", e)))?;
+            .map_err(|e| CoreError::AuditError(format!("Failed to read audit dir: {e}")))?;
         for entry in entries.flatten() {
             let path = entry.path();
             let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
@@ -1402,9 +1401,9 @@ impl FileAuditStorage {
                 let mut hit_newline = false;
                 let mut hit_eof = false;
                 while !hit_newline && !hit_eof {
-                    let buf = reader.fill_buf().map_err(|e| {
-                        CoreError::AuditError(format!("Failed to read line: {}", e))
-                    })?;
+                    let buf = reader
+                        .fill_buf()
+                        .map_err(|e| CoreError::AuditError(format!("Failed to read line: {e}")))?;
                     if buf.is_empty() {
                         hit_eof = true;
                         break;
@@ -1645,9 +1644,8 @@ impl FileAuditStorage {
         event.integrity_hash = Self::compute_integrity_hash(event, &previous_hash)?;
 
         // Serialize event to JSON.
-        let json = serde_json::to_string(event).map_err(|e| {
-            CoreError::AuditError(format!("Failed to serialize audit event: {}", e))
-        })?;
+        let json = serde_json::to_string(event)
+            .map_err(|e| CoreError::AuditError(format!("Failed to serialize audit event: {e}")))?;
 
         // Write JSON line BEFORE advancing the in-memory chain hash.
         // If `write_all` fails (ENOSPC, EIO, etc.), `previous_hash`
@@ -1656,13 +1654,13 @@ impl FileAuditStorage {
         // missing on disk, and a subsequent `verify_chain()` would
         // report it as tampering. Write-then-advance, not
         // advance-then-write.
-        let line = format!("{}\n", json);
+        let line = format!("{json}\n");
         let line_bytes = line.as_bytes();
 
         state
             .writer
             .write_all(line_bytes)
-            .map_err(|e| CoreError::AuditError(format!("Failed to write audit event: {}", e)))?;
+            .map_err(|e| CoreError::AuditError(format!("Failed to write audit event: {e}")))?;
 
         // Disk-write succeeded — now safe to advance the chain.
         {
@@ -1694,7 +1692,7 @@ impl AuditStorage for FileAuditStorage {
             state
                 .writer
                 .flush()
-                .map_err(|e| CoreError::AuditError(format!("Failed to flush audit file: {}", e)))?;
+                .map_err(|e| CoreError::AuditError(format!("Failed to flush audit file: {e}")))?;
         }
 
         Ok(())
@@ -1983,7 +1981,7 @@ mod tests {
                 for i in 0..5 {
                     let event = AuditEvent::new(
                         AuditEventType::CryptoOperation,
-                        &format!("operation_{}", i),
+                        &format!("operation_{i}"),
                         AuditOutcome::Success,
                     );
                     let result = storage.write(&event);
@@ -2030,7 +2028,7 @@ mod tests {
                 for i in 0..10 {
                     let event = AuditEvent::new(
                         AuditEventType::CryptoOperation,
-                        &format!("operation_{}", i),
+                        &format!("operation_{i}"),
                         AuditOutcome::Success,
                     )
                     .with_metadata("data", "some value to make the event larger");
@@ -2264,7 +2262,7 @@ mod tests {
                 for i in 0..3 {
                     let event = AuditEvent::new(
                         AuditEventType::CryptoOperation,
-                        &format!("chain_op_{}", i),
+                        &format!("chain_op_{i}"),
                         AuditOutcome::Success,
                     );
                     storage.write(&event).unwrap();
@@ -2397,7 +2395,7 @@ mod tests {
                 for i in 0..5 {
                     let event = AuditEvent::new(
                         AuditEventType::CryptoOperation,
-                        &format!("op_{}", i),
+                        &format!("op_{i}"),
                         AuditOutcome::Success,
                     );
                     s.write(&event).unwrap();

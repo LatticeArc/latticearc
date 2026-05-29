@@ -280,6 +280,8 @@ pub fn initialize_global_secure_rng() -> Result<()> {
 /// Returns `LatticeArcError::InvalidParameter` if `len` exceeds the
 /// 1 MiB cap (rejects `usize::MAX` before it can OOM the allocator).
 /// Returns an error if random generation fails.
+#[must_use = "secret randomness must be stored or used; dropping the Zeroizing<Vec<u8>> \
+              discards the drawn bytes (zeroized) without delivering them to the caller"]
 pub fn generate_secure_random_bytes(len: usize) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     // Reject `len == 0` — a zero-byte randomness request is always a
     // caller bug (downstream consumers expect a key / nonce / salt of
@@ -313,6 +315,7 @@ pub fn generate_secure_random_bytes(len: usize) -> Result<zeroize::Zeroizing<Vec
 ///
 /// # Errors
 /// Returns an error if random generation fails
+#[must_use = "drawn randomness must be stored or used"]
 pub fn generate_secure_random_u64() -> Result<u64> {
     RngHandle::secure()?.next_u64()
 }
@@ -321,6 +324,7 @@ pub fn generate_secure_random_u64() -> Result<u64> {
 ///
 /// # Errors
 /// Returns an error if random generation fails
+#[must_use = "drawn randomness must be stored or used"]
 pub fn generate_secure_random_u32() -> Result<u32> {
     RngHandle::secure()?.next_u32()
 }

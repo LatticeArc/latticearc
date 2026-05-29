@@ -704,6 +704,7 @@ impl KeyPair {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use = "generated FN-DSA keypair must be stored or used"]
     #[instrument(level = "debug", fields(security_level = ?security_level))]
     pub fn generate(security_level: FnDsaSecurityLevel) -> Result<Self> {
         Self::generate_with_rng(&mut OsRng, security_level)
@@ -716,6 +717,7 @@ impl KeyPair {
     ///
     /// # Errors
     /// Returns an error if the backend keygen or FIPS 140-3 PCT fails.
+    #[must_use = "generated FN-DSA keypair must be stored or used"]
     #[instrument(level = "debug", skip(rng), fields(security_level = ?security_level))]
     pub fn generate_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng>(
         rng: &mut R,
@@ -737,7 +739,7 @@ impl KeyPair {
         // FIPS 140-3 Pairwise Consistency Test (PCT)
         // Sign and verify a test message to ensure the keypair is consistent
         crate::primitives::pct::pct_fn_dsa_keypair(&mut keypair)
-            .map_err(|e| FnDsaError::KeyGenerationError(format!("PCT failed: {}", e)))?;
+            .map_err(|e| FnDsaError::KeyGenerationError(format!("PCT failed: {e}")))?;
 
         Ok(keypair)
     }

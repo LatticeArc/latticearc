@@ -353,7 +353,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         buf.extend_from_slice(context);
 
         // ZKP payloads are always well below the 1 GB SHA-256 DoS cap.
-        sha256(&buf).map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))
+        sha256(&buf).map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))
     }
 }
 
@@ -489,14 +489,10 @@ impl DlogEqualityStatement {
         use k256::{ProjectivePoint, elliptic_curve::group::GroupEncoding};
         let g_point = ProjectivePoint::GENERATOR;
         let g_bytes: [u8; 33] = <[u8; 33]>::try_from(g_point.to_affine().to_bytes().as_slice())
-            .map_err(|e| {
-                ZkpError::SerializationError(format!("canonical G serialization: {}", e))
-            })?;
+            .map_err(|e| ZkpError::SerializationError(format!("canonical G serialization: {e}")))?;
         let h_point = crate::zkp::commitment::PedersenCommitment::generator_h()?;
         let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h_point.to_affine().to_bytes().as_slice())
-            .map_err(|e| {
-                ZkpError::SerializationError(format!("canonical H serialization: {}", e))
-            })?;
+            .map_err(|e| ZkpError::SerializationError(format!("canonical H serialization: {e}")))?;
         Ok(Self { g: g_bytes, h: h_bytes, p, q })
     }
 
@@ -508,13 +504,11 @@ impl DlogEqualityStatement {
         let g_bytes: [u8; 33] =
             <[u8; 33]>::try_from(ProjectivePoint::GENERATOR.to_affine().to_bytes().as_slice())
                 .map_err(|e| {
-                    ZkpError::SerializationError(format!("canonical G serialization: {}", e))
+                    ZkpError::SerializationError(format!("canonical G serialization: {e}"))
                 })?;
         let h_point = crate::zkp::commitment::PedersenCommitment::generator_h()?;
         let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h_point.to_affine().to_bytes().as_slice())
-            .map_err(|e| {
-                ZkpError::SerializationError(format!("canonical H serialization: {}", e))
-            })?;
+            .map_err(|e| ZkpError::SerializationError(format!("canonical H serialization: {e}")))?;
         Ok((g_bytes, h_bytes))
     }
 }
@@ -589,9 +583,9 @@ impl DlogEqualityProof {
         let b_point = h * *k;
 
         let a_bytes: [u8; 33] = <[u8; 33]>::try_from(a_point.to_affine().to_bytes().as_slice())
-            .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize A: {}", e)))?;
+            .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize A: {e}")))?;
         let b_bytes: [u8; 33] = <[u8; 33]>::try_from(b_point.to_affine().to_bytes().as_slice())
-            .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize B: {}", e)))?;
+            .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize B: {e}")))?;
 
         // Challenge: `compute_challenge` rejection-samples until the
         // bytes parse via `from_repr`, so `Reduce::reduce_bytes` would
@@ -705,7 +699,7 @@ impl DlogEqualityProof {
         use k256::elliptic_curve::sec1::FromEncodedPoint;
 
         let encoded = EncodedPoint::from_bytes(bytes)
-            .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {}", e)))?;
+            .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {e}")))?;
         let point: Option<k256::ProjectivePoint> =
             k256::ProjectivePoint::from_encoded_point(&encoded).into();
         let p = point.ok_or(ZkpError::InvalidPublicKey)?;
@@ -763,7 +757,7 @@ impl DlogEqualityProof {
 
             // ~210 bytes — well below the 1 GB SHA-256 DoS cap.
             let hash = sha256(&buf)
-                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?;
             // Reject both `>= q` and `== 0`: with `c == 0`, the
             // dlog-equality response collapses to `s = k + 0·x = k`,
             // exposing the nonce. Symmetric with the nonce-side

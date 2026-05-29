@@ -143,8 +143,26 @@ fn sign_hybrid_ml_dsa_ed25519(
         .get(pq_sk_len..)
         .ok_or_else(|| CoreError::InvalidKey("Failed to split hybrid secret key".to_string()))?;
 
-    let pq_sig = sign_pq_ml_dsa_unverified(message, pq_sk, params)?;
-    let ed_sig = sign_ed25519_internal(message, ed_sk)?;
+    // H1 / M1 fix: bind both legs of the hybrid signature to the
+    // hybrid-scheme context, NOT the per-leg pure-PQ context. Without this,
+    // the ML-DSA leg of a hybrid signature is byte-identical to a standalone
+    // ML-DSA signature, and an attacker can re-label the envelope's `scheme`
+    // to "ml-dsa-65" and truncate the components to forge a "valid"
+    // standalone signature. The pure-PQ default ctx used by
+    // `sign_pq_ml_dsa_unverified` produces exactly that vulnerability —
+    // call the explicit-ctx internal helper with the hybrid scheme label
+    // so the ML-DSA leg cannot be reinterpreted under a different scheme.
+    // Ed25519 has no native context (RFC 8032) so a SHA-512 domain digest
+    // is signed instead of the raw message; the digest is fixed-size so it
+    // stays under the signature-size cap regardless of message length.
+    use crate::types::domains::{hash_with_context, sig_context};
+    use crate::unified_api::convenience::pq_sig::{
+        hybrid_scheme_label_for_param_set, sign_pq_ml_dsa_internal_with_ctx,
+    };
+    let hybrid_ctx = sig_context(hybrid_scheme_label_for_param_set(params));
+    let pq_sig = sign_pq_ml_dsa_internal_with_ctx(message, pq_sk, params, hybrid_ctx)?;
+    let ed_digest = hash_with_context(hybrid_ctx, message);
+    let ed_sig = sign_ed25519_internal(&ed_digest, ed_sk)?;
     let combined_sig = [pq_sig, ed_sig].concat();
     Ok((public_key.to_vec(), combined_sig))
 }
@@ -508,7 +526,7 @@ pub fn encrypt_with_aad(
                 Some(crate::hybrid::encrypt_hybrid::HybridEncryptionContext::with_aad(aad.to_vec()))
             };
             let ct = encrypt_hybrid(pk, data, ctx.as_ref()).map_err(|e| {
-                CoreError::EncryptionFailed(format!("Hybrid encryption failed: {}", e))
+                CoreError::EncryptionFailed(format!("Hybrid encryption failed: {e}"))
             })?;
             let timestamp = current_timestamp();
             EncryptedOutput::new(
@@ -531,7 +549,7 @@ pub fn encrypt_with_aad(
         // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
         (EncryptKey::PqOnly(pk), _) if scheme.requires_pq_key() => {
             let ct = pq_only::encrypt_pq_only_with_aad(pk, data, aad).map_err(|e| {
-                CoreError::EncryptionFailed(format!("PQ-only encryption failed: {}", e))
+                CoreError::EncryptionFailed(format!("PQ-only encryption failed: {e}"))
             })?;
             let timestamp = current_timestamp();
             let (kem_ct, sym_ct, nonce, tag) = ct.into_parts();
@@ -957,7 +975,7 @@ pub fn generate_signing_keypair(config: CryptoConfig) -> Result<SigningKeypair> 
             return Ok((pk_bytes, sk_bytes, scheme).into());
         }
         _ => {
-            return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
+            return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {scheme}")));
         }
     };
 
@@ -1052,7 +1070,7 @@ pub fn sign_with_key(
             sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MlDsa87)?
         }
         _ => {
-            return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
+            return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {scheme}")));
         }
     };
 
@@ -1068,9 +1086,25 @@ pub fn sign_with_key(
     ))
 }
 
-/// Verify a signed message.
+/// Verify a signed message using the public key embedded in the envelope.
 ///
 /// The verification algorithm is determined by the `signed.scheme` field.
+///
+/// > **⚠️ Security: embedded-key trust shape (H2)**
+/// >
+/// > `verify` checks the signature against `signed.metadata.public_key` —
+/// > the public key that rides inside the envelope itself. For an envelope
+/// > delivered over an untrusted channel, this is **not** the same as "the
+/// > signature was made by the key I trust": an attacker who fabricates an
+/// > entire `(pk, sk, signature)` triple under their own key will see this
+/// > function return `Ok(true)`. Use [`verify_with_anchor`] when the caller
+/// > has an external trust anchor (CA pin, configured operator key, prior
+/// > TOFU record); the helper pins the expected pubkey AND scheme before
+/// > dispatching to this function.
+///
+/// `verify` is appropriate when the envelope's public key is itself the
+/// trust root (e.g. content-addressed key distribution) or when the
+/// surrounding protocol already pins the key in a different way.
 ///
 /// # Examples
 ///
@@ -1230,6 +1264,129 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
     result
 }
 
+/// Verify a `SignedData` envelope against an operator-pinned trust anchor.
+///
+/// H2 fix: [`verify`] uses the public key embedded in the envelope itself, so
+/// an envelope crafted with an attacker-controlled `(pk, sk, sig)` triple
+/// verifies as VALID under that path. Callers that need the contract "this
+/// signature was made by the key I trust" must compare against an external
+/// trust anchor before dispatching the cryptographic verify. This helper
+/// does that comparison and the scheme assertion atomically:
+///
+/// 1. `expected_pk` is compared in constant time against
+///    `signed.metadata.public_key`. Mismatch returns `Ok(false)` —
+///    indistinguishable from a crypto-reject (Pattern 6).
+/// 2. `expected_scheme` is canonicalised through the M5 [`SigSchemeLabel`]
+///    allowlist and compared against the envelope's `scheme` field.
+///    Mismatch returns `Ok(false)`. Unknown schemes also return `Ok(false)`
+///    rather than `Err`, again for Pattern-6 indistinguishability.
+/// 3. Otherwise the call delegates to [`verify`] which runs the scheme-bound
+///    cryptographic verification.
+///
+/// The pubkey comparison runs in constant time even though public keys are
+/// not secret: the discipline keeps verify-path timing decoupled from
+/// trust-anchor bytes, which simplifies operator threat modelling.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The session is set and has expired (`CoreError::SessionExpired`)
+/// - Internal verify hits a configuration / FIPS-self-test failure
+///
+/// Mismatched trust anchor, mismatched scheme, unknown scheme, or
+/// cryptographic verify-false all return `Ok(false)`.
+///
+/// # Examples
+///
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use latticearc::unified_api::{verify_with_anchor, CryptoConfig, SignedData, SignedMetadata};
+/// # let signed = SignedData::new(
+/// #     vec![],
+/// #     SignedMetadata::new(vec![], "ml-dsa-65".to_string(), vec![], None),
+/// #     "ml-dsa-65".to_string(),
+/// #     0,
+/// # );
+/// # let trust_anchor_pk: &[u8] = &[];
+/// let is_valid = verify_with_anchor(
+///     &signed,
+///     trust_anchor_pk,
+///     "ml-dsa-65",
+///     CryptoConfig::new(),
+/// )?;
+/// # Ok(())
+/// # }
+/// ```
+#[must_use = "verification result must be used or errors will be silently dropped"]
+pub fn verify_with_anchor(
+    signed: &SignedData,
+    expected_pk: &[u8],
+    expected_scheme: &str,
+    config: CryptoConfig,
+) -> Result<bool> {
+    use crate::types::domains::SigSchemeLabel;
+    use subtle::ConstantTimeEq;
+
+    // Canonicalise both schemes through the M5 allowlist so aliases
+    // (`pq-ml-dsa-65` ⇔ `ml-dsa-65`) compare equal and unknown strings
+    // collapse to `Ok(false)`.
+    let Some(envelope_label) = SigSchemeLabel::from_scheme_str(&signed.scheme) else {
+        tracing::debug!(
+            envelope_scheme = %signed.scheme,
+            "verify_with_anchor rejected: envelope scheme not in M5 allowlist"
+        );
+        return Ok(false);
+    };
+    let Some(expected_label) = SigSchemeLabel::from_scheme_str(expected_scheme) else {
+        tracing::debug!(
+            expected_scheme = %expected_scheme,
+            "verify_with_anchor rejected: expected scheme not in M5 allowlist"
+        );
+        return Ok(false);
+    };
+    if envelope_label != expected_label {
+        tracing::debug!(
+            envelope_scheme = %signed.scheme,
+            expected_scheme = %expected_scheme,
+            "verify_with_anchor rejected: envelope scheme does not match expected scheme"
+        );
+        return Ok(false);
+    }
+
+    // Length-check then constant-time byte comparison. `subtle::ct_eq`
+    // requires equal-length inputs and short-circuits inside the helper
+    // on length mismatch — that short-circuit is observable via wall
+    // clock, so we surface it as an explicit early return rather than
+    // relying on `ct_eq`'s internal length check. The length check
+    // itself is NOT constant time, but the only information it leaks is
+    // whether the envelope's embedded pk has the same byte length as
+    // the operator's pinned pk. Public-key lengths in this library are
+    // fixed per algorithm (X25519 PK = 32 B, ML-KEM-768 PK = 1184 B,
+    // ML-DSA-65 PK = 1952 B, hybrid composites are deterministic sums),
+    // so a length mismatch reveals at most the envelope's algorithm
+    // identity — not secret material. The `ct_eq` below then runs over
+    // equal-length slices and reveals nothing beyond the equal/not-
+    // equal verdict.
+    if expected_pk.len() != signed.metadata.public_key.len() {
+        tracing::debug!(
+            expected_pk_len = expected_pk.len(),
+            envelope_pk_len = signed.metadata.public_key.len(),
+            "verify_with_anchor rejected: trust-anchor pk length differs from envelope pk length"
+        );
+        return Ok(false);
+    }
+    if expected_pk.ct_eq(&signed.metadata.public_key).unwrap_u8() != 1u8 {
+        tracing::debug!("verify_with_anchor rejected: trust-anchor pk does not match envelope pk");
+        return Ok(false);
+    }
+
+    // Trust anchor pinned and scheme asserted; delegate the cryptographic
+    // verification to the existing dispatcher. `verify` will recompute the
+    // H1 scheme context and reject if the signature was produced under a
+    // different scheme even though the envelope claims this one.
+    verify(signed, config)
+}
+
 /// Hybrid ML-DSA + Ed25519 verification with Pattern 6 timing-oracle safety.
 ///
 /// Splits `full_pk` and `full_sig` at the post-quantum boundary, then runs
@@ -1304,9 +1461,19 @@ fn verify_hybrid_ml_dsa_ed25519(
         )
     };
 
+    // H1 / M1 fix: verify both legs under the hybrid scheme context, NOT
+    // the per-leg pure-PQ context. Reverting either leg's ctx would
+    // re-open the downgrade attack (see `sign_hybrid_ml_dsa_ed25519`).
+    use crate::types::domains::{hash_with_context, sig_context};
+    use crate::unified_api::convenience::pq_sig::{
+        hybrid_scheme_label_for_param_set, verify_pq_ml_dsa_internal_with_ctx,
+    };
+    let hybrid_ctx = sig_context(hybrid_scheme_label_for_param_set(param_set));
     let pq_valid =
-        verify_pq_ml_dsa_unverified(data, pq_sig_bytes, pq_pk_bytes, param_set).unwrap_or(false);
-    let ed_valid = verify_ed25519_internal(data, ed_sig_bytes, ed_pk_bytes).unwrap_or(false);
+        verify_pq_ml_dsa_internal_with_ctx(data, pq_sig_bytes, pq_pk_bytes, param_set, hybrid_ctx)
+            .unwrap_or(false);
+    let ed_digest = hash_with_context(hybrid_ctx, data);
+    let ed_valid = verify_ed25519_internal(&ed_digest, ed_sig_bytes, ed_pk_bytes).unwrap_or(false);
 
     // Combine without short-circuit. If shape was invalid we hold the
     // result at false unconditionally — both verifies still ran for the

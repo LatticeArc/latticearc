@@ -63,13 +63,13 @@ impl From<std::string::FromUtf8Error> for LatticeArcError {
 
 impl From<hex::FromHexError> for LatticeArcError {
     fn from(err: hex::FromHexError) -> Self {
-        LatticeArcError::InvalidData(format!("Hex decoding error: {}", err))
+        LatticeArcError::InvalidData(format!("Hex decoding error: {err}"))
     }
 }
 
 impl From<uuid::Error> for LatticeArcError {
     fn from(err: uuid::Error) -> Self {
-        LatticeArcError::InvalidData(format!("UUID error: {}", err))
+        LatticeArcError::InvalidData(format!("UUID error: {err}"))
     }
 }
 

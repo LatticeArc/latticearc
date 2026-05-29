@@ -323,7 +323,7 @@ fn test_key_derivation_succeeds() {
 }
 
 #[test]
-fn test_hmac_succeeds() {
+fn test_hmac_sign_verify_roundtrip_succeeds() {
     let key = b"test_hmac_key";
     let data = b"test data for hmac";
 
@@ -339,7 +339,7 @@ fn test_hmac_succeeds() {
 }
 
 #[test]
-fn test_initialization_succeeds() {
+fn test_unified_api_init_with_defaults_succeeds() {
     std::thread::Builder::new()
         .name("test_initialization".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -716,7 +716,7 @@ fn test_decrypt_honors_scheme_from_encrypted_data_succeeds() {
 // ============================================================================
 
 #[test]
-fn test_init_succeeds() {
+fn test_unified_api_module_init_succeeds() {
     std::thread::Builder::new()
         .name("test_init".to_string())
         .stack_size(32 * 1024 * 1024)

@@ -115,9 +115,10 @@ ENCRYPT (sender has public key only):
   │ Plaintext │───▶│ encrypt()   │───▶│ EncryptedOutput   │
   └──────────┘    │             │    │  (JSON file)      │
                   │ Public Key  │    │                   │
-  ┌──────────┐   │ (.pub.json) │    │  scheme           │
-  │ PK file  │──▶│             │    │  ciphertext       │
-  └──────────┘    └─────────────┘    │  nonce + tag      │
+  ┌──────────┐   │ (.pub.json) │    │  version: 2       │
+  │ PK file  │──▶│             │    │  scheme           │
+  └──────────┘    └─────────────┘    │  ciphertext       │
+                                     │  nonce + tag      │
                                      │  hybrid_data:     │
                                      │    ml_kem_ct      │
                                      │    ecdh_eph_pk    │
@@ -140,6 +141,15 @@ DECRYPT (recipient has secret key only):
 
   No public key file needed ✓
 ```
+
+#### `EncryptedOutput.version`
+
+The `version` field in an `EncryptedOutput` JSON envelope is distinct
+from the `PortableKey.version` field discussed elsewhere in this doc.
+`EncryptedOutput.version` MUST be `2` — the deserializer rejects any
+other value at parse time. `latticearc-cli encrypt` always emits
+version `2`. Bumping the constant requires a wire-format break
+documented in `CHANGELOG.md`.
 
 ### Signing Key Layout (Ed25519 / ML-DSA / Hybrid)
 
@@ -382,17 +392,47 @@ let expired_now: bool = key.is_expired();
 let expired_at_t: bool = key.is_expired_at(t);
 ```
 
-**This field is a convention, NOT a security gate.** Specifically:
+**This field is a convention, NOT a security gate at `validate()`.** Specifically:
 
-- `PortableKey::validate()` does **not** reject keys past `not_after`. Callers
-  needing enforcement MUST call `is_expired()` (or `is_expired_at()`) themselves.
-- `not_after` is **not** part of the encryption AAD. An attacker holding a
-  ciphertext can re-serialize the plaintext key with an edited `not_after`
-  freely; gate enforcement above `validate()` must come from application logic.
-- Converting `not_after` into a tamper-resistant gate would require adding it
-  to `encryption_aad` and bumping `ENCRYPTED_ENVELOPE_VERSION` — deferred.
+- `PortableKey::validate()` does **not** reject keys past `not_after`.
+  This preserves the documented contract from 0.8.4 — `validate()` is the
+  structural-shape check, expiry-blind by design so consumers loading a
+  key for inspection or migration aren't failed at parse time.
+- **For an explicit "is this key safe to USE right now?" gate, call
+  [`PortableKey::validate_with_expiry(now)`](#validate_with_expiry)**.
+  It performs the structural `validate()` AND rejects the key if `now >=
+  not_after`. Callers about to perform a cryptographic operation should
+  route through this method instead of bare `validate()`.
+- `not_after` is **not** part of the encryption AAD. An attacker holding
+  a ciphertext can re-serialize the plaintext key with an edited
+  `not_after` freely; tamper-resistant lifecycle enforcement must come
+  from application logic (e.g., signing the key file with a CA, storing
+  a hash in a separate authenticated channel).
+- Converting `not_after` into a tamper-resistant gate would require
+  adding it to `encryption_aad` and bumping `ENCRYPTED_ENVELOPE_VERSION`
+  — deferred to a future wire-format break.
 - `ConstantTimeEq` **does** distinguish keys differing only in `not_after`
   (the v0.8.3 impl would have silently compared them equal).
+
+### `validate_with_expiry`
+
+```rust
+use chrono::Utc;
+
+let key = PortableKey::from_json(&keyfile)?;
+key.validate_with_expiry(Utc::now())?; // structural + expiry gate
+```
+
+Returns `Err(CoreError::InvalidKey("key has expired"))` if `now >=
+not_after`. The error message is intentionally opaque: an attacker who
+can observe distinct error variants could otherwise binary-search the
+`not_after` timestamp off-line via repeated calls with different `now`
+values.
+
+Callers loading a key for **reporting**, **migration**, or **expiry-aware
+lifecycle handling** continue to use bare `validate()` and inspect
+`not_after()` / `is_expired_at(now)` themselves. Callers about to **use**
+the key cryptographically use `validate_with_expiry`.
 
 Wire-format note: when `not_after` is `None`, the field is omitted from JSON
 and CBOR via `skip_serializing_if = "Option::is_none"`. Pre-0.8.4 key files

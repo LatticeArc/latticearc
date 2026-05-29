@@ -1,6 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.8.4 | **License**: Apache 2.0
+**Version**: 0.9.0 (preparing — no tag cut yet; sources still on 0.8.4) | **License**: Apache 2.0
 
 ---
 
@@ -136,9 +136,109 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
-let signed_data = sign_with_key(data, &sk, &pk, config.clone())?;
+let kp = generate_signing_keypair(config.clone())?;
+let signed_data = sign_with_key(
+    data,
+    kp.expose_secret_key(),
+    kp.public_key(),
+    config.clone(),
+)?;
+// Embedded-key verify (see warning + `verify_with_anchor` below for
+// production trust-anchor pinning).
 let is_valid = verify(&signed_data, config)?;
+```
+
+> ⚠️ **Trust-anchor note (`verify` vs `verify_with_anchor`).**
+> `verify(&signed, config)` checks the signature against the public key
+> the envelope itself carries. For envelopes delivered over an untrusted
+> channel, this is **not** the same as "the signature was made by the
+> key I trust" — an attacker who forges a complete
+> `(public_key, secret_key, signature)` triple under their own key would
+> see `Ok(true)` from `verify`. Use [`verify_with_anchor`](#trust-anchor-verification)
+> when the caller has an external trust anchor (CA pin, configured
+> operator key, prior TOFU record). `verify` is appropriate when the
+> envelope's embedded public key is itself the trust root (e.g.,
+> content-addressed key distribution) or when the surrounding protocol
+> pins the key by some other means.
+
+#### Trust-anchor verification
+
+```rust
+use latticearc::{verify_with_anchor, CryptoConfig};
+
+// `trust_anchor_pk` is the public key the OPERATOR pinned out-of-band
+// (e.g., loaded from a CA bundle, a configured signer roster, or a
+// prior TOFU record).
+let is_valid = verify_with_anchor(
+    &signed_data,
+    trust_anchor_pk,         // &[u8] — operator-pinned
+    "hybrid-ml-dsa-65-ed25519", // &str — the scheme the caller expects
+    CryptoConfig::new(),
+)?;
+```
+
+`verify_with_anchor` does three things atomically before delegating to the
+cryptographic verify:
+
+1. **Trust-anchor check.** Compares `trust_anchor_pk` against the
+   envelope's `metadata.public_key` in constant time (length-prefixed —
+   a length mismatch reveals only algorithm identity, never byte content).
+2. **Scheme assertion.** Compares the caller-supplied `expected_scheme`
+   against the envelope's `scheme` field after canonicalising both
+   through the closed allowlist (so `"pq-ml-dsa-65"` and `"ml-dsa-65"`
+   compare equal). Unknown scheme strings are rejected.
+3. **Delegated verify.** Calls `verify(&signed, config)`, which runs the
+   scheme-bound cryptographic verification.
+
+Any mismatch returns `Ok(false)`, indistinguishable from a crypto reject.
+
+#### Recognised signature schemes
+
+The deserializer enforces a closed allowlist of canonical scheme strings.
+Hand-rolled tags (e.g., `"ML-DSA-65"`, `"RSA-SHA256"`, `"ML-DSA-65+Ed25519"`)
+are rejected at parse time. The accepted set, with their canonical
+spellings and accepted aliases:
+
+| Canonical | Aliases also accepted |
+|---|---|
+| `ml-dsa-44` | `pq-ml-dsa-44` |
+| `ml-dsa-65` | `pq-ml-dsa-65` |
+| `ml-dsa-87` | `pq-ml-dsa-87` |
+| `slh-dsa-shake-128s` | — |
+| `slh-dsa-shake-192s` | — |
+| `slh-dsa-shake-256s` | — |
+| `fn-dsa-512` | `fn-dsa` |
+| `fn-dsa-1024` | — |
+| `hybrid-ml-dsa-44-ed25519` | `ml-dsa-44-hybrid-ed25519` |
+| `hybrid-ml-dsa-65-ed25519` | `ml-dsa-65-hybrid-ed25519` |
+| `hybrid-ml-dsa-87-ed25519` | `ml-dsa-87-hybrid-ed25519` |
+| `ed25519` | — |
+
+Both `metadata.signature_algorithm` and `scheme` must map to the same
+allowlist entry; mismatches between the two fields are rejected even when
+each individually is canonical.
+
+#### Hybrid signature example
+
+```rust
+use latticearc::{generate_signing_keypair, sign_with_key, verify_with_anchor, CryptoConfig};
+
+let config = CryptoConfig::new();
+let kp = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(
+    data,
+    kp.expose_secret_key(),
+    kp.public_key(),
+    config.clone(),
+)?;
+
+// Production verify: pin the public key explicitly.
+let is_valid = verify_with_anchor(
+    &signed,
+    kp.public_key(),
+    kp.scheme(),
+    CryptoConfig::new(),
+)?;
 ```
 
 ### Key Generation
@@ -164,21 +264,20 @@ let config = CryptoConfig::new().session(&session);
 
 ### Auto-Selection Engine
 
-> **Round-12 audit fix (M-8):** the `CryptoPolicyEngine` direct usage
-> example was dropped here. `latticearc::unified_api::selector` is not
-> a stable public path; calling its methods directly couples downstream
-> code to internals that may move between minor releases. The
-> supported way to drive scheme selection is to set `use_case()` or
+> `latticearc::unified_api::selector` is not a stable public path;
+> calling its `CryptoPolicyEngine` methods directly couples downstream
+> code to internals that may move between minor releases. The supported
+> way to drive scheme selection is to set `use_case()` or
 > `security_level()` on `CryptoConfig` and let the unified API resolve
 > the scheme — see the `encrypt` / `sign_with_key` examples above.
 
 #### Reverse Level Mapping
 
-> **Round-12 audit fix (M-8):** the `ml_kem_level_to_security_level`
-> example was also dropped (same private-path concern). If you need to
-> map an `MlKemSecurityLevel` back to a `SecurityLevel`, do it with a
-> two-line `match` in your own code; the library does not commit to a
-> public conversion helper.
+> `ml_kem_level_to_security_level` lives under the same private-path
+> umbrella as the auto-selector. If you need to map an
+> `MlKemSecurityLevel` back to a `SecurityLevel`, do it with a two-line
+> `match` in your own code; the library does not commit to a public
+> conversion helper.
 
 ### Configuration
 
@@ -231,12 +330,27 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 **Via Unified API** (returns `SignedData`):
 
 ```rust
-use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig, SecurityLevel};
+use latticearc::{
+    generate_signing_keypair, sign_with_key, verify_with_anchor,
+    CryptoConfig, SecurityLevel,
+};
 
 let config = CryptoConfig::new().security_level(SecurityLevel::High);
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
-let signed_data = sign_with_key(data, &sk, &pk, config.clone())?;
-let is_valid = verify(&signed_data, config)?;
+let kp = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(
+    data,
+    kp.expose_secret_key(),
+    kp.public_key(),
+    config.clone(),
+)?;
+// Production verify: pin the trust anchor (see the Signatures section
+// for `verify` vs `verify_with_anchor` trade-offs).
+let is_valid = verify_with_anchor(
+    &signed,
+    kp.public_key(),
+    kp.scheme(),
+    CryptoConfig::new(),
+)?;
 ```
 
 **Direct Hybrid Signature API** (ML-DSA-65 + Ed25519 AND-composition):

@@ -48,7 +48,7 @@ pub fn generate_hybrid_signing_keypair(
     mode.validate()?;
 
     sig_hybrid::generate_keypair().map_err(|e| {
-        CoreError::SignatureFailed(format!("Hybrid signing keypair generation failed: {}", e))
+        CoreError::SignatureFailed(format!("Hybrid signing keypair generation failed: {e}"))
     })
 }
 
@@ -214,20 +214,32 @@ pub fn verify_hybrid_signature_unverified(
 }
 
 /// Convert `HybridSignatureError` to `CoreError`.
+///
+/// DP-M3 fix: the sign-path opaque `SigningFailed` variant maps to
+/// `CoreError::SignatureFailed` with a non-component-identifying message
+/// so the Pattern-6 opacity holds through the conversion. The retained
+/// `MlDsaError` / `Ed25519Error` variants here cover the keygen and
+/// other non-adversary-reachable paths where component identification is
+/// useful for operator diagnostics; they nevertheless route into the
+/// same `CoreError::SignatureFailed` variant so external callers can't
+/// distinguish stage at the `CoreError` layer either.
 fn hybrid_sig_error_to_core(e: HybridSignatureError) -> CoreError {
     match e {
+        HybridSignatureError::SigningFailed(msg) => {
+            CoreError::SignatureFailed(format!("Hybrid signing failed: {msg}"))
+        }
         HybridSignatureError::MlDsaError(msg) => {
-            CoreError::SignatureFailed(format!("Hybrid ML-DSA error: {}", msg))
+            CoreError::SignatureFailed(format!("Hybrid ML-DSA error: {msg}"))
         }
         HybridSignatureError::Ed25519Error(msg) => {
-            CoreError::SignatureFailed(format!("Hybrid Ed25519 error: {}", msg))
+            CoreError::SignatureFailed(format!("Hybrid Ed25519 error: {msg}"))
         }
         HybridSignatureError::VerificationFailed(_msg) => CoreError::VerificationFailed,
         HybridSignatureError::InvalidKeyMaterial(msg) => {
-            CoreError::InvalidKey(format!("Hybrid key material error: {}", msg))
+            CoreError::InvalidKey(format!("Hybrid key material error: {msg}"))
         }
         HybridSignatureError::CryptoError(msg) => {
-            CoreError::SignatureFailed(format!("Hybrid crypto error: {}", msg))
+            CoreError::SignatureFailed(format!("Hybrid crypto error: {msg}"))
         }
     }
 }

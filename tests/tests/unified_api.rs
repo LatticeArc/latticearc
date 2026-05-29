@@ -1329,7 +1329,7 @@ mod integration {
     // ============================================================================
 
     #[test]
-    fn test_hmac_roundtrip() {
+    fn test_hmac_compute_verify_roundtrip_succeeds() {
         let message = b"Message to authenticate";
         let key = b"secret key for hmac";
 

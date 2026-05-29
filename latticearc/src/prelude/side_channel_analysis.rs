@@ -420,10 +420,10 @@ impl UtilitySideChannelTester {
         let low_count = assessments.iter().filter(|a| a.severity == Severity::Low).count();
 
         report.push_str("## Summary\n\n");
-        report.push_str(&format!("- Critical Vulnerabilities: {}\n", critical_count));
-        report.push_str(&format!("- High Vulnerabilities: {}\n", high_count));
-        report.push_str(&format!("- Medium Vulnerabilities: {}\n", medium_count));
-        report.push_str(&format!("- Low Vulnerabilities: {}\n\n", low_count));
+        report.push_str(&format!("- Critical Vulnerabilities: {critical_count}\n"));
+        report.push_str(&format!("- High Vulnerabilities: {high_count}\n"));
+        report.push_str(&format!("- Medium Vulnerabilities: {medium_count}\n"));
+        report.push_str(&format!("- Low Vulnerabilities: {low_count}\n\n"));
 
         report.push_str("## Detailed Findings\n\n");
         for assessment in assessments {
@@ -440,7 +440,7 @@ impl UtilitySideChannelTester {
             report.push_str(&format!("**Description:** {}\n", assessment.description));
             report.push_str("**Mitigation Suggestions:**\n");
             for suggestion in &assessment.mitigation_suggestions {
-                report.push_str(&format!("- {}\n", suggestion));
+                report.push_str(&format!("- {suggestion}\n"));
             }
             report.push('\n');
         }

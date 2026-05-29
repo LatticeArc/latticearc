@@ -7,7 +7,7 @@ A consistent, high-level cryptographic API with automatic algorithm selection an
 ```mermaid
 flowchart LR
     subgraph "You Write"
-        CODE["let config = CryptoConfig::new();\nlet (pk, sk, _) = generate_signing_keypair(config.clone())?.into_parts();\nlet signed = sign_with_key(msg, &sk, &pk, config.clone())?;\nlet valid = verify(&signed, config)?;"]
+        CODE["let config = CryptoConfig::new();\nlet kp = generate_signing_keypair(config.clone())?;\nlet signed = sign_with_key(msg, kp.expose_secret_key(), kp.public_key(), config.clone())?;\nlet valid = verify_with_anchor(&signed, kp.public_key(), kp.scheme(), config)?;"]
     end
 
     subgraph "LatticeArc Does"
@@ -372,15 +372,30 @@ All 22 use cases with their algorithm mappings (all hybrid PQ + classical by def
 
 ### Utility: Reverse Level Mapping
 
-CLI integrators can resolve a key file's ML-KEM level back to a `SecurityLevel`:
+`latticearc::unified_api::selector` is not a stable public path — its
+helpers including the prior `ml_kem_level_to_security_level` conversion
+are not part of the library's API contract and may move between minor
+releases without notice. CLI integrators who need to map an
+`MlKemSecurityLevel` back to a `SecurityLevel` should do it inline with
+a two-line match in their own code:
 
 ```rust
-use latticearc::unified_api::selector::ml_kem_level_to_security_level;
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+use latticearc::types::types::SecurityLevel;
 
-let level = ml_kem_level_to_security_level(MlKemSecurityLevel::MlKem768);
-assert_eq!(level, SecurityLevel::High);
+fn ml_kem_to_security_level(level: MlKemSecurityLevel) -> SecurityLevel {
+    match level {
+        MlKemSecurityLevel::MlKem512  => SecurityLevel::Standard,
+        MlKemSecurityLevel::MlKem768  => SecurityLevel::High,
+        MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
+    }
+}
 ```
+
+The library does not commit to a public conversion helper because the
+mapping is policy, not algorithm — a future revision of NIST guidance
+or CNSA 2.0 could shift "High" from 768 to 1024 (or vice versa), and
+that policy update belongs in the consumer, not the library.
 
 ## Zero Trust Authentication
 

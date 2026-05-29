@@ -65,6 +65,190 @@ pub const PQ_KEM_AEAD_KEY_INFO: &[u8] = b"LatticeArc-PqKem-AeadKey-v1";
 /// fields), while the convenience API produces a concatenated wire format.
 pub const PQ_ONLY_ENCRYPTION_INFO: &[u8] = b"LatticeArc-PqOnly-Encryption-v1";
 
+// ============================================================================
+// Signature scheme domain-separation contexts (H1 / M1 / M5)
+// ============================================================================
+//
+// Every signature path passes a scheme-specific context to the underlying
+// primitive so the signed transcript binds the scheme identifier. Without this
+// binding, an attacker who holds a valid envelope under one scheme can
+// re-label and truncate components to forge a valid envelope under another
+// scheme (e.g. hybrid → PQ-only downgrade). The contexts are NUL-free and
+// versioned (`-v1`); a future change to the binding must bump to `-v2` and
+// document the wire-format break in CHANGELOG.
+
+/// ML-DSA-44 (FIPS 204) per-scheme context.
+pub(crate) const SIG_CONTEXT_ML_DSA_44: &[u8] = b"LatticeArc-Sig-ml-dsa-44-v1";
+/// ML-DSA-65 (FIPS 204) per-scheme context.
+pub(crate) const SIG_CONTEXT_ML_DSA_65: &[u8] = b"LatticeArc-Sig-ml-dsa-65-v1";
+/// ML-DSA-87 (FIPS 204) per-scheme context.
+pub(crate) const SIG_CONTEXT_ML_DSA_87: &[u8] = b"LatticeArc-Sig-ml-dsa-87-v1";
+/// SLH-DSA-SHAKE-128s (FIPS 205) per-scheme context.
+pub(crate) const SIG_CONTEXT_SLH_DSA_SHAKE_128S: &[u8] = b"LatticeArc-Sig-slh-dsa-shake-128s-v1";
+/// SLH-DSA-SHAKE-192s (FIPS 205) per-scheme context.
+pub(crate) const SIG_CONTEXT_SLH_DSA_SHAKE_192S: &[u8] = b"LatticeArc-Sig-slh-dsa-shake-192s-v1";
+/// SLH-DSA-SHAKE-256s (FIPS 205) per-scheme context.
+pub(crate) const SIG_CONTEXT_SLH_DSA_SHAKE_256S: &[u8] = b"LatticeArc-Sig-slh-dsa-shake-256s-v1";
+/// FN-DSA-512 (draft FIPS 206) per-scheme context.
+///
+/// FN-DSA's underlying `fn-dsa` crate does not expose a context parameter, so
+/// this label is prefix-padded onto the message before signing rather than
+/// passed natively. The wire effect is equivalent: the signed bytes are bound
+/// to the scheme.
+pub(crate) const SIG_CONTEXT_FN_DSA_512: &[u8] = b"LatticeArc-Sig-fn-dsa-512-v1";
+/// FN-DSA-1024 (draft FIPS 206) per-scheme context. See [`SIG_CONTEXT_FN_DSA_512`].
+pub(crate) const SIG_CONTEXT_FN_DSA_1024: &[u8] = b"LatticeArc-Sig-fn-dsa-1024-v1";
+/// Hybrid ML-DSA-44 + Ed25519 per-scheme context.
+///
+/// Each leg of the hybrid signature is bound to this context independently:
+/// the ML-DSA leg via the FIPS-204 context parameter, the Ed25519 leg via
+/// prefix-padding (Ed25519/RFC 8032 has no native context).
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-44-ed25519-v1";
+/// Hybrid ML-DSA-65 + Ed25519 per-scheme context. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519`].
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-65-ed25519-v1";
+/// Hybrid ML-DSA-87 + Ed25519 per-scheme context. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519`].
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-87-ed25519-v1";
+/// Pure Ed25519 per-scheme context. Bound via prefix-padding.
+pub(crate) const SIG_CONTEXT_ED25519: &[u8] = b"LatticeArc-Sig-ed25519-v1";
+
+// ============================================================================
+// SP 800-108 Counter-mode KDF labels (DP-M1 fix)
+// ============================================================================
+//
+// `primitives::kdf::sp800_108_counter_kdf::Sp800_108CounterKdfParams::for_*`
+// constructors previously embedded these labels inline at the call site.
+// Pattern 2 (Domain Separation Registry) requires every domain label live in
+// this module so the crate has a single auditable inventory. SP 800-108 is a
+// structurally distinct KDF from HKDF; these labels are NOT part of the HKDF
+// pairwise-distinctness proof and use their plain SP 800-108 §5.1 spelling
+// (no `LatticeArc-…-v1` prefix) so they remain interoperable with external
+// SP 800-108 KAT vectors.
+//
+// Naming kept identical to the spec-cited convenience identifiers to preserve
+// KAT compatibility.
+
+/// SP 800-108 counter-KDF label for encryption-key derivation.
+pub(crate) const SP800_108_LABEL_ENCRYPTION: &[u8] = b"Encryption Key";
+/// SP 800-108 counter-KDF label for MAC-key derivation.
+pub(crate) const SP800_108_LABEL_MAC: &[u8] = b"MAC Key";
+/// SP 800-108 counter-KDF label for IV / nonce derivation.
+pub(crate) const SP800_108_LABEL_IV: &[u8] = b"IV Generation";
+
+/// Closed enum of signature schemes whose transcripts the apache library binds.
+///
+/// Closed (`pub(crate)`) so the set of recognised schemes is structurally
+/// fixed at compile time. Used both for context lookup at sign/verify time
+/// and as the M5 deserialization allowlist: any `scheme` field on a
+/// `SignedData` envelope that does not map to a variant here is rejected
+/// before the verifier dispatches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SigSchemeLabel {
+    /// `ml-dsa-44`
+    MlDsa44,
+    /// `ml-dsa-65`
+    MlDsa65,
+    /// `ml-dsa-87`
+    MlDsa87,
+    /// `slh-dsa-shake-128s`
+    SlhDsaShake128s,
+    /// `slh-dsa-shake-192s`
+    SlhDsaShake192s,
+    /// `slh-dsa-shake-256s`
+    SlhDsaShake256s,
+    /// `fn-dsa-512` (also accepts the alias `fn-dsa`)
+    FnDsa512,
+    /// `fn-dsa-1024`
+    FnDsa1024,
+    /// `hybrid-ml-dsa-44-ed25519` (also accepts `ml-dsa-44-hybrid-ed25519`)
+    HybridMlDsa44Ed25519,
+    /// `hybrid-ml-dsa-65-ed25519` (also accepts `ml-dsa-65-hybrid-ed25519`)
+    HybridMlDsa65Ed25519,
+    /// `hybrid-ml-dsa-87-ed25519` (also accepts `ml-dsa-87-hybrid-ed25519`)
+    HybridMlDsa87Ed25519,
+    /// `ed25519`
+    Ed25519,
+}
+
+impl SigSchemeLabel {
+    /// Returns the per-scheme NUL-free domain-separation context. Mirrors the
+    /// [`HkdfKemLabel::as_bytes`] pattern for sealed crate-controlled labels.
+    pub(crate) const fn as_bytes(self) -> &'static [u8] {
+        match self {
+            Self::MlDsa44 => SIG_CONTEXT_ML_DSA_44,
+            Self::MlDsa65 => SIG_CONTEXT_ML_DSA_65,
+            Self::MlDsa87 => SIG_CONTEXT_ML_DSA_87,
+            Self::SlhDsaShake128s => SIG_CONTEXT_SLH_DSA_SHAKE_128S,
+            Self::SlhDsaShake192s => SIG_CONTEXT_SLH_DSA_SHAKE_192S,
+            Self::SlhDsaShake256s => SIG_CONTEXT_SLH_DSA_SHAKE_256S,
+            Self::FnDsa512 => SIG_CONTEXT_FN_DSA_512,
+            Self::FnDsa1024 => SIG_CONTEXT_FN_DSA_1024,
+            Self::HybridMlDsa44Ed25519 => SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519,
+            Self::HybridMlDsa65Ed25519 => SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519,
+            Self::HybridMlDsa87Ed25519 => SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519,
+            Self::Ed25519 => SIG_CONTEXT_ED25519,
+        }
+    }
+
+    /// Parse a wire-format `scheme` string into a label. Aliases that the
+    /// codebase already emits (`pq-ml-dsa-65` for ML-DSA-65,
+    /// `ml-dsa-65-hybrid-ed25519` for the hybrid) are accepted; unknown
+    /// strings return `None` and are rejected by the deserializer (M5).
+    pub(crate) fn from_scheme_str(scheme: &str) -> Option<Self> {
+        match scheme {
+            "ml-dsa-44" | "pq-ml-dsa-44" => Some(Self::MlDsa44),
+            "ml-dsa-65" | "pq-ml-dsa-65" => Some(Self::MlDsa65),
+            "ml-dsa-87" | "pq-ml-dsa-87" => Some(Self::MlDsa87),
+            "slh-dsa-shake-128s" => Some(Self::SlhDsaShake128s),
+            "slh-dsa-shake-192s" => Some(Self::SlhDsaShake192s),
+            "slh-dsa-shake-256s" => Some(Self::SlhDsaShake256s),
+            "fn-dsa-512" | "fn-dsa" => Some(Self::FnDsa512),
+            "fn-dsa-1024" => Some(Self::FnDsa1024),
+            "hybrid-ml-dsa-44-ed25519" | "ml-dsa-44-hybrid-ed25519" => {
+                Some(Self::HybridMlDsa44Ed25519)
+            }
+            "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
+                Some(Self::HybridMlDsa65Ed25519)
+            }
+            "hybrid-ml-dsa-87-ed25519" | "ml-dsa-87-hybrid-ed25519" => {
+                Some(Self::HybridMlDsa87Ed25519)
+            }
+            "ed25519" => Some(Self::Ed25519),
+            _ => None,
+        }
+    }
+}
+
+/// Convenience accessor for the per-scheme context.
+#[inline]
+pub(crate) const fn sig_context(label: SigSchemeLabel) -> &'static [u8] {
+    label.as_bytes()
+}
+
+/// Domain-separated SHA-512 digest for signature primitives without a native
+/// context parameter — Ed25519 (RFC 8032 §5.1) and FN-DSA (`fn-dsa 0.3`).
+///
+/// Returns `SHA-512(scheme_ctx || 0x00 || message)`. The 64-byte fixed-size
+/// output is bound to the scheme (via `scheme_ctx`) while sidestepping the
+/// per-primitive message-size cap that would otherwise reject the
+/// prefix-padded form for messages near the cap (the cap is sized for the
+/// caller's message, not for our internal scheme-binding overhead).
+///
+/// SHA-512 is collision-resistant under the standard assumptions, so signing
+/// the digest is cryptographically equivalent to signing the prefix-padded
+/// form for unforgeability purposes; the same construction is used on
+/// verify, so legitimate signatures round-trip.
+pub(crate) fn hash_with_context(scheme_ctx: &[u8], message: &[u8]) -> [u8; 64] {
+    use sha2::{Digest, Sha512};
+    let mut hasher = Sha512::new();
+    hasher.update(scheme_ctx);
+    hasher.update([0x00]);
+    hasher.update(message);
+    hasher.finalize().into()
+}
+
 /// Domain-separation label tag for [`hkdf_kem_info_with_pk`].
 ///
 /// Closed enum — only crate-controlled labels can be passed to the
@@ -173,6 +357,75 @@ pub(crate) fn hkdf_kem_info_with_pk(
     Ok(info)
 }
 
+/// AAD-binding sibling of [`hkdf_kem_info_with_pk`] (M3 fix).
+///
+/// Encodes
+/// `label || 0x00 || aad_len_be32 || aad || pk_len_be32 || recipient_pk
+///  || ct_len_be32 || kem_ciphertext`.
+///
+/// `encrypt_hybrid::derive_encryption_key` already mixed AAD into the HKDF
+/// info as a length-prefixed segment, but the `pq_only` path only included
+/// it in the AEAD tag — leaving AAD's key-separation role to chance. This
+/// helper adds AAD as a third length-prefixed segment between the label and
+/// the recipient PK. Wire format is **different** from
+/// [`hkdf_kem_info_with_pk`]; callers picking the wrong helper would derive
+/// different keys and the AEAD tag check would fail closed.
+///
+/// Empty AAD is encoded as a `0_be32` length prefix followed by zero
+/// payload bytes — distinct from "no AAD field" (which would produce a
+/// shorter info string). This keeps the prefix-injectivity guarantee
+/// (HPKE §5.1) intact.
+pub(crate) fn hkdf_kem_info_with_pk_and_aad(
+    label: HkdfKemLabel,
+    aad: &[u8],
+    recipient_pk: &[u8],
+    kem_ciphertext: &[u8],
+) -> Result<Vec<u8>, crate::prelude::error::LatticeArcError> {
+    let label_bytes = label.as_bytes();
+    debug_assert!(
+        !label_bytes.contains(&0x00),
+        "HkdfKemLabel::as_bytes() must be NUL-free; the 0x00 separator below would collide"
+    );
+    if label_bytes.contains(&0x00) {
+        return Err(crate::prelude::error::LatticeArcError::ValidationError {
+            message: "HKDF label contains a NUL byte; would collide with the domain separator"
+                .to_string(),
+        });
+    }
+    let cap = label_bytes
+        .len()
+        .saturating_add(1)
+        .saturating_add(4)
+        .saturating_add(aad.len())
+        .saturating_add(4)
+        .saturating_add(recipient_pk.len())
+        .saturating_add(4)
+        .saturating_add(kem_ciphertext.len());
+    let mut info = Vec::with_capacity(cap);
+    info.extend_from_slice(label_bytes);
+    info.push(0x00); // domain separator between label and the AAD || PK || CT payload
+    let aad_len_u32 = u32::try_from(aad.len()).map_err(|_overflow| {
+        crate::prelude::error::LatticeArcError::InvalidInput("AAD exceeds 4 GiB".to_string())
+    })?;
+    info.extend_from_slice(&aad_len_u32.to_be_bytes());
+    info.extend_from_slice(aad);
+    let pk_len_u32 = u32::try_from(recipient_pk.len()).map_err(|_overflow| {
+        crate::prelude::error::LatticeArcError::InvalidInput(
+            "recipient PK exceeds 4 GiB".to_string(),
+        )
+    })?;
+    info.extend_from_slice(&pk_len_u32.to_be_bytes());
+    info.extend_from_slice(recipient_pk);
+    let ct_len_u32 = u32::try_from(kem_ciphertext.len()).map_err(|_overflow| {
+        crate::prelude::error::LatticeArcError::InvalidInput(
+            "KEM ciphertext exceeds 4 GiB".to_string(),
+        )
+    })?;
+    info.extend_from_slice(&ct_len_u32.to_be_bytes());
+    info.extend_from_slice(kem_ciphertext);
+    Ok(info)
+}
+
 #[cfg(test)]
 mod hkdf_kem_label_tests {
     use super::*;
@@ -192,6 +445,120 @@ mod hkdf_kem_label_tests {
                  ({:?}) — this breaks the NUL separator in hkdf_kem_info_with_pk",
                 label,
                 bytes,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod sig_scheme_label_tests {
+    use super::*;
+
+    const ALL_LABELS: &[SigSchemeLabel] = &[
+        SigSchemeLabel::MlDsa44,
+        SigSchemeLabel::MlDsa65,
+        SigSchemeLabel::MlDsa87,
+        SigSchemeLabel::SlhDsaShake128s,
+        SigSchemeLabel::SlhDsaShake192s,
+        SigSchemeLabel::SlhDsaShake256s,
+        SigSchemeLabel::FnDsa512,
+        SigSchemeLabel::FnDsa1024,
+        SigSchemeLabel::HybridMlDsa44Ed25519,
+        SigSchemeLabel::HybridMlDsa65Ed25519,
+        SigSchemeLabel::HybridMlDsa87Ed25519,
+        SigSchemeLabel::Ed25519,
+    ];
+
+    /// Mirrors `all_label_variants_are_nul_free` for sig contexts. ML-DSA and
+    /// SLH-DSA pass the context to the underlying primitive (FIPS 204 §5.2,
+    /// FIPS 205 §10.2). FN-DSA and Ed25519 use prefix-padding: the wire form
+    /// is `context || 0x00 || message`, so a context containing 0x00 would
+    /// make the separator ambiguous and let an attacker craft two distinct
+    /// (context, message) pairs that produce identical signed bytes.
+    #[test]
+    fn all_sig_context_variants_are_nul_free() {
+        for &label in ALL_LABELS {
+            let bytes = label.as_bytes();
+            assert!(
+                !bytes.contains(&0u8),
+                "SigSchemeLabel::{label:?} maps to {bytes:?} which contains 0x00; \
+                 the prefix-padding separator below would collide"
+            );
+        }
+    }
+
+    /// All scheme contexts must be pairwise distinct. A collision would mean
+    /// two scheme identifiers share a transcript-binding, defeating H1's
+    /// fix — `(ml-dsa-65 sk, msg)` would produce the same signed bytes as
+    /// `(hybrid-ml-dsa-65-ed25519 ML-DSA leg, msg)` and the downgrade attack
+    /// would still succeed.
+    #[test]
+    fn all_sig_contexts_pairwise_distinct() {
+        for (i, &a) in ALL_LABELS.iter().enumerate() {
+            let Some(rest) = ALL_LABELS.get(i.saturating_add(1)..) else {
+                continue;
+            };
+            for &b in rest {
+                assert_ne!(
+                    a.as_bytes(),
+                    b.as_bytes(),
+                    "SigSchemeLabel::{a:?} and ::{b:?} share a context"
+                );
+            }
+        }
+    }
+
+    /// Wire-format strings the codebase emits at sign-side must round-trip
+    /// through `from_scheme_str`. If `sign_with_key` ever produces a scheme
+    /// string that the M5 allowlist rejects, signing and verification would
+    /// silently disagree.
+    #[test]
+    fn canonical_scheme_strings_round_trip() {
+        let pairs: &[(&str, SigSchemeLabel)] = &[
+            ("ml-dsa-44", SigSchemeLabel::MlDsa44),
+            ("ml-dsa-65", SigSchemeLabel::MlDsa65),
+            ("ml-dsa-87", SigSchemeLabel::MlDsa87),
+            ("pq-ml-dsa-44", SigSchemeLabel::MlDsa44),
+            ("pq-ml-dsa-65", SigSchemeLabel::MlDsa65),
+            ("pq-ml-dsa-87", SigSchemeLabel::MlDsa87),
+            ("slh-dsa-shake-128s", SigSchemeLabel::SlhDsaShake128s),
+            ("slh-dsa-shake-192s", SigSchemeLabel::SlhDsaShake192s),
+            ("slh-dsa-shake-256s", SigSchemeLabel::SlhDsaShake256s),
+            ("fn-dsa-512", SigSchemeLabel::FnDsa512),
+            ("fn-dsa", SigSchemeLabel::FnDsa512),
+            ("fn-dsa-1024", SigSchemeLabel::FnDsa1024),
+            ("hybrid-ml-dsa-44-ed25519", SigSchemeLabel::HybridMlDsa44Ed25519),
+            ("ml-dsa-44-hybrid-ed25519", SigSchemeLabel::HybridMlDsa44Ed25519),
+            ("hybrid-ml-dsa-65-ed25519", SigSchemeLabel::HybridMlDsa65Ed25519),
+            ("ml-dsa-65-hybrid-ed25519", SigSchemeLabel::HybridMlDsa65Ed25519),
+            ("hybrid-ml-dsa-87-ed25519", SigSchemeLabel::HybridMlDsa87Ed25519),
+            ("ml-dsa-87-hybrid-ed25519", SigSchemeLabel::HybridMlDsa87Ed25519),
+            ("ed25519", SigSchemeLabel::Ed25519),
+        ];
+        for &(s, want) in pairs {
+            assert_eq!(
+                SigSchemeLabel::from_scheme_str(s),
+                Some(want),
+                "scheme string {s:?} did not map to {want:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_scheme_strings_rejected() {
+        for s in [
+            "",
+            "ml-dsa-99",
+            "rsa-2048",
+            "hybrid-ml-dsa-65",               // missing classical
+            "ml-dsa-65-hybrid",               // missing classical
+            "hybrid-ml-dsa-65-ed25519-extra", // suffix tampering
+            "Ml-Dsa-65",                      // case-sensitive
+        ] {
+            assert_eq!(
+                SigSchemeLabel::from_scheme_str(s),
+                None,
+                "scheme string {s:?} must be rejected by the M5 allowlist"
             );
         }
     }

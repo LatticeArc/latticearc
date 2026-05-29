@@ -118,8 +118,8 @@ fn test_serialized_signature_format_stability_is_compatible_has_correct_size() -
         message.clone(),
         signature.clone(),
         public_key.clone(),
-        "ML-DSA-65",
-        "ML-DSA-65",
+        "ml-dsa-65",
+        "ml-dsa-65",
         1706745600,
     );
 
@@ -130,8 +130,8 @@ fn test_serialized_signature_format_stability_is_compatible_has_correct_size() -
     assert_eq!(deserialized.data, message, "Message data must match");
     assert_eq!(deserialized.metadata.signature, signature, "Signature bytes must match");
     assert_eq!(deserialized.metadata.public_key, public_key, "Public key must match");
-    assert_eq!(deserialized.metadata.signature_algorithm, "ML-DSA-65");
-    assert_eq!(deserialized.scheme, "ML-DSA-65");
+    assert_eq!(deserialized.metadata.signature_algorithm, "ml-dsa-65");
+    assert_eq!(deserialized.scheme, "ml-dsa-65");
     Ok(())
 }
 
@@ -174,8 +174,8 @@ fn test_ml_dsa_signature_format_stability_is_compatible_has_correct_size() -> Re
         b"document".to_vec(),
         ml_dsa_65_sig.clone(),
         vec![0xCD; 1952], // ML-DSA-65 public key
-        "ML-DSA-65",
-        "ML-DSA-65",
+        "ml-dsa-65",
+        "ml-dsa-65",
         1706745600,
     );
 
@@ -199,8 +199,8 @@ fn test_slh_dsa_large_signature_format_stability_is_compatible_has_correct_size(
         b"firmware".to_vec(),
         slh_dsa_sig.clone(),
         vec![0x11; 32],
-        "SLH-DSA-SHAKE-128s",
-        "SLH-DSA-SHAKE-128s",
+        "slh-dsa-shake-128s",
+        "slh-dsa-shake-128s",
         1706745600,
     );
 
@@ -273,11 +273,11 @@ fn test_legacy_signature_format_verification_is_compatible_has_correct_size() ->
         "data": "SGVsbG8gV29ybGQ=",
         "metadata": {
             "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-            "signature_algorithm": "Ed25519",
+            "signature_algorithm": "ed25519",
             "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             "key_id": null
         },
-        "scheme": "Ed25519",
+        "scheme": "ed25519",
         "timestamp": 1600000000
     }"#;
 
@@ -285,8 +285,8 @@ fn test_legacy_signature_format_verification_is_compatible_has_correct_size() ->
 
     // Verify structure is correctly parsed
     assert_eq!(signed.data, b"Hello World");
-    assert_eq!(signed.metadata.signature_algorithm, "Ed25519");
-    assert_eq!(signed.scheme, "Ed25519");
+    assert_eq!(signed.metadata.signature_algorithm, "ed25519");
+    assert_eq!(signed.scheme, "ed25519");
     Ok(())
 }
 
@@ -317,8 +317,8 @@ fn test_cross_version_signature_verification_metadata_is_compatible_succeeds() -
         b"cross-version-data".to_vec(),
         vec![0xAB; 64],
         vec![0xCD; 32],
-        "Ed25519",
-        "Ed25519",
+        "ed25519",
+        "ed25519",
         1706745600,
     );
 
@@ -337,50 +337,66 @@ fn test_cross_version_signature_verification_metadata_is_compatible_succeeds() -
 #[test]
 fn test_signature_algorithm_name_variations_is_compatible_succeeds() -> Result<()> {
     // S4: the deserializer now requires
-    // `metadata.signature_algorithm == scheme`. The earlier shape of
-    // this test (varying naming conventions across the two fields)
-    // exercised the pre-fix tolerance — which was a decorative-field
-    // bug, not a feature. With the invariant elevated, naming
-    // conventions are still preserved verbatim, but only when the
-    // producer sets both fields consistently (matching the
-    // production sign path: `signature_algorithm: scheme.clone()`).
-    let algorithm_names =
-        ["ML-DSA-65", "MlDsa65", "ml-dsa-65", "Ed25519", "ed25519", "ML-DSA", "ml-dsa"];
+    // The M5 fix elevated this from a string-equality cross-check to a
+    // closed-allowlist membership check: both `scheme` and
+    // `signature_algorithm` must map to a known `SigSchemeLabel`. Casing
+    // and arbitrary aliases are no longer accepted; only the canonical
+    // wire strings (and the documented `pq-*` aliases) round-trip. We
+    // assert canonical names round-trip and non-canonical variations are
+    // rejected.
+    let accepted: &[&str] =
+        &["ml-dsa-65", "pq-ml-dsa-65", "ed25519", "slh-dsa-shake-128s", "fn-dsa-512"];
+    let rejected: &[&str] = &["ML-DSA-65", "MlDsa65", "Ed25519", "ML-DSA", "ml-dsa"];
 
-    for alg in &algorithm_names {
-        // Both fields set to the same string: the production shape.
+    for alg in accepted {
         let signed =
             create_signed_data(b"test".to_vec(), vec![0; 64], vec![0; 32], alg, alg, 1706745600);
-
         let json = serialize_signed_data(&signed)?;
         let deser = deserialize_signed_data(&json)?;
-
         assert_eq!(
             deser.metadata.signature_algorithm, *alg,
-            "Algorithm name '{}' must be preserved",
-            alg
+            "Canonical algorithm name '{alg}' must round-trip verbatim"
         );
-        assert_eq!(deser.scheme, *alg, "scheme must equal signature_algorithm post-deserialize");
+        assert_eq!(deser.scheme, *alg);
+    }
+
+    for alg in rejected {
+        let signed =
+            create_signed_data(b"test".to_vec(), vec![0; 64], vec![0; 32], alg, alg, 1706745600);
+        let json = serialize_signed_data(&signed)?;
+        let result = deserialize_signed_data(&json);
+        assert!(
+            result.is_err(),
+            "Non-canonical algorithm name '{alg}' must be rejected by the M5 allowlist; got {result:?}"
+        );
     }
     Ok(())
 }
 
 #[test]
 fn test_signature_algorithm_mismatch_with_scheme_rejected() -> Result<()> {
-    // S4 regression guard: the deserializer must REJECT
-    // records where `metadata.signature_algorithm != scheme`. The
-    // production sign path sets them equal at construction; a
-    // tampered persisted record could otherwise carry an
-    // algorithm-name string the verify path never consults
-    // (scheme drives dispatch). Wire-format theatre is rejected.
-    let signed =
-        create_signed_data(b"test".to_vec(), vec![0; 64], vec![0; 32], "ML-DSA-65", "ML-DSA", 0);
+    // S4 / M5 regression guard: the deserializer must REJECT records
+    // where `metadata.signature_algorithm` and `scheme` map to
+    // DIFFERENT `SigSchemeLabel` variants, even when both individually
+    // pass the M5 allowlist. Using two canonical-but-different scheme
+    // tags exercises the cross-check itself (rather than the allowlist,
+    // which an earlier draft of this test exercised by mistake when one
+    // side was non-canonical `"ML-DSA"`).
+    let signed = create_signed_data(
+        b"test".to_vec(),
+        vec![0; 64],
+        vec![0; 32],
+        "ml-dsa-65", // signature_algorithm → MlDsa65
+        "ml-dsa-87", // scheme → MlDsa87 (both canonical, different label)
+        0,
+    );
 
     let json = serialize_signed_data(&signed)?;
     let result = deserialize_signed_data(&json);
     assert!(
         result.is_err(),
-        "deserialize must reject mismatched signature_algorithm/scheme; got Ok({:?})",
+        "deserialize must reject mismatched signature_algorithm/scheme even when both are \
+         canonical schemes; got Ok({:?})",
         result.ok()
     );
     Ok(())
@@ -462,13 +478,14 @@ fn test_key_format_migration_from_raw_to_structured_succeeds() -> Result<()> {
 }
 
 #[test]
-fn test_signature_format_migration_succeeds() -> Result<()> {
-    // Older signature format migration to current. S4
-    // tightened the deserializer to require `signature_algorithm
-    // == scheme`; the legacy fixture therefore now sets both halves
-    // to "RSA-SHA256" so the test continues to exercise migration of
-    // a deprecated algorithm name without depending on the prior
-    // tolerance for mismatched fields.
+fn test_legacy_scheme_strings_rejected_post_m5() -> Result<()> {
+    // M5 fix: the deserializer now enforces a closed allowlist of NIST PQC
+    // schemes. Legacy / non-PQC algorithm tags ("RSA-SHA256", etc.) that
+    // pre-M5 round-tripped as opaque strings are now rejected. This matches
+    // the security intent — the apache library does not implement
+    // RSA / classical ECDSA signing, so accepting envelopes labelled with
+    // those schemes was decorative at best and a downgrade-attack surface at
+    // worst.
     let legacy_json = r#"{
         "data": "bGVnYWN5IG1lc3NhZ2U=",
         "metadata": {
@@ -481,23 +498,21 @@ fn test_signature_format_migration_succeeds() -> Result<()> {
         "timestamp": 1400000000
     }"#;
 
-    let signed = deserialize_signed_data(legacy_json)?;
-
-    // Can be re-serialized in current format
-    let current_json = serialize_signed_data(&signed)?;
-    let re_parsed = deserialize_signed_data(&current_json)?;
-
-    assert_eq!(signed.data, re_parsed.data, "Message preserved through migration");
-    assert_eq!(signed.metadata.signature_algorithm, "RSA-SHA256");
+    let result = deserialize_signed_data(legacy_json);
+    assert!(
+        result.is_err(),
+        "legacy 'RSA-SHA256' envelope must be rejected by the M5 allowlist; got {result:?}"
+    );
     Ok(())
 }
 
 #[test]
-fn test_algorithm_deprecation_awareness_is_compatible_succeeds() -> Result<()> {
-    // Deprecated algorithms should still deserialize for migration —
-    // requires `signature_algorithm == scheme` so we use
-    // the long-form name for both halves, which is the production
-    // shape regardless of whether the algorithm is deprecated.
+fn test_deprecated_algorithm_tags_rejected_post_m5() -> Result<()> {
+    // M5 fix: deprecated classical algorithm tags must NOT round-trip. The
+    // pre-M5 behaviour (preserving them as opaque strings) was a footgun —
+    // a downstream consumer could read a tag like `RSA-2048` and assume the
+    // signature was RSA when the wire bytes had been forged under any
+    // construction the attacker chose. The allowlist rejects them outright.
     let deprecated_algorithms = ["RSA-2048", "ECDSA-P256", "DSA-1024"];
 
     for alg in &deprecated_algorithms {
@@ -509,14 +524,11 @@ fn test_algorithm_deprecation_awareness_is_compatible_succeeds() -> Result<()> {
             alg,
             1400000000,
         );
-
         let json = serialize_signed_data(&signed)?;
-        let deser = deserialize_signed_data(&json)?;
-
-        assert_eq!(
-            deser.metadata.signature_algorithm, *alg,
-            "Deprecated algorithm '{}' must be preserved for migration",
-            alg
+        let result = deserialize_signed_data(&json);
+        assert!(
+            result.is_err(),
+            "deprecated algorithm '{alg}' must be rejected at deserialization; got {result:?}"
         );
     }
     Ok(())

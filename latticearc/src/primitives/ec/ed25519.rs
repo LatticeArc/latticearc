@@ -480,7 +480,7 @@ mod tests {
         let keypair = Ed25519KeyPair::generate()?;
 
         for i in 0..10 {
-            let message = format!("Message number {}", i);
+            let message = format!("Message number {i}");
             let signature = keypair.sign(message.as_bytes())?;
             Ed25519Signature::verify(&keypair.public_key_bytes(), message.as_bytes(), &signature)?;
         }

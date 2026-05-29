@@ -340,7 +340,7 @@ impl<'a> AtomicWrite<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, reason = "test scaffolding: source-shape regression assertions")]
+#[expect(clippy::expect_used, reason = "test scaffolding: source-shape regression assertions")]
 mod regression_tests {
     //! Source-text regression for the Windows DACL-failure
     //! plaintext-scrub sequence. The current logic at the

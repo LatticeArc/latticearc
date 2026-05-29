@@ -54,8 +54,7 @@ We recommend always using the latest version.
   ([Known Limitations](#constant-time-checking-known-limitations) — `ctgrind` /
   `dudect` run on a weekly cadence, not PR-blocking; the constant-time
   property is upheld by `subtle` and `aws-lc-rs` rather than
-  end-to-end machine-checked on every commit). Round-13 audit fix
-  (L-C).
+  end-to-end machine-checked on every commit).
 - **Zeroization** of sensitive data when no longer needed
 - **FIPS 203-205 + draft FIPS 206 compliance** for post-quantum algorithms (FN-DSA / FIPS 206 is still in NIST's draft pipeline; see the FN-DSA caveat in the Algorithm Inventory below)
 - **Input validation** on all public APIs
@@ -316,8 +315,15 @@ Proofs in source code: `latticearc/src/types/{key_lifecycle,zero_trust,types,con
 | Date | Auditor | Scope | Status |
 |------|---------|-------|--------|
 | Q1 2026 | Internal | Full codebase | Complete |
+| May 2026 | Internal | SignedData / hybrid signature path | Complete — see CHANGELOG `[Unreleased]` |
 
 Audit reports will be published in the `docs/audits/` directory when available.
+
+The May 2026 audit identified two HIGH-severity findings (sign/verify
+scheme confusion and `verify()` trust-anchor footgun), six MEDIUM
+findings, and nine LOW findings. All are fixed in the `[Unreleased]`
+CHANGELOG block; the regression tests live in
+`latticearc/tests/audit_regression_signatures.rs`.
 
 ## Known Limitations
 

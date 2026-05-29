@@ -185,6 +185,21 @@ pub struct X25519PublicKey {
     bytes: [u8; X25519_KEY_SIZE],
 }
 
+/// L5 fix: constant-time comparison for `X25519PublicKey`.
+///
+/// The derived `PartialEq` above is varying-time and is preserved because the
+/// 32-byte X25519 public key is not secret material — callers using it as a
+/// `HashMap` key or in `assert_eq!` test fixtures rely on `==`. Adding a
+/// `ConstantTimeEq` impl is defense-in-depth: callers that DO need timing-
+/// independent comparison (e.g. CT-discipline trust-anchor pins) have it
+/// without an obvious foot-gun if a future refactor secretizes the wrapped
+/// bytes.
+impl subtle::ConstantTimeEq for X25519PublicKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.bytes.ct_eq(&other.bytes)
+    }
+}
+
 /// Low-order points on Curve25519 that must be rejected per RFC 7748 §6.1.
 ///
 /// These are the small-order subgroup elements (orders 1, 2, 4, 8) on the
@@ -684,6 +699,20 @@ pub struct EcdhP256PublicKey {
     bytes: Vec<u8>,
 }
 
+/// L5 fix: CT comparison sibling to the derived `PartialEq`. See
+/// [`X25519PublicKey`]'s impl for rationale.
+impl subtle::ConstantTimeEq for EcdhP256PublicKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        // Length-prefix: `ct_eq` on differently-sized slices fails with a
+        // short-circuit length compare. The bytes are always 65 here by
+        // construction, but the explicit guard documents the invariant.
+        if self.bytes.len() != other.bytes.len() {
+            return subtle::Choice::from(0);
+        }
+        self.bytes.ct_eq(&other.bytes)
+    }
+}
+
 impl EcdhP256PublicKey {
     /// Create a new P-256 public key from bytes
     ///
@@ -734,7 +763,12 @@ impl EcdhP256PublicKey {
         // the redundant rechecks here. The standalone
         // `validate_p256_public_key(&[u8])` route still covers them
         // because it goes through `from_bytes` first.
-        if self.bytes.iter().skip(1).all(|&b| b == 0) {
+        // L3 fix: constant-time all-zero coordinate check. The bytes are
+        // public (peer's PK) but matching the CT discipline elsewhere in
+        // the crate keeps the pattern uniform and prevents copy-paste of
+        // the variable-time `.all(|&b| b == 0)` form migrating into a
+        // secret-comparison site later.
+        if crate::primitives::ct::is_all_zero_bytes(self.bytes.get(1..).unwrap_or(&[])) {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "non-trivial curve point",
                 actual: "all-zero coordinates",
@@ -817,7 +851,20 @@ impl EcdhP256KeyPair {
             self.private,
             peer_public,
             EcdhError::AgreementFailed,
-            |shared_secret| Ok(Zeroizing::new(shared_secret.to_vec())),
+            |shared_secret| {
+                // L4 fix: defense-in-depth all-zero shared-secret check.
+                // aws-lc-rs/BoringSSL already rejects degenerate agreements
+                // before this closure runs (zero-point output is impossible
+                // for a valid (sk, pk) pair on a prime-order subgroup), but
+                // the CT check here matches the discipline applied to
+                // recipient-pk validation above and would catch a future
+                // backend regression that lets a zero secret through.
+                let ss = Zeroizing::new(shared_secret.to_vec());
+                if crate::primitives::ct::is_all_zero_bytes(ss.as_slice()) {
+                    return Err(EcdhError::AgreementFailed);
+                }
+                Ok(ss)
+            },
         )
     }
 }
@@ -842,6 +889,17 @@ impl std::fmt::Debug for EcdhP256KeyPair {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EcdhP384PublicKey {
     bytes: Vec<u8>,
+}
+
+/// L5 fix: CT comparison sibling to the derived `PartialEq`. See
+/// [`X25519PublicKey`]'s impl for rationale.
+impl subtle::ConstantTimeEq for EcdhP384PublicKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        if self.bytes.len() != other.bytes.len() {
+            return subtle::Choice::from(0);
+        }
+        self.bytes.ct_eq(&other.bytes)
+    }
 }
 
 impl EcdhP384PublicKey {
@@ -888,7 +946,12 @@ impl EcdhP384PublicKey {
         // Length and `0x04` prefix are guaranteed by `Self::from_bytes`
         // (the only public constructor); see the matching comment on
         // `EcdhP256PublicKey::validate`.
-        if self.bytes.iter().skip(1).all(|&b| b == 0) {
+        // L3 fix: constant-time all-zero coordinate check. The bytes are
+        // public (peer's PK) but matching the CT discipline elsewhere in
+        // the crate keeps the pattern uniform and prevents copy-paste of
+        // the variable-time `.all(|&b| b == 0)` form migrating into a
+        // secret-comparison site later.
+        if crate::primitives::ct::is_all_zero_bytes(self.bytes.get(1..).unwrap_or(&[])) {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "non-trivial curve point",
                 actual: "all-zero coordinates",
@@ -965,7 +1028,20 @@ impl EcdhP384KeyPair {
             self.private,
             peer_public,
             EcdhError::AgreementFailed,
-            |shared_secret| Ok(Zeroizing::new(shared_secret.to_vec())),
+            |shared_secret| {
+                // L4 fix: defense-in-depth all-zero shared-secret check.
+                // aws-lc-rs/BoringSSL already rejects degenerate agreements
+                // before this closure runs (zero-point output is impossible
+                // for a valid (sk, pk) pair on a prime-order subgroup), but
+                // the CT check here matches the discipline applied to
+                // recipient-pk validation above and would catch a future
+                // backend regression that lets a zero secret through.
+                let ss = Zeroizing::new(shared_secret.to_vec());
+                if crate::primitives::ct::is_all_zero_bytes(ss.as_slice()) {
+                    return Err(EcdhError::AgreementFailed);
+                }
+                Ok(ss)
+            },
         )
     }
 }
@@ -990,6 +1066,17 @@ impl std::fmt::Debug for EcdhP384KeyPair {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EcdhP521PublicKey {
     bytes: Vec<u8>,
+}
+
+/// L5 fix: CT comparison sibling to the derived `PartialEq`. See
+/// [`X25519PublicKey`]'s impl for rationale.
+impl subtle::ConstantTimeEq for EcdhP521PublicKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        if self.bytes.len() != other.bytes.len() {
+            return subtle::Choice::from(0);
+        }
+        self.bytes.ct_eq(&other.bytes)
+    }
 }
 
 impl EcdhP521PublicKey {
@@ -1036,7 +1123,12 @@ impl EcdhP521PublicKey {
         // / P-384. Length and `0x04` prefix are guaranteed by
         // `Self::from_bytes` (the only public constructor); see the
         // matching comment on `EcdhP256PublicKey::validate`.
-        if self.bytes.iter().skip(1).all(|&b| b == 0) {
+        // L3 fix: constant-time all-zero coordinate check. The bytes are
+        // public (peer's PK) but matching the CT discipline elsewhere in
+        // the crate keeps the pattern uniform and prevents copy-paste of
+        // the variable-time `.all(|&b| b == 0)` form migrating into a
+        // secret-comparison site later.
+        if crate::primitives::ct::is_all_zero_bytes(self.bytes.get(1..).unwrap_or(&[])) {
             return Err(EcdhError::InvalidPointFormat {
                 expected: "non-trivial curve point",
                 actual: "all-zero coordinates",
@@ -1113,7 +1205,20 @@ impl EcdhP521KeyPair {
             self.private,
             peer_public,
             EcdhError::AgreementFailed,
-            |shared_secret| Ok(Zeroizing::new(shared_secret.to_vec())),
+            |shared_secret| {
+                // L4 fix: defense-in-depth all-zero shared-secret check.
+                // aws-lc-rs/BoringSSL already rejects degenerate agreements
+                // before this closure runs (zero-point output is impossible
+                // for a valid (sk, pk) pair on a prime-order subgroup), but
+                // the CT check here matches the discipline applied to
+                // recipient-pk validation above and would catch a future
+                // backend regression that lets a zero secret through.
+                let ss = Zeroizing::new(shared_secret.to_vec());
+                if crate::primitives::ct::is_all_zero_bytes(ss.as_slice()) {
+                    return Err(EcdhError::AgreementFailed);
+                }
+                Ok(ss)
+            },
         )
     }
 }

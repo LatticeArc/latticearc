@@ -201,6 +201,18 @@ impl HybridCiphertext {
 
     /// Returns a mutable reference to the 12-byte AES-GCM nonce.
     /// **Test-only**: gated behind the `test-utils` Cargo feature.
+    ///
+    /// # DP-L3 disposition
+    ///
+    /// Pattern 3 (Nonce Encapsulation) bans nonce-mutation surface on
+    /// PRODUCTION APIs. This accessor is `cfg(feature = "test-utils")`
+    /// and is used by `tests/hybrid_integration.rs::test_tampered_nonce_fails`
+    /// to construct the canonical tampered-nonce regression vector for
+    /// the hybrid decrypt path. The decrypt path's defense (the AEAD
+    /// tag binds the nonce) IS THE PROPERTY UNDER TEST. Removing this
+    /// accessor would delete that regression test rather than improve
+    /// the production posture. Siblings `symmetric_ciphertext_mut` and
+    /// `tag_mut` carry the same disposition.
     #[cfg(feature = "test-utils")]
     pub fn nonce_mut(&mut self) -> &mut Vec<u8> {
         &mut self.nonce

@@ -509,12 +509,11 @@ Primitive dispatch (hybrid::encrypt, primitives::aead::encrypt, etc.)
 
 ### TLS Config Pipeline
 
-> **Round-12 audit fix (H-3):** the `TlsConfig` user-facing builder
-> referenced in earlier drafts was never shipped — `latticearc` does
-> not own a TLS layer. Production TLS use should configure `rustls`
-> directly (the README points to it explicitly). The internal
-> `Tls13Config` type used by the experimental `latticearc::tls`
-> module is configured through `rustls`'s own builder.
+> `latticearc` does not own a TLS layer; the `TlsConfig` user-facing
+> builder referenced in some early drafts was never shipped. Production
+> TLS use should configure `rustls` directly (the README points to it
+> explicitly). The internal `Tls13Config` type used by the experimental
+> `latticearc::tls` module is configured through `rustls`'s own builder.
 
 ### Policy Engine Config
 

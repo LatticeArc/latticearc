@@ -31,8 +31,8 @@ fn create_test_signed_data(
     // mirroring the production sign path (`signature_algorithm: scheme.clone()`).
     SignedData::new(
         data,
-        SignedMetadata::new(signature, "ML-DSA-65".to_string(), public_key, key_id),
-        "ML-DSA-65".to_string(),
+        SignedMetadata::new(signature, "ml-dsa-65".to_string(), public_key, key_id),
+        "ml-dsa-65".to_string(),
         1706745600,
     )
 }
@@ -137,7 +137,7 @@ fn test_signed_data_json_structure_has_correct_format() {
     assert!(json.contains("\"key_id\""));
     assert!(json.contains("\"scheme\""));
     assert!(json.contains("\"timestamp\""));
-    assert!(json.contains("ML-DSA-65"));
+    assert!(json.contains("ml-dsa-65"));
 }
 
 #[test]
@@ -155,11 +155,11 @@ fn test_signed_data_invalid_base64_signature_returns_error() {
         "data": "dGVzdA==",
         "metadata": {
             "signature": "!!!invalid!!!",
-            "signature_algorithm": "ML-DSA-65",
+            "signature_algorithm": "ml-dsa-65",
             "public_key": "cGs=",
             "key_id": "key-105"
         },
-        "scheme": "ML-DSA",
+        "scheme": "ml-dsa-65",
         "timestamp": 1706745600
     }"#;
 
@@ -174,11 +174,11 @@ fn test_signed_data_invalid_base64_public_key_returns_error() {
         "data": "dGVzdA==",
         "metadata": {
             "signature": "c2ln",
-            "signature_algorithm": "ML-DSA-65",
+            "signature_algorithm": "ml-dsa-65",
             "public_key": "@@@invalid@@@",
             "key_id": "key-106"
         },
-        "scheme": "ML-DSA",
+        "scheme": "ml-dsa-65",
         "timestamp": 1706745600
     }"#;
 
@@ -314,10 +314,10 @@ fn test_serializable_signed_data_from_signed_data_succeeds() {
 
     assert_eq!(serializable.data, BASE64_ENGINE.encode(b"message"));
     assert_eq!(serializable.metadata.signature, BASE64_ENGINE.encode(b"signature"));
-    assert_eq!(serializable.metadata.signature_algorithm, "ML-DSA-65");
+    assert_eq!(serializable.metadata.signature_algorithm, "ml-dsa-65");
     assert_eq!(serializable.metadata.public_key, BASE64_ENGINE.encode(b"public_key"));
     assert_eq!(serializable.metadata.key_id, Some("key-203".to_string()));
-    assert_eq!(serializable.scheme, "ML-DSA-65");
+    assert_eq!(serializable.scheme, "ml-dsa-65");
 }
 
 #[test]
@@ -326,11 +326,11 @@ fn test_signed_data_from_serializable_succeeds() {
         data: BASE64_ENGINE.encode(b"message"),
         metadata: SerializableSignedMetadata {
             signature: BASE64_ENGINE.encode(b"signature"),
-            signature_algorithm: "SLH-DSA-SHA2-128s".to_string(),
+            signature_algorithm: "slh-dsa-shake-128s".to_string(),
             public_key: BASE64_ENGINE.encode(b"public_key"),
             key_id: Some("key-204".to_string()),
         },
-        scheme: "SLH-DSA-SHA2-128s".to_string(),
+        scheme: "slh-dsa-shake-128s".to_string(),
         timestamp: 1706745800,
     };
 
@@ -338,10 +338,10 @@ fn test_signed_data_from_serializable_succeeds() {
 
     assert_eq!(signed.data, b"message");
     assert_eq!(signed.metadata.signature, b"signature");
-    assert_eq!(signed.metadata.signature_algorithm, "SLH-DSA-SHA2-128s");
+    assert_eq!(signed.metadata.signature_algorithm, "slh-dsa-shake-128s");
     assert_eq!(signed.metadata.public_key, b"public_key");
     assert_eq!(signed.metadata.key_id, Some("key-204".to_string()));
-    assert_eq!(signed.scheme, "SLH-DSA-SHA2-128s");
+    assert_eq!(signed.scheme, "slh-dsa-shake-128s");
     assert_eq!(signed.timestamp, 1706745800);
 }
 
@@ -376,11 +376,11 @@ fn test_signed_data_manual_json_parsing_succeeds() {
         "data": "ZG9jdW1lbnQ=",
         "metadata": {
             "signature": "c2lnbmF0dXJl",
-            "signature_algorithm": "Ed25519",
+            "signature_algorithm": "ed25519",
             "public_key": "cHVibGljX2tleQ==",
             "key_id": "manual-key-002"
         },
-        "scheme": "Ed25519",
+        "scheme": "ed25519",
         "timestamp": 1700000100
     }"#;
 
@@ -388,10 +388,10 @@ fn test_signed_data_manual_json_parsing_succeeds() {
 
     assert_eq!(signed.data, b"document");
     assert_eq!(signed.metadata.signature, b"signature");
-    assert_eq!(signed.metadata.signature_algorithm, "Ed25519");
+    assert_eq!(signed.metadata.signature_algorithm, "ed25519");
     assert_eq!(signed.metadata.public_key, b"public_key");
     assert_eq!(signed.metadata.key_id, Some("manual-key-002".to_string()));
-    assert_eq!(signed.scheme, "Ed25519");
+    assert_eq!(signed.scheme, "ed25519");
     assert_eq!(signed.timestamp, 1700000100);
 }
 
@@ -448,24 +448,31 @@ fn test_keypair_all_ff_keys_roundtrip_succeeds() {
 // ============================================================================
 
 #[test]
-fn test_signed_data_very_long_algorithm_name_roundtrip_succeeds() {
+fn test_signed_data_very_long_algorithm_name_rejected_at_deserialization() {
+    // M5 fix: the deserializer enforces a closed allowlist of signature
+    // schemes (`SigSchemeLabel::from_scheme_str`). Pre-M5 this test
+    // round-tripped a 500-character algorithm name because the S4 check was
+    // only a string equality between `scheme` and `signature_algorithm`.
+    // Post-M5 such an algorithm name fails the allowlist and the envelope is
+    // rejected with an opaque error. The serializer still accepts it (no
+    // wire-write-side filter) — only consumers are protected. We assert
+    // that the WRITE succeeds and the READ rejects.
     let mut signed = create_test_signed_data(
         b"data".to_vec(),
         b"sig".to_vec(),
         b"pk".to_vec(),
         Some("key-402".to_string()),
     );
-    // S4: `signature_algorithm == scheme` is enforced on
-    // deserialize. Update both halves so the roundtrip exercises a
-    // long-but-consistent algorithm name.
     let long_name = "B".repeat(500);
     signed.metadata.signature_algorithm = long_name.clone();
     signed.scheme = long_name;
 
     let json = serialize_signed_data(&signed).expect("serialization should succeed");
-    let deserialized = deserialize_signed_data(&json).expect("deserialization should succeed");
-
-    assert_eq!(deserialized.metadata.signature_algorithm.len(), 500);
+    let result = deserialize_signed_data(&json);
+    assert!(
+        result.is_err(),
+        "M5 allowlist must reject unknown 500-char algorithm name; got {result:?}"
+    );
 }
 
 #[test]

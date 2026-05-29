@@ -80,7 +80,7 @@ impl SelfTestResult {
         match self {
             SelfTestResult::Pass => Ok(()),
             SelfTestResult::Fail(msg) => Err(LatticeArcError::ValidationError {
-                message: format!("FIPS 140-3 self-test failed: {}", msg),
+                message: format!("FIPS 140-3 self-test failed: {msg}"),
             }),
         }
     }
@@ -142,32 +142,32 @@ pub fn run_power_up_tests() -> SelfTestResult {
     // 0. Software/Firmware Integrity Test (FIPS 140-3 Section 9.2.2)
     // MUST be performed before any cryptographic operations
     if let Err(e) = integrity_test() {
-        return SelfTestResult::Fail(format!("Module Integrity Test failed: {}", e));
+        return SelfTestResult::Fail(format!("Module Integrity Test failed: {e}"));
     }
 
     // 1. SHA-256 KAT (foundational - other tests depend on hash)
     if let Err(e) = kat_sha256() {
-        return SelfTestResult::Fail(format!("SHA-256 KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("SHA-256 KAT failed: {e}"));
     }
 
     // 2. HKDF-SHA256 KAT (depends on HMAC-SHA256)
     if let Err(e) = kat_hkdf_sha256() {
-        return SelfTestResult::Fail(format!("HKDF-SHA256 KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("HKDF-SHA256 KAT failed: {e}"));
     }
 
     // 3. AES-256-GCM KAT
     if let Err(e) = kat_aes_256_gcm() {
-        return SelfTestResult::Fail(format!("AES-256-GCM KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("AES-256-GCM KAT failed: {e}"));
     }
 
     // 4. SHA3-256 KAT
     if let Err(e) = kat_sha3_256() {
-        return SelfTestResult::Fail(format!("SHA3-256 KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("SHA3-256 KAT failed: {e}"));
     }
 
     // 5. HMAC-SHA256 KAT
     if let Err(e) = kat_hmac_sha256() {
-        return SelfTestResult::Fail(format!("HMAC-SHA256 KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("HMAC-SHA256 KAT failed: {e}"));
     }
 
     // 6-9. PQ algorithm self-consistency tests.
@@ -192,22 +192,22 @@ pub fn run_power_up_tests() -> SelfTestResult {
 
     // 6. ML-KEM-768 self-consistency (encap/decap roundtrip).
     if let Err(e) = roundtrip_ml_kem_768() {
-        return SelfTestResult::Fail(format!("ML-KEM-768 roundtrip failed: {}", e));
+        return SelfTestResult::Fail(format!("ML-KEM-768 roundtrip failed: {e}"));
     }
 
     // 7. ML-DSA-44 KAT (ACVP keygen vector + sign/verify roundtrip).
     if let Err(e) = kat_ml_dsa() {
-        return SelfTestResult::Fail(format!("ML-DSA-44 KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("ML-DSA-44 KAT failed: {e}"));
     }
 
     // 8. SLH-DSA-SHAKE-192s KAT (ACVP keygen vector + sign/verify roundtrip).
     if let Err(e) = kat_slh_dsa() {
-        return SelfTestResult::Fail(format!("SLH-DSA-SHAKE-192s KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("SLH-DSA-SHAKE-192s KAT failed: {e}"));
     }
 
     // 9. FN-DSA self-consistency (runs in separate thread with 32 MB stack).
     if let Err(e) = kat_fn_dsa() {
-        return SelfTestResult::Fail(format!("FN-DSA roundtrip failed: {}", e));
+        return SelfTestResult::Fail(format!("FN-DSA roundtrip failed: {e}"));
     }
 
     // The doc example advertises this function as a standalone entry
@@ -509,7 +509,7 @@ pub fn kat_sha256() -> Result<()> {
     ];
 
     let result = sha256(INPUT).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("SHA-256 KAT: hash computation failed: {}", e),
+        message: format!("SHA-256 KAT: hash computation failed: {e}"),
     })?;
 
     // Constant-time comparison to prevent timing attacks
@@ -630,7 +630,7 @@ pub fn kat_hmac_sha256() -> Result<()> {
     ];
 
     let result = hmac_sha256(KEY, DATA).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("HMAC-SHA256 KAT: computation failed: {}", e),
+        message: format!("HMAC-SHA256 KAT: computation failed: {e}"),
     })?;
 
     // Constant-time comparison
@@ -705,14 +705,14 @@ pub fn kat_aes_256_gcm() -> Result<()> {
 
     // Create cipher instance
     let cipher = AesGcm256::new(&KEY).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("AES-256-GCM KAT: cipher initialization failed: {}", e),
+        message: format!("AES-256-GCM KAT: cipher initialization failed: {e}"),
     })?;
 
     // Encrypt and verify ciphertext matches expected. AAD = empty per
     // the CAVP vector definition, so we pass `None`.
     let (ciphertext, tag) =
         cipher.encrypt(&NONCE, &PLAINTEXT, None).map_err(|e| LatticeArcError::ValidationError {
-            message: format!("AES-256-GCM KAT: encryption failed: {}", e),
+            message: format!("AES-256-GCM KAT: encryption failed: {e}"),
         })?;
 
     if !bool::from(ciphertext.ct_eq(&EXPECTED_CT)) {
@@ -732,7 +732,7 @@ pub fn kat_aes_256_gcm() -> Result<()> {
     // pure encrypt-side check would miss.
     let decrypted = cipher.decrypt(&NONCE, &EXPECTED_CT, &EXPECTED_TAG, None).map_err(|e| {
         LatticeArcError::ValidationError {
-            message: format!("AES-256-GCM KAT: decryption failed: {}", e),
+            message: format!("AES-256-GCM KAT: decryption failed: {e}"),
         }
     })?;
 
@@ -862,7 +862,7 @@ pub fn roundtrip_ml_kem_768() -> Result<()> {
     // Generate a keypair with decapsulation capability
     let dk = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768).map_err(|e| {
         LatticeArcError::ValidationError {
-            message: format!("ML-KEM-768 roundtrip: key generation failed: {}", e),
+            message: format!("ML-KEM-768 roundtrip: key generation failed: {e}"),
         }
     })?;
 
@@ -881,7 +881,7 @@ pub fn roundtrip_ml_kem_768() -> Result<()> {
     // Encapsulate a shared secret
     let (ss_encap, ciphertext) =
         MlKem::encapsulate(pk).map_err(|e| LatticeArcError::ValidationError {
-            message: format!("ML-KEM-768 roundtrip: encapsulation failed: {}", e),
+            message: format!("ML-KEM-768 roundtrip: encapsulation failed: {e}"),
         })?;
 
     // Verify ciphertext size
@@ -897,7 +897,7 @@ pub fn roundtrip_ml_kem_768() -> Result<()> {
 
     // Decapsulate the shared secret
     let ss_decap = dk.decapsulate(&ciphertext).map_err(|e| LatticeArcError::ValidationError {
-        message: format!("ML-KEM-768 roundtrip: decapsulation failed: {}", e),
+        message: format!("ML-KEM-768 roundtrip: decapsulation failed: {e}"),
     })?;
 
     // Verify shared secrets match (constant-time comparison)
@@ -1221,7 +1221,7 @@ pub fn kat_fn_dsa() -> Result<()> {
             let mut rng = OsRng;
             let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
                 .map_err(|e| LatticeArcError::ValidationError {
-                    message: format!("FN-DSA KAT: key generation failed: {}", e),
+                    message: format!("FN-DSA KAT: key generation failed: {e}"),
                 })?;
 
             // Verify key sizes match expected values
@@ -1251,7 +1251,7 @@ pub fn kat_fn_dsa() -> Result<()> {
             let mut rng = OsRng;
             let signature = keypair.sign_with_rng(&mut rng, TEST_MESSAGE).map_err(|e| {
                 LatticeArcError::ValidationError {
-                    message: format!("FN-DSA KAT: signing failed: {}", e),
+                    message: format!("FN-DSA KAT: signing failed: {e}"),
                 }
             })?;
 
@@ -1270,7 +1270,7 @@ pub fn kat_fn_dsa() -> Result<()> {
             // Verify the signature
             let is_valid = keypair.verify(TEST_MESSAGE, &signature).map_err(|e| {
                 LatticeArcError::ValidationError {
-                    message: format!("FN-DSA KAT: verification failed: {}", e),
+                    message: format!("FN-DSA KAT: verification failed: {e}"),
                 }
             })?;
 
@@ -1284,7 +1284,7 @@ pub fn kat_fn_dsa() -> Result<()> {
             const WRONG_MESSAGE: &[u8] = b"FIPS 140-3 FN-DSA Wrong Message";
             let is_valid_wrong = keypair.verify(WRONG_MESSAGE, &signature).map_err(|e| {
                 LatticeArcError::ValidationError {
-                    message: format!("FN-DSA KAT: verification check failed: {}", e),
+                    message: format!("FN-DSA KAT: verification check failed: {e}"),
                 }
             })?;
 
@@ -1297,7 +1297,7 @@ pub fn kat_fn_dsa() -> Result<()> {
             Ok(())
         })
         .map_err(|e| LatticeArcError::ValidationError {
-            message: format!("FN-DSA KAT: failed to spawn thread: {}", e),
+            message: format!("FN-DSA KAT: failed to spawn thread: {e}"),
         })?
         .join()
         .map_err(|_e| LatticeArcError::ValidationError {
@@ -1479,7 +1479,7 @@ pub fn integrity_test() -> Result<()> {
     // FIPS callers see the integrity gap rather than a silent
     // false-positive verification of the wrong file.
     let module_path = std::env::current_exe().map_err(|e| LatticeArcError::ValidationError {
-        message: format!("Integrity test: cannot locate module binary: {}", e),
+        message: format!("Integrity test: cannot locate module binary: {e}"),
     })?;
 
     if !path_looks_like_latticearc_module(&module_path) {
@@ -1523,7 +1523,7 @@ pub fn integrity_test() -> Result<()> {
     // (FIPS-validated aws-lc-rs backend).
     let computed_hmac = crate::primitives::mac::hmac::hmac_sha256(INTEGRITY_KEY, &module_bytes)
         .map_err(|e| LatticeArcError::ValidationError {
-            message: format!("Integrity test: HMAC computation failed: {}", e),
+            message: format!("Integrity test: HMAC computation failed: {e}"),
         })?;
 
     // In a production FIPS module, the expected HMAC would be:

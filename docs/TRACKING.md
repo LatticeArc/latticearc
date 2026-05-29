@@ -36,4 +36,4 @@ and should be treated as a finding.
 
 ## Policy intent
 
-This file exists because round-19 + round-20 audits both surfaced "park" notes (RUSTSEC ignores, `continue-on-error: true` blocks, "revisit when") that had no deadline and stayed parked indefinitely. The pattern was: a workaround ships with a comment "remove when X happens"; X eventually happens; nobody notices; the workaround stays. Each future PR that introduces a similar park note must add a row here in the same commit.
+This file exists because successive audits surfaced "park" notes (RUSTSEC ignores, `continue-on-error: true` blocks, `// revisit when …` source comments) that had no deadline and stayed parked indefinitely. The recurring pattern was: a workaround ships with a comment "remove when X happens"; X eventually happens; nobody notices; the workaround stays. Each future PR that introduces a similar park note must add a row here in the same commit.

@@ -1,12 +1,12 @@
 # Module Pattern Registries
 
-Per-module canonical entry points and forbidden alternatives. Round-19
-audit (2026-04) showed that prose patterns in
-[`DESIGN_PATTERNS.md`](DESIGN_PATTERNS.md) are unenforced — the compiler
-does not check them, and reviewers reading surrounding code see whatever
-examples already exist (which may be the un-canonical ones). This file
-co-locates the registry with module documentation so contributors see
-"MUST USE / NEVER USE" before they `git add`.
+Per-module canonical entry points and forbidden alternatives. Prose
+patterns in [`DESIGN_PATTERNS.md`](DESIGN_PATTERNS.md) are inherently
+unenforced — the compiler does not check them, and reviewers reading
+surrounding code see whatever examples already exist (which may be the
+un-canonical ones). This file co-locates the registry with module
+documentation so contributors see "MUST USE / NEVER USE" before they
+`git add`.
 
 Mechanical enforcement of the patterns below lives in:
 
@@ -36,9 +36,9 @@ Source: [`latticearc/src/unified_api/audit.rs`](../latticearc/src/unified_api/au
 
 | For | Use this | Reason |
 |-----|----------|--------|
-| Adding metadata to an `AuditEvent` | `AuditEvent::with_metadata(k, v)` or `AuditEventBuilder::metadata(k, v)` (which routes through `with_metadata`) | Enforces `MAX_METADATA_ENTRIES`, `MAX_METADATA_KEY_LEN`, `MAX_METADATA_VALUE_LEN`. Bypassing these via raw `HashMap::insert` is a DoS amplification path (round-19 H3). |
-| Creating an audit-log file | `OpenOptions::new().create(true).append(true).mode(0o600).open(...)` on Unix | Audit logs may contain operation context (key IDs, paths, actors). World-readable audit logs leak metadata to other users on the host (round-19 M3). |
-| Computing the integrity hash of an event | `compute_integrity_hash(event, previous_hash)` with the length-prefixed format via `append_lenp_field` | Prefix-collision attacks (`"ab"+"c"` vs `"a"+"bc"`) become impossible. Round-19 L5 fixed the format; do not re-introduce undelimited concatenation. |
+| Adding metadata to an `AuditEvent` | `AuditEvent::with_metadata(k, v)` or `AuditEventBuilder::metadata(k, v)` (which routes through `with_metadata`) | Enforces `MAX_METADATA_ENTRIES`, `MAX_METADATA_KEY_LEN`, `MAX_METADATA_VALUE_LEN`. Bypassing these via raw `HashMap::insert` is a DoS-amplification path. |
+| Creating an audit-log file | `OpenOptions::new().create(true).append(true).mode(0o600).open(...)` on Unix | Audit logs may contain operation context (key IDs, paths, actors). World-readable audit logs leak metadata to other users on the host. |
+| Computing the integrity hash of an event | `compute_integrity_hash(event, previous_hash)` with the length-prefixed format via `append_lenp_field` | Prefix-collision attacks (`"ab"+"c"` vs `"a"+"bc"`) become impossible — do not re-introduce undelimited concatenation. |
 
 ### NEVER USE
 
@@ -60,7 +60,7 @@ Source: [`latticearc/src/unified_api/atomic_write.rs`](../latticearc/src/unified
 |-----|----------|--------|
 | Writing a file that holds key material or audit data | `AtomicWrite::new(bytes).secret_mode().write(path)` | `secret_mode()` sets 0o600 atomically before the rename, closing the world-readable window the bare `std::fs::write` path leaves. |
 | Writing any file that should not be clobbered | `AtomicWrite::new(...).write(path)` (default refuses to clobber) | Uses `persist_noclobber` (`link(2) + unlink(2)`) so the exclusive-create check is a single syscall, not TOCTOU. |
-| Writing any file at all | `AtomicWrite` plus its parent-directory fsync (built in since round-19 L1) | Closes the rename-durability gap on ext4/XFS `data=ordered` after a power-loss event. |
+| Writing any file at all | `AtomicWrite` (parent-directory fsync is built in) | Closes the rename-durability gap on ext4/XFS `data=ordered` after a power-loss event. |
 
 ### NEVER USE
 
@@ -81,7 +81,7 @@ Source: [`latticearc/src/primitives/security.rs`](../latticearc/src/primitives/s
 |-----|----------|--------|
 | Owning secret bytes long-term | `SecretVec` (heap) or `SecretBytes<N>` (stack, fixed size) | `ZeroizeOnDrop`, manual `Debug` redaction, no `PartialEq` derive. |
 | Transient secret bytes (function-local) | `Zeroizing<Vec<u8>>` or `Zeroizing<String>` | Drop wipes contents. Use this for derived KDF output, decrypted plaintext etc. |
-| Generating secret-grade random bytes | `generate_secure_random_bytes(len)` returning `Zeroizing<Vec<u8>>` | Forces caller to handle as secret material (round-18). |
+| Generating secret-grade random bytes | `generate_secure_random_bytes(len)` returning `Zeroizing<Vec<u8>>` | Forces caller to handle as secret material. |
 
 ### NEVER USE
 
@@ -89,7 +89,7 @@ Source: [`latticearc/src/primitives/security.rs`](../latticearc/src/primitives/s
 |--------------|-----|-------------|
 | Returning secret-derived bytes as `Vec<u8>` | Heap copy drops without zeroize | `Zeroizing<Vec<u8>>` |
 | `expose_secret().to_vec()` | Escapes the `Zeroizing` wrapper | Borrow via `as_slice()` / `expose_secret()` if read-only; if owned copy is genuinely needed, wrap immediately with `Zeroizing::new(...)` |
-| `MemoryPool::deallocate(buf)` then expecting buffer reuse on next allocate | The pool no longer reuses buffers (round-19 L9 — cross-holder leak risk); deallocate now drops, allocate always allocates fresh | If reuse matters for performance, refactor to keep the buffer alive |
+| `MemoryPool::deallocate(buf)` then expecting buffer reuse on next allocate | The pool does not reuse buffers (cross-holder secret-leak risk); deallocate drops, allocate always allocates fresh | If reuse matters for performance, refactor to keep the buffer alive |
 
 ---
 
@@ -101,8 +101,8 @@ Source: [`latticearc/src/unified_api/zero_trust.rs`](../latticearc/src/unified_a
 
 | For | Use this | Reason |
 |-----|----------|--------|
-| Verifying a session before consuming a challenge | `ZeroTrustAuth::verify_challenge_age(&challenge)?` BEFORE `verify_response` | Captured challenge-response pairs replay indefinitely without an age check (round-19 M9). |
-| Establishing a verified session | `VerifiedSession::establish(public_key, private_key)` | Self-authentication path — already includes the age check post-fix. |
+| Verifying a session before consuming a challenge | `ZeroTrustAuth::verify_challenge_age(&challenge)?` BEFORE `verify_response` | Captured challenge-response pairs replay indefinitely without an age check. |
+| Establishing a verified session | `VerifiedSession::establish(public_key, private_key)` | Self-authentication path — includes the age check by construction. |
 
 ### NEVER USE
 
@@ -121,9 +121,9 @@ Source: [`latticearc-cli/src/commands/`](../latticearc-cli/src/commands/)
 
 | For | Use this | Reason |
 |-----|----------|--------|
-| Reading any file path from CLI args | `super::common::read_file_or_stdin(path, limit_bytes, op_name)` OR `enforce_input_size_limit(path, limit, op)` before `std::fs::read` | Prevents OOM on multi-gig inputs. Round-19 H1 was a missed gate on `verify --signature`. |
+| Reading any file path from CLI args | `super::common::read_file_or_stdin(path, limit_bytes, op_name)` OR `enforce_input_size_limit(path, limit, op)` before `std::fs::read` | Prevents OOM on multi-gig inputs. Bare `std::fs::read(path)` has no upper bound. |
 | Reading a password / passphrase | `--input-stdin` (preferred) or `LATTICEARC_KDF_INPUT` env | argv-passed secrets leak to `ps`, `/proc/<pid>/cmdline`, shell history. |
-| Printing decrypted plaintext as hex | `print!("{}", Zeroizing::new(hex::encode(data)))` | Plain `String` from `hex::encode` lingers on the heap until allocator reclaim (round-19 L3). |
+| Printing decrypted plaintext as hex | `print!("{}", Zeroizing::new(hex::encode(data)))` | Plain `String` from `hex::encode` lingers on the heap until allocator reclaim. |
 | Bounding KDF output length | Cap at `CLI_MAX_KDF_OUTPUT_LEN` (8192 bytes) | PBKDF2 has no algorithmic ceiling — bare `--length 1<<30` is self-DoS. |
 
 ### NEVER USE
@@ -131,7 +131,7 @@ Source: [`latticearc-cli/src/commands/`](../latticearc-cli/src/commands/)
 | Anti-pattern | Why | Alternative |
 |--------------|-----|-------------|
 | `std::fs::read_to_string(&path)` without prior size guard | OOM on multi-gig file | `enforce_input_size_limit` first, then read |
-| `--input <password>` with `--algorithm pbkdf2` and no `--allow-argv-secret` | Password visible to `ps` | Use `--input-stdin` or set `--allow-argv-secret` for KAT replay only |
+| `--input <password>` with `--algorithm pbkdf2` and no `--allow-argv-secret` | Password visible to `ps` | Use `--input-stdin` or `LATTICEARC_KDF_INPUT`. `--allow-argv-secret` for KAT replay only AND requires `LATTICEARC_ALLOW_UNSAFE_CLI=1` in the environment as a second-factor opt-in (the env-gate stops shell-completion or copy-paste from a doc example silently re-enabling the escape hatch in production). |
 | `echo $PASS \| latticearc-cli kdf --input-stdin` in docs/examples | Writes the password line to `.bash_history` | `read -rs PASS && printf '%s' "$PASS" \| latticearc-cli kdf --input-stdin` |
 | Hex-encoding decrypted data via `print!("{}", hex::encode(data))` directly | `String` is not zeroized | `let s = Zeroizing::new(hex::encode(data)); print!("{}", s.as_str())` |
 
@@ -148,8 +148,11 @@ When adding a new helper to a module:
    that fails the build if the anti-pattern appears in the relevant
    module path.
 4. Sweep all existing call sites in the module to use the new helper.
-   Round-18's `secret-mlock` got 11 sites at once; round-19 found three
-   helpers (`with_metadata`, `secret_mode`, `verify_challenge_age`) where
-   that sweep was missed when they were added.
+   A typical missed-sweep failure mode looks like this: a helper
+   (`with_metadata`, `secret_mode`, `verify_challenge_age`, …) is added
+   to wrap an unsafe pattern, but the existing call sites that already
+   used the unsafe pattern keep using it — the helper just gives new
+   code somewhere safe to land. The lint-extras grep rule from step 3
+   catches that.
 
 The point of this file is that step 4 cannot be silently skipped.

@@ -51,9 +51,8 @@ pub fn generate_hybrid_keypair_with_level(
     level: MlKemSecurityLevel,
 ) -> Result<(HybridKemPublicKey, HybridKemSecretKey)> {
     super::api::fips_verify_operational()?;
-    kem::generate_keypair_with_level(level).map_err(|e| {
-        CoreError::EncryptionFailed(format!("Hybrid keypair generation failed: {}", e))
-    })
+    kem::generate_keypair_with_level(level)
+        .map_err(|e| CoreError::EncryptionFailed(format!("Hybrid keypair generation failed: {e}")))
 }
 
 #[cfg(test)]

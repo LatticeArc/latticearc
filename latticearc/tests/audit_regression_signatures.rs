@@ -329,3 +329,651 @@ fn dlog_equality_rejects_non_canonical_bases() {
     let prove_result = DlogEqualityProof::prove(&bad_statement, &x_bytes, b"ctx");
     assert!(prove_result.is_err(), "DlogEqualityProof::prove must reject non-canonical bases");
 }
+
+// ============================================================================
+// H1 / M1 / M5: signature transcript binding to scheme
+// ============================================================================
+//
+// The May-2026 security audit identified a downgrade attack on the hybrid
+// signature path (`hybrid-ml-dsa-65-ed25519 → ml-dsa-65`). The fix binds the
+// signed transcript to the scheme identifier via a per-scheme
+// domain-separation context (`SigSchemeLabel`, `types::domains`), and adds
+// an allowlist + cross-check at deserialization. Reverting either side of
+// the binding (sign-side context, verify-side context, deserialization
+// allowlist) must make the tests below fail.
+
+/// H1 regression: signing under a hybrid scheme must NOT produce bytes that
+/// verify against a re-labelled "pure ML-DSA" envelope.
+///
+/// Pre-fix: `sign_hybrid_ml_dsa_ed25519` signed `M` under empty FIPS-204 ctx,
+/// so the ML-DSA leg was byte-identical to a standalone ML-DSA signature over
+/// `M`. An attacker could re-label `scheme` to `"ml-dsa-65"` and truncate
+/// `public_key`/`signature` to the ML-DSA-65 components → `verify()` returned
+/// `Ok(true)`, defeating the hybrid construction (one-component compromise
+/// would suffice for forgery).
+///
+/// Post-fix: the ML-DSA leg signs with ctx = `"LatticeArc-Sig-hybrid-…-v1"`,
+/// while a pure-ML-DSA verify path uses ctx = `"LatticeArc-Sig-ml-dsa-65-v1"`.
+/// The downgrade envelope's ML-DSA leg verifies under a different ctx than
+/// it was signed under → `verify()` returns `Ok(false)`.
+#[test]
+fn h1_hybrid_to_pq_only_downgrade_rejected() {
+    use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
+    use latticearc::unified_api::types::{SignedData, SignedMetadata};
+    use latticearc::{CryptoConfig, sign_with_key, verify};
+
+    // Default config selects a hybrid signature scheme (typically
+    // hybrid-ml-dsa-65-ed25519). Use the same config for keygen and sign so
+    // the selector agrees on which scheme to produce.
+    let cfg = CryptoConfig::new();
+    let kp = latticearc::generate_signing_keypair(cfg.clone())
+        .expect("default signing keypair must generate");
+
+    // The test targets the hybrid-ml-dsa-65-ed25519 path specifically; if
+    // the default selector ever changes, fail loudly so the test gets
+    // updated alongside the selector rather than silently no-op.
+    assert!(
+        kp.scheme().contains("hybrid") && kp.scheme().contains("ml-dsa-65"),
+        "h1 downgrade test precondition: default scheme must be hybrid+ml-dsa-65, got {scheme:?}",
+        scheme = kp.scheme()
+    );
+
+    let message = b"transferred funds: 1000 USD to alice@example.com";
+    let hybrid_signed =
+        sign_with_key(message, kp.expose_secret_key(), kp.public_key(), cfg.clone())
+            .expect("hybrid sign must succeed");
+
+    // Sanity: the legitimate hybrid envelope verifies.
+    assert!(
+        verify(&hybrid_signed, CryptoConfig::new()).expect("hybrid verify must not error"),
+        "freshly-signed hybrid envelope must verify (sanity check)"
+    );
+
+    // Construct the downgrade envelope: relabel `scheme` and
+    // `signature_algorithm` to `"ml-dsa-65"`, and truncate `public_key` and
+    // `signature` to the ML-DSA-65 components (the hybrid layout is
+    // `ml_dsa_pk || ed25519_pk` and `ml_dsa_sig || ed25519_sig`).
+    let pq_pk_len = MlDsaParameterSet::MlDsa65.public_key_size();
+    let pq_sig_len = MlDsaParameterSet::MlDsa65.signature_size();
+    let truncated_pk = hybrid_signed.metadata.public_key[..pq_pk_len].to_vec();
+    let truncated_sig = hybrid_signed.metadata.signature[..pq_sig_len].to_vec();
+    let downgrade = SignedData::new(
+        hybrid_signed.data.clone(),
+        SignedMetadata::new(
+            truncated_sig,
+            "ml-dsa-65".to_string(), // <-- relabel attempt
+            truncated_pk,
+            None,
+        ),
+        "ml-dsa-65".to_string(), // <-- relabel attempt
+        hybrid_signed.timestamp,
+    );
+
+    // Post-fix: the ML-DSA-65 verify path uses the "ml-dsa-65" scheme context,
+    // but the signature was produced under the hybrid context. Verify must
+    // return Ok(false). Reverting the H1/M1 fix surfaces here as Ok(true).
+    let result = verify(&downgrade, CryptoConfig::new())
+        .expect("downgrade verify must not error (only return false)");
+    assert!(
+        !result,
+        "DOWNGRADE ATTACK NOT BLOCKED: hybrid-ml-dsa-65-ed25519 envelope relabelled as ml-dsa-65 \
+         was accepted by verify(). H1 / M1 scheme-binding regressed."
+    );
+}
+
+/// H1 / M1 sanity: each scheme's freshly-signed envelope round-trips through
+/// verify under the new scheme-context binding. Reverting the verify-side
+/// context surfaces here as a `false` return for the affected scheme.
+///
+/// We exercise schemes the high-level `generate_signing_keypair` selector can
+/// produce via `force_scheme`; the goal is to catch a verify-side regression,
+/// not to enumerate every primitive-level keygen path.
+#[test]
+fn h1_default_scheme_round_trips_post_fix() {
+    use latticearc::{CryptoConfig, generate_signing_keypair, sign_with_key, verify};
+
+    // The default sign/verify path. Reverting the scheme-context binding on
+    // either the sign or the verify side surfaces here as either an error or
+    // a false from `verify` on a freshly-signed envelope.
+    let cfg = CryptoConfig::new();
+    let kp =
+        generate_signing_keypair(cfg.clone()).expect("default keygen for signing must succeed");
+    let message = b"audit regression: default scheme self-verifies post-H1 fix";
+    let signed = sign_with_key(message, kp.expose_secret_key(), kp.public_key(), cfg.clone())
+        .expect("default sign must succeed");
+    let ok = verify(&signed, CryptoConfig::new())
+        .expect("default verify must not error on a freshly-signed envelope");
+    assert!(
+        ok,
+        "fresh signature under the default scheme {scheme:?} must verify; \
+         H1/M1 scheme-context binding regressed",
+        scheme = kp.scheme()
+    );
+}
+
+/// M5 regression: a `SignedData` envelope whose `scheme` field is not in the
+/// closed `SigSchemeLabel` allowlist must be rejected at deserialization.
+///
+/// Pre-fix: the deserializer only checked that
+/// `metadata.signature_algorithm == scheme`. An attacker could agree both
+/// fields on `"evil-algo"` and the `match` in `verify` would silently take
+/// the `_` arm (`Err(InvalidInput(...))`), but envelopes that smuggled known
+/// schemes through aliasing would pass through unchecked.
+#[test]
+fn m5_unknown_scheme_rejected_at_deserialization() {
+    use latticearc::unified_api::serialization::deserialize_signed_data;
+
+    // Hand-crafted JSON envelope with an unknown scheme. base64 contents are
+    // small fixed values — the point is the scheme check fires BEFORE any
+    // structural validation of the bytes.
+    let evil = r#"{
+        "data": "aGVsbG8=",
+        "metadata": {
+            "signature": "AAAA",
+            "signature_algorithm": "evil-algo",
+            "public_key": "AAAA",
+            "key_id": null
+        },
+        "scheme": "evil-algo",
+        "timestamp": 0
+    }"#;
+    let result = deserialize_signed_data(evil);
+    assert!(
+        result.is_err(),
+        "unknown scheme 'evil-algo' must be rejected by the M5 allowlist; \
+         got {result:?}"
+    );
+}
+
+/// M5 regression: cross-check between `scheme` and `metadata.signature_algorithm`
+/// must reject mismatches even when both individually map to valid labels.
+#[test]
+fn m5_mismatched_scheme_metadata_rejected() {
+    use latticearc::unified_api::serialization::deserialize_signed_data;
+
+    let mismatched = r#"{
+        "data": "aGVsbG8=",
+        "metadata": {
+            "signature": "AAAA",
+            "signature_algorithm": "ml-dsa-87",
+            "public_key": "AAAA",
+            "key_id": null
+        },
+        "scheme": "ml-dsa-65",
+        "timestamp": 0
+    }"#;
+    let result = deserialize_signed_data(mismatched);
+    assert!(
+        result.is_err(),
+        "scheme/metadata mismatch (ml-dsa-65 vs ml-dsa-87) must be rejected; got {result:?}"
+    );
+}
+
+// ============================================================================
+// H2: verify_with_anchor — operator-pinned trust anchor + scheme assertion
+// ============================================================================
+
+/// H2 regression: `verify_with_anchor` must reject an envelope whose embedded
+/// public key does NOT match the operator-supplied trust anchor, even when
+/// the cryptographic verification against the embedded key would otherwise
+/// succeed. This blocks the "attacker fabricates an entire (pk, sk, sig)
+/// triple under their own key" pre-fix flow that returned `Ok(true)` from
+/// the embedded-key `verify()`.
+#[test]
+fn h2_verify_with_anchor_rejects_attacker_key() {
+    use latticearc::{CryptoConfig, sign_with_key, verify, verify_with_anchor};
+
+    // Attacker has full control of a keypair and produces a legitimate
+    // signature under that keypair. The envelope's embedded public key is
+    // the attacker's, not the operator's trust anchor.
+    let attacker_kp = latticearc::generate_signing_keypair(CryptoConfig::new())
+        .expect("attacker keypair generation");
+    let attacker_signed = sign_with_key(
+        b"approve transfer of 10000 USD",
+        attacker_kp.expose_secret_key(),
+        attacker_kp.public_key(),
+        CryptoConfig::new(),
+    )
+    .expect("attacker can sign anything under their own key");
+
+    // Sanity check: embedded-key verify accepts the envelope. This is the
+    // PRE-H2 vulnerability shape — `verify()` cannot distinguish "attacker
+    // signed it themselves" from "trusted signer signed it".
+    assert!(
+        verify(&attacker_signed, CryptoConfig::new()).expect("embedded verify must not error"),
+        "embedded-key verify must succeed on a self-signed envelope (sanity)"
+    );
+
+    // The OPERATOR'S trust anchor is a different key — say from a CA or a
+    // configured signer roster. Verifying the attacker envelope against
+    // the operator's anchor must reject.
+    let operator_anchor_kp = latticearc::generate_signing_keypair(CryptoConfig::new())
+        .expect("operator anchor keypair generation");
+    let result = verify_with_anchor(
+        &attacker_signed,
+        operator_anchor_kp.public_key(),
+        attacker_signed.scheme.as_str(),
+        CryptoConfig::new(),
+    )
+    .expect("verify_with_anchor must not error on attacker envelope");
+    assert!(
+        !result,
+        "verify_with_anchor must reject envelope whose embedded pk does not match the trust anchor"
+    );
+}
+
+/// H2 sanity: `verify_with_anchor` accepts an envelope when the operator's
+/// trust anchor matches the embedded key AND the scheme assertion matches.
+#[test]
+fn h2_verify_with_anchor_accepts_legitimate_envelope() {
+    use latticearc::{CryptoConfig, sign_with_key, verify_with_anchor};
+
+    let kp = latticearc::generate_signing_keypair(CryptoConfig::new()).expect("keypair generation");
+    let signed = sign_with_key(
+        b"audit regression: legitimate signature under the trust anchor",
+        kp.expose_secret_key(),
+        kp.public_key(),
+        CryptoConfig::new(),
+    )
+    .expect("sign with the trust-anchor key");
+
+    let ok = verify_with_anchor(&signed, kp.public_key(), &signed.scheme, CryptoConfig::new())
+        .expect("verify_with_anchor must not error on legitimate envelope");
+    assert!(ok, "verify_with_anchor must accept envelope when pk and scheme match the anchor");
+}
+
+/// H2 regression: scheme assertion must reject an envelope whose scheme
+/// disagrees with the operator's expectation, even if the embedded pk
+/// matches. Defends against post-H1 "scheme is bound by ML-DSA ctx but the
+/// operator was expecting Ed25519" mismatch.
+#[test]
+fn h2_verify_with_anchor_rejects_scheme_mismatch() {
+    use latticearc::{CryptoConfig, sign_with_key, verify_with_anchor};
+
+    let kp = latticearc::generate_signing_keypair(CryptoConfig::new()).expect("keypair generation");
+    let signed = sign_with_key(
+        b"audit regression: scheme assertion test",
+        kp.expose_secret_key(),
+        kp.public_key(),
+        CryptoConfig::new(),
+    )
+    .expect("sign succeeds");
+
+    // Pick a different scheme from what the envelope actually carries.
+    let wrong_scheme = if signed.scheme == "ml-dsa-65" { "ed25519" } else { "ml-dsa-65" };
+    let result = verify_with_anchor(&signed, kp.public_key(), wrong_scheme, CryptoConfig::new())
+        .expect("verify_with_anchor must not error on scheme mismatch");
+    assert!(
+        !result,
+        "verify_with_anchor must reject when expected_scheme ({wrong_scheme}) does not match \
+         envelope scheme ({})",
+        signed.scheme
+    );
+}
+
+/// H2 / M5 hardening: `verify_with_anchor` must reject envelopes whose
+/// scheme tag is not in the M5 allowlist (closed `SigSchemeLabel`).
+#[test]
+fn h2_verify_with_anchor_rejects_unknown_scheme() {
+    use latticearc::unified_api::types::{SignedData, SignedMetadata};
+    use latticearc::{CryptoConfig, verify_with_anchor};
+
+    let envelope = SignedData::new(
+        b"any data".to_vec(),
+        SignedMetadata::new(vec![0u8; 64], "evil-algo".to_string(), vec![0u8; 32], None),
+        "evil-algo".to_string(),
+        0,
+    );
+
+    let result = verify_with_anchor(&envelope, &[0u8; 32], "evil-algo", CryptoConfig::new())
+        .expect("verify_with_anchor must not error on unknown scheme");
+    assert!(!result, "verify_with_anchor must reject envelope with non-allowlisted scheme");
+}
+
+// ============================================================================
+// M2: key_type guards on hybrid public-key extractors
+// ============================================================================
+
+/// M2 regression: `to_hybrid_public_key` must reject a non-public PortableKey,
+/// mirroring the existing guard on `to_hybrid_secret_key`. Pre-fix the public
+/// extractor would happily build a `HybridKemPublicKey` from a `Secret` key
+/// file (most uses survived only because of downstream length validation).
+#[test]
+fn m2_to_hybrid_public_key_rejects_non_public_keytype() {
+    use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+
+    // Build a `Secret` PortableKey at a hybrid algorithm. The composite
+    // byte values are placeholders — the guard must fire BEFORE any
+    // composite decode work happens.
+    let key = PortableKey::new(
+        KeyAlgorithm::HybridMlKem768X25519,
+        KeyType::Secret,
+        KeyData::from_composite(&[0u8; 32], &[0u8; 32]),
+    );
+
+    let result = key.to_hybrid_public_key();
+    assert!(result.is_err(), "to_hybrid_public_key must reject Secret-typed keys; got {result:?}");
+}
+
+/// M2 regression: same guard on the signature variant.
+#[test]
+fn m2_to_hybrid_sig_public_key_rejects_non_public_keytype() {
+    use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+
+    let key = PortableKey::new(
+        KeyAlgorithm::HybridMlDsa65Ed25519,
+        KeyType::Secret,
+        KeyData::from_composite(&[0u8; 32], &[0u8; 32]),
+    );
+
+    let result = key.to_hybrid_sig_public_key();
+    assert!(
+        result.is_err(),
+        "to_hybrid_sig_public_key must reject Secret-typed keys; got {result:?}"
+    );
+}
+
+// ============================================================================
+// M3: pq_only AAD bound into HKDF key derivation
+// ============================================================================
+
+/// M3 regression: a pq_only ciphertext produced under AAD `A1` must NOT
+/// decrypt when the verifier supplies AAD `A2`. Pre-fix the AAD was only
+/// authenticated by the AEAD tag; post-fix it also derives a different HKDF
+/// key, so the wrong-AAD failure happens at HKDF/AEAD intersection — defense
+/// in depth.
+#[test]
+fn m3_pq_only_aad_mismatch_rejected() {
+    use latticearc::hybrid::pq_only::{
+        decrypt_pq_only_with_aad, encrypt_pq_only_with_aad, generate_pq_keypair,
+    };
+
+    let (pk, sk) = generate_pq_keypair().expect("pq_only keygen");
+    let plaintext = b"sensitive document content";
+    let aad_correct = b"context: alice -> bob, 2026";
+    let aad_attacker = b"context: alice -> charlie, 2026";
+
+    let ct =
+        encrypt_pq_only_with_aad(&pk, plaintext, aad_correct).expect("encrypt under correct AAD");
+
+    // Sanity: matching AAD decrypts.
+    let pt = decrypt_pq_only_with_aad(
+        &sk,
+        ct.ml_kem_ciphertext(),
+        ct.symmetric_ciphertext(),
+        ct.nonce(),
+        ct.tag(),
+        aad_correct,
+    )
+    .expect("decrypt with matching AAD must succeed");
+    assert_eq!(pt.as_slice(), plaintext);
+
+    // Mismatched AAD must reject.
+    let bad = decrypt_pq_only_with_aad(
+        &sk,
+        ct.ml_kem_ciphertext(),
+        ct.symmetric_ciphertext(),
+        ct.nonce(),
+        ct.tag(),
+        aad_attacker,
+    );
+    assert!(
+        bad.is_err(),
+        "pq_only decrypt with mismatched AAD must reject (M3 defense-in-depth); got Ok"
+    );
+}
+
+// ============================================================================
+// M4: PortableKey::validate_with_expiry
+// ============================================================================
+
+/// M4 regression: `validate_with_expiry` must reject a key whose `not_after`
+/// is in the past. `validate` alone continues to accept it (documented as
+/// "informational lifecycle"), so the gate is the explicit `_with_expiry`
+/// helper.
+#[test]
+fn m4_validate_with_expiry_rejects_expired_key() {
+    use chrono::{DateTime, Duration, Utc};
+    use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+
+    let now: DateTime<Utc> = Utc::now();
+    let past = now - Duration::hours(1);
+    let mut key =
+        PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+    key.set_not_after(Some(past));
+
+    // `validate` itself still passes (preserves the documented contract).
+    assert!(key.validate().is_ok(), "validate must remain expiry-blind");
+    // The expiry-aware gate must reject.
+    let result = key.validate_with_expiry(now);
+    assert!(
+        result.is_err(),
+        "validate_with_expiry must reject keys whose not_after is in the past"
+    );
+}
+
+#[test]
+fn m4_validate_with_expiry_accepts_unexpired_key() {
+    use chrono::{Duration, Utc};
+    use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+
+    let now = Utc::now();
+    let future = now + Duration::hours(1);
+    let mut key =
+        PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+    key.set_not_after(Some(future));
+    assert!(
+        key.validate_with_expiry(now).is_ok(),
+        "validate_with_expiry must accept keys whose not_after is in the future"
+    );
+}
+
+#[test]
+fn m4_validate_with_expiry_accepts_key_without_not_after() {
+    use chrono::Utc;
+    use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+
+    // Keys without an explicit expiry must pass (legacy + most production keys).
+    let key =
+        PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
+    assert!(
+        key.validate_with_expiry(Utc::now()).is_ok(),
+        "validate_with_expiry must accept keys with no not_after set"
+    );
+}
+
+// ============================================================================
+// L7: EncryptedOutput.version field validated at deserialization
+// ============================================================================
+
+/// L7 regression: a serialized `EncryptedOutput` carrying an unsupported
+/// `version` field must be rejected at deserialization. Pre-fix the field
+/// was round-tripped as opaque, leaving downstream consumers to interpret
+/// arbitrary values however they liked.
+#[test]
+fn l7_encrypted_output_unsupported_version_rejected() {
+    use latticearc::unified_api::serialization::deserialize_encrypted_output;
+
+    let evil = r#"{
+        "version": 99,
+        "scheme": "aes-256-gcm",
+        "ciphertext": "AAAA",
+        "nonce": "AAAAAAAAAAAAAAAA",
+        "tag": "AAAAAAAAAAAAAAAAAAAAAA==",
+        "timestamp": 0
+    }"#;
+    let result = deserialize_encrypted_output(evil);
+    assert!(result.is_err(), "EncryptedOutput with version != 2 must be rejected; got {result:?}");
+}
+
+// ============================================================================
+// L2: PBKDF2 salt all-zero check uses constant-time path
+// ============================================================================
+
+/// L2 regression: PBKDF2 `validate()` must reject an all-zero salt via the
+/// CT helper, not via `salt.iter().all(|&b| b == 0)`. The behaviour
+/// (rejection) is the same either way; this test exists to lock the
+/// rejection contract — a copy-paste that re-introduced the variable-time
+/// form would survive this test unless someone also weakened the
+/// invariant. Pair it with the `is_all_zero_bytes` source review.
+#[test]
+fn l2_pbkdf2_all_zero_salt_rejected() {
+    use latticearc::primitives::kdf::pbkdf2::Pbkdf2Params;
+
+    let salt = vec![0u8; 16];
+    let params = Pbkdf2Params::with_salt(&salt);
+    let result = params.validate();
+    assert!(result.is_err(), "PBKDF2 validate() must reject an all-zero salt; got {result:?}");
+}
+
+// ============================================================================
+// L3 / L4: P-curve all-zero coordinate + shared-secret defense-in-depth
+// ============================================================================
+
+/// L3 regression: P-256 public-key validate rejects an all-zero coordinate
+/// payload (uncompressed form with `0x04` prefix and 64 zero bytes). The
+/// CT path returns the same verdict the variable-time path used to; this
+/// test pins the rejection.
+#[test]
+fn l3_p256_all_zero_coordinate_rejected() {
+    use latticearc::primitives::kem::ecdh::EcdhP256PublicKey;
+
+    // SEC1 uncompressed: 0x04 || X (32) || Y (32). All zero coords below
+    // are NOT a valid curve point — validate must reject.
+    let mut zero_pk = vec![0u8; 65];
+    zero_pk[0] = 0x04;
+    let parsed = EcdhP256PublicKey::from_bytes(&zero_pk);
+    // `from_bytes` itself may or may not reject (depends on the upstream
+    // validator); the downstream `validate()` is the contract surface.
+    if let Ok(pk) = parsed {
+        let r = pk.validate();
+        assert!(r.is_err(), "P-256 validate() must reject all-zero coords; got {r:?}");
+    }
+}
+
+// ============================================================================
+// L5: ConstantTimeEq alongside derived PartialEq on public-key types
+// ============================================================================
+
+/// L5 regression: every public-key wrapper that derives `PartialEq` must
+/// also impl `ConstantTimeEq` (length-prefixed). The derived `PartialEq`
+/// stays — these are public, not secret material — but the CT sibling is
+/// the in-tree home for callers that need timing-independent comparison
+/// (operator trust-anchor pin paths, etc.). Reverting the impl would
+/// surface as a compile error here.
+#[test]
+fn l5_public_keys_impl_constant_time_eq() {
+    use latticearc::primitives::kem::ecdh::{
+        EcdhP256PublicKey, EcdhP384PublicKey, EcdhP521PublicKey, X25519PublicKey,
+    };
+    use subtle::ConstantTimeEq;
+
+    // Existence + correctness on equal pairs.
+    let x25519_a = X25519PublicKey::from_bytes(&[7u8; 32]).expect("X25519 PK");
+    let x25519_b = x25519_a.clone();
+    assert!(bool::from(x25519_a.ct_eq(&x25519_b)));
+
+    // Length-prefix variant on the heap-backed types.
+    let p256_a = EcdhP256PublicKey::from_bytes(&{
+        let mut bytes = [0u8; 65];
+        bytes[0] = 0x04;
+        bytes[1] = 0xAB;
+        bytes
+    });
+    if let Ok(p256_a) = p256_a {
+        let p256_b = p256_a.clone();
+        assert!(bool::from(p256_a.ct_eq(&p256_b)));
+    }
+
+    // P-384 / P-521 just need the trait bound to be satisfied; we don't
+    // need to construct valid curve points here.
+    fn assert_ct_eq<T: ConstantTimeEq>() {}
+    assert_ct_eq::<EcdhP384PublicKey>();
+    assert_ct_eq::<EcdhP521PublicKey>();
+}
+
+// ============================================================================
+// L6: per-algorithm composite length check
+// ============================================================================
+
+/// L6 regression: `validate_composite_lengths` now dispatches the expected
+/// classical-leg length per algorithm. Non-hybrid algorithms must surface
+/// `Err` (composite KeyData is not a legitimate shape for them).
+#[test]
+fn l6_composite_lengths_reject_non_hybrid_algorithm() {
+    use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+
+    // Apply a Composite KeyData to a NON-hybrid algorithm (Ed25519). The
+    // L6 dispatch now treats this as an illegal shape regardless of
+    // component lengths.
+    let key = PortableKey::new(
+        KeyAlgorithm::Ed25519,
+        KeyType::Public,
+        KeyData::from_composite(&[0u8; 32], &[0u8; 32]),
+    );
+    let result = key.validate();
+    assert!(
+        result.is_err(),
+        "Non-hybrid algorithm with Composite KeyData must be rejected; got {result:?}"
+    );
+}
+
+/// L6 sanity: hybrid algorithms still accept their canonical 32-byte
+/// classical leg (X25519 / Ed25519). Catches the failure mode where
+/// the dispatch helper returns `None` for a legitimate variant.
+#[test]
+fn l6_composite_lengths_accept_canonical_hybrid_leg() {
+    use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+
+    // Use a real ML-DSA-65 public-key size for the PQ leg so the
+    // composite passes the PQ-side bounds the helper enforces; the
+    // L6 dispatch only governs the classical-leg length check.
+    let pq_pk_len = 1952; // ML-DSA-65 PK
+    let key = PortableKey::new(
+        KeyAlgorithm::HybridMlDsa65Ed25519,
+        KeyType::Public,
+        KeyData::from_composite(&vec![0u8; pq_pk_len], &[0u8; 32]),
+    );
+    // The PQ-leg sanity placeholders here may still trip *other* validate
+    // arms (e.g. the per-level PK byte check), so we ONLY assert that the
+    // composite-length check itself accepts a 32-byte classical leg.
+    let result = key.validate();
+    if let Err(e) = &result {
+        let msg = format!("{e:?}");
+        assert!(
+            !msg.contains("classical component"),
+            "L6 dispatch wrongly rejected canonical 32-byte hybrid classical leg: {msg}"
+        );
+    }
+}
+
+// ============================================================================
+// M5 (continued): alias canonicalization
+// ============================================================================
+
+/// M5 alias canonicalization: `pq-ml-dsa-65` and `ml-dsa-65` map to the same
+/// `SigSchemeLabel::MlDsa65`, so an envelope using one in `scheme` and the
+/// other in `metadata.signature_algorithm` must pass the cross-check. (The
+/// underlying bytes are still attacker-crafted in this test, so verify will
+/// reject — we only check the deserialization step's verdict.)
+#[test]
+fn m5_alias_canonicalization_passes_cross_check() {
+    use latticearc::unified_api::serialization::deserialize_signed_data;
+
+    let alias_pair = r#"{
+        "data": "aGVsbG8=",
+        "metadata": {
+            "signature": "AAAA",
+            "signature_algorithm": "ml-dsa-65",
+            "public_key": "AAAA",
+            "key_id": null
+        },
+        "scheme": "pq-ml-dsa-65",
+        "timestamp": 0
+    }"#;
+    let result = deserialize_signed_data(alias_pair);
+    assert!(
+        result.is_ok(),
+        "scheme/metadata pair using legitimate aliases must pass the M5 cross-check; got {result:?}"
+    );
+}

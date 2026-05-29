@@ -752,7 +752,7 @@ pub fn generate_keypair(
     let (pk, sk) = match parameter_set {
         MlDsaParameterSet::MlDsa44 => {
             let (pk, sk) = ml_dsa_44::try_keygen().map_err(|e| {
-                MlDsaError::KeyGenerationError(format!("ML-DSA-44 key generation failed: {}", e))
+                MlDsaError::KeyGenerationError(format!("ML-DSA-44 key generation failed: {e}"))
             })?;
             (
                 MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
@@ -761,7 +761,7 @@ pub fn generate_keypair(
         }
         MlDsaParameterSet::MlDsa65 => {
             let (pk, sk) = ml_dsa_65::try_keygen().map_err(|e| {
-                MlDsaError::KeyGenerationError(format!("ML-DSA-65 key generation failed: {}", e))
+                MlDsaError::KeyGenerationError(format!("ML-DSA-65 key generation failed: {e}"))
             })?;
             (
                 MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
@@ -770,7 +770,7 @@ pub fn generate_keypair(
         }
         MlDsaParameterSet::MlDsa87 => {
             let (pk, sk) = ml_dsa_87::try_keygen().map_err(|e| {
-                MlDsaError::KeyGenerationError(format!("ML-DSA-87 key generation failed: {}", e))
+                MlDsaError::KeyGenerationError(format!("ML-DSA-87 key generation failed: {e}"))
             })?;
             (
                 MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
@@ -782,7 +782,7 @@ pub fn generate_keypair(
     // FIPS 140-3 Pairwise Consistency Test (PCT)
     // Sign and verify a test message to ensure the keypair is consistent
     crate::primitives::pct::pct_ml_dsa(&pk, &sk)
-        .map_err(|e| MlDsaError::KeyGenerationError(format!("PCT failed: {}", e)))?;
+        .map_err(|e| MlDsaError::KeyGenerationError(format!("PCT failed: {e}")))?;
 
     Ok((pk, sk))
 }

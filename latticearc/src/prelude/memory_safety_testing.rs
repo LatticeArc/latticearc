@@ -44,7 +44,7 @@ impl UtilityMemorySafetyTester {
             let result = hex::decode(hex_str);
             if result.is_ok() {
                 return Err(LatticeArcError::ValidationError {
-                    message: format!("Hex string '{}' should be invalid", hex_str),
+                    message: format!("Hex string '{hex_str}' should be invalid"),
                 });
             }
         }
@@ -101,7 +101,7 @@ impl UtilityMemorySafetyTester {
             let result = hex::decode(hex_str);
             if result.is_ok() {
                 return Err(LatticeArcError::ValidationError {
-                    message: format!("Hex string '{}' should be invalid", hex_str),
+                    message: format!("Hex string '{hex_str}' should be invalid"),
                 });
             }
         }
@@ -229,7 +229,7 @@ impl UtilityMemorySafetyTester {
                         .map(ToString::to_string)
                         .or_else(|| e.downcast_ref::<String>().cloned())
                         .unwrap_or_else(|| "Unknown panic payload".to_string());
-                    LatticeArcError::ConcurrencyError(format!("Thread panic: {}", msg))
+                    LatticeArcError::ConcurrencyError(format!("Thread panic: {msg}"))
                 })??;
         }
 

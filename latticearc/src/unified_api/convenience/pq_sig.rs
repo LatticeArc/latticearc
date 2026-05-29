@@ -30,9 +30,135 @@ use crate::primitives::sig::{
     },
 };
 
+use crate::types::domains::{SigSchemeLabel, hash_with_context, sig_context};
 use crate::types::types::SecurityLevel;
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
+
+// H1 / M1 fix: per-scheme transcript binding. See `types::domains` for the
+// rationale and the closed `SigSchemeLabel` enum.
+//
+// ML-DSA and SLH-DSA accept a native context (FIPS 204 §5.2, FIPS 205 §10.2)
+// passed through as the second argument to `sk.sign(...)`. FN-DSA's `fn-dsa`
+// crate exposes no context parameter, so we sign a `SHA-512(scheme_ctx ||
+// 0x00 || message)` digest instead of the raw message — fixed 64-byte output
+// stays under the signature-size cap regardless of message size, and the
+// scheme binding is preserved.
+
+const fn pure_ml_dsa_scheme_label(params: MlDsaParameterSet) -> SigSchemeLabel {
+    match params {
+        MlDsaParameterSet::MlDsa44 => SigSchemeLabel::MlDsa44,
+        MlDsaParameterSet::MlDsa65 => SigSchemeLabel::MlDsa65,
+        MlDsaParameterSet::MlDsa87 => SigSchemeLabel::MlDsa87,
+    }
+}
+
+const fn pure_slh_dsa_scheme_label(level: SlhDsaSecurityLevel) -> SigSchemeLabel {
+    match level {
+        SlhDsaSecurityLevel::Shake128s => SigSchemeLabel::SlhDsaShake128s,
+        SlhDsaSecurityLevel::Shake192s => SigSchemeLabel::SlhDsaShake192s,
+        SlhDsaSecurityLevel::Shake256s => SigSchemeLabel::SlhDsaShake256s,
+    }
+}
+
+const fn pure_fn_dsa_scheme_label(level: FnDsaSecurityLevel) -> SigSchemeLabel {
+    match level {
+        FnDsaSecurityLevel::Level512 => SigSchemeLabel::FnDsa512,
+        FnDsaSecurityLevel::Level1024 => SigSchemeLabel::FnDsa1024,
+    }
+}
+
+/// Sign with an explicit ML-DSA context. The hybrid composition wants to
+/// bind each leg to the *hybrid* scheme label (e.g.
+/// `LatticeArc-Sig-hybrid-ml-dsa-65-ed25519-v1`), not to the pure-ML-DSA
+/// per-scheme label that `sign_pq_ml_dsa_internal` derives — without this
+/// override, a hybrid signature's ML-DSA leg is byte-identical to a pure
+/// ML-DSA signature over the same message and the downgrade attack (H1)
+/// remains exploitable. `api.rs::sign_hybrid_ml_dsa_ed25519` is the
+/// intended caller.
+pub(crate) fn sign_pq_ml_dsa_internal_with_ctx(
+    message: &[u8],
+    ml_dsa_sk: &[u8],
+    parameter_set: MlDsaParameterSet,
+    context: &[u8],
+) -> Result<Vec<u8>> {
+    log_crypto_operation_start!(op::ML_DSA_SIGN, algorithm = ?parameter_set, message_len = message.len());
+
+    if let Err(e) = validate_signature_size(message.len()) {
+        log_crypto_operation_error!(op::ML_DSA_SIGN, e);
+        return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
+    }
+
+    let sk = MlDsaSecretKey::new(parameter_set, ml_dsa_sk.to_vec()).map_err(|e| {
+        log_crypto_operation_error!(op::ML_DSA_SIGN, e);
+        CoreError::InvalidInput("Invalid ML-DSA private key format".to_string())
+    })?;
+
+    let signature = sk.sign(message, context).map_err(|e| {
+        log_crypto_operation_error!(op::ML_DSA_SIGN, e);
+        CoreError::SignatureFailed(format!("ML-DSA signing failed: {e}"))
+    })?;
+
+    let sig_bytes = signature.as_bytes().to_vec();
+    log_crypto_operation_complete!(op::ML_DSA_SIGN, algorithm = ?parameter_set, signature_len = sig_bytes.len());
+    debug!(algorithm = ?parameter_set, "Created ML-DSA signature (explicit ctx)");
+
+    Ok(sig_bytes)
+}
+
+/// Verify with an explicit ML-DSA context. Mirrors
+/// [`sign_pq_ml_dsa_internal_with_ctx`]; intended for the hybrid leg in
+/// `api.rs::verify_hybrid_ml_dsa_ed25519`.
+pub(crate) fn verify_pq_ml_dsa_internal_with_ctx(
+    message: &[u8],
+    signature: &[u8],
+    ml_dsa_pk: &[u8],
+    parameter_set: MlDsaParameterSet,
+    context: &[u8],
+) -> Result<bool> {
+    log_crypto_operation_start!(op::ML_DSA_VERIFY, algorithm = ?parameter_set, message_len = message.len());
+
+    if let Err(e) = validate_signature_size(message.len()) {
+        log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
+        return Ok(false);
+    }
+
+    let pk = MlDsaPublicKey::new(parameter_set, ml_dsa_pk.to_vec()).map_err(|e| {
+        log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
+        CoreError::InvalidInput("Invalid ML-DSA public key format".to_string())
+    })?;
+
+    let sig = MlDsaSignature::new(parameter_set, signature.to_vec()).map_err(|e| {
+        log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
+        CoreError::InvalidInput("Invalid ML-DSA signature format".to_string())
+    })?;
+
+    let result = map_verify_result(pk.verify(message, &sig, context), "ML-DSA");
+
+    match &result {
+        Ok(valid) => {
+            log_crypto_operation_complete!(op::ML_DSA_VERIFY, algorithm = ?parameter_set, valid = *valid);
+            debug!(algorithm = ?parameter_set, valid = *valid, "ML-DSA verification completed (explicit ctx)");
+        }
+        Err(e) => {
+            log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
+        }
+    }
+
+    result
+}
+
+/// Expose the closed `SigSchemeLabel` mapping so `api.rs`'s hybrid path can
+/// build the hybrid context. This intentionally lives next to the other
+/// scheme-label helpers so a future review of "where do hybrid scheme
+/// strings come from?" lands on one file.
+pub(crate) const fn hybrid_scheme_label_for_param_set(params: MlDsaParameterSet) -> SigSchemeLabel {
+    match params {
+        MlDsaParameterSet::MlDsa44 => SigSchemeLabel::HybridMlDsa44Ed25519,
+        MlDsaParameterSet::MlDsa65 => SigSchemeLabel::HybridMlDsa65Ed25519,
+        MlDsaParameterSet::MlDsa87 => SigSchemeLabel::HybridMlDsa87Ed25519,
+    }
+}
 
 /// Map a *post-parse* primitive verify result `Result<bool, E>` to the
 /// convenience-API shape `Result<bool, CoreError>`. Used by all three PQ
@@ -160,9 +286,13 @@ fn sign_pq_ml_dsa_internal(
         CoreError::InvalidInput("Invalid ML-DSA private key format".to_string())
     })?;
 
-    let signature = sk.sign(message, &[]).map_err(|e| {
+    // H1 / M1 fix: bind the signed transcript to "ml-dsa-{44,65,87}". Mirrors
+    // the same scheme-context wiring on the verify side; old empty-ctx
+    // signatures will not verify under the new code (CHANGELOG break).
+    let scheme_ctx = sig_context(pure_ml_dsa_scheme_label(parameter_set));
+    let signature = sk.sign(message, scheme_ctx).map_err(|e| {
         log_crypto_operation_error!(op::ML_DSA_SIGN, e);
-        CoreError::SignatureFailed(format!("ML-DSA signing failed: {}", e))
+        CoreError::SignatureFailed(format!("ML-DSA signing failed: {e}"))
     })?;
 
     let sig_bytes = signature.as_bytes().to_vec();
@@ -207,7 +337,9 @@ fn verify_pq_ml_dsa_internal(
         CoreError::InvalidInput("Invalid ML-DSA signature format".to_string())
     })?;
 
-    let result = map_verify_result(pk.verify(message, &sig, &[]), "ML-DSA");
+    // H1 / M1 fix: must match sign-side context exactly.
+    let scheme_ctx = sig_context(pure_ml_dsa_scheme_label(parameter_set));
+    let result = map_verify_result(pk.verify(message, &sig, scheme_ctx), "ML-DSA");
 
     match &result {
         Ok(valid) => {
@@ -244,18 +376,17 @@ fn sign_pq_slh_dsa_internal(
         CoreError::InvalidInput("Invalid SLH-DSA private key format".to_string())
     })?;
 
-    // use empty context to match every other
-    // signature path in this crate (ML-DSA convenience and dispatcher,
-    // hybrid SLH-DSA) and the FIPS 205 §10.2 default. The previous
-    // `b"context"` magic string produced signatures that were not
-    // verifiable by any third party following FIPS 205 default
-    // semantics, and not interoperable with this crate's other paths.
-    // BREAKING CHANGE: signatures produced by 0.7.x convenience
-    // SLH-DSA sign cannot be verified by 0.8.x convenience verify and
-    // vice versa. See CHANGELOG.
-    let signature = sk.sign(message, &[]).map_err(|e| {
+    // H1 / M1 fix: bind the signed transcript to "slh-dsa-shake-{128s,192s,256s}".
+    // Replaces the previous empty FIPS 205 §10.2 default context with a
+    // crate-controlled per-scheme label so a (sk, msg) → sig produced under
+    // one parameter set cannot be reinterpreted as a sig under another scheme
+    // by relabelling. BREAKING: this is the second wire-format change to the
+    // SLH-DSA convenience path; signatures produced by 0.8.x with empty ctx
+    // cannot be verified by post-fix convenience verify. See CHANGELOG.
+    let scheme_ctx = sig_context(pure_slh_dsa_scheme_label(security_level));
+    let signature = sk.sign(message, scheme_ctx).map_err(|e| {
         log_crypto_operation_error!(op::SLH_DSA_SIGN, e);
-        CoreError::SignatureFailed(format!("SLH-DSA signing failed: {}", e))
+        CoreError::SignatureFailed(format!("SLH-DSA signing failed: {e}"))
     })?;
 
     log_crypto_operation_complete!(op::SLH_DSA_SIGN, algorithm = ?security_level, signature_len = signature.len());
@@ -284,9 +415,9 @@ fn verify_pq_slh_dsa_internal(
         CoreError::InvalidInput("Invalid SLH-DSA public key format".to_string())
     })?;
 
-    // empty context matches FIPS 205 §10.2
-    // default, hybrid SLH-DSA, and ML-DSA convenience path.
-    let result = map_verify_result(pk.verify(message, signature, &[]), "SLH-DSA");
+    // H1 / M1 fix: must match sign-side context exactly.
+    let scheme_ctx = sig_context(pure_slh_dsa_scheme_label(security_level));
+    let result = map_verify_result(pk.verify(message, signature, scheme_ctx), "SLH-DSA");
 
     match &result {
         Ok(valid) => {
@@ -328,9 +459,17 @@ fn sign_pq_fn_dsa_internal(
         CoreError::InvalidInput("Invalid FN-DSA private key format".to_string())
     })?;
 
-    let signature = sk.sign(message).map_err(|e| {
+    // H1 / M1 fix: FN-DSA's underlying `fn-dsa 0.3` exposes no context
+    // parameter, so the signed transcript is bound by hashing the scheme
+    // context together with the message and signing the 64-byte digest.
+    // Fixed-size digest also keeps us under the signature-size cap for
+    // large messages (a plain prefix-pad pushes 64KB messages over). Verify
+    // mirrors the construction so legitimate signatures round-trip.
+    let scheme_ctx = sig_context(pure_fn_dsa_scheme_label(security_level));
+    let digest = hash_with_context(scheme_ctx, message);
+    let signature = sk.sign(&digest).map_err(|e| {
         log_crypto_operation_error!(op::FN_DSA_SIGN, e);
-        CoreError::SignatureFailed(format!("FN-DSA signing failed: {}", e))
+        CoreError::SignatureFailed(format!("FN-DSA signing failed: {e}"))
     })?;
 
     let sig_bytes = signature.to_bytes();
@@ -375,7 +514,10 @@ fn verify_pq_fn_dsa_internal(
         CoreError::InvalidInput("Invalid FN-DSA signature format".to_string())
     })?;
 
-    let result = map_verify_result(pk.verify(message, &sig), "FN-DSA");
+    // H1 / M1 fix: must mirror sign-side hashing.
+    let scheme_ctx = sig_context(pure_fn_dsa_scheme_label(security_level));
+    let digest = hash_with_context(scheme_ctx, message);
+    let result = map_verify_result(pk.verify(&digest, &sig), "FN-DSA");
 
     match &result {
         Ok(valid) => {

@@ -864,7 +864,7 @@ impl MlKemDecapsulationKeyPair {
     /// Returns an error if key serialization fails.
     pub fn decaps_key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, MlKemError> {
         let sk_bytes = self.decaps_key.key_bytes().map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Key serialization failed: {}", e))
+            MlKemError::KeyGenerationError(format!("Key serialization failed: {e}"))
         })?;
         Ok(Zeroizing::new(sk_bytes.as_ref().to_vec()))
     }
@@ -1034,22 +1034,22 @@ impl MlKem {
 
         // Generate keypair using aws-lc-rs
         let decaps_key = DecapsulationKey::generate(algorithm).map_err(|e| {
-            MlKemError::KeyGenerationError(format!("aws-lc-rs key generation failed: {}", e))
+            MlKemError::KeyGenerationError(format!("aws-lc-rs key generation failed: {e}"))
         })?;
 
         // Get the encapsulation (public) key
         let encaps_key = decaps_key.encapsulation_key().map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Failed to derive encapsulation key: {}", e))
+            MlKemError::KeyGenerationError(format!("Failed to derive encapsulation key: {e}"))
         })?;
 
         // Serialize public key
         let pk_bytes = encaps_key.key_bytes().map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Failed to serialize public key: {}", e))
+            MlKemError::KeyGenerationError(format!("Failed to serialize public key: {e}"))
         })?;
 
         // Serialize secret key bytes via DecapsulationKey::key_bytes() (available since aws-lc-rs v1.16.0)
         let sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Key serialization failed: {}", e))
+            MlKemError::KeyGenerationError(format!("Key serialization failed: {e}"))
         })?;
 
         let public_key = MlKemPublicKey::new(config.security_level, pk_bytes.as_ref().to_vec())?;
@@ -1108,19 +1108,19 @@ impl MlKem {
         let algorithm = security_level.as_aws_algorithm();
 
         let decaps_key = DecapsulationKey::generate(algorithm).map_err(|e| {
-            MlKemError::KeyGenerationError(format!("aws-lc-rs key generation failed: {}", e))
+            MlKemError::KeyGenerationError(format!("aws-lc-rs key generation failed: {e}"))
         })?;
 
         let encaps_key = decaps_key.encapsulation_key().map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Failed to derive encapsulation key: {}", e))
+            MlKemError::KeyGenerationError(format!("Failed to derive encapsulation key: {e}"))
         })?;
 
         let pk_bytes = encaps_key.key_bytes().map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Failed to serialize public key: {}", e))
+            MlKemError::KeyGenerationError(format!("Failed to serialize public key: {e}"))
         })?;
 
         let sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Key serialization failed: {}", e))
+            MlKemError::KeyGenerationError(format!("Key serialization failed: {e}"))
         })?;
         let public_key = MlKemPublicKey::new(security_level, pk_bytes.as_ref().to_vec())?;
         let keypair = MlKemDecapsulationKeyPair::new(public_key, decaps_key, security_level);

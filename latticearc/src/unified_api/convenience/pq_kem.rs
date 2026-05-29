@@ -108,7 +108,7 @@ fn encrypt_pq_ml_kem_internal(
 
     let (shared_secret, ciphertext) = MlKem::encapsulate(&pk).map_err(|e| {
         log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "encapsulation failed");
-        CoreError::EncryptionFailed(format!("ML-KEM encapsulation failed: {}", e))
+        CoreError::EncryptionFailed(format!("ML-KEM encapsulation failed: {e}"))
     })?;
 
     // Derive AES-256 key from ML-KEM shared secret via HKDF.

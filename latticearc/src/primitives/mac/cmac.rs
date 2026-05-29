@@ -262,7 +262,7 @@ fn compute_cmac_internal(key: &[u8], data: &[u8]) -> Result<[u8; 16], CmacError>
             let end = (i + 1) * 16;
             let data_slice = data
                 .get(start..end)
-                .ok_or_else(|| CmacError::ComputationError(format!("Block {} out of bounds", i)))?;
+                .ok_or_else(|| CmacError::ComputationError(format!("Block {i} out of bounds")))?;
             block.copy_from_slice(data_slice);
             xor_block(&mut block, &c_i);
 

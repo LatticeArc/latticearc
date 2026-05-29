@@ -441,6 +441,7 @@ pub use hybrid::sig_hybrid::{
 // Single entry points for all cryptographic operations
 pub use unified_api::{
     SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify,
+    verify_with_anchor,
 };
 
 // Hybrid key generation (ML-KEM + X25519)

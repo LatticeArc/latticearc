@@ -128,7 +128,21 @@ use crate::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature,
     generate_keypair as ml_dsa_generate_keypair,
 };
+use crate::types::domains::{SigSchemeLabel, hash_with_context, sig_context};
 use crate::unified_api::logging::op;
+
+/// Map the ML-DSA parameter set to the corresponding hybrid scheme label so
+/// the sign and verify paths use the same domain-separation context (H1 fix).
+///
+/// Closed match — adding a new `MlDsaParameterSet` variant forces a compile
+/// error here, which is the structural enforcement [`SigSchemeLabel`] needs.
+const fn hybrid_scheme_label(parameter_set: MlDsaParameterSet) -> SigSchemeLabel {
+    match parameter_set {
+        MlDsaParameterSet::MlDsa44 => SigSchemeLabel::HybridMlDsa44Ed25519,
+        MlDsaParameterSet::MlDsa65 => SigSchemeLabel::HybridMlDsa65Ed25519,
+        MlDsaParameterSet::MlDsa87 => SigSchemeLabel::HybridMlDsa87Ed25519,
+    }
+}
 
 /// Error types for hybrid signature operations.
 ///
@@ -142,11 +156,32 @@ use crate::unified_api::logging::op;
 #[derive(Debug, Clone, Error)]
 pub enum HybridSignatureError {
     /// Error during ML-DSA signature operations.
+    ///
+    /// Retained for keygen-side reporting where the failure is not
+    /// adversary-reachable. The sign path now folds component failures
+    /// into the opaque [`SigningFailed`](Self::SigningFailed) variant
+    /// per Pattern 6 (DP-M3).
     #[error("ML-DSA error: {0}")]
     MlDsaError(String),
     /// Error during Ed25519 signature operations.
+    ///
+    /// Retained for keygen-side reporting where the failure is not
+    /// adversary-reachable. The sign path now folds component failures
+    /// into the opaque [`SigningFailed`](Self::SigningFailed) variant
+    /// per Pattern 6 (DP-M3).
     #[error("Ed25519 error: {0}")]
     Ed25519Error(String),
+    /// Hybrid sign failed (component-opaque).
+    ///
+    /// DP-M3: the sign path returns a single variant regardless of
+    /// which leg rejected. Pattern 6 forbids per-component variant
+    /// distinguishability on adversary-reachable paths — a remote
+    /// caller able to influence sign inputs could otherwise match on
+    /// `MlDsaError` vs `Ed25519Error` to fingerprint the failure
+    /// stage. The actual cause is routed to `tracing::debug!` for
+    /// operator-side correlation.
+    #[error("Hybrid signing failed: {0}")]
+    SigningFailed(String),
     /// Signature verification failed for one or both components.
     #[error("Signature verification failed: {0}")]
     VerificationFailed(String),
@@ -469,14 +504,25 @@ pub fn generate_keypair() -> Result<(HybridSigPublicKey, HybridSigSecretKey), Hy
 pub fn generate_keypair_with_parameter_set(
     parameter_set: MlDsaParameterSet,
 ) -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError> {
-    let (ml_dsa_pk, ml_dsa_sk) = ml_dsa_generate_keypair(parameter_set)
-        .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?;
+    // DP-H1 fix: opaque keygen errors. Pattern 6 SHOULD-be-opaque scope
+    // covers sign-side keygen as well as the adversary-reachable verify
+    // path — the upstream `fips204` and `ed25519-dalek` Display strings
+    // are not contractually stable and could leak implementation detail
+    // (KEM-fault category, RNG-failure reason, etc.) into the typed
+    // error a remote caller can match on. Route the actual cause to
+    // `tracing::debug!` for operator-side correlation.
+    let (ml_dsa_pk, ml_dsa_sk) = ml_dsa_generate_keypair(parameter_set).map_err(|e| {
+        tracing::debug!(error = %e, "hybrid sig keygen: ML-DSA keypair generation failed");
+        HybridSignatureError::MlDsaError("keypair generation failed".to_string())
+    })?;
 
     // Generate Ed25519 keypair through the primitives wrapper so all
     // Ed25519 operations go through a single entry point. The wrapper
     // performs a pairwise consistency test before returning.
-    let ed25519_kp = Ed25519KeyPair::generate()
-        .map_err(|e| HybridSignatureError::Ed25519Error(e.to_string()))?;
+    let ed25519_kp = Ed25519KeyPair::generate().map_err(|e| {
+        tracing::debug!(error = %e, "hybrid sig keygen: Ed25519 keypair generation failed");
+        HybridSignatureError::Ed25519Error("keypair generation failed".to_string())
+    })?;
 
     let ed25519_pk = ed25519_kp.public_key_bytes();
     // secret_key_bytes() returns Zeroizing<Vec<u8>>; move the inner buffer
@@ -549,13 +595,22 @@ pub fn sign(
     let ml_dsa_sk_struct = MlDsaSecretKey::new(sk.parameter_set, (*ml_dsa_sk_bytes).clone())
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA SK init failed");
-            HybridSignatureError::MlDsaError("signing failed".to_string())
+            HybridSignatureError::SigningFailed("signing failed".to_string())
         })?;
+    // H1 / M1 fix: bind the signed transcript to this specific hybrid scheme.
+    // ML-DSA accepts a FIPS 204 §5.2 context parameter natively; the
+    // previous empty `&[]` left the ML-DSA leg byte-identical to a standalone
+    // ML-DSA signature, enabling the hybrid → PQ-only downgrade attack
+    // (auditor H1). Ed25519 (RFC 8032) has no native context, so its message
+    // is prefix-padded with the same scheme-bound context below — the wire
+    // form of each leg now carries the scheme identifier.
+    let scheme_label = hybrid_scheme_label(sk.parameter_set);
+    let scheme_ctx = sig_context(scheme_label);
     let ml_dsa_sig = ml_dsa_sk_struct
-        .sign(message, &[])
+        .sign(message, scheme_ctx)
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA sign failed");
-            HybridSignatureError::MlDsaError("signing failed".to_string())
+            HybridSignatureError::SigningFailed("signing failed".to_string())
         })?
         .as_bytes()
         .to_vec();
@@ -565,14 +620,21 @@ pub fn sign(
     let ed25519_keypair = Ed25519KeyPair::from_secret_key(ed25519_sk_zeroizing.as_slice())
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_SIGN, "Ed25519 SK init failed");
-            HybridSignatureError::Ed25519Error("signing failed".to_string())
+            HybridSignatureError::SigningFailed("signing failed".to_string())
         })?;
     // `Ed25519KeyPair::sign` is now fallible
     // (validate_signature_size). Message length is already gated by
     // the hybrid sig API above; this `?` is the boundary safety net.
-    let ed25519_signature = ed25519_keypair.sign(message).map_err(|_e| {
+    // Bind the Ed25519 leg's signed bytes to the same scheme as the ML-DSA
+    // leg by signing `SHA-512(scheme_ctx || 0x00 || message)` instead of the
+    // raw message. The fixed 64-byte digest also stays under the
+    // signature-size cap regardless of message size — a plain prefix-pad
+    // pushes large messages over the cap (see
+    // `tests/hybrid_sig.rs::test_sign_verify_large_message_roundtrip`).
+    let ed25519_input = hash_with_context(scheme_ctx, message);
+    let ed25519_signature = ed25519_keypair.sign(&ed25519_input).map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_SIGN, "Ed25519 sign rejected");
-        HybridSignatureError::Ed25519Error("signing failed".to_string())
+        HybridSignatureError::SigningFailed("signing failed".to_string())
     })?;
     let ed25519_sig = Ed25519SignatureOps::signature_bytes(&ed25519_signature);
 
@@ -680,10 +742,21 @@ pub fn verify(
     // pre-parsed material now goes through `parsed_or_init()`
     // which retries init when prior attempts produced None. The result is
     // a clone (cheap — public bytes only); we own it locally.
+    // H1 / M1 fix: bind the verified transcript to this scheme. Must mirror
+    // the sign-side context exactly — any mismatch produces a verify-false
+    // for legitimate signatures. The dummy equalizer paths intentionally
+    // keep `&[]` because they verify pre-generated material against fixed
+    // internal messages — that material was produced with empty ctx, and
+    // its sole purpose is wall-clock parity (results are discarded). The
+    // FIPS 204 §5.2 ctx parsing cost is negligible relative to the
+    // polynomial arithmetic that dominates verify, so equal cost holds.
+    let scheme_label = hybrid_scheme_label(pk.parameter_set);
+    let scheme_ctx = sig_context(scheme_label);
+
     let dummy_parsed = dummy.parsed_or_init();
     let ml_dsa_verify_result = match &parse_ok {
         Ok((parsed_pk, parsed_sig)) => {
-            let inner = parsed_pk.verify(message, parsed_sig, &[]);
+            let inner = parsed_pk.verify(message, parsed_sig, scheme_ctx);
             match &inner {
                 Ok(_) => inner,
                 // Inner parse failed (structurally-invalid PK reached
@@ -720,13 +793,19 @@ pub fn verify(
     // `from_bytes` calls succeeded, AND the verify returned Ok(true).
     // When shape failed, the verify still ran (against the dummy or
     // against pre-parsed material) for timing equalization; its
-    // result is discarded by the AND with `pq_shape_ok`.
-    let ml_dsa_valid: u8 =
-        if pq_shape_ok && parse_ok.is_ok() && matches!(ml_dsa_verify_result, Ok(true)) {
-            1u8
-        } else {
-            0u8
-        };
+    // result is discarded by the bitwise AND below.
+    //
+    // DP-H3 fix: compute the bit via bitwise `&` (Anti-Pattern 3) so the
+    // three predicates are always evaluated in identical order rather
+    // than short-circuiting. The wall-clock parity is already preserved
+    // by the timing equalizer (the dummy verify runs on the failure
+    // path), but the explicit `u8 & u8 & u8` composition documents the
+    // CT-discipline intent and prevents a future refactor from sliding
+    // `&&` back in.
+    let shape_bit: u8 = u8::from(pq_shape_ok);
+    let parse_bit: u8 = u8::from(parse_ok.is_ok());
+    let verify_bit: u8 = u8::from(matches!(ml_dsa_verify_result, Ok(true)));
+    let ml_dsa_valid: u8 = shape_bit & parse_bit & verify_bit;
 
     // the Ed25519 leg now has a real verify-time
     // equalizer. The previous shape claimed parse cost was "in the
@@ -747,7 +826,13 @@ pub fn verify(
         // material on that path so the wall-clock matches the
         // valid-PK code path.
         let pk_bytes = pk.ed25519_pk.as_slice();
-        let result = Ed25519SignatureOps::verify(pk_bytes, message, &ed25519_signature);
+        // H1 / M1 fix: mirror the sign-side `SHA-512(scheme_ctx || 0x00 ||
+        // message)` construction so the Ed25519 leg verifies against the
+        // same domain-separated digest. Old (pre-fix) hybrid signatures
+        // were Ed25519 signatures over the raw message and will not verify
+        // here — the deliberate wire-format break documented in CHANGELOG.
+        let ed25519_input = hash_with_context(scheme_ctx, message);
+        let result = Ed25519SignatureOps::verify(pk_bytes, &ed25519_input, &ed25519_signature);
         if pk_bytes.len() != 32
             && let Some(parsed) = &ed_dummy_parsed
             && let Ok(parsed_sig) =

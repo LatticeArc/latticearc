@@ -1022,7 +1022,7 @@ mod tests {
             SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
 
         for i in 0..10 {
-            let message = format!("Test message {}", i).as_bytes().to_vec();
+            let message = format!("Test message {i}").as_bytes().to_vec();
             let signature = sk.sign(&message, &[]).expect("Signing failed");
             let is_valid = pk.verify(&message, &signature, &[]).expect("Verification failed");
             assert!(is_valid, "Signature verification failed for message {}", i);

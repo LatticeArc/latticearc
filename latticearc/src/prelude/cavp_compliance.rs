@@ -177,7 +177,7 @@ impl UtilityCavpTester {
     fn test_hex_decode_succeeds(vector: &UtilityTestVector) -> Result<bool> {
         // Convert input to hex string
         let hex_string = std::str::from_utf8(&vector.input_data)
-            .map_err(|e| LatticeArcError::InvalidData(format!("Invalid hex string: {}", e)))?;
+            .map_err(|e| LatticeArcError::InvalidData(format!("Invalid hex string: {e}")))?;
 
         let decoded = hex::decode(hex_string)?;
 
@@ -229,7 +229,7 @@ impl UtilityCavpTester {
     /// Test domain constants.
     fn test_domain_constant_succeeds(vector: &UtilityTestVector) -> Result<bool> {
         let domain_name = std::str::from_utf8(&vector.input_data)
-            .map_err(|e| LatticeArcError::InvalidData(format!("Invalid domain name: {}", e)))?;
+            .map_err(|e| LatticeArcError::InvalidData(format!("Invalid domain name: {e}")))?;
 
         let domain_constant = match domain_name {
             "CASCADE_OUTER" => crate::types::domains::CASCADE_OUTER,
@@ -493,7 +493,7 @@ pub fn load_sample_crypto_vectors() -> Result<Vec<CryptoTestVector>> {
         73, 148, 90, 236, 60, 48, 59, 122, 175, 96, 1, 0,
     ];
     let keypair = Ed25519KeyPair::from_secret_key(&private_key_bytes).map_err(|e| {
-        LatticeArcError::InvalidData(format!("Ed25519 key construction failed: {}", e))
+        LatticeArcError::InvalidData(format!("Ed25519 key construction failed: {e}"))
     })?;
     let message = b"test message for Ed25519".to_vec();
     let signature = keypair
@@ -802,7 +802,7 @@ mod tests {
         ] {
             let mut tester = UtilityCavpTester::new();
             tester.load_test_vectors(vec![UtilityTestVector {
-                test_case_id: format!("DOMAIN-{}", name),
+                test_case_id: format!("DOMAIN-{name}"),
                 function: "domain_constant".to_string(),
                 input_data: name.as_bytes().to_vec(),
                 expected_output: expected,

@@ -69,7 +69,7 @@ const MAX_APPROVERS: usize = 256;
 /// presence is decided at the caller; content is validated here.
 fn validate_audit_field(name: &str, value: &str) -> Result<()> {
     if value.is_empty() {
-        return Err(TypeError::InvalidAuditInput(format!("{} must not be empty", name)));
+        return Err(TypeError::InvalidAuditInput(format!("{name} must not be empty")));
     }
     if value.len() > MAX_AUDIT_FIELD_LEN {
         return Err(TypeError::InvalidAuditInput(format!(
@@ -78,7 +78,7 @@ fn validate_audit_field(name: &str, value: &str) -> Result<()> {
         )));
     }
     if value.chars().any(char::is_control) {
-        return Err(TypeError::InvalidAuditInput(format!("{} contains control characters", name)));
+        return Err(TypeError::InvalidAuditInput(format!("{name} contains control characters")));
     }
     Ok(())
 }

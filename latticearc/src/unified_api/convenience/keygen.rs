@@ -150,7 +150,7 @@ pub fn generate_ml_kem_keypair(
 
     let (pk, sk) =
         MlKem::generate_keypair(security_level).map_err(|e| CoreError::KeyGenerationFailed {
-            reason: format!("ML-KEM key generation failed: {}", e),
+            reason: format!("ML-KEM key generation failed: {e}"),
             recovery: "Check security level and RNG".to_string(),
         })?;
 
@@ -201,7 +201,7 @@ pub fn generate_ml_dsa_keypair(
 
     let (pk, sk) =
         ml_dsa_generate_keypair(parameter_set).map_err(|e| CoreError::KeyGenerationFailed {
-            reason: format!("ML-DSA key generation failed: {}", e),
+            reason: format!("ML-DSA key generation failed: {e}"),
             recovery: "Check parameter set".to_string(),
         })?;
 
@@ -240,7 +240,7 @@ pub fn generate_slh_dsa_keypair(
 
     let (sk, pk) =
         SlhDsaSigningKey::generate(security_level).map_err(|e| CoreError::KeyGenerationFailed {
-            reason: format!("SLH-DSA key generation failed: {}", e),
+            reason: format!("SLH-DSA key generation failed: {e}"),
             recovery: "Check security level".to_string(),
         })?;
 
@@ -318,7 +318,7 @@ pub fn generate_fn_dsa_keypair_with_level(
         .spawn(move || -> Result<(Vec<u8>, Vec<u8>)> {
             let keypair = crate::primitives::sig::fndsa::KeyPair::generate(level).map_err(|e| {
                 CoreError::KeyGenerationFailed {
-                    reason: format!("FN-DSA key generation failed: {}", e),
+                    reason: format!("FN-DSA key generation failed: {e}"),
                     recovery: "Check RNG availability".to_string(),
                 }
             })?;

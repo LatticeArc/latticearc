@@ -286,7 +286,7 @@ impl PedersenCommitment {
 
         let commitment: [u8; 33] =
             <[u8; 33]>::try_from(commitment_point.to_affine().to_bytes().as_slice()).map_err(
-                |e| ZkpError::SerializationError(format!("Failed to serialize commitment: {}", e)),
+                |e| ZkpError::SerializationError(format!("Failed to serialize commitment: {e}")),
             )?;
 
         Ok((Self { commitment }, PedersenOpening::new(*value, *blinding)))
@@ -375,12 +375,12 @@ impl PedersenCommitment {
         use k256::elliptic_curve::sec1::FromEncodedPoint;
 
         let encoded1 = EncodedPoint::from_bytes(self.commitment)
-            .map_err(|e| ZkpError::InvalidCommitment(format!("Invalid point 1: {}", e)))?;
+            .map_err(|e| ZkpError::InvalidCommitment(format!("Invalid point 1: {e}")))?;
         let point1: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded1).into();
         let point1 = point1.ok_or(ZkpError::InvalidCommitment("Invalid point 1".into()))?;
 
         let encoded2 = EncodedPoint::from_bytes(other.commitment())
-            .map_err(|e| ZkpError::InvalidCommitment(format!("Invalid point 2: {}", e)))?;
+            .map_err(|e| ZkpError::InvalidCommitment(format!("Invalid point 2: {e}")))?;
         let point2: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded2).into();
         let point2 = point2.ok_or(ZkpError::InvalidCommitment("Invalid point 2".into()))?;
 
@@ -399,7 +399,7 @@ impl PedersenCommitment {
         }
 
         let commitment: [u8; 33] = <[u8; 33]>::try_from(sum.to_affine().to_bytes().as_slice())
-            .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize sum: {}", e)))?;
+            .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize sum: {e}")))?;
 
         Ok(PedersenCommitment { commitment })
     }
@@ -452,7 +452,7 @@ impl PedersenCommitment {
             // Input is 34 bytes (30-byte label + 4-byte counter), well below the
             // 1 GB SHA-256 DoS cap.
             let hash = sha256(&buf)
-                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?;
 
             let mut compressed = [0u8; 33];
             // even-y SEC1 prefix. We only try `0x02` (even-y)

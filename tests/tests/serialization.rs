@@ -15,18 +15,19 @@ use latticearc::unified_api::types::{KeyPair, PrivateKey, SignedData, SignedMeta
 
 fn create_test_signed_data() -> SignedData {
     // S4 fix elevated `signature_algorithm == scheme` from a
-    // sign-side guarantee to a deserializer invariant. The fields
-    // must match in every fixture because the production sign path
-    // sets them via `signature_algorithm: scheme.clone()`.
+    // sign-side guarantee to a deserializer invariant. The M5 fix
+    // additionally requires both fields to map to a known scheme in the
+    // closed `SigSchemeLabel` allowlist; canonical scheme tags are
+    // lowercase (`ml-dsa-65`, not `ML-DSA-65`).
     SignedData::new(
         b"Hello, World!".to_vec(),
         SignedMetadata::new(
             vec![0xDE; 64],
-            "ML-DSA-65".to_string(),
+            "ml-dsa-65".to_string(),
             vec![0xCA; 32],
             Some("signer-key-id".to_string()),
         ),
-        "ML-DSA-65".to_string(),
+        "ml-dsa-65".to_string(),
         1706745602,
     )
 }
@@ -34,8 +35,8 @@ fn create_test_signed_data() -> SignedData {
 fn create_test_signed_data_no_key_id() -> SignedData {
     SignedData::new(
         b"Test message".to_vec(),
-        SignedMetadata::new(vec![0x11; 48], "Ed25519".to_string(), vec![0x55; 32], None),
-        "Ed25519".to_string(),
+        SignedMetadata::new(vec![0x11; 48], "ed25519".to_string(), vec![0x55; 32], None),
+        "ed25519".to_string(),
         1706745603,
     )
 }
@@ -77,10 +78,11 @@ fn test_serialize_signed_data_no_key_id_roundtrip() -> Result<()> {
 
 #[test]
 fn test_serialize_signed_data_empty_data_roundtrip() -> Result<()> {
+    // M5 fix: scheme must be in the closed allowlist.
     let original = SignedData::new(
         vec![],
-        SignedMetadata::new(vec![0; 64], "EMPTY".to_string(), vec![0; 32], None),
-        "EMPTY".to_string(),
+        SignedMetadata::new(vec![0; 64], "ed25519".to_string(), vec![0; 32], None),
+        "ed25519".to_string(),
         0,
     );
 
@@ -93,15 +95,18 @@ fn test_serialize_signed_data_empty_data_roundtrip() -> Result<()> {
 
 #[test]
 fn test_serialize_signed_data_large_signature_roundtrip() -> Result<()> {
+    // M5 fix: scheme must be canonical (lowercase). The signature length
+    // here is a synthetic large payload — the real SLH-DSA-256s sigs are
+    // similar size, so the fixture stays representative.
     let original = SignedData::new(
         b"Large signature test".to_vec(),
         SignedMetadata::new(
             vec![0xAB; 4096], // Large signature (SLH-DSA)
-            "SLH-DSA-256s".to_string(),
+            "slh-dsa-shake-256s".to_string(),
             vec![0xCD; 64],
             Some("slh-dsa-key".to_string()),
         ),
-        "SLH-DSA-256s".to_string(),
+        "slh-dsa-shake-256s".to_string(),
         9999999999,
     );
 
@@ -229,15 +234,17 @@ fn test_signed_data_to_serializable_conversion_succeeds() {
 
 #[test]
 fn test_serializable_to_signed_data_conversion_succeeds() -> Result<()> {
+    // M5 fix: scheme/signature_algorithm must be in the closed allowlist.
+    // Use a real canonical scheme tag instead of `"TEST"`.
     let serializable = SerializableSignedData {
         data: "SGVsbG8=".to_string(), // "Hello"
         metadata: SerializableSignedMetadata {
             signature: "AQIDBA==".to_string(),
-            signature_algorithm: "TEST".to_string(),
+            signature_algorithm: "ml-dsa-65".to_string(),
             public_key: "AQIDBA==".to_string(),
             key_id: None,
         },
-        scheme: "TEST".to_string(),
+        scheme: "ml-dsa-65".to_string(),
         timestamp: 456,
     };
 

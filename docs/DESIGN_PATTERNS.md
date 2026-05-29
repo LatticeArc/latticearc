@@ -168,7 +168,7 @@ to make entire classes of cryptographic bugs structurally impossible.
 | **`#[deny(unsafe_code)]`** | Memory safety is provable | The entire crate denies unsafe. All memory access is bounds-checked by the compiler. (aws-lc-rs uses unsafe internally for FFI — that's their responsibility, audited by AWS.) |
 | **Sealed traits** | Prevent broken external implementations | `AeadCipher`, `EcKeyPair`, `EcSignature` use the sealed-trait pattern. External crates cannot implement them with non-constant-time or non-zeroizing logic. |
 | **`#[must_use]`** | Prevent discarding security-critical values | `generate_key()`, `allow_request()`, and builder methods are `#[must_use]` — the compiler warns if the return value is dropped. |
-| **`#[non_exhaustive]`** | Semver-safe enum extensibility | All 61 public enums in `latticearc/src` are `#[non_exhaustive]`, allowing new algorithm variants without breaking downstream enterprise crates. |
+| **`#[non_exhaustive]`** | Semver-safe enum extensibility | Every `pub enum` in `latticearc/src` carries `#[non_exhaustive]` (verified by repo-wide audit; the absolute count drifts as new variants land, so the invariant is "all of them," not a fixed integer). Adding a variant to any public enum is therefore a minor-version bump rather than a breaking change for downstream consumers. |
 | **Workspace lints** | Consistent enforcement across all crates | `forbid(unsafe_code)` and `deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, dead_code, missing_docs)` (and more — see `[workspace.lints]` in root `Cargo.toml`). No crate can opt out. |
 
 ## Rust-Specific Anti-Patterns We Prevent
@@ -1910,7 +1910,7 @@ Every release must score 10/10. Any score below 10 blocks the release.
 | 4 | **All public items documented** | `#![deny(missing_docs)]` in every crate |
 | 5 | **All secret types audited** | Checklist: ZeroizeOnDrop ✓, Debug redacted ✓, ct_eq ✓, no Clone ✓ |
 | 6 | **All domain labels in registry** | Kani proof covers all constants |
-| 7 | **All public enums non_exhaustive** | Grep count matches |
+| 7 | **All public enums non_exhaustive** | CI grep: `rg '^pub enum' latticearc/src` and `rg -B1 '^pub enum' latticearc/src` must show every `pub enum` line preceded by `#[non_exhaustive]` |
 | 8 | **All tests pass in release mode** | `cargo test --release` in CI |
 | 9 | **No `todo!`, `unimplemented!`, `#[ignore]`** | Workspace lint + grep in CI |
 | 10 | **CHANGELOG updated** | Pre-push hook checks |

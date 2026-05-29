@@ -115,15 +115,24 @@ pub(crate) struct KdfArgs {
     pub prf: PbkdfPrf,
     /// Bypass the OWASP-2023 PBKDF2 iteration floor (600,000). Reserved
     /// for KAT replay and reproducibility against legacy fixtures.
-    /// Production use is unsupported.
+    /// Production use is unsupported. L8: additionally gated behind
+    /// `LATTICEARC_ALLOW_UNSAFE_CLI=1` so accidental shell expansion or
+    /// CI defaults can't silently pick up the bypass.
     #[arg(long)]
     pub allow_weak_iterations: bool,
     /// Allow `--input <secret>` with `--algorithm pbkdf2`. Reserved for
     /// KAT replay and reproducibility — production use is unsupported
     /// because argv-passed secrets are visible to `ps`, kernel audit
-    /// logs, and shell history.
+    /// logs, and shell history. L8: additionally gated behind
+    /// `LATTICEARC_ALLOW_UNSAFE_CLI=1`.
     #[arg(long)]
     pub allow_argv_secret: bool,
+    /// Allow writing derived key material to a TTY. Default refuses on
+    /// terminal stdout because derived key bytes shouldn't land in shell
+    /// scrollback / screen recorders / log aggregators. Pipe stdout or
+    /// pass `--print-to-tty` to opt in. (L9 fix)
+    #[arg(long)]
+    pub print_to_tty: bool,
     /// Output format: hex (default) or base64.
     #[arg(short, long, default_value = "hex")]
     pub format: super::hash::OutputFormat,
@@ -131,6 +140,23 @@ pub(crate) struct KdfArgs {
 
 /// Execute the kdf command.
 pub(crate) fn run(args: KdfArgs) -> Result<()> {
+    // L8 fix: the `--allow-*` escape hatches are reserved for KAT replay
+    // and reproducibility; they aren't safe to leave reachable by default
+    // because shell expansion (`--allow*`), CI bash defaults, or
+    // copy-paste from documentation could enable them by accident.
+    // Require an explicit `LATTICEARC_ALLOW_UNSAFE_CLI=1` in the env so
+    // the operator's intent is grep-able in audit logs.
+    if (args.allow_weak_iterations || args.allow_argv_secret)
+        && std::env::var("LATTICEARC_ALLOW_UNSAFE_CLI").as_deref() != Ok("1")
+    {
+        bail!(
+            "Refusing to honour --allow-weak-iterations / --allow-argv-secret without \
+             LATTICEARC_ALLOW_UNSAFE_CLI=1 in the environment. These flags are reserved for \
+             KAT replay and break the production security contract; set the env var explicitly \
+             to acknowledge."
+        );
+    }
+
     if args.salt.is_empty() {
         bail!(
             "--salt must not be empty. PBKDF2 requires ≥16 bytes (NIST SP 800-132 §5.1); \
@@ -167,6 +193,17 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
              or LATTICEARC_KDF_INPUT. Pass --allow-argv-secret to bypass for KAT replay only."
         );
     }
+    // L8 fix: surface the same argv-visibility warning when HKDF reads
+    // from `--input`. HKDF inputs aren't strictly password material but
+    // are routinely keying material (IKM) — they have the same exposure
+    // surface as PBKDF2 on argv and the inconsistent treatment was the
+    // pre-fix footgun.
+    if matches!(args.algorithm, KdfAlgorithm::Hkdf) && args.input.is_some() {
+        eprintln!(
+            "warning: HKDF input read from --input is visible in `ps`, `/proc/<pid>/cmdline`, \
+             and shell history. Prefer --input-stdin or LATTICEARC_KDF_INPUT for sensitive IKM."
+        );
+    }
 
     let resolved_input = resolve_input(&args)?;
 
@@ -187,17 +224,15 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
         }
     };
 
-    // TTY guard mirrors `commands/decrypt.rs` —
-    // derived key bytes shouldn't land in interactive scrollback by
-    // default. `print!` (no trailing newline) matches the
-    // length-bound the user sees in scripts; the warning is on stderr
-    // so pipelines aren't polluted.
+    // L9 fix: mirror decrypt's hard-fail. Derived key bytes shouldn't
+    // land in interactive scrollback by default. Pipelines (stdout not a
+    // TTY) are unaffected; `--print-to-tty` is the explicit opt-in.
     use std::io::IsTerminal;
-    if std::io::stdout().is_terminal() {
-        eprintln!(
-            "warning: derived KDF output is being written to a TTY. \
-             Pipe stdout to a file or downstream tool to avoid leaving \
-             key material in shell scrollback."
+    if std::io::stdout().is_terminal() && !args.print_to_tty {
+        bail!(
+            "Refusing to write derived KDF output to a TTY. Pipe stdout to a file or downstream \
+             tool, or pass --print-to-tty to explicitly opt in (key material will then appear \
+             in shell scrollback / session recorders / log aggregators)."
         );
     }
     print!("{}", encoded.as_str());
