@@ -111,8 +111,27 @@ pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519: &[u8] =
 /// Hybrid ML-DSA-87 + Ed25519 per-scheme context. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519`].
 pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519: &[u8] =
     b"LatticeArc-Sig-hybrid-ml-dsa-87-ed25519-v1";
-/// Pure Ed25519 per-scheme context. Bound via prefix-padding.
+/// Pure Ed25519 per-scheme context. Bound via prefix-padding. cfg-gated to
+/// match the corresponding [`SigSchemeLabel::Ed25519`] variant and the
+/// `unified_api::convenience::api` dispatch arms — non-FIPS only.
+#[cfg(not(feature = "fips"))]
 pub(crate) const SIG_CONTEXT_ED25519: &[u8] = b"LatticeArc-Sig-ed25519-v1";
+
+/// PoP (proof-of-possession) Ed25519 context. Separate from the pure-Ed25519
+/// SignedData context so a captured PoP signature cannot be replayed as a
+/// pure-Ed25519 SignedData (and vice versa). PoP messages are never wire
+/// scheme strings, so this constant is not exposed via [`SigSchemeLabel`] —
+/// the M5 allowlist would conflate it with the pure path. Used directly by
+/// `unified_api::zero_trust::generate_pop` / `verify_pop`.
+pub(crate) const SIG_CONTEXT_POP_ED25519: &[u8] = b"LatticeArc-PoP-ed25519-v1";
+
+/// Zero-knowledge identity-proof Ed25519 context. Separate from both pure
+/// Ed25519 and PoP so a ZK proof captured at one complexity level cannot be
+/// replayed as a SignedData or PoP, and the existing Low/Medium/High intra-
+/// protocol domain tags (0x01/0x02/0x03) keep their semantics within the
+/// hash. Used directly by `unified_api::zero_trust::generate_proof_data` /
+/// `verify_proof_data`.
+pub(crate) const SIG_CONTEXT_ZK_PROOF_ED25519: &[u8] = b"LatticeArc-ZK-Proof-ed25519-v1";
 
 // ============================================================================
 // SP 800-108 Counter-mode KDF labels (DP-M1 fix)
@@ -168,7 +187,12 @@ pub(crate) enum SigSchemeLabel {
     HybridMlDsa65Ed25519,
     /// `hybrid-ml-dsa-87-ed25519` (also accepts `ml-dsa-87-hybrid-ed25519`)
     HybridMlDsa87Ed25519,
-    /// `ed25519`
+    /// `ed25519`. cfg-gated out under `feature = "fips"` because pure
+    /// Ed25519 is not on the FIPS 186-5 / SP 800-186 approved-curve list
+    /// for FIPS-mode deployments — the variant must not exist at all so
+    /// the M5 allowlist rejects ed25519 envelopes before dispatch, keeping
+    /// the FIPS verify path symmetric with the sign path.
+    #[cfg(not(feature = "fips"))]
     Ed25519,
 }
 
@@ -188,6 +212,7 @@ impl SigSchemeLabel {
             Self::HybridMlDsa44Ed25519 => SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519,
             Self::HybridMlDsa65Ed25519 => SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519,
             Self::HybridMlDsa87Ed25519 => SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519,
+            #[cfg(not(feature = "fips"))]
             Self::Ed25519 => SIG_CONTEXT_ED25519,
         }
     }
@@ -215,6 +240,7 @@ impl SigSchemeLabel {
             "hybrid-ml-dsa-87-ed25519" | "ml-dsa-87-hybrid-ed25519" => {
                 Some(Self::HybridMlDsa87Ed25519)
             }
+            #[cfg(not(feature = "fips"))]
             "ed25519" => Some(Self::Ed25519),
             _ => None,
         }
@@ -225,6 +251,24 @@ impl SigSchemeLabel {
 #[inline]
 pub(crate) const fn sig_context(label: SigSchemeLabel) -> &'static [u8] {
     label.as_bytes()
+}
+
+/// Convenience accessor for the PoP-specific Ed25519 context.
+///
+/// Separate from [`sig_context`] because PoP messages are not in the M5
+/// allowlist — they're an internal zero-trust protocol artifact, not a wire
+/// scheme string. Routing through [`SigSchemeLabel`] would conflict with the
+/// closed-allowlist contract that backs SignedData deserialization.
+#[inline]
+pub(crate) const fn pop_sig_context() -> &'static [u8] {
+    SIG_CONTEXT_POP_ED25519
+}
+
+/// Convenience accessor for the ZK-identity-proof Ed25519 context. See
+/// [`pop_sig_context`] for why this is separate from [`SigSchemeLabel`].
+#[inline]
+pub(crate) const fn zk_proof_sig_context() -> &'static [u8] {
+    SIG_CONTEXT_ZK_PROOF_ED25519
 }
 
 /// Domain-separated SHA-512 digest for signature primitives without a native
@@ -466,6 +510,7 @@ mod sig_scheme_label_tests {
         SigSchemeLabel::HybridMlDsa44Ed25519,
         SigSchemeLabel::HybridMlDsa65Ed25519,
         SigSchemeLabel::HybridMlDsa87Ed25519,
+        #[cfg(not(feature = "fips"))]
         SigSchemeLabel::Ed25519,
     ];
 
@@ -533,6 +578,7 @@ mod sig_scheme_label_tests {
             ("ml-dsa-65-hybrid-ed25519", SigSchemeLabel::HybridMlDsa65Ed25519),
             ("hybrid-ml-dsa-87-ed25519", SigSchemeLabel::HybridMlDsa87Ed25519),
             ("ml-dsa-87-hybrid-ed25519", SigSchemeLabel::HybridMlDsa87Ed25519),
+            #[cfg(not(feature = "fips"))]
             ("ed25519", SigSchemeLabel::Ed25519),
         ];
         for &(s, want) in pairs {
@@ -560,6 +606,42 @@ mod sig_scheme_label_tests {
                 None,
                 "scheme string {s:?} must be rejected by the M5 allowlist"
             );
+        }
+    }
+
+    /// Under `--features fips` the wire scheme string `"ed25519"` must not
+    /// be in the M5 allowlist — closes the L-A leak where the verify path
+    /// returned `Err(InvalidInput("Unsupported scheme: ed25519"))` while
+    /// the M5 allowlist accepted it, breaking the Pattern-6 contract that
+    /// [`verify_with_anchor`] documents.
+    #[cfg(feature = "fips")]
+    #[test]
+    fn fips_rejects_pure_ed25519_at_allowlist() {
+        assert_eq!(
+            SigSchemeLabel::from_scheme_str("ed25519"),
+            None,
+            "pure ed25519 must be rejected by M5 under --features fips"
+        );
+    }
+
+    /// PoP / ZK contexts must be pairwise distinct from each other AND
+    /// from every SigSchemeLabel context. Cross-protocol collision would
+    /// let a captured PoP or ZK signature replay as a SignedData (or vice
+    /// versa). Locks the M-A PoP-binding invariant.
+    #[test]
+    fn extra_ed25519_contexts_pairwise_distinct_from_sig_scheme_contexts() {
+        let pop = pop_sig_context();
+        let zk = zk_proof_sig_context();
+        assert_ne!(pop, zk, "PoP and ZK contexts must differ");
+        assert!(!pop.contains(&0u8), "PoP context must be NUL-free for prefix-padding");
+        assert!(!zk.contains(&0u8), "ZK context must be NUL-free for prefix-padding");
+        for &label in ALL_LABELS {
+            assert_ne!(
+                label.as_bytes(),
+                pop,
+                "PoP context collides with SigSchemeLabel::{label:?}"
+            );
+            assert_ne!(label.as_bytes(), zk, "ZK context collides with SigSchemeLabel::{label:?}");
         }
     }
 }

@@ -640,9 +640,21 @@ mod direct {
     #[cfg(not(feature = "fips"))]
     #[test]
     fn test_verify_ed25519_scheme_is_supported() {
+        use sha2::{Digest, Sha512};
         let (pk, sk) = generate_keypair().unwrap();
         let msg = b"Ed25519 verify test";
-        let sig = sign_ed25519_unverified(msg, sk.expose_secret()).unwrap();
+        // M-A wire-format change: the verify dispatch for scheme="ed25519"
+        // signs SHA-512(scheme_ctx || 0x00 || msg), not the raw message,
+        // so the test must produce that digest before calling
+        // `sign_ed25519_unverified` (which is the raw-message primitive).
+        // Pre-M-A this test signed the raw message and verify accepted it;
+        // that contract is the exact downgrade M-A closes.
+        let mut hasher = Sha512::new();
+        hasher.update(b"LatticeArc-Sig-ed25519-v1");
+        hasher.update([0x00]);
+        hasher.update(msg);
+        let digest = hasher.finalize();
+        let sig = sign_ed25519_unverified(&digest, sk.expose_secret()).unwrap();
 
         let signed = make_signed(msg, sig, pk.into_bytes(), "ed25519");
 

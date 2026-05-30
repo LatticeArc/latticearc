@@ -25,6 +25,84 @@ signatures produced under the new code will not verify under pre-fix
 versions. Re-sign existing artifacts that need to round-trip across the
 boundary.
 
+### ⚠️ BREAKING: PoP and ZK-identity-proof wire formats
+
+Same root cause as the signature wire-format break, extended to the two
+remaining Ed25519 sub-protocols in `unified_api::zero_trust`:
+
+- **Proof-of-Possession** (`generate_pop` / `verify_pop`) — signatures now
+  bind `SHA-512(LatticeArc-PoP-ed25519-v1 || 0x00 || verifier_pk
+  || 0x00 || ts_micros || 0x00 || challenge)` (challenge support added
+  in the breakdown below). A pre-fix PoP cannot be verified by post-fix
+  code.
+- **Zero-knowledge identity proofs** (`generate_proof_data` /
+  `verify_proof_data` at all three `ProofComplexity` levels) — signatures
+  now bind `SHA-512(LatticeArc-ZK-Proof-ed25519-v1 || 0x00 || msg)`
+  instead of the raw `[0x01|0x02|0x03, challenge, ts, pk]` message. The
+  internal 0x01/0x02/0x03 complexity tags keep their intra-protocol
+  separation role within the hash input.
+
+Both are transient session-scoped artifacts and are not persisted to
+disk, so the upgrade cost is "discard in-flight challenges and re-issue."
+No on-disk migration is required. Cross-protocol replay (PoP → SignedData,
+ZK-proof → PoP, etc.) is now structurally impossible — the underlying
+Ed25519 key may still be shared across sub-protocols without leaking sigs.
+
+### ⚠️ BREAKING: PoP API takes a challenge parameter
+
+`ProofOfPossession::generate_pop` and `verify_pop` now require a
+`challenge: &[u8]` parameter on both sides:
+
+```rust
+// Pre-fix
+fn generate_pop(&self) -> Result<Self::Pop, Self::Error>;
+fn verify_pop(&self, pop: &Self::Pop) -> Result<bool, Self::Error>;
+
+// Post-fix
+fn generate_pop(&self, challenge: &[u8]) -> Result<Self::Pop, Self::Error>;
+fn verify_pop(&self, pop: &Self::Pop, expected_challenge: &[u8])
+    -> Result<bool, Self::Error>;
+```
+
+The challenge is the per-request nonce the verifier issued; it is bound
+into the signed transcript along with the verifier's identity public
+key (PoP-M1). Pre-fix, the PoP message was the literal string
+`"proof-of-possession-{ts_micros}"`, so a captured PoP within the 5-min
+freshness window could be replayed against any verifier instance that
+held the same identity public key. Empty `challenge` is permitted by
+the wire format for the call-site migration path but is deprecated —
+caller-supplied bytes are the only structural defence against
+cross-verifier-instance replay.
+
+### ⚠️ BREAKING: `serialize_keypair` returns `Zeroizing<String>`
+
+The pre-fix signature returned `Result<String>`, leaving the base64-
+encoded private key sitting on the heap after the caller dropped the
+String. `Zeroizing<String>` scrubs the buffer on drop. Callers that
+need a `&str` for downstream serde calls should use `json.as_str()`
+(or `&*json`); both work because `Zeroizing<String>` derefs to
+`String`.
+
+### ⚠️ BREAKING: `ContinuousSession::update_verification` removed
+
+The public `&mut self` clock-bump had no in-crate non-test callers and
+let any holder of `&mut ContinuousSession` extend the session
+indefinitely, defeating `verification_interval_ms`. Callers that
+legitimately need to refresh a continuous session must route through
+`ZeroTrustAuth::reauthenticate`, which IS public and IS proof-gated.
+
+### ⚠️ BREAKING: `DlogEqualityStatement` fields encapsulated
+
+The `g/h/p/q` fields are now `pub(crate)`; struct-literal construction
+is replaced by `DlogEqualityStatement::with_bases(g, h, p, q)` or the
+recommended `DlogEqualityStatement::canonical(p, q)` constructor.
+Accessors `g()/h()/p()/q()` (immutable) and `g_mut()/h_mut()/p_mut()/
+q_mut()` (mutable, for the corruption-rejection test paths) round out
+the API. The canonical-base check at `prove` / `verify` still fires
+on every call — encapsulation shrinks the audit surface so a future
+in-crate path cannot trivially construct a `DlogEqualityStatement`
+with arbitrary bases.
+
 ### ⚠️ BREAKING: pq_only wire format
 
 `hybrid::pq_only::encrypt_pq_only_with_aad` / `decrypt_pq_only_with_aad`
@@ -155,12 +233,154 @@ path. Wire-format breaks above are deliberate; behavioural-only fixes
   redirects are unaffected. The pre-fix soft-warning was a footgun
   for fast shells, CI log aggregators, and screen recorders.
 
+### Security — audit follow-up (M-A, M-B, L-A, L-B, L-C)
+
+A breadth review of the first audit's closures surfaced five issues
+where the documented invariant did not match the shipped code. Each is
+closed below; the wire-format break for PoP / ZK proofs above is the
+direct consequence.
+
+- **M-A — pure Ed25519 / PoP / ZK-proof transcripts now actually bind
+  their scheme.** The first audit's CHANGELOG promised
+  `SHA-512(scheme_ctx || 0x00 || message)` for Ed25519 and FN-DSA, but
+  only the hybrid leg was actually wired; the pure-Ed25519 dispatch arm
+  in `unified_api::convenience::api` and the six PoP / ZK callsites in
+  `unified_api::zero_trust` continued to sign the raw message. All three
+  paths now use the digest construction. Two new contexts —
+  `SIG_CONTEXT_POP_ED25519` and `SIG_CONTEXT_ZK_PROOF_ED25519` — are kept
+  *outside* `SigSchemeLabel` because PoP and ZK proofs are not wire
+  scheme strings (the M5 allowlist would conflate them). Cross-protocol
+  replay between pure Ed25519 / PoP / ZK proofs / SignedData / hybrid
+  legs is now structurally impossible.
+- **M-B — `PortableKey::to_hybrid_*_key()` now run through
+  `validate_with_expiry_now()`.** The M4 expiry gate shipped in the
+  first audit but had zero production callers — every `to_hybrid_*`
+  extraction method skipped the check, so a `PortableKey` whose
+  `not_after` was in the past still loaded and produced a usable typed
+  key. All four extract methods (`to_hybrid_public_key`,
+  `to_hybrid_secret_key`, `to_hybrid_sig_public_key`,
+  `to_hybrid_sig_secret_key`) now reject expired keys at the boundary
+  before the typed value escapes into a sign / encrypt / agree call.
+  New helper: `PortableKey::validate_with_expiry_now()`. `validate()`
+  itself remains expiry-blind (preserves the documented inspection
+  contract).
+- **L-A — FIPS Pattern-6 contract restored on the `"ed25519"` arm.**
+  The first audit cfg-gated the `verify()` ed25519 dispatch arm under
+  `not(feature = "fips")` but left `"ed25519"` in `SigSchemeLabel::from_
+  scheme_str` unconditionally. Under `--features fips`, M5 accepted an
+  `"ed25519"` envelope, then verify fell into the `_ =>` fallback and
+  returned `Err(InvalidInput("Unsupported scheme: ed25519"))` — echoing
+  the scheme string and breaking the Pattern-6 indistinguishability that
+  `verify_with_anchor`'s docstring documents. Closed by (a) cfg-gating
+  `SigSchemeLabel::Ed25519` and its `from_scheme_str` arm out of the
+  enum entirely under `feature = "fips"` so M5 rejects upstream, and
+  (b) adding an explicit `#[cfg(feature = "fips")] "ed25519" => Ok(false)`
+  arm in the verify dispatcher so in-memory `SignedData` values
+  constructed without going through deserialization also reject without
+  echoing the scheme.
+- **L-B — X25519 `agree()` and `static agree()` add the L4 zero
+  shared-secret check.** Mirrors the P-256 / P-384 / P-521 closures.
+  Strictly defense-in-depth — `X25519PublicKey::from_bytes` already
+  enforces the RFC 7748 §6.1 low-order blacklist before agreement, so
+  aws-lc-rs cannot reach this path with the all-zero output today — but
+  the explicit check guards a future backend swap.
+- **L-C — `latticearc-cli verify` now routes through
+  `verify_with_anchor`.** When `--key <trust-anchor>` is passed, the CLI
+  used a variable-time `!=` for the operator-key vs envelope-key
+  comparison and then dispatched plain `verify()`, skipping the M5
+  scheme-label assertion. Now the trust-anchor path calls
+  `latticearc::verify_with_anchor(&signed, &pk, &signed.scheme, config)`
+  so the constant-time PK compare and the M5 scheme canonicalisation run
+  atomically with the cryptographic verify. The
+  `--allow-embedded-key` (no `--key`) path continues to call plain
+  `verify()` since the operator explicitly opted out of trust-anchor
+  pinning; M5 still gates upstream at SignedData deserialization.
+
+### Security — second audit follow-up (PoP-H1 / PoP-M1 / PoP-L1 / misc)
+
+A second breadth review found a HIGH-severity flaw in the very next
+module the M-A fix touched (`zero_trust.rs`) plus four more
+medium / low items. All closed below:
+
+- **PoP-H1 (HIGH) — `verify_pop` now identity-binds the embedded key.**
+  Pre-fix `verify_pop` dispatched the cryptographic verify against
+  `pop.public_key()` — the public key carried *inside* the (potentially
+  attacker-supplied) PoP — with no compare against `self.public_key`.
+  Anyone with any Ed25519 keypair could therefore produce a self-signed
+  PoP that returned `Ok(true)`, proving possession of A KEY, not THIS
+  IDENTITY's key. Same root cause as H2 (which v0.9.0 fixed for
+  SignedData via `verify_with_anchor`), but PoP got no anchored
+  variant. Closed by a length-checked, constant-time compare of
+  `pop.public_key()` against `self.public_key` before the crypto
+  dispatch; mismatch collapses to `Ok(false)` (Pattern-6
+  indistinguishable from crypto reject).
+- **PoP-M1 (MEDIUM) — challenge + verifier-id binding in the PoP
+  transcript.** Pre-fix the signed message was the literal string
+  `"proof-of-possession-{ts_micros}"`, so a captured PoP within the
+  5-min freshness window could be replayed against any verifier
+  instance that held the same identity public key (the per-instance
+  replay cache doesn't help across processes / servers). The
+  `generate_pop` / `verify_pop` trait methods now take a `challenge:
+  &[u8]` parameter, and the transcript becomes `SHA-512(pop_ctx ||
+  0x00 || verifier_pk_len_be4 || verifier_pk || 0x00 || ts_micros_be8
+  || 0x00 || challenge_len_be4 || challenge)`. Each variable-length
+  field is length-prefixed to prevent prefix-free ambiguity. Both the
+  verifier identity AND the challenge are bound into the signed bytes,
+  closing cross-verifier-instance AND cross-identity replay.
+- **PoP-L1 (LOW) — replay cache hit collapses to `Ok(false)`.**
+  Pre-fix the replay-detected branch returned
+  `Err(CoreError::InvalidInput("Proof-of-possession replay detected"))`
+  while the sibling stale / future / crypto-reject paths returned
+  `Ok(false)`. A caller branching on the Result variant could
+  distinguish "I've seen this before" from "stale, refresh and retry"
+  — a Pattern-6 oracle. Both paths now return `Ok(false)`; replay
+  cause is logged at `tracing::debug!` for operators only.
+- **`ContinuousSession::update_verification` removed.** A public
+  `&mut self` clock bump with no proof was equivalent to "extend my
+  session forever" from any holder of `&mut ContinuousSession`,
+  defeating `verification_interval_ms`. There were zero in-crate
+  non-test callers (the in-crate `reauthenticate` flow lives on
+  `ZeroTrustAuth` and bumps the auth-side clock after a proof verify),
+  so the method has been removed rather than merely cfg-gated.
+  Refresh now requires `ZeroTrustAuth::reauthenticate`, which is
+  proof-gated.
+- **Audit-log genesis read capped at 128 bytes.**
+  `FileAuditStorage::load_or_create_genesis` previously called
+  `fs::read_to_string` with no cap. An attacker who could write the
+  audit directory (the same trust boundary the rest of `audit.rs`
+  operates inside) could replace the genesis file with a multi-GiB
+  payload and OOM the process at startup. The genuine genesis is
+  exactly 64 hex chars + a trailing newline, so the read is now
+  bounded via `File::take(128)` and the trimmed result is validated
+  against the SHA-256 hex-digest invariant (length 64, all ASCII
+  hexdigits) before being returned.
+- **`serialize_keypair` returns `Zeroizing<String>`.** The pre-fix
+  signature returned `Result<String>` containing the base64-encoded
+  private key. Heap residue persisted after callers dropped the
+  String, and any incidental `tracing::info!(?value)` would log the
+  SK. The wrapper scrubs the buffer on drop. Callers needing `&str`
+  use `json.as_str()` (or `&*json`).
+- **`DlogEqualityStatement` fields encapsulated.** Pre-fix all four
+  bases (`g/h/p/q`) were `pub`. The canonical-base check at `prove` /
+  `verify` enforces the invariant today, but exposing the fields lets
+  a future in-crate code path bypass it trivially (constructor that
+  skips the check; pattern-matching that swaps bases). Fields are now
+  `pub(crate)`; the public API is `with_bases(g, h, p, q)` (no
+  validation, intended for tests + already-validated code) and the
+  recommended `canonical(p, q)` (auto-fills the canonical secp256k1 G
+  + NUMS H). Accessors `g()/h()/p()/q()` and `g_mut()/h_mut()/p_mut()
+  /q_mut()` cover the remaining usage.
+
 ### Added — library API
 
 - `pub fn latticearc::verify_with_anchor(signed, expected_pk,
   expected_scheme, config) -> Result<bool>`. See H2 above.
 - `pub fn PortableKey::validate_with_expiry(&self, now: DateTime<Utc>)
   -> Result<()>`. See M4 above.
+- `pub fn PortableKey::validate_with_expiry_now(&self) -> Result<()>`.
+  Wall-clock-anchored variant of `validate_with_expiry`; reads
+  `Utc::now()` internally and is called by every `to_hybrid_*_key()`
+  extract method. See M-B above.
 
 ### Added — CLI flags
 
@@ -181,16 +401,39 @@ path. Wire-format breaks above are deliberate; behavioural-only fixes
   `types::domains::hash_with_context(scheme_ctx, message) -> [u8; 64]`,
   `types::domains::hkdf_kem_info_with_pk_and_aad(label, aad, pk, ct)`.
 - 12 `SIG_CONTEXT_*` byte-string constants, all NUL-free and pairwise
-  distinct (locked by unit tests).
+  distinct (locked by unit tests). Two additional contexts —
+  `SIG_CONTEXT_POP_ED25519` and `SIG_CONTEXT_ZK_PROOF_ED25519` — are
+  kept outside `SigSchemeLabel` because PoP and ZK proofs are not wire
+  scheme strings (M-A follow-up). Helpers: `pop_sig_context()` and
+  `zk_proof_sig_context()`.
 - New invariant tests: scheme-context NUL-free, pairwise distinct,
-  canonical-string round-trip, unknown-scheme rejection.
+  canonical-string round-trip, unknown-scheme rejection, FIPS rejects
+  pure-ed25519 at the allowlist (L-A), PoP/ZK contexts pairwise distinct
+  from each other AND every `SigSchemeLabel` context (M-A).
 
 ### Tests
 
-- `latticearc/tests/audit_regression_signatures.rs` gains 20 new
-  regression tests covering H1, H2, M2, M3, M4, M5, L2, L3, L5, L6,
+- `latticearc/tests/audit_regression_signatures.rs` gains 35 new
+  regression tests covering H1, H2, M2, M3, M4, M5, M-A (pure Ed25519
+  round-trip + raw-message reject, PoP round-trip + cross-protocol
+  reject), M-B (`to_hybrid_sig_*_key` rejects expired), L-A (FIPS
+  `verify` and `verify_with_anchor` collapse `"ed25519"` to `Ok(false)`,
+  never `Err`), PoP-H1 (foreign-identity PoP rejected), PoP-M1
+  (challenge swap rejected), PoP-L1 (replay collapses to `Ok(false)`),
+  M-serialize_keypair (return type carries `Zeroizing<String>`),
+  L-DlogEqualityStatement (`with_bases` + accessors), L2, L3, L5, L6,
   L7. Reverting any individual finding's fix must trip the
   corresponding test.
+- `tests/tests/schemes.rs::test_verify_ed25519_scheme_is_supported`
+  updated to construct its envelope through the M-A digest construction
+  rather than raw-message signing (mirrors the new `verify` dispatch).
+- `tests/tests/zero_trust.rs` and `tests/tests/zero_trust_integration
+  .rs` updated for the new PoP API (each call site supplies a
+  challenge) and the `update_verification` removal (refresh is now
+  routed through `auth.reauthenticate()`).
+- `tests/tests/zkp.rs` corruption tests updated to use the
+  `g_mut()/h_mut()/p_mut()/q_mut()` accessors instead of direct field
+  mutation (L-DlogEqualityStatement).
 
 ### Style / Design-pattern audit follow-up
 

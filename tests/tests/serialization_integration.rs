@@ -370,6 +370,11 @@ fn test_keypair_from_serializable_succeeds() {
 // Cross-Format Compatibility Tests
 // ============================================================================
 
+/// Cfg-gated to non-FIPS only: L-A removed `"ed25519"` from the M5
+/// allowlist under `--features fips`, so this round-trip fixture
+/// cannot deserialize under that matrix configuration. The structural
+/// round-trip behaviour is exercised by ML-DSA-65 fixtures below.
+#[cfg(not(feature = "fips"))]
 #[test]
 fn test_signed_data_manual_json_parsing_succeeds() {
     let json = r#"{

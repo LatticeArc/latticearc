@@ -277,7 +277,13 @@ fn test_session_refresh_by_reestablishment_succeeds() {
 }
 
 #[test]
-fn test_continuous_session_update_verification_succeeds() {
+fn test_continuous_session_refresh_via_reauthenticate() {
+    // M-update_verification: ContinuousSession::update_verification is no
+    // longer public — a public &mut clock-bump with no proof is
+    // equivalent to "extend my session forever" from a holder of
+    // `&mut ContinuousSession`. The proof-gated refresh path is
+    // `ZeroTrustAuth::reauthenticate`, which generates a fresh challenge,
+    // generates a proof, verifies it, and only then advances the clock.
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key;
@@ -285,39 +291,19 @@ fn test_continuous_session_update_verification_succeeds() {
 
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
-    // `start_continuous_verification` requires a prior successful proof
+    // start_continuous_verification requires a prior successful proof
     // verification — drive one through to clear the gate.
     let challenge = auth.generate_challenge().expect("challenge generation");
     let proof = auth.generate_proof(challenge.data()).expect("proof generation");
     assert!(auth.verify_proof(&proof, challenge.data()).expect("verify"));
 
-    let mut continuous_session =
-        auth.start_continuous_verification().expect("session establishment");
+    let continuous_session = auth.start_continuous_verification().expect("session establishment");
+    assert!(continuous_session.is_valid().expect("validity check"));
 
-    // Capture the pre-update timestamp so we can confirm the update
-    // actually advances it. Without this assertion a no-op
-    // `update_verification() -> Ok(())` (e.g., if the field
-    // assignment regressed) would silently pass the test.
-    let before = continuous_session.last_verification();
-
-    // `Utc::now()` resolution is microseconds on most platforms but
-    // can collide if `update_verification` runs in the same
-    // microsecond as the prior assignment. Sleep ~2 ms so the
-    // timestamps reliably differ on every supported runner.
-    std::thread::sleep(std::time::Duration::from_millis(2));
-
-    let result = continuous_session.update_verification();
-    assert!(result.is_ok(), "Updating verification should succeed");
-
-    let after = continuous_session.last_verification();
-    assert!(
-        after > before,
-        "update_verification must advance the timestamp (before={before}, after={after})"
-    );
-
-    // Session should still be valid
-    let is_valid = continuous_session.is_valid().expect("validity check should succeed");
-    assert!(is_valid, "Session should be valid after update");
+    // The proof-bearing refresh API. Reverting M-update_verification
+    // would surface as the now-private update_verification() compiling
+    // on this test's path.
+    auth.reauthenticate().expect("reauth must succeed under a fresh proof");
 }
 
 #[test]
@@ -445,14 +431,15 @@ fn test_tampered_pop_fails() {
 
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
-    let mut pop = auth.generate_pop().expect("PoP generation should succeed");
+    let challenge = b"tampered-pop-test-challenge";
+    let mut pop = auth.generate_pop(challenge).expect("PoP generation should succeed");
 
     // Tamper with signature
     if !pop.signature().is_empty() {
         pop.signature_mut()[0] ^= 0xFF;
     }
 
-    let result = auth.verify_pop(&pop);
+    let result = auth.verify_pop(&pop, challenge);
     assert!(
         result.is_err() || !result.expect("verify should return bool"),
         "Tampered PoP should fail"
@@ -669,7 +656,8 @@ fn test_proof_of_possession_generation_succeeds() {
 
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
-    let pop = auth.generate_pop().expect("PoP generation should succeed");
+    let pop =
+        auth.generate_pop(b"pop-generation-test-challenge").expect("PoP generation should succeed");
 
     assert_eq!(pop.public_key(), &public_key);
     assert!(!pop.signature().is_empty());
@@ -685,8 +673,9 @@ fn test_proof_of_possession_verification_is_authenticated_succeeds() {
 
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
-    let pop = auth.generate_pop().expect("PoP generation");
-    let is_valid = auth.verify_pop(&pop).expect("PoP verification");
+    let challenge = b"pop-verify-test-challenge";
+    let pop = auth.generate_pop(challenge).expect("PoP generation");
+    let is_valid = auth.verify_pop(&pop, challenge).expect("PoP verification");
 
     assert!(is_valid, "Valid PoP should verify");
 }
@@ -1062,9 +1051,17 @@ fn test_stress_pop_generation_succeeds() {
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
 
     for i in 0..20 {
-        let pop = auth.generate_pop().unwrap_or_else(|_| panic!("PoP {} should succeed", i));
+        // Bind each PoP to a per-iteration challenge so the replay
+        // cache treats them as distinct (without the binding, every
+        // generate_pop in this loop signs the same digest mod
+        // microsecond timestamp and the second iteration would race
+        // against the cache).
+        let challenge = format!("stress-pop-challenge-{i}");
+        let pop = auth
+            .generate_pop(challenge.as_bytes())
+            .unwrap_or_else(|_| panic!("PoP {} should succeed", i));
         let verified = auth
-            .verify_pop(&pop)
+            .verify_pop(&pop, challenge.as_bytes())
             .unwrap_or_else(|_| panic!("PoP verification {} should succeed", i));
 
         assert!(verified, "PoP {} should verify", i);

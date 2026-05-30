@@ -470,6 +470,19 @@ impl X25519KeyPair {
                 let mut result: Zeroizing<[u8; X25519_KEY_SIZE]> =
                     Zeroizing::new([0u8; X25519_KEY_SIZE]);
                 result.copy_from_slice(shared_secret);
+                // L-B: defense-in-depth all-zero shared-secret check,
+                // mirroring the P-256 / P-384 / P-521 closures above.
+                // The from_bytes(peer_public_bytes) call earlier already
+                // rejects the RFC 7748 §6.1 low-order set (including the
+                // all-zero key), so this is redundant under aws-lc-rs's
+                // current behaviour. The check still guards against a
+                // future backend swap that lets a degenerate output
+                // through and keeps the CT discipline uniform across
+                // ECDH variants. is_all_zero_bytes is constant-time over
+                // the fixed-length slice.
+                if crate::primitives::ct::is_all_zero_bytes(result.as_slice()) {
+                    return Err(EcdhError::AgreementFailed);
+                }
                 Ok(result)
             },
         )
@@ -623,6 +636,11 @@ impl X25519StaticKeyPair {
             let mut result: Zeroizing<[u8; X25519_KEY_SIZE]> =
                 Zeroizing::new([0u8; X25519_KEY_SIZE]);
             result.copy_from_slice(shared_secret);
+            // L-B: defense-in-depth all-zero shared-secret check. See
+            // X25519KeyPair::agree above for the rationale.
+            if crate::primitives::ct::is_all_zero_bytes(result.as_slice()) {
+                return Err(EcdhError::AgreementFailed);
+            }
             Ok(result)
         })
     }

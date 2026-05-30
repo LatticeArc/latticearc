@@ -1057,7 +1057,19 @@ pub fn sign_with_key(
         }
         #[cfg(not(feature = "fips"))]
         "ed25519" => {
-            let sig = sign_ed25519_internal(message, secret_key)?;
+            // M-A: bind the pure-Ed25519 path to its own per-scheme context
+            // so a captured "ed25519" envelope cannot be re-labelled (M5
+            // strips the label but the signed bytes here re-include it via
+            // the SHA-512 digest). Mirrors the hybrid leg construction at
+            // line 165: `SHA-512(scheme_ctx || 0x00 || message)` is signed
+            // instead of the raw message. Ed25519 / RFC 8032 expose no
+            // native context parameter, so prefix-padding via a fixed-size
+            // digest is the canonical workaround used here and in the
+            // hybrid leg.
+            use crate::types::domains::{SigSchemeLabel, hash_with_context, sig_context};
+            let ed_ctx = sig_context(SigSchemeLabel::Ed25519);
+            let ed_digest = hash_with_context(ed_ctx, message);
+            let sig = sign_ed25519_internal(&ed_digest, secret_key)?;
             (public_key.to_vec(), sig)
         }
         "hybrid-ml-dsa-44-ed25519" | "ml-dsa-44-hybrid-ed25519" => {
@@ -1240,11 +1252,31 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
         // can't be reached via FIPS sign + can be reached via FIPS
         // verify (the prior asymmetry).
         #[cfg(not(feature = "fips"))]
-        "ed25519" => verify_ed25519_internal(
-            &signed.data,
-            &signed.metadata.signature,
-            &signed.metadata.public_key,
-        ),
+        "ed25519" => {
+            // M-A: match the sign-side construction. The signed bytes are
+            // the SHA-512 digest of `scheme_ctx || 0x00 || message`, not
+            // the raw message. A legitimate envelope produced by the M-A
+            // sign path round-trips; a pre-M-A or external raw-message
+            // signature will fail and return `Ok(false)`.
+            use crate::types::domains::{SigSchemeLabel, hash_with_context, sig_context};
+            let ed_ctx = sig_context(SigSchemeLabel::Ed25519);
+            let ed_digest = hash_with_context(ed_ctx, &signed.data);
+            verify_ed25519_internal(
+                &ed_digest,
+                &signed.metadata.signature,
+                &signed.metadata.public_key,
+            )
+        }
+        // L-A: under `--features fips`, "ed25519" envelopes are rejected
+        // at deserialization (M5 allowlist no longer maps the string), so
+        // this arm is only reachable for in-memory `SignedData` values
+        // constructed without going through the deserializer. Collapse to
+        // `Ok(false)` to preserve the Pattern-6 contract documented on
+        // `verify_with_anchor` — the prior `Err(InvalidInput(...))` echoed
+        // the scheme string and was asymmetric with the verify_with_anchor
+        // path that ALSO sees this dispatch.
+        #[cfg(feature = "fips")]
+        "ed25519" => Ok(false),
         _ => {
             return Err(CoreError::InvalidInput(format!(
                 "Unsupported verification scheme: {}",

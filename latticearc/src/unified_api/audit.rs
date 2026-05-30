@@ -756,13 +756,40 @@ impl FileAuditStorage {
     fn load_or_create_genesis(storage_path: &std::path::Path) -> Result<String> {
         let genesis_path = storage_path.join(AUDIT_GENESIS_FILENAME);
 
-        match fs::read_to_string(&genesis_path) {
+        // M-audit-genesis: cap the read at 128 bytes. Genesis is a
+        // SHA-256 hex digest written by `create_new()` below — exactly
+        // 64 hex chars + a trailing newline. `fs::read_to_string` had
+        // no cap, so an attacker who can write the audit dir could
+        // replace genesis with a multi-GiB file and OOM the process
+        // at startup. The genuine genesis must round-trip through the
+        // 64-hex invariant check below; anything past the cap is
+        // truncated and the invariant catches it as malformed.
+        const GENESIS_MAX_BYTES: u64 = 128;
+        let read_capped = || -> std::io::Result<String> {
+            use std::io::Read as _;
+            let f = File::open(&genesis_path)?;
+            let mut buf = String::new();
+            f.take(GENESIS_MAX_BYTES).read_to_string(&mut buf)?;
+            Ok(buf)
+        };
+        match read_capped() {
             Ok(existing) => {
                 let trimmed = existing.trim().to_string();
                 if trimmed.is_empty() {
                     return Err(CoreError::AuditError(format!(
                         "Audit genesis file '{}' exists but is empty; refusing to start \
                          with an empty chain anchor",
+                        genesis_path.display()
+                    )));
+                }
+                // SHA-256 hex digest invariant — exactly 64 chars, all
+                // ASCII hexdigits. Pre-fix the loader accepted any
+                // non-empty trimmed string, so a partially-overwritten
+                // genesis would propagate as the chain anchor.
+                if trimmed.len() != 64 || !trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return Err(CoreError::AuditError(format!(
+                        "Audit genesis file '{}' is not a valid 64-char SHA-256 hex \
+                         digest; refusing to start with a corrupted chain anchor",
                         genesis_path.display()
                     )));
                 }

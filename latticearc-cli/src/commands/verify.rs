@@ -195,21 +195,22 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
         // attainable distinguisher: the attacker doesn't choose whether
         // the operator passed --key, so distinguishing missing-flag
         // from valid/invalid does not leak data the attacker controls.
-        match (args.key.as_ref(), args.allow_embedded_key) {
+        // L-C: pin the trust-anchor branch decision before dispatching
+        // the cryptographic verify so the verify-call below can hit
+        // verify_with_anchor (CT compare + M5 scheme assertion) when an
+        // operator key is supplied, and plain verify() when the operator
+        // explicitly opted into embedded-key trust.
+        let operator_pk: Option<Vec<u8>> = match (args.key.as_ref(), args.allow_embedded_key) {
             (Some(key_path), _allow) => {
-                // Operator pinned a trust anchor. Compare in length-
-                // checked, plain-eq mode: public-key bytes are not
-                // secret and the operator's key is fixed across the
-                // call, so per-invocation timing cannot be amplified
-                // across runs. Mismatch collapses to print_invalid for
-                // Pattern-6 indistinguishability with crypto reject.
+                // Operator pinned a trust anchor — defer the compare into
+                // verify_with_anchor below so the comparison runs in
+                // constant time AND the M5 scheme allowlist gets asserted
+                // atomically. Pre-fix this branch did a variable-time
+                // `*pk_bytes != signed.metadata.public_key` and then
+                // dispatched plain verify(), skipping the M5 scheme
+                // canonicalisation that verify_with_anchor performs.
                 let pk_bytes = load_operator_public_key(key_path)?;
-                if *pk_bytes != signed.metadata.public_key {
-                    tracing::debug!(
-                        "verify (SignedData path) rejected: --key bytes do not match embedded public_key"
-                    );
-                    return Ok(print_invalid());
-                }
+                Some(pk_bytes.to_vec())
             }
             (None, true) => {
                 // Explicit opt-in to the embedded-key trust shape.
@@ -223,6 +224,7 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
                      envelope itself, which the envelope's author chose. Use --key <path> to \
                      pin a specific trust anchor."
                 );
+                None
             }
             (None, false) => {
                 bail!(
@@ -233,7 +235,7 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
                      embedded key (a stderr WARNING will be emitted on every invocation)."
                 );
             }
-        }
+        };
 
         // Operator-side `--algorithm` cross-check: if the operator
         // asserted an algorithm via `--algorithm`, the envelope's
@@ -281,12 +283,24 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
 
         let config =
             super::common::build_config(args.use_case, args.security_level, &args.compliance);
-        // A `latticearc::verify(...)` Err (e.g. malformed public key)
-        // collapses to the same user-visible outcome as `Ok(false)` so
-        // an attacker can't distinguish the structural / crypto /
-        // library-error paths via stderr text or exit-code class. See
-        // `print_invalid()` for the centralised reject contract.
-        let valid = match latticearc::verify(&signed, config) {
+        // L-C: trust-anchored verify when --key was supplied — the
+        // library helper does constant-time PK compare AND M5 scheme
+        // canonicalisation atomically with the cryptographic verify.
+        // --allow-embedded-key (no --key) keeps the legacy plain-verify
+        // dispatch since the operator opted out of trust-anchor pinning;
+        // the M5 allowlist is still enforced upstream at SignedData
+        // deserialization.
+        //
+        // An `Err(_)` collapses to the same user-visible outcome as
+        // `Ok(false)` so an attacker can't distinguish the structural /
+        // crypto / library-error paths via stderr text or exit-code
+        // class. See `print_invalid()` for the centralised reject
+        // contract.
+        let verify_result = match operator_pk.as_deref() {
+            Some(pk) => latticearc::verify_with_anchor(&signed, pk, &signed.scheme, config),
+            None => latticearc::verify(&signed, config),
+        };
+        let valid = match verify_result {
             Ok(v) => v,
             Err(e) => {
                 // `%e` Display — see deserialize_signed_data branch above

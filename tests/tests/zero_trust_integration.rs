@@ -481,7 +481,11 @@ fn test_continuous_session_validity_succeeds() {
 }
 
 #[test]
-fn test_continuous_session_update_verification_succeeds() {
+fn test_continuous_session_refresh_via_reauthenticate() {
+    // M-update_verification: ContinuousSession::update_verification is
+    // now pub(crate). External refresh goes through the proof-gated
+    // reauthenticate() flow on ZeroTrustAuth, which generates a fresh
+    // challenge + proof and verifies before bumping the timestamp.
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key;
@@ -493,12 +497,10 @@ fn test_continuous_session_update_verification_succeeds() {
     let proof = auth.generate_proof(challenge.data()).expect("proof generation");
     assert!(auth.verify_proof(&proof, challenge.data()).expect("verify"));
 
-    let mut continuous_session =
-        auth.start_continuous_verification().expect("session establishment");
+    let continuous_session = auth.start_continuous_verification().expect("session establishment");
+    assert!(continuous_session.is_valid().expect("validity check"));
 
-    // Update verification timestamp
-    let result = continuous_session.update_verification();
-    assert!(result.is_ok(), "Updating verification should succeed");
+    auth.reauthenticate().expect("reauth must succeed under a fresh proof");
 }
 
 // ============================================================================
@@ -515,7 +517,9 @@ fn test_proof_of_possession_generation_succeeds() {
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
     // Generate proof of possession
-    let pop = auth.generate_pop().expect("PoP generation should succeed");
+    let pop = auth
+        .generate_pop(b"pop-generation-integration-challenge")
+        .expect("PoP generation should succeed");
 
     // Verify PoP properties
     assert_eq!(pop.public_key(), &public_key, "PoP should contain correct public key");
@@ -533,8 +537,9 @@ fn test_proof_of_possession_verification_succeeds() {
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
     // Generate and verify PoP
-    let pop = auth.generate_pop().expect("PoP generation should succeed");
-    let is_valid = auth.verify_pop(&pop).expect("PoP verification should succeed");
+    let challenge = b"pop-verify-integration-challenge";
+    let pop = auth.generate_pop(challenge).expect("PoP generation should succeed");
+    let is_valid = auth.verify_pop(&pop, challenge).expect("PoP verification should succeed");
 
     assert!(is_valid, "Valid PoP should verify successfully");
 }
@@ -549,7 +554,8 @@ fn test_proof_of_possession_tampered_fails() {
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth creation should succeed");
 
     // Generate PoP
-    let mut pop = auth.generate_pop().expect("PoP generation should succeed");
+    let challenge = b"tampered-pop-integration-challenge";
+    let mut pop = auth.generate_pop(challenge).expect("PoP generation should succeed");
 
     // Tamper with signature
     if !pop.signature().is_empty() {
@@ -557,7 +563,7 @@ fn test_proof_of_possession_tampered_fails() {
     }
 
     // Verification should fail
-    let result = auth.verify_pop(&pop);
+    let result = auth.verify_pop(&pop, challenge);
     assert!(result.is_err() || !result.unwrap(), "Tampered PoP should fail verification");
 }
 

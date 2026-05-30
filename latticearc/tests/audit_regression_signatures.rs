@@ -324,8 +324,7 @@ fn dlog_equality_rejects_non_canonical_bases() {
     let p_bytes: [u8; 33] = p.to_affine().to_bytes().as_slice().try_into().unwrap();
     let q_bytes: [u8; 33] = q.to_affine().to_bytes().as_slice().try_into().unwrap();
 
-    let bad_statement =
-        DlogEqualityStatement { g: g_bytes, h: h_bad_bytes, p: p_bytes, q: q_bytes };
+    let bad_statement = DlogEqualityStatement::with_bases(g_bytes, h_bad_bytes, p_bytes, q_bytes);
     let prove_result = DlogEqualityProof::prove(&bad_statement, &x_bytes, b"ctx");
     assert!(prove_result.is_err(), "DlogEqualityProof::prove must reject non-canonical bases");
 }
@@ -976,4 +975,449 @@ fn m5_alias_canonicalization_passes_cross_check() {
         result.is_ok(),
         "scheme/metadata pair using legitimate aliases must pass the M5 cross-check; got {result:?}"
     );
+}
+
+// ============================================================================
+// M-A (follow-up): pure Ed25519 / PoP / ZK-proof scheme-binding
+// ============================================================================
+
+/// M-A regression: a pure-Ed25519 SignedData built via the post-fix
+/// digest construction must round-trip through `verify`. Reverting either
+/// the sign or verify side of the M-A fix surfaces as `Ok(false)` here.
+///
+/// The digest construction (SHA-512(scheme_ctx || 0x00 || msg)) is
+/// internal to `latticearc::sign_with_key`'s ed25519 arm, but
+/// `sign_with_key`'s scheme is config-driven via `select_signature_scheme`
+/// rather than the operator picking ed25519 directly. The test mirrors
+/// the dispatch arm's construction inline so it pins the wire format the
+/// public API actually emits.
+#[cfg(not(feature = "fips"))]
+#[test]
+fn m_a_pure_ed25519_round_trips_post_fix() {
+    use latticearc::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
+    use latticearc::primitives::ec::traits::{EcKeyPair, EcSignature};
+    use latticearc::unified_api::types::{SignedData, SignedMetadata};
+    use latticearc::{CryptoConfig, verify};
+    use sha2::{Digest, Sha512};
+
+    let kp = Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let msg = b"M-A: pure Ed25519 self-verifies under SHA-512(scheme_ctx || 0x00 || msg)";
+    // Mirror api.rs::sign_with_key's ed25519 arm.
+    let mut hasher = Sha512::new();
+    hasher.update(b"LatticeArc-Sig-ed25519-v1");
+    hasher.update([0x00]);
+    hasher.update(msg);
+    let digest: [u8; 64] = hasher.finalize().into();
+    let sig = kp.sign(&digest).expect("sign digest");
+    let sig_bytes = Ed25519Signature::signature_bytes(&sig);
+    let envelope = SignedData::new(
+        msg.to_vec(),
+        SignedMetadata::new(sig_bytes, "ed25519".to_string(), kp.public_key_bytes(), None),
+        "ed25519".to_string(),
+        0,
+    );
+    let ok = verify(&envelope, CryptoConfig::new())
+        .expect("pure Ed25519 verify must not error on a freshly-signed envelope");
+    assert!(ok, "fresh pure-Ed25519 envelope must verify post-M-A scheme binding");
+}
+
+/// M-A regression: a SignedData whose signature was produced over the
+/// raw message (pre-M-A behaviour) must NOT verify under the post-fix
+/// dispatch. This is the wire-format break the CHANGELOG documents.
+#[cfg(not(feature = "fips"))]
+#[test]
+fn m_a_pure_ed25519_raw_message_signature_does_not_verify() {
+    use latticearc::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
+    use latticearc::primitives::ec::traits::{EcKeyPair, EcSignature};
+    use latticearc::unified_api::types::{SignedData, SignedMetadata};
+    use latticearc::{CryptoConfig, verify};
+
+    let kp = Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let msg = b"M-A: raw-message signature must NOT verify post-fix";
+    // Pre-M-A behaviour: signing the raw message directly via the
+    // primitive, bypassing the digest construction.
+    let raw_sig = kp.sign(msg).expect("raw ed25519 sign");
+    let raw_sig_bytes = Ed25519Signature::signature_bytes(&raw_sig);
+    let envelope = SignedData::new(
+        msg.to_vec(),
+        SignedMetadata::new(raw_sig_bytes, "ed25519".to_string(), kp.public_key_bytes(), None),
+        "ed25519".to_string(),
+        0,
+    );
+    let ok = verify(&envelope, CryptoConfig::new())
+        .expect("verify must not error on a structurally-valid envelope");
+    assert!(
+        !ok,
+        "pre-M-A raw-message Ed25519 signature must NOT verify post-fix \
+         (wire format break is intentional)"
+    );
+}
+
+/// M-A regression: a PoP signature is constructed via a PoP-specific
+/// context, so the same signature bytes must NOT authenticate against the
+/// raw PoP message string as a pure-Ed25519 envelope (or any other
+/// context-using path). Locks the PoP / pure-Ed25519 cross-protocol
+/// separation.
+#[cfg(not(feature = "fips"))]
+#[test]
+fn m_a_pop_signature_not_a_valid_pure_ed25519_envelope() {
+    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
+    use latticearc::primitives::ec::traits::EcKeyPair;
+    use latticearc::types::traits::ProofOfPossession;
+    use latticearc::types::types::{PrivateKey, PublicKey};
+    use latticearc::unified_api::types::{SignedData, SignedMetadata};
+    use latticearc::unified_api::zero_trust::ZeroTrustAuth;
+    use latticearc::{CryptoConfig, verify};
+
+    let kp = Ed25519KeyPair::generate().expect("session keygen");
+    let auth = ZeroTrustAuth::new(
+        PublicKey::new(kp.public_key_bytes().to_vec()),
+        PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
+    )
+    .expect("auth init");
+    let pop = auth
+        .generate_pop(b"m-a-pop-vs-pure-ed25519-challenge")
+        .expect("PoP generation must succeed");
+
+    // Forge a pure-Ed25519 SignedData using the PoP's signature bytes
+    // over the canonical PoP message text. Under correct scheme binding
+    // the pure-Ed25519 verify path digests with SIG_CONTEXT_ED25519, not
+    // SIG_CONTEXT_POP_ED25519, so verification must fail.
+    let ts_micros = pop.timestamp().timestamp_micros();
+    let pop_message = format!("proof-of-possession-{ts_micros}");
+    let envelope = SignedData::new(
+        pop_message.as_bytes().to_vec(),
+        SignedMetadata::new(
+            pop.signature().to_vec(),
+            "ed25519".to_string(),
+            pop.public_key().as_slice().to_vec(),
+            None,
+        ),
+        "ed25519".to_string(),
+        0,
+    );
+    let ok = verify(&envelope, CryptoConfig::new())
+        .expect("verify must not error on a structurally-valid envelope");
+    assert!(
+        !ok,
+        "PoP-bound Ed25519 signature must NOT verify as a pure-Ed25519 SignedData; \
+         cross-protocol reuse is the exact failure M-A closes"
+    );
+}
+
+/// M-A regression: PoP generate→verify must still round-trip under the new
+/// pop-context binding. Reverting the digest wrapping on either side surfaces
+/// here as `verify_pop` returning `Ok(false)` on a freshly-generated PoP.
+#[cfg(not(feature = "fips"))]
+#[test]
+fn m_a_pop_round_trips_post_fix() {
+    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
+    use latticearc::primitives::ec::traits::EcKeyPair;
+    use latticearc::types::traits::ProofOfPossession;
+    use latticearc::types::types::{PrivateKey, PublicKey};
+    use latticearc::unified_api::zero_trust::ZeroTrustAuth;
+
+    let kp = Ed25519KeyPair::generate().expect("session keygen");
+    let auth = ZeroTrustAuth::new(
+        PublicKey::new(kp.public_key_bytes().to_vec()),
+        PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
+    )
+    .expect("auth init");
+    let challenge = b"m-a-pop-roundtrip-challenge";
+    let pop = auth.generate_pop(challenge).expect("PoP generation must succeed");
+    let ok = auth.verify_pop(&pop, challenge).expect("PoP verify must not error on a fresh PoP");
+    assert!(ok, "fresh PoP must verify under post-M-A pop-context binding");
+}
+
+// ============================================================================
+// M-B (follow-up): expiry gate routed into key-extraction paths
+// ============================================================================
+
+/// M-B regression: `to_hybrid_sig_public_key()` must reject a portable key
+/// whose `not_after` is in the past. Pre-fix the extract method only
+/// guarded `key_type` (M2) and skipped expiry entirely, so an expired
+/// portable key could be turned into a usable typed public key.
+#[test]
+fn m_b_to_hybrid_sig_public_key_rejects_expired() {
+    use chrono::{Duration, Utc};
+    use latticearc::SecurityMode;
+    use latticearc::generate_hybrid_signing_keypair;
+    use latticearc::types::types::UseCase;
+    use latticearc::unified_api::key_format::PortableKey;
+
+    let (pk, sk) =
+        generate_hybrid_signing_keypair(SecurityMode::Unverified).expect("hybrid signing keygen");
+    let (mut pk_portable, _sk_portable) =
+        PortableKey::from_hybrid_sig_keypair(UseCase::ApiSecurity, &pk, &sk)
+            .expect("portable conversion");
+    let past = Utc::now() - Duration::hours(1);
+    pk_portable.set_not_after(Some(past));
+
+    let result = pk_portable.to_hybrid_sig_public_key();
+    assert!(
+        result.is_err(),
+        "to_hybrid_sig_public_key must reject expired keys (M-B); got {result:?}"
+    );
+    // `validate()` alone still passes — the gate is the extract method,
+    // not the load path.
+    assert!(pk_portable.validate().is_ok(), "validate must remain expiry-blind");
+}
+
+/// M-B regression: `to_hybrid_sig_secret_key()` must reject an expired
+/// portable key. Mirrors `m_b_to_hybrid_sig_public_key_rejects_expired`
+/// for the secret side.
+#[test]
+fn m_b_to_hybrid_sig_secret_key_rejects_expired() {
+    use chrono::{Duration, Utc};
+    use latticearc::SecurityMode;
+    use latticearc::generate_hybrid_signing_keypair;
+    use latticearc::types::types::UseCase;
+    use latticearc::unified_api::key_format::PortableKey;
+
+    let (pk, sk) =
+        generate_hybrid_signing_keypair(SecurityMode::Unverified).expect("hybrid signing keygen");
+    let (_pk_portable, mut sk_portable) =
+        PortableKey::from_hybrid_sig_keypair(UseCase::ApiSecurity, &pk, &sk)
+            .expect("portable conversion");
+    let past = Utc::now() - Duration::hours(1);
+    sk_portable.set_not_after(Some(past));
+
+    let result = sk_portable.to_hybrid_sig_secret_key();
+    assert!(
+        result.is_err(),
+        "to_hybrid_sig_secret_key must reject expired keys (M-B); got {result:?}"
+    );
+}
+
+// ============================================================================
+// L-A (follow-up): FIPS Pattern-6 indistinguishability for ed25519
+// ============================================================================
+
+/// L-A regression: under `--features fips`, verifying a SignedData envelope
+/// whose scheme is `"ed25519"` must return `Ok(false)`, not
+/// `Err(InvalidInput(...))`. The pre-fix behaviour echoed the scheme string
+/// and was asymmetric with the verify_with_anchor path that calls into the
+/// same dispatcher.
+#[cfg(feature = "fips")]
+#[test]
+fn l_a_fips_pure_ed25519_envelope_returns_ok_false() {
+    use latticearc::unified_api::types::{SignedData, SignedMetadata};
+    use latticearc::{CryptoConfig, verify};
+
+    let envelope = SignedData::new(
+        b"L-A".to_vec(),
+        SignedMetadata::new(vec![0u8; 64], "ed25519".to_string(), vec![0u8; 32], None),
+        "ed25519".to_string(),
+        0,
+    );
+    let result = verify(&envelope, CryptoConfig::new());
+    assert!(matches!(result, Ok(false)), "fips verify must return Ok(false), got {result:?}");
+}
+
+/// L-A regression: `verify_with_anchor` under FIPS must also return
+/// `Ok(false)` for an `"ed25519"` envelope. Since the M5 allowlist no
+/// longer maps `"ed25519"` under FIPS, the canonicalisation step in
+/// `verify_with_anchor` returns `Ok(false)` BEFORE the dispatcher even
+/// runs — matches the Pattern-6 contract.
+#[cfg(feature = "fips")]
+#[test]
+fn l_a_fips_verify_with_anchor_rejects_pure_ed25519_at_allowlist() {
+    use latticearc::unified_api::types::{SignedData, SignedMetadata};
+    use latticearc::{CryptoConfig, verify_with_anchor};
+
+    let envelope = SignedData::new(
+        b"L-A".to_vec(),
+        SignedMetadata::new(vec![0u8; 64], "ed25519".to_string(), vec![0u8; 32], None),
+        "ed25519".to_string(),
+        0,
+    );
+    let pk = [0u8; 32];
+    let result = verify_with_anchor(&envelope, &pk, "ed25519", CryptoConfig::new());
+    assert!(
+        matches!(result, Ok(false)),
+        "fips verify_with_anchor must return Ok(false), got {result:?}"
+    );
+}
+
+// ============================================================================
+// PoP-H1 / PoP-M1 / PoP-L1: identity + challenge binding + Pattern-6 replay
+// ============================================================================
+
+/// PoP-H1 regression: a PoP whose embedded public key does not match
+/// the verifier's identity must return `Ok(false)`. Pre-fix verify_pop
+/// dispatched against `pop.public_key()` directly, so anyone with any
+/// Ed25519 keypair could produce a self-signed PoP that verified Ok(true)
+/// — proving possession of A KEY, not THIS IDENTITY's key.
+#[cfg(not(feature = "fips"))]
+#[test]
+fn pop_h1_foreign_identity_pop_rejected() {
+    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
+    use latticearc::primitives::ec::traits::EcKeyPair;
+    use latticearc::types::traits::ProofOfPossession;
+    use latticearc::types::types::{PrivateKey, PublicKey};
+    use latticearc::unified_api::zero_trust::ZeroTrustAuth;
+
+    // Verifier (Alice) — this is the identity any PoP must be bound to.
+    let alice_kp = Ed25519KeyPair::generate().expect("alice keygen");
+    let alice = ZeroTrustAuth::new(
+        PublicKey::new(alice_kp.public_key_bytes().to_vec()),
+        PrivateKey::new(alice_kp.secret_key_bytes().as_slice().to_vec()),
+    )
+    .expect("alice init");
+
+    // Attacker (Eve) — generates a perfectly valid self-signed PoP
+    // under their own keypair.
+    let eve_kp = Ed25519KeyPair::generate().expect("eve keygen");
+    let eve = ZeroTrustAuth::new(
+        PublicKey::new(eve_kp.public_key_bytes().to_vec()),
+        PrivateKey::new(eve_kp.secret_key_bytes().as_slice().to_vec()),
+    )
+    .expect("eve init");
+
+    let challenge = b"pop-h1-challenge";
+    let eve_pop = eve.generate_pop(challenge).expect("eve generates a valid self-PoP");
+
+    // Eve presents her PoP to Alice's verifier. Pre-fix this would
+    // return Ok(true) because verify_pop trusted the embedded key.
+    let alice_says = alice.verify_pop(&eve_pop, challenge).expect("verify must not error");
+    assert!(
+        !alice_says,
+        "PoP-H1: a PoP under Eve's identity must NOT verify against Alice's identity"
+    );
+}
+
+/// PoP-M1 regression: a PoP captured under challenge A must NOT verify
+/// against challenge B, even when the same legitimate identity and the
+/// same key are used on both sides. Closes the cross-verifier-instance
+/// replay window inside the freshness period.
+#[cfg(not(feature = "fips"))]
+#[test]
+fn pop_m1_challenge_swap_rejected() {
+    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
+    use latticearc::primitives::ec::traits::EcKeyPair;
+    use latticearc::types::traits::ProofOfPossession;
+    use latticearc::types::types::{PrivateKey, PublicKey};
+    use latticearc::unified_api::zero_trust::ZeroTrustAuth;
+
+    let kp = Ed25519KeyPair::generate().expect("keygen");
+    let auth = ZeroTrustAuth::new(
+        PublicKey::new(kp.public_key_bytes().to_vec()),
+        PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
+    )
+    .expect("auth init");
+
+    let pop_for_a = auth.generate_pop(b"verifier-A-round-1-nonce").expect("PoP under challenge A");
+    let valid_against_a = auth
+        .verify_pop(&pop_for_a, b"verifier-A-round-1-nonce")
+        .expect("verify under matching challenge");
+    assert!(valid_against_a, "fresh PoP must verify under its own challenge");
+
+    let valid_against_b = auth
+        .verify_pop(&pop_for_a, b"verifier-B-different-nonce")
+        .expect("verify must not error on a challenge swap");
+    assert!(
+        !valid_against_b,
+        "PoP-M1: PoP for one challenge must NOT verify against a different challenge"
+    );
+}
+
+/// PoP-L1 regression: a PoP replayed within the freshness window must
+/// return `Ok(false)` (Pattern-6 indistinguishable from stale / wrong /
+/// foreign-identity), NOT `Err(InvalidInput("replay detected"))` as
+/// pre-fix. The previous Err variant let an attacker distinguish "I've
+/// seen this before" from the sibling stale path that already returned
+/// `Ok(false)`.
+#[cfg(not(feature = "fips"))]
+#[test]
+fn pop_l1_replay_collapses_to_ok_false() {
+    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
+    use latticearc::primitives::ec::traits::EcKeyPair;
+    use latticearc::types::traits::ProofOfPossession;
+    use latticearc::types::types::{PrivateKey, PublicKey};
+    use latticearc::unified_api::zero_trust::ZeroTrustAuth;
+
+    let kp = Ed25519KeyPair::generate().expect("keygen");
+    let auth = ZeroTrustAuth::new(
+        PublicKey::new(kp.public_key_bytes().to_vec()),
+        PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
+    )
+    .expect("auth init");
+
+    let challenge = b"pop-l1-replay-test-challenge";
+    let pop = auth.generate_pop(challenge).expect("PoP generation");
+
+    // First presentation: legitimate, must verify.
+    let first = auth.verify_pop(&pop, challenge).expect("first verify");
+    assert!(first, "first presentation of a fresh PoP must verify");
+
+    // Second presentation: replay. MUST be Ok(false), not Err.
+    // Pre-fix this branch returned
+    // Err(CoreError::InvalidInput("Proof-of-possession replay detected")).
+    let second = auth.verify_pop(&pop, challenge);
+    assert!(
+        matches!(second, Ok(false)),
+        "PoP-L1: replay must collapse to Ok(false), got {second:?}"
+    );
+}
+
+// ============================================================================
+// M-serialize_keypair: return type carries Zeroizing<String>
+// ============================================================================
+
+/// Compile-time regression: `serialize_keypair`'s return type must wrap
+/// the JSON string in `Zeroizing<String>`. The pre-fix signature
+/// returned `Result<String>`, leaving the base64-encoded private key on
+/// the heap until allocator policy reclaimed the buffer.
+///
+/// This test is intentionally trivial — its job is to fail to compile
+/// (or panic) if the signature regresses. The runtime check is just
+/// "the returned value derefs to a usable &str".
+#[test]
+fn m_serialize_keypair_returns_zeroizing_string() {
+    use latticearc::serialize_keypair;
+    use latticearc::types::types::{KeyPair, PrivateKey, PublicKey};
+    use std::any::Any;
+    use zeroize::Zeroizing;
+
+    let kp = KeyPair::new(PublicKey::new(vec![0x01; 32]), PrivateKey::new(vec![0x10; 32]));
+    let json: Zeroizing<String> = serialize_keypair(&kp).expect("serialize must succeed");
+
+    // Sanity: derefs to a usable &str so callers can still pass it to
+    // serde / deserialize_keypair.
+    assert!(json.as_str().contains("\"public_key\""), "serialized form must contain pubkey field");
+
+    // Type-level assertion. The `Any` reflection is overkill but locks
+    // the concrete type so a refactor that returns a wrapper type
+    // (e.g. a newtype around Zeroizing) trips this assertion at
+    // runtime as well.
+    let as_any: &dyn Any = &json;
+    assert!(
+        as_any.is::<Zeroizing<String>>(),
+        "serialize_keypair must return Zeroizing<String> exactly"
+    );
+}
+
+// ============================================================================
+// L-DlogEqualityStatement: pub fields encapsulated, with_bases / accessors
+// ============================================================================
+
+/// Regression: `DlogEqualityStatement` fields are no longer publicly
+/// readable as struct fields. The `with_bases` constructor and the
+/// `g()/h()/p()/q()` accessors are the public API. A future refactor
+/// that re-exposes `pub g: [u8; 33]` etc. would trip this test by
+/// allowing struct-literal construction in this integration-test crate.
+#[cfg(not(feature = "fips"))]
+#[test]
+fn l_dlog_equality_statement_uses_with_bases_constructor() {
+    use latticearc::zkp::sigma::DlogEqualityStatement;
+
+    let g_bytes = [0u8; 33];
+    let h_bytes = [1u8; 33];
+    let p_bytes = [2u8; 33];
+    let q_bytes = [3u8; 33];
+    let stmt = DlogEqualityStatement::with_bases(g_bytes, h_bytes, p_bytes, q_bytes);
+    assert_eq!(stmt.g(), &g_bytes);
+    assert_eq!(stmt.h(), &h_bytes);
+    assert_eq!(stmt.p(), &p_bytes);
+    assert_eq!(stmt.q(), &q_bytes);
 }

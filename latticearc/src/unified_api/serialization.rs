@@ -283,12 +283,26 @@ pub fn deserialize_signed_data(data: &str) -> Result<SignedData> {
 
 /// Serializes a keypair to a JSON string.
 ///
+/// Returns the JSON inside a [`Zeroizing<String>`] wrapper so the heap
+/// allocation holding the base64-encoded private-key bytes is scrubbed
+/// when the caller drops the returned value. The pre-fix signature
+/// returned a plain `Result<String>`, leaving the private key sitting
+/// on the heap until allocator policy reclaimed it (and exposing it to
+/// any `tracing::info!(?value)` or `Debug` derive that incidentally
+/// touched the return value).
+///
+/// Callers that need a `&str` for downstream serde calls should use
+/// `json.as_str()` (or `&*json` for a `&String`); both work because
+/// `Zeroizing<String>` derefs to `String`.
+///
 /// # Errors
 ///
 /// Returns an error if JSON serialization fails.
-pub fn serialize_keypair(keypair: &KeyPair) -> Result<String> {
+pub fn serialize_keypair(keypair: &KeyPair) -> Result<zeroize::Zeroizing<String>> {
     let serializable = SerializableKeyPair::from(keypair);
-    serde_json::to_string(&serializable).map_err(|e| CoreError::SerializationError(e.to_string()))
+    let s = serde_json::to_string(&serializable)
+        .map_err(|e| CoreError::SerializationError(e.to_string()))?;
+    Ok(zeroize::Zeroizing::new(s))
 }
 
 /// Deserializes a keypair from a JSON string.

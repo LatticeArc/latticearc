@@ -1398,6 +1398,12 @@ impl PortableKey {
     /// `HybridKemPublicKey::new`, but the asymmetry was a defense-in-depth
     /// hole. The guard makes the contract structural.
     pub fn to_hybrid_public_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemPublicKey> {
+        // M-B: expiry gate must run before extraction. A key file with
+        // `not_after` in the past loads cleanly through validate() (by
+        // design — inspection / migration paths need it), but emitting
+        // the typed HybridKemPublicKey lets a downstream encrypt path
+        // use expired key material. Route through the M-B helper.
+        self.validate_with_expiry_now()?;
         if self.key_type != KeyType::Public {
             return Err(CoreError::InvalidKey(
                 "Cannot extract hybrid public key from a non-public key file".to_string(),
@@ -1433,6 +1439,10 @@ impl PortableKey {
     /// (stored at keygen time), making the secret key file fully self-contained.
     /// No separate public key file is needed for decryption.
     pub fn to_hybrid_secret_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemSecretKey> {
+        // M-B: see `to_hybrid_public_key`. Expired secret keys must not be
+        // turned into a typed secret-key value that a downstream decrypt
+        // / agree path would use.
+        self.validate_with_expiry_now()?;
         let level =
             crate::primitives::kem::MlKemSecurityLevel::try_from(self.algorithm).map_err(|()| {
                 CoreError::InvalidKey(format!(
@@ -1573,6 +1583,8 @@ impl PortableKey {
     pub fn to_hybrid_sig_public_key(
         &self,
     ) -> Result<crate::hybrid::sig_hybrid::HybridSigPublicKey> {
+        // M-B: see `to_hybrid_public_key`.
+        self.validate_with_expiry_now()?;
         if self.key_type != KeyType::Public {
             return Err(CoreError::InvalidKey(
                 "Cannot extract hybrid signature public key from a non-public key file".to_string(),
@@ -1602,6 +1614,8 @@ impl PortableKey {
     pub fn to_hybrid_sig_secret_key(
         &self,
     ) -> Result<crate::hybrid::sig_hybrid::HybridSigSecretKey> {
+        // M-B: see `to_hybrid_public_key`.
+        self.validate_with_expiry_now()?;
         let parameter_set = crate::primitives::sig::ml_dsa::MlDsaParameterSet::try_from(
             self.algorithm,
         )
@@ -2102,6 +2116,31 @@ impl PortableKey {
             return Err(CoreError::InvalidKey("key has expired".to_string()));
         }
         Ok(())
+    }
+
+    /// Wall-clock-anchored variant of [`validate_with_expiry`]. Routes every
+    /// key-extraction method on this type (`to_hybrid_public_key`,
+    /// `to_hybrid_secret_key`, `to_hybrid_sig_public_key`,
+    /// `to_hybrid_sig_secret_key`) through the expiry gate before the
+    /// returned typed key escapes into a sign / encrypt / agree path. Reads
+    /// `Utc::now()` once at call time so the gate can't be bypassed by a
+    /// caller that holds a stale `DateTime<Utc>`.
+    ///
+    /// The expiry-aware gate is intentionally NOT folded into
+    /// [`validate`](Self::validate): a tool inspecting an expired key for
+    /// migration or reporting purposes must still be able to load it. The
+    /// boundary is "loaded ≠ usable" — `validate()` accepts expired keys,
+    /// `validate_with_expiry_now()` rejects them, and only the latter sits
+    /// in the critical path before extracted key material reaches crypto.
+    ///
+    /// # Errors
+    ///
+    /// Forwards [`validate_with_expiry`](Self::validate_with_expiry)'s
+    /// errors: structural failures from [`validate`](Self::validate), or
+    /// `CoreError::InvalidKey("key has expired")` if `not_after` is at or
+    /// before the current wall clock.
+    pub fn validate_with_expiry_now(&self) -> Result<()> {
+        self.validate_with_expiry(Utc::now())
     }
 
     /// Validate an encrypted-envelope's metadata and base64-decodable sizes.

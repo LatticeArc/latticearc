@@ -68,23 +68,53 @@ pub trait ZeroTrustAuthenticable: sealed::Sealed {
 /// Trait for proof-of-possession verification.
 ///
 /// Sealed (Pattern 4): only types in this crate can implement it.
+///
+/// **Wire-format note.** `generate_pop` takes a caller-supplied `challenge`
+/// (server-issued nonce, session token, etc.) and binds it into the signed
+/// transcript along with the verifier's identity public key. `verify_pop`
+/// receives the same `expected_challenge` and rejects mismatches as
+/// `Ok(false)` (Pattern-6 indistinguishable from a cryptographic reject).
+/// This is the only structural defence against cross-verifier replay of a
+/// captured PoP within the freshness window; without a per-request
+/// challenge, any verifier holding the identity's public key would accept
+/// the same PoP.
 pub trait ProofOfPossession: sealed::Sealed {
     /// The proof-of-possession type.
     type Pop;
     /// The error type for PoP operations.
     type Error;
 
-    /// Generates a proof of possession.
+    /// Generates a proof of possession bound to a caller-supplied
+    /// challenge.
+    ///
+    /// `challenge` is the per-request nonce the verifier issued — typically
+    /// 16–32 random bytes from a freshly-initialised challenge — but any
+    /// caller-controlled, single-use bytes will do. An empty challenge is
+    /// permitted by the wire format but is deprecated because it
+    /// reintroduces the cross-verifier replay window the parameter exists
+    /// to close.
     ///
     /// # Errors
     /// Returns an error if PoP generation fails (implementation-defined).
-    fn generate_pop(&self) -> std::result::Result<Self::Pop, Self::Error>;
+    fn generate_pop(&self, challenge: &[u8]) -> std::result::Result<Self::Pop, Self::Error>;
 
-    /// Verifies a proof of possession.
+    /// Verifies a proof of possession against the caller-supplied
+    /// expected challenge.
+    ///
+    /// Implementations also assert the embedded public key matches the
+    /// verifier's identity (closes the H2-class "trusts embedded pk"
+    /// failure) and reject identity mismatch, challenge mismatch, expiry,
+    /// and crypto-reject all as `Ok(false)`.
     ///
     /// # Errors
-    /// Returns an error if verification fails (implementation-defined).
-    fn verify_pop(&self, pop: &Self::Pop) -> std::result::Result<bool, Self::Error>;
+    /// Returns an error only for unrecoverable structural failures
+    /// (poisoned mutex, etc.). All adversary-attainable rejection causes
+    /// collapse to `Ok(false)`.
+    fn verify_pop(
+        &self,
+        pop: &Self::Pop,
+        expected_challenge: &[u8],
+    ) -> std::result::Result<bool, Self::Error>;
 }
 
 /// Trait for continuous session verification.

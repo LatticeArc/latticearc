@@ -246,7 +246,7 @@ mod m2_zkp_constant_time {
         let p_bytes: [u8; 33] = p.to_affine().to_bytes().as_slice().try_into().unwrap();
         let q_bytes: [u8; 33] = q.to_affine().to_bytes().as_slice().try_into().unwrap();
 
-        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+        let statement = DlogEqualityStatement::with_bases(g_bytes, h_bytes, p_bytes, q_bytes);
 
         let secret: [u8; 32] = x.to_bytes().into();
         let proof = DlogEqualityProof::prove(&statement, &secret, b"test").unwrap();
@@ -268,7 +268,7 @@ mod m2_zkp_constant_time {
         let p_bytes: [u8; 33] = p.to_affine().to_bytes().as_slice().try_into().unwrap();
         let q_bytes: [u8; 33] = q.to_affine().to_bytes().as_slice().try_into().unwrap();
 
-        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+        let statement = DlogEqualityStatement::with_bases(g_bytes, h_bytes, p_bytes, q_bytes);
 
         let wrong_secret: [u8; 32] = y.to_bytes().into();
         let proof = DlogEqualityProof::prove(&statement, &wrong_secret, b"test").unwrap();
@@ -483,12 +483,12 @@ mod m10_dlog_equality_debug_redaction {
         let p = g * x;
         let q = h * x;
 
-        let statement = DlogEqualityStatement {
-            g: g.to_affine().to_bytes().as_slice().try_into().unwrap(),
-            h: h.to_affine().to_bytes().as_slice().try_into().unwrap(),
-            p: p.to_affine().to_bytes().as_slice().try_into().unwrap(),
-            q: q.to_affine().to_bytes().as_slice().try_into().unwrap(),
-        };
+        let statement = DlogEqualityStatement::with_bases(
+            g.to_affine().to_bytes().as_slice().try_into().unwrap(),
+            h.to_affine().to_bytes().as_slice().try_into().unwrap(),
+            p.to_affine().to_bytes().as_slice().try_into().unwrap(),
+            q.to_affine().to_bytes().as_slice().try_into().unwrap(),
+        );
 
         let secret: [u8; 32] = x.to_bytes().into();
         let proof = DlogEqualityProof::prove(&statement, &secret, b"ctx").unwrap();
@@ -512,12 +512,12 @@ mod m10_dlog_equality_debug_redaction {
         let g = ProjectivePoint::GENERATOR;
         let h = PedersenCommitment::generator_h().unwrap();
 
-        let statement = DlogEqualityStatement {
-            g: g.to_affine().to_bytes().as_slice().try_into().unwrap(),
-            h: h.to_affine().to_bytes().as_slice().try_into().unwrap(),
-            p: (g * x).to_affine().to_bytes().as_slice().try_into().unwrap(),
-            q: (h * x).to_affine().to_bytes().as_slice().try_into().unwrap(),
-        };
+        let statement = DlogEqualityStatement::with_bases(
+            g.to_affine().to_bytes().as_slice().try_into().unwrap(),
+            h.to_affine().to_bytes().as_slice().try_into().unwrap(),
+            (g * x).to_affine().to_bytes().as_slice().try_into().unwrap(),
+            (h * x).to_affine().to_bytes().as_slice().try_into().unwrap(),
+        );
 
         let secret: [u8; 32] = x.to_bytes().into();
         let proof = DlogEqualityProof::prove(&statement, &secret, b"ctx").unwrap();

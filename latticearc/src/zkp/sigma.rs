@@ -465,13 +465,13 @@ impl ConstantTimeEq for DlogEqualityProof {
 #[derive(Debug, Clone)]
 pub struct DlogEqualityStatement {
     /// Generator G — must equal the canonical secp256k1 generator.
-    pub g: [u8; 33],
+    pub(crate) g: [u8; 33],
     /// Generator H — must equal the Pedersen NUMS H point.
-    pub h: [u8; 33],
+    pub(crate) h: [u8; 33],
     /// P = x*G
-    pub p: [u8; 33],
+    pub(crate) p: [u8; 33],
     /// Q = x*H
-    pub q: [u8; 33],
+    pub(crate) q: [u8; 33],
 }
 
 impl DlogEqualityStatement {
@@ -494,6 +494,65 @@ impl DlogEqualityStatement {
         let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h_point.to_affine().to_bytes().as_slice())
             .map_err(|e| ZkpError::SerializationError(format!("canonical H serialization: {e}")))?;
         Ok(Self { g: g_bytes, h: h_bytes, p, q })
+    }
+
+    /// Build a `DlogEqualityStatement` with caller-supplied bases.
+    ///
+    /// Bypasses the canonical-base check. Prove and verify will reject
+    /// non-canonical bases — this constructor exists ONLY for tests that
+    /// need to exercise the rejection path and for code that has already
+    /// validated the bases against `canonical_bases()`. Use
+    /// [`Self::canonical`] for new production code.
+    #[must_use]
+    pub fn with_bases(g: [u8; 33], h: [u8; 33], p: [u8; 33], q: [u8; 33]) -> Self {
+        Self { g, h, p, q }
+    }
+
+    /// Borrow `G` as SEC1 compressed bytes.
+    #[must_use]
+    pub fn g(&self) -> &[u8; 33] {
+        &self.g
+    }
+    /// Borrow `H` as SEC1 compressed bytes.
+    #[must_use]
+    pub fn h(&self) -> &[u8; 33] {
+        &self.h
+    }
+    /// Borrow `P = x*G` as SEC1 compressed bytes.
+    #[must_use]
+    pub fn p(&self) -> &[u8; 33] {
+        &self.p
+    }
+    /// Borrow `Q = x*H` as SEC1 compressed bytes.
+    #[must_use]
+    pub fn q(&self) -> &[u8; 33] {
+        &self.q
+    }
+
+    /// Mutable accessors for `G`, `H`, `P`, `Q`.
+    ///
+    /// Exposed so tests that probe the canonical-base / point-on-curve
+    /// rejection paths in `prove` / `verify` can corrupt individual
+    /// bytes after construction without rebuilding the whole statement.
+    /// Mutating the bases bypasses construction-time validation, but
+    /// every `prove` / `verify` call re-checks `canonical_bases` and
+    /// re-parses the points, so a corrupted statement reaches no
+    /// crypto path silently.
+    #[doc(hidden)]
+    pub fn g_mut(&mut self) -> &mut [u8; 33] {
+        &mut self.g
+    }
+    #[doc(hidden)]
+    pub fn h_mut(&mut self) -> &mut [u8; 33] {
+        &mut self.h
+    }
+    #[doc(hidden)]
+    pub fn p_mut(&mut self) -> &mut [u8; 33] {
+        &mut self.p
+    }
+    #[doc(hidden)]
+    pub fn q_mut(&mut self) -> &mut [u8; 33] {
+        &mut self.q
     }
 
     /// returns the canonical (g, h) base pair as

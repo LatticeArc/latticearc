@@ -941,65 +941,108 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
     }
 }
 
+/// Build the PoP transcript digest used by `generate_pop` / `verify_pop`.
+///
+/// Encodes
+/// `SHA-512(pop_ctx || 0x00 || verifier_pk_len_be4 || verifier_pk
+/// || 0x00 || ts_micros_be8 || 0x00 || challenge_len_be4 || challenge)`.
+///
+/// `verifier_pk` and `challenge` are each length-prefixed with a
+/// big-endian u32 so that concatenation cannot ambiguously parse as a
+/// different `(verifier_pk, challenge)` split. The 0x00 separators add
+/// a NUL-safety belt because `SIG_CONTEXT_POP_ED25519` is asserted
+/// NUL-free by its module-level test.
+///
+/// Sized [u8; 64] output. Returned by value so the digest lives in
+/// a register / stack slot the compiler can scrub.
+fn pop_transcript_digest(verifier_pk: &[u8], ts_micros: i64, challenge: &[u8]) -> [u8; 64] {
+    use sha2::{Digest, Sha512};
+    let mut hasher = Sha512::new();
+    hasher.update(crate::types::domains::pop_sig_context());
+    hasher.update([0x00]);
+    // Pre-encode the length prefixes as fixed-size arrays so the
+    // `.update(&[..])` calls stay branch-free and cannot be tricked by
+    // a future signature change that exposes a `usize`-vs-`u32` cast
+    // mistake. `.len() as u32` is bounded by the underlying slice cap
+    // (Ed25519 PK = 32 B, server-issued challenge ≤ 64 KiB at most for
+    // any sane caller).
+    let pk_len: u32 = verifier_pk.len().try_into().unwrap_or(u32::MAX);
+    hasher.update(pk_len.to_be_bytes());
+    hasher.update(verifier_pk);
+    hasher.update([0x00]);
+    hasher.update(ts_micros.to_be_bytes());
+    hasher.update([0x00]);
+    let ch_len: u32 = challenge.len().try_into().unwrap_or(u32::MAX);
+    hasher.update(ch_len.to_be_bytes());
+    hasher.update(challenge);
+    hasher.finalize().into()
+}
+
 impl ProofOfPossession for ZeroTrustAuth {
     type Pop = ProofOfPossessionData;
     type Error = CoreError;
 
-    /// Generates a proof of possession using Ed25519 signature.
+    /// Generates a proof of possession bound to a caller-supplied
+    /// challenge.
+    ///
+    /// The signed transcript is
+    /// `SHA-512(pop_ctx || 0x00 || verifier_pk_len_be4 || verifier_pk
+    /// || 0x00 || ts_micros_be8 || 0x00 || challenge_len_be4 ||
+    /// challenge)`. Binding `self.public_key` (the verifier identity this
+    /// auth represents) closes cross-identity replay; binding `challenge`
+    /// closes cross-verifier-instance replay within the freshness window.
+    /// Both are length-prefixed to prevent prefix-free ambiguity between
+    /// the two adjacent variable-length values.
     ///
     /// # Errors
     ///
-    /// Returns `CoreError::InvalidKeyLength` if the private key has incorrect length
-    /// for Ed25519 signing.
-    ///
-    /// Returns `CoreError::InvalidInput` if the private key format is invalid.
-    fn generate_pop(&self) -> Result<Self::Pop> {
+    /// Returns `CoreError::InvalidKeyLength` if the private key has
+    /// incorrect length for Ed25519 signing. Returns
+    /// `CoreError::InvalidInput` if the private key format is invalid.
+    fn generate_pop(&self, challenge: &[u8]) -> Result<Self::Pop> {
         let timestamp = Utc::now();
-        // Include microsecond precision in the signed message, not just
-        // seconds. Ed25519 signatures are deterministic, so two PoPs
-        // generated in the same second by the same key produce
-        // byte-identical wire representations — the replay cache
-        // (which keys on `pk || sig || ts_secs`) would then flag a
-        // legitimate client regenerating PoPs in a tight loop as a
-        // replay attack. Microseconds are still well
-        // within the 5-minute freshness window's resolution and make
-        // each in-second PoP byte-unique.
+        // Microsecond precision: Ed25519 sigs are deterministic, so two
+        // PoPs in the same second from the same key produce identical
+        // wire bytes and trip the replay cache against a legitimate
+        // client regenerating in a tight loop. Microseconds also fit
+        // comfortably inside the 5-minute freshness window.
         let ts_micros = timestamp.timestamp_micros();
-        let message = format!("proof-of-possession-{ts_micros}");
+        let pop_digest = pop_transcript_digest(self.public_key.as_slice(), ts_micros, challenge);
 
         let signature = crate::unified_api::convenience::ed25519::sign_ed25519_internal(
-            message.as_bytes(),
+            &pop_digest,
             self.private_key.expose_secret(),
         )?;
 
         Ok(ProofOfPossessionData { public_key: self.public_key.clone(), signature, timestamp })
     }
 
-    /// Verifies a proof of possession against the contained public key.
+    /// Verifies a proof of possession against `self.public_key` and the
+    /// caller-supplied expected challenge.
     ///
     /// # Returns
     ///
-    /// `Ok(true)` if the proof is fresh AND cryptographically valid.
-    /// `Ok(false)` if the proof is stale (older than the freshness
-    /// window), dated in the future beyond the clock-skew tolerance,
-    /// OR the cryptographic check fails. **All rejection causes
-    /// produce the same `Ok(false)`** so callers cannot distinguish
-    /// "stale, refresh and retry" from "wrong PoP" by branching on
-    /// the Result. The stale path returns `Ok(false)` rather than
-    /// `Err(InvalidInput)` to avoid a side-channel that would expose
-    /// server clock skew. Stale-vs-cryptographic-reject is logged at
-    /// `tracing::debug!` for operators only — callers that need
-    /// refresh logic should re-issue a fresh PoP and retry rather
-    /// than branching on the error variant.
+    /// `Ok(true)` if the proof is fresh AND identity-bound AND
+    /// challenge-bound AND cryptographically valid. `Ok(false)` for
+    /// every rejection cause — stale, future-dated, identity mismatch
+    /// (PoP-H1), challenge mismatch (PoP-M1), crypto reject, replay
+    /// within the freshness window. **All adversary-reachable rejection
+    /// causes collapse to `Ok(false)`** so callers cannot distinguish
+    /// "stale, refresh and retry" from "wrong PoP" / "replay" by
+    /// branching on the Result. Rejection cause is logged at
+    /// `tracing::debug!` for operator visibility.
     ///
     /// # Errors
     ///
-    /// Returns `CoreError::InvalidInput` only if the signature
-    /// format is structurally invalid (e.g. wrong length).
-    ///
-    /// Returns `CoreError::InvalidKeyLength` if the public key has
-    /// incorrect length.
-    fn verify_pop(&self, pop: &Self::Pop) -> std::result::Result<bool, Self::Error> {
+    /// Returns `CoreError::InvalidInput` only for unrecoverable
+    /// structural failures (poisoned mutex on the replay cache). The
+    /// signature-length, public-key-length, and stale / future / replay
+    /// paths are all Pattern-6-collapsed to `Ok(false)`.
+    fn verify_pop(
+        &self,
+        pop: &Self::Pop,
+        expected_challenge: &[u8],
+    ) -> std::result::Result<bool, Self::Error> {
         // Freshness check: reject proofs older than PROOF_OF_POSSESSION_MAX_AGE.
         // This prevents replay of stale PoPs captured from prior sessions (P5.2 C4).
         // Using chrono::Duration so the bound is expressed in seconds regardless
@@ -1028,15 +1071,47 @@ impl ProofOfPossession for ZeroTrustAuth {
             return Ok(false);
         }
 
-        // mirror generate_pop's use
-        // of microsecond precision in the verified message.
+        // PoP-H1: identity binding. The pre-fix verify dispatched against
+        // `pop.public_key()` — the public key the (potentially attacker-
+        // controlled) PoP carries. Any party with any Ed25519 keypair
+        // could then produce a self-signed PoP that returned Ok(true),
+        // proving possession of A KEY, not THIS IDENTITY's key. Compare
+        // the embedded pk against the verifier identity in constant
+        // time; mismatch is Pattern-6-collapsed to Ok(false) so the
+        // adversary cannot distinguish "wrong identity" from "wrong
+        // signature" by branching on the Result.
+        use subtle::ConstantTimeEq;
+        let embedded_pk = pop.public_key().as_slice();
+        let verifier_pk = self.public_key.as_slice();
+        if embedded_pk.len() != verifier_pk.len() {
+            tracing::debug!(
+                embedded_len = embedded_pk.len(),
+                verifier_len = verifier_pk.len(),
+                "verify_pop rejected: embedded public key length differs from \
+                 verifier identity (PoP-H1)"
+            );
+            return Ok(false);
+        }
+        if embedded_pk.ct_eq(verifier_pk).unwrap_u8() != 1u8 {
+            tracing::debug!(
+                "verify_pop rejected: embedded public key does not match verifier \
+                 identity (PoP-H1)"
+            );
+            return Ok(false);
+        }
+
+        // PoP-M1: reconstruct the post-fix transcript exactly as
+        // `generate_pop` produced it — verifier_pk + ts + challenge —
+        // and dispatch against the verifier identity. A captured PoP
+        // for a different verifier-id OR a different challenge round
+        // produces a different digest and the crypto verify rejects.
         let ts_micros = pop.timestamp().timestamp_micros();
-        let message = format!("proof-of-possession-{ts_micros}");
+        let pop_digest = pop_transcript_digest(verifier_pk, ts_micros, expected_challenge);
 
         let valid = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
-            message.as_bytes(),
+            &pop_digest,
             pop.signature(),
-            pop.public_key().as_slice(),
+            verifier_pk,
         )?;
 
         // reject re-presentation of a
@@ -1055,30 +1130,41 @@ impl ProofOfPossession for ZeroTrustAuth {
             let mut cache = self.pop_replay_cache.lock().map_err(|_poison| {
                 CoreError::InvalidInput("PoP replay cache poisoned".to_string())
             })?;
-            let pk_bytes = pop.public_key().as_slice();
+            // PoP-H1 enforced verifier_pk above, so the cache key uses
+            // verifier_pk (the canonical identity bytes) instead of the
+            // adversary-supplied `pop.public_key()`. Identical bytes by
+            // construction once H1 passes, but anchoring to the verifier
+            // makes the cache-key invariant resilient to future code
+            // motion that might forget to dereference `pop.public_key()`
+            // first.
+            let pk_bytes = verifier_pk;
             let pk_len = pk_bytes.len();
             // Evict expired entries opportunistically; per-PK counts are
             // decremented in lockstep so they stay exact. `pk_len` is
             // owned by the cache (locked at construction) so this call
-            // no longer carries it as a parameter — the previous shape
-            // accepted any pk_len per-call and would silently produce a
-            // wrong-length prefix slice if a future PoP type had a
-            // different PK length than the cache was built for.
+            // no longer carries it as a parameter.
             let now_secs = Utc::now().timestamp();
             cache.expire_older_than(now_secs, PROOF_OF_POSSESSION_MAX_AGE_SECS);
             // Cache key combines PK + signature + microsecond timestamp;
             // collisions require either a cryptographic break or a
-            // deliberate replay (the latter is what we're rejecting here).
+            // deliberate replay (the latter is what we're rejecting
+            // here). The challenge bytes already factor into the
+            // signature (PoP-M1), so adding them to the key would be
+            // redundant.
             let key_cap = pk_len.saturating_add(pop.signature().len()).saturating_add(8);
             let mut key = Vec::with_capacity(key_cap);
             key.extend_from_slice(pk_bytes);
             key.extend_from_slice(pop.signature());
             key.extend_from_slice(&ts_micros.to_be_bytes());
             if cache.contains(&key) {
+                // PoP-L1: collapse replay to Ok(false). Pre-fix this was
+                // Err(CoreError::InvalidInput("replay detected")), letting
+                // the caller distinguish "I've seen this before" from the
+                // sibling "stale, refresh and retry" path (which already
+                // returned Ok(false)). Pattern-6 contract requires every
+                // adversary-attainable rejection to look identical.
                 tracing::debug!(ts_micros, "PoP rejected: replay within 5-min window");
-                return Err(CoreError::InvalidInput(
-                    "Proof-of-possession replay detected".to_string(),
-                ));
+                return Ok(false);
             }
             // Per-PK quota. Bounds the damage a single noisy public key can
             // do: an attacker submitting many legitimate PoPs from one PK
@@ -1447,16 +1533,17 @@ impl ContinuousSession {
         Ok(verification_elapsed_u64 <= self.verification_interval_ms)
     }
 
-    /// Updates the last verification timestamp to the current time.
-    ///
-    /// # Errors
-    ///
-    /// This function does not currently return errors, but returns `Result` for
-    /// API consistency and future extensibility.
-    pub fn update_verification(&mut self) -> Result<()> {
-        self.last_verification = Utc::now();
-        Ok(())
-    }
+    // M-update_verification: the pre-fix `pub fn update_verification`
+    // bumped `self.last_verification` to `Utc::now()` with no proof —
+    // equivalent to "extend my session forever" from anyone holding
+    // `&mut ContinuousSession`. There were zero in-crate non-test
+    // callers (verify_continuously / reauthenticate operate on
+    // `ZeroTrustAuth.last_verification`, not the session-side copy),
+    // so the method has been removed rather than merely cfg-gated.
+    // Callers that legitimately need to refresh a continuous session
+    // must route through `ZeroTrustAuth::reauthenticate`, which IS
+    // proof-gated (generates challenge → generates proof → verifies →
+    // bumps the auth-side clock).
 }
 
 fn generate_challenge_data(complexity: &ProofComplexity) -> Result<Vec<u8>> {
@@ -1533,8 +1620,19 @@ impl ZeroTrustAuth {
 
         // Sign the message - this IS zero-knowledge
         // The signature proves knowledge of private key without revealing it
+        //
+        // M-A: bind ZK-proof signatures to a ZK-proof-specific Ed25519
+        // context. The internal 0x01/0x02/0x03 complexity tags inside
+        // `message_to_sign` keep Low/Medium/High distinguishable within
+        // this protocol; the SHA-512 prefix-padded context here keeps a
+        // captured ZK proof from replaying as a SignedData or PoP signed
+        // by the same Ed25519 key. Mirrors the post-M-A pure-Ed25519
+        // construction and the hybrid leg.
+        use crate::types::domains::{hash_with_context, zk_proof_sig_context};
+        let zk_digest = hash_with_context(zk_proof_sig_context(), &message_to_sign);
+
         let signature = crate::unified_api::convenience::ed25519::sign_ed25519_internal(
-            &message_to_sign,
+            &zk_digest,
             self.private_key.expose_secret(),
         )?;
 
@@ -1587,8 +1685,12 @@ impl ZeroTrustAuth {
                 message.extend_from_slice(challenge);
                 message.extend_from_slice(&timestamp_bytes);
                 message.extend_from_slice(self.public_key.as_slice());
+                // M-A: mirror generate_proof_data's
+                // SHA-512(zk_ctx || 0x00 || message) construction.
+                use crate::types::domains::{hash_with_context, zk_proof_sig_context};
+                let zk_digest = hash_with_context(zk_proof_sig_context(), &message);
                 let sig_ok = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
-                    &message,
+                    &zk_digest,
                     signature,
                     self.public_key.as_slice(),
                 )?;
@@ -1647,8 +1749,12 @@ impl ZeroTrustAuth {
                 message.extend_from_slice(challenge);
                 message.extend_from_slice(&timestamp_bytes);
                 message.extend_from_slice(self.public_key.as_slice());
+                // M-A: mirror generate_proof_data's
+                // SHA-512(zk_ctx || 0x00 || message) construction.
+                use crate::types::domains::{hash_with_context, zk_proof_sig_context};
+                let zk_digest = hash_with_context(zk_proof_sig_context(), &message);
                 let sig_ok = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
-                    &message,
+                    &zk_digest,
                     signature,
                     self.public_key.as_slice(),
                 )?;
@@ -1707,8 +1813,12 @@ impl ZeroTrustAuth {
                 message.extend_from_slice(challenge);
                 message.extend_from_slice(&timestamp_bytes);
                 message.extend_from_slice(self.public_key.as_slice());
+                // M-A: mirror generate_proof_data's
+                // SHA-512(zk_ctx || 0x00 || message) construction.
+                use crate::types::domains::{hash_with_context, zk_proof_sig_context};
+                let zk_digest = hash_with_context(zk_proof_sig_context(), &message);
                 let sig_ok = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
-                    &message,
+                    &zk_digest,
                     signature,
                     self.public_key.as_slice(),
                 )?;
@@ -2420,18 +2530,21 @@ mod tests {
         Ok(())
     }
 
+    /// M-update_verification: `ContinuousSession::update_verification`
+    /// was removed because it was a public, proof-less clock bump and
+    /// had no in-crate non-test callers. Refresh must route through
+    /// `ZeroTrustAuth::reauthenticate`, which is proof-gated.
     #[test]
-    fn test_continuous_session_update_verification_succeeds() -> Result<()> {
+    fn test_continuous_session_refresh_via_reauthenticate() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
         warm_up_auth(&auth)?;
 
-        let mut continuous = auth.start_continuous_verification()?;
+        let continuous = auth.start_continuous_verification()?;
         assert!(continuous.is_valid()?);
 
-        continuous.update_verification()?;
-        assert!(continuous.is_valid()?);
+        auth.reauthenticate()?;
         Ok(())
     }
 
@@ -2597,8 +2710,8 @@ mod tests {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
-        let pop = auth.generate_pop()?;
-        let verified = auth.verify_pop(&pop)?;
+        let pop = auth.generate_pop(b"unit-test-challenge")?;
+        let verified = auth.verify_pop(&pop, b"unit-test-challenge")?;
         assert!(verified);
         Ok(())
     }

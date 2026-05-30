@@ -33,10 +33,14 @@ fn create_test_signed_data() -> SignedData {
 }
 
 fn create_test_signed_data_no_key_id() -> SignedData {
+    // ml-dsa-65 is in the M5 allowlist under both default and fips
+    // feature sets; "ed25519" was cfg-gated out under fips by L-A so
+    // this fixture must avoid it to round-trip in either matrix
+    // configuration.
     SignedData::new(
         b"Test message".to_vec(),
-        SignedMetadata::new(vec![0x11; 48], "ed25519".to_string(), vec![0x55; 32], None),
-        "ed25519".to_string(),
+        SignedMetadata::new(vec![0x11; 48], "ml-dsa-65".to_string(), vec![0x55; 32], None),
+        "ml-dsa-65".to_string(),
         1706745603,
     )
 }
@@ -79,10 +83,13 @@ fn test_serialize_signed_data_no_key_id_roundtrip() -> Result<()> {
 #[test]
 fn test_serialize_signed_data_empty_data_roundtrip() -> Result<()> {
     // M5 fix: scheme must be in the closed allowlist.
+    // L-A: ed25519 is cfg-gated out of the allowlist under --features
+    // fips, so use ml-dsa-65 which round-trips under both matrix
+    // configurations.
     let original = SignedData::new(
         vec![],
-        SignedMetadata::new(vec![0; 64], "ed25519".to_string(), vec![0; 32], None),
-        "ed25519".to_string(),
+        SignedMetadata::new(vec![0; 64], "ml-dsa-65".to_string(), vec![0; 32], None),
+        "ml-dsa-65".to_string(),
         0,
     );
 

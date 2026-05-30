@@ -266,6 +266,11 @@ fn test_v1_format_key_material_remains_usable_is_compatible_has_correct_size() -
     Ok(())
 }
 
+/// Cfg-gated to non-FIPS: L-A removed `"ed25519"` from the M5
+/// allowlist under `--features fips`. The structural round-trip is
+/// exercised under both matrix configurations by the ML-DSA-65
+/// fixtures elsewhere in this file.
+#[cfg(not(feature = "fips"))]
 #[test]
 fn test_legacy_signature_format_verification_is_compatible_has_correct_size() -> Result<()> {
     // Simulate legacy signature format
@@ -312,13 +317,16 @@ fn test_ml_kem_512_key_upgrade_path_is_compatible_succeeds() -> Result<()> {
 
 #[test]
 fn test_cross_version_signature_verification_metadata_is_compatible_succeeds() -> Result<()> {
-    // Verify signature metadata is preserved for cross-version verification
+    // Verify signature metadata is preserved for cross-version verification.
+    // ml-dsa-65 is in the M5 allowlist under both default and fips matrix
+    // configurations (L-A cfg-gated ed25519 out under fips), so the fixture
+    // exercises the same structural round-trip in either build.
     let signed = create_signed_data(
         b"cross-version-data".to_vec(),
         vec![0xAB; 64],
         vec![0xCD; 32],
-        "ed25519",
-        "ed25519",
+        "ml-dsa-65",
+        "ml-dsa-65",
         1706745600,
     );
 
@@ -344,9 +352,19 @@ fn test_signature_algorithm_name_variations_is_compatible_succeeds() -> Result<(
     // wire strings (and the documented `pq-*` aliases) round-trip. We
     // assert canonical names round-trip and non-canonical variations are
     // rejected.
+    // ed25519 is cfg-conditionally in the M5 allowlist (L-A — cfg-gated
+    // out under --features fips). Splitting the array keeps the
+    // canonical-vs-rejected invariant exact under both matrix
+    // configurations without forking the whole test.
+    #[cfg(not(feature = "fips"))]
     let accepted: &[&str] =
         &["ml-dsa-65", "pq-ml-dsa-65", "ed25519", "slh-dsa-shake-128s", "fn-dsa-512"];
+    #[cfg(feature = "fips")]
+    let accepted: &[&str] = &["ml-dsa-65", "pq-ml-dsa-65", "slh-dsa-shake-128s", "fn-dsa-512"];
+    #[cfg(not(feature = "fips"))]
     let rejected: &[&str] = &["ML-DSA-65", "MlDsa65", "Ed25519", "ML-DSA", "ml-dsa"];
+    #[cfg(feature = "fips")]
+    let rejected: &[&str] = &["ML-DSA-65", "MlDsa65", "Ed25519", "ed25519", "ML-DSA", "ml-dsa"];
 
     for alg in accepted {
         let signed =

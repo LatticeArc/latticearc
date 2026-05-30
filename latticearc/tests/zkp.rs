@@ -463,7 +463,7 @@ mod dlog_equality_tests {
         let q_bytes: [u8; 33] =
             <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).expect("q serialization");
 
-        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+        let statement = DlogEqualityStatement::with_bases(g_bytes, h_bytes, p_bytes, q_bytes);
 
         (statement, *secret)
     }
@@ -818,7 +818,7 @@ mod sigma_protocol_tests {
         let q_bytes: [u8; 33] =
             <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).expect("q");
 
-        (DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes }, secret)
+        (DlogEqualityStatement::with_bases(g_bytes, h_bytes, p_bytes, q_bytes), secret)
     }
 
     #[test]
@@ -849,8 +849,7 @@ mod sigma_protocol_tests {
             let q_bytes: [u8; 33] =
                 <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).expect("q");
 
-            let statement =
-                DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+            let statement = DlogEqualityStatement::with_bases(g_bytes, h_bytes, p_bytes, q_bytes);
             let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
             assert!(
                 proof.verify(&statement, b"test").expect("verify"),
@@ -932,7 +931,7 @@ mod sigma_protocol_tests {
         let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
 
         // Corrupt statement G
-        statement.g[0] ^= 0xFF;
+        statement.g_mut()[0] ^= 0xFF;
 
         let result = proof.verify(&statement, b"test");
         if let Ok(valid) = result {
@@ -946,7 +945,7 @@ mod sigma_protocol_tests {
         let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
 
         // Corrupt statement H
-        statement.h[0] ^= 0xFF;
+        statement.h_mut()[0] ^= 0xFF;
 
         let result = proof.verify(&statement, b"test");
         if let Ok(valid) = result {
@@ -960,7 +959,7 @@ mod sigma_protocol_tests {
         let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
 
         // Corrupt statement P
-        statement.p[0] ^= 0xFF;
+        statement.p_mut()[0] ^= 0xFF;
 
         let result = proof.verify(&statement, b"test");
         if let Ok(valid) = result {
@@ -974,7 +973,7 @@ mod sigma_protocol_tests {
         let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
 
         // Corrupt statement Q
-        statement.q[0] ^= 0xFF;
+        statement.q_mut()[0] ^= 0xFF;
 
         let result = proof.verify(&statement, b"test");
         if let Ok(valid) = result {
