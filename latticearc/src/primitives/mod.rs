@@ -8,6 +8,21 @@
 //! the [`unified_api`](crate::unified_api) auto/context-based selection based on security requirements and hardware
 //! capabilities.
 //!
+//! ## ⚠️ FIPS gate scope (Expert tier)
+//!
+//! Functions in this module are the **Expert tier** API per
+//! `docs/FIPS_SECURITY_POLICY.md` §7. They DO NOT route through
+//! `fips_verify_operational()` — the FIPS 140-3 power-up self-test
+//! gate fires only at the [`unified_api`](crate::unified_api) entry
+//! points (`encrypt`, `decrypt`, `sign_with_key`, `verify`, keygen,
+//! hybrid, …). Callers that drop down to `primitives::*` directly in
+//! a FIPS deployment MUST invoke
+//! [`self_test::verify_operational`] themselves before each session
+//! of cryptographic operations to confirm the module is still in the
+//! operational state. Skipping the gate produces functionally-correct
+//! but uncertified output — sufficient for non-FIPS use,
+//! insufficient for a FIPS 140-3 validated boundary.
+//!
 //! ## Feature Flags
 //!
 //! - **`fips-self-test`** - Enable FIPS 140-3 power-up self-tests (KAT verification)

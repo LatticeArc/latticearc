@@ -1071,7 +1071,7 @@ fn m_a_pop_signature_not_a_valid_pure_ed25519_envelope() {
 
     let kp = Ed25519KeyPair::generate().expect("session keygen");
     let auth = ZeroTrustAuth::new(
-        PublicKey::new(kp.public_key_bytes().to_vec()),
+        PublicKey::new(kp.public_key_bytes()),
         PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
     )
     .expect("auth init");
@@ -1119,7 +1119,7 @@ fn m_a_pop_round_trips_post_fix() {
 
     let kp = Ed25519KeyPair::generate().expect("session keygen");
     let auth = ZeroTrustAuth::new(
-        PublicKey::new(kp.public_key_bytes().to_vec()),
+        PublicKey::new(kp.public_key_bytes()),
         PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
     )
     .expect("auth init");
@@ -1260,7 +1260,7 @@ fn pop_h1_foreign_identity_pop_rejected() {
     // Verifier (Alice) — this is the identity any PoP must be bound to.
     let alice_kp = Ed25519KeyPair::generate().expect("alice keygen");
     let alice = ZeroTrustAuth::new(
-        PublicKey::new(alice_kp.public_key_bytes().to_vec()),
+        PublicKey::new(alice_kp.public_key_bytes()),
         PrivateKey::new(alice_kp.secret_key_bytes().as_slice().to_vec()),
     )
     .expect("alice init");
@@ -1269,7 +1269,7 @@ fn pop_h1_foreign_identity_pop_rejected() {
     // under their own keypair.
     let eve_kp = Ed25519KeyPair::generate().expect("eve keygen");
     let eve = ZeroTrustAuth::new(
-        PublicKey::new(eve_kp.public_key_bytes().to_vec()),
+        PublicKey::new(eve_kp.public_key_bytes()),
         PrivateKey::new(eve_kp.secret_key_bytes().as_slice().to_vec()),
     )
     .expect("eve init");
@@ -1301,7 +1301,7 @@ fn pop_m1_challenge_swap_rejected() {
 
     let kp = Ed25519KeyPair::generate().expect("keygen");
     let auth = ZeroTrustAuth::new(
-        PublicKey::new(kp.public_key_bytes().to_vec()),
+        PublicKey::new(kp.public_key_bytes()),
         PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
     )
     .expect("auth init");
@@ -1338,7 +1338,7 @@ fn pop_l1_replay_collapses_to_ok_false() {
 
     let kp = Ed25519KeyPair::generate().expect("keygen");
     let auth = ZeroTrustAuth::new(
-        PublicKey::new(kp.public_key_bytes().to_vec()),
+        PublicKey::new(kp.public_key_bytes()),
         PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
     )
     .expect("auth init");

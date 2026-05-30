@@ -179,6 +179,29 @@ pub fn counter_kdf(
         ));
     }
 
+    // SP 800-108 §5.1 input encoding is `i || label || 0x00 || context
+    // || L`. An embedded 0x00 in `label` would let two distinct
+    // (label, context) pairs serialise to identical bytes — e.g.
+    // (label=b"A\0B", context=b"C") and (label=b"A", context=b"B\0C")
+    // — and derive the same key. The three crate-internal labels
+    // (`SP800_108_LABEL_{ENCRYPTION, MAC, IV}`) are NUL-free by
+    // construction, but `CounterKdfParams` exposes `label` as a public
+    // `Vec<u8>` so any consumer can supply arbitrary bytes, including
+    // attacker-controlled ones. Reject NUL in the label here so the
+    // structural separator stays unambiguous regardless of caller
+    // input. Context can legitimately contain 0x00 because it appears
+    // after the separator and runs to the fixed-width `L` field — no
+    // splitting ambiguity is possible there.
+    if params.label.contains(&0x00) {
+        return Err(LatticeArcError::InvalidParameter(
+            "SP 800-108 KDF label must not contain 0x00 — the 0x00 separator \
+             below would collide with `(label_prefix, 0x00, label_suffix || \
+             context)` and let two distinct (label, context) pairs derive the \
+             same key. Strip / re-encode the label to be NUL-free."
+                .to_string(),
+        ));
+    }
+
     const HASH_LEN: usize = 32;
     // SP 800-108 counter mode encodes the requested output length L (in
     // bits) as the fixed 32-bit big-endian field `[L]₂`. The largest

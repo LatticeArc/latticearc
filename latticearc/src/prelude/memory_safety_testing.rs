@@ -1,8 +1,20 @@
-//! Memory Safety Testing for Prelude Utilities
+//! Panic-freedom smoke tests for prelude utility functions.
 //!
-//! This module provides memory safety validation for utility functions
-//! and error handling mechanisms. It tests hex encoding/decoding, UUID
-//! generation, error handling, and concurrent access patterns.
+//! **Scope (read this before relying on results):** this module
+//! exercises the prelude's general-purpose helpers (hex encoding,
+//! UUID generation, error-path branches, concurrent access) and
+//! asserts they do not panic on representative inputs. It is NOT a
+//! memory-safety analyzer — Rust's type system + the workspace-wide
+//! `unsafe_code = "forbid"` lint already guarantee memory safety for
+//! every line of source in this crate. The module's value is
+//! "regression-catch the helpers' panic posture under unusual
+//! inputs," not "audit memory-safety."
+//!
+//! Use this module's `UtilityMemorySafetyTester` when you want a
+//! coarse sanity check that a new utility function does not panic on
+//! the standard suite of edge-case inputs. Do not use the results as
+//! evidence of memory safety beyond what `#![forbid(unsafe_code)]` +
+//! the Rust borrow checker already provide.
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]

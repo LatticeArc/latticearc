@@ -1000,6 +1000,22 @@ impl ProofOfPossession for ZeroTrustAuth {
     /// incorrect length for Ed25519 signing. Returns
     /// `CoreError::InvalidInput` if the private key format is invalid.
     fn generate_pop(&self, challenge: &[u8]) -> Result<Self::Pop> {
+        // PoP-M1 follow-up: empty challenge silently disables cross-
+        // verifier-instance replay protection. The wire format encodes
+        // challenge_len so the signature still differs from an
+        // unbound-challenge legacy PoP, but a verifier that calls
+        // generate_pop(b"") and verify_pop(_, b"") accepts cross-
+        // verifier replays for the freshness window. Warn loudly at
+        // sign-side so operators don't ship the misuse silently;
+        // verify-side rejects with Err so silent fall-through is
+        // impossible.
+        if challenge.is_empty() {
+            tracing::warn!(
+                "PoP generate_pop called with empty challenge — cross-verifier-\
+                 instance replay protection requires a per-request nonce. \
+                 verify_pop will refuse to accept an empty challenge."
+            );
+        }
         let timestamp = Utc::now();
         // Microsecond precision: Ed25519 sigs are deterministic, so two
         // PoPs in the same second from the same key produce identical
@@ -1043,6 +1059,26 @@ impl ProofOfPossession for ZeroTrustAuth {
         pop: &Self::Pop,
         expected_challenge: &[u8],
     ) -> std::result::Result<bool, Self::Error> {
+        // PoP-M1 follow-up: refuse empty challenge. An operator that
+        // generates PoPs with empty challenge and verifies them with
+        // empty challenge structurally loses the cross-verifier-
+        // instance replay protection the parameter exists to provide
+        // — the wrapper bytes still differ from pre-fix raw-message
+        // PoPs, but a verifier that consistently passes b"" would
+        // accept cross-verifier replays for the freshness window. Hard
+        // reject is operator-misuse class, not adversary-attainable,
+        // so Err (not Ok(false)) is appropriate — distinguishing
+        // "missing challenge" from "wrong challenge" doesn't leak
+        // adversary-controllable state.
+        if expected_challenge.is_empty() {
+            return Err(CoreError::InvalidInput(
+                "PoP verify_pop requires a non-empty expected_challenge — the \
+                 per-request nonce is the only structural defence against \
+                 cross-verifier-instance replay. Pass the same bytes the \
+                 generator used."
+                    .to_string(),
+            ));
+        }
         // Freshness check: reject proofs older than PROOF_OF_POSSESSION_MAX_AGE.
         // This prevents replay of stale PoPs captured from prior sessions (P5.2 C4).
         // Using chrono::Duration so the bound is expressed in seconds regardless
@@ -1174,16 +1210,22 @@ impl ProofOfPossession for ZeroTrustAuth {
             // required before the global cap can be saturated.
             const POP_CACHE_PER_PK_MAX: usize = 64;
             if cache.count_for_pk(pk_bytes) >= POP_CACHE_PER_PK_MAX {
+                // PoP-L1: collapse to Ok(false) — same Pattern-6
+                // requirement as the replay-detected branch. An attacker
+                // who floods their own PK to the quota cap could
+                // otherwise distinguish "valid-but-quota-exhausted" (Err)
+                // from "valid replay" (Ok(false)) or "invalid sig"
+                // (Ok(false)) by branching on the Result variant. The
+                // leaked bit is DoS-cache state, not key material, but
+                // the contract documented on verify_pop says "all
+                // adversary-reachable rejection causes collapse to
+                // Ok(false)". Operator cause stays in tracing::warn!.
                 tracing::warn!(
                     per_pk_cap = POP_CACHE_PER_PK_MAX,
                     "PoP per-key quota exhausted; rejecting new PoP from this PK \
                      (other PKs unaffected)"
                 );
-                return Err(CoreError::InvalidInput(
-                    "Proof-of-possession per-key quota exceeded; retry after the \
-                     freshness window elapses"
-                        .to_string(),
-                ));
+                return Ok(false);
             }
             // Global cap. The opportunistic eviction above already removed
             // entries older than the freshness window, so reaching this
@@ -1195,16 +1237,17 @@ impl ProofOfPossession for ZeroTrustAuth {
             // closed instead.
             const POP_CACHE_MAX: usize = 16 * 1024;
             if cache.total() >= POP_CACHE_MAX {
+                // PoP-L1: same Pattern-6 rationale as the per-PK quota
+                // branch above — adversary-distinguishable Err vs
+                // Ok(false) was the exact oracle the L1 fix was supposed
+                // to close. Operator cause stays in tracing::warn!.
                 tracing::warn!(
                     cap = POP_CACHE_MAX,
                     "PoP global replay cache full; rejecting new PoP rather than \
                      skipping insert (silently skipping would re-open the 5-minute \
                      replay window)"
                 );
-                return Err(CoreError::InvalidInput(
-                    "Proof-of-possession replay cache at capacity; retry later or scale up"
-                        .to_string(),
-                ));
+                return Ok(false);
             }
             cache.insert(pk_bytes, key, now_secs);
         }

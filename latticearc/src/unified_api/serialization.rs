@@ -237,10 +237,43 @@ impl TryFrom<SerializableSignedData> for SignedData {
 
 impl From<&KeyPair> for SerializableKeyPair {
     fn from(keypair: &KeyPair) -> Self {
-        Self {
-            public_key: BASE64_ENGINE.encode(keypair.public_key().as_slice()),
-            private_key: BASE64_ENGINE.encode(keypair.private_key().expose_secret()),
-        }
+        // PUBLIC key: not secret, use the standard encode helper.
+        let public_key = BASE64_ENGINE.encode(keypair.public_key().as_slice());
+
+        // PRIVATE key: pre-allocate the exact base64 output buffer
+        // inside a `Zeroizing<String>` so `base64::Engine::encode_string`
+        // can append without triggering any `String::reserve` grow-and-
+        // drop cycles. The standard-engine padded encoding is
+        // `ceil(input_len / 3) * 4` bytes for any non-zero input.
+        //
+        // Why this matters: the pre-fix path
+        // `BASE64_ENGINE.encode(sk_bytes)` returned a fresh `String`
+        // built via repeated `Vec::reserve`. Each reserve allocates a
+        // larger backing buffer, copies the already-written base64
+        // bytes (which encode the SK) into it, and deallocates the
+        // old buffer WITHOUT zeroising. ~log₂(final_size) partial
+        // copies of the SK base64 leaked to the freed heap before the
+        // final String even reached our `SerializableKeyPair.drop()`
+        // zeroiser. Pre-allocating the exact final size eliminates
+        // every grow, so the only buffer that ever holds SK bytes is
+        // the one that gets zeroised on drop.
+        let sk_bytes = keypair.private_key().expose_secret();
+        let encoded_len = sk_bytes.len().div_ceil(3).saturating_mul(4);
+        let mut sk_b64: zeroize::Zeroizing<String> =
+            zeroize::Zeroizing::new(String::with_capacity(encoded_len));
+        BASE64_ENGINE.encode_string(sk_bytes, &mut sk_b64);
+
+        // Move the String out of `Zeroizing` into the struct field.
+        // `mem::take` leaves an empty String inside `Zeroizing` (which
+        // then drops harmlessly — empty String has no heap allocation
+        // to zeroise). The taken String retains the same heap
+        // allocation we pre-sized above; ownership transfers without
+        // a copy. `SerializableKeyPair::drop` will zeroise this
+        // String on the value's eventual drop, completing the
+        // zero-transient-copy chain.
+        let private_key = std::mem::take(&mut *sk_b64);
+
+        Self { public_key, private_key }
     }
 }
 
@@ -300,8 +333,47 @@ pub fn deserialize_signed_data(data: &str) -> Result<SignedData> {
 /// Returns an error if JSON serialization fails.
 pub fn serialize_keypair(keypair: &KeyPair) -> Result<zeroize::Zeroizing<String>> {
     let serializable = SerializableKeyPair::from(keypair);
-    let s = serde_json::to_string(&serializable)
+
+    // Pre-allocate the output buffer so serde_json's writer doesn't
+    // grow-and-drop transient copies of the base64-encoded SK on the
+    // heap. `Vec::grow` allocates a larger backing buffer, copies the
+    // existing bytes in, then deallocates the old buffer without
+    // zeroising it — and the dropped old buffer contains an exact
+    // copy of the partial SK bytes serialised so far. Wrapping the
+    // Vec in `Zeroizing` at the end doesn't help, because the old
+    // buffer was already freed before that drop runs.
+    //
+    // 16 KiB comfortably covers the largest expected keypair
+    // (ML-DSA-87 + Ed25519 hybrid: ~4.9 KB SK + ~2.6 KB PK, base64
+    // adds ~33%, JSON wrapping adds ~50 B → ~10 KB). If a future
+    // scheme overflows the hint, the `tracing::warn!` below surfaces
+    // the miss so operators can bump the constant — a missed hint
+    // doesn't break the round-trip, it just re-opens the LOW-severity
+    // transient-copy window the constant exists to close.
+    const SERIALIZE_BUFFER_BYTES: usize = 16 * 1024;
+    let mut buf: Vec<u8> = Vec::with_capacity(SERIALIZE_BUFFER_BYTES);
+    serde_json::to_writer(&mut buf, &serializable)
         .map_err(|e| CoreError::SerializationError(e.to_string()))?;
+    if buf.len() > SERIALIZE_BUFFER_BYTES {
+        tracing::warn!(
+            actual_len = buf.len(),
+            hint = SERIALIZE_BUFFER_BYTES,
+            "serialize_keypair: output exceeded buffer hint; transient \
+             reallocations may have left non-zeroised SK copies on the heap. \
+             Bump SERIALIZE_BUFFER_BYTES."
+        );
+    }
+    // serde_json::to_writer always emits valid UTF-8 (structural
+    // chars are ASCII; string contents are escaped UTF-8). Moving
+    // the Vec<u8> into String here is a zero-copy ownership transfer
+    // — the same heap allocation walks through Vec → String →
+    // Zeroizing<String> — so the buffer is zeroised exactly once on
+    // the returned value's drop.
+    let s = String::from_utf8(buf).map_err(|e| {
+        CoreError::SerializationError(format!(
+            "serde_json emitted non-UTF-8 (this should be impossible): {e}"
+        ))
+    })?;
     Ok(zeroize::Zeroizing::new(s))
 }
 

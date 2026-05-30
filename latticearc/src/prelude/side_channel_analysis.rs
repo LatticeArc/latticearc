@@ -1,10 +1,23 @@
-//! Side-Channel Analysis Testing for Utility Functions
+//! Timing-variance smoke tests for prelude utility functions.
 //!
-//! This module provides basic side-channel analysis for prelude utilities
-//! focusing on timing and information leakage in common operations.
+//! **Scope (read this before relying on results):** this module measures
+//! wall-clock variance of the prelude's general-purpose helpers — hex
+//! encoding, UUID generation, error-path branches. It is NOT a
+//! cryptographic constant-time analysis suite and the results say
+//! NOTHING about the timing posture of the actual crypto primitives in
+//! [`crate::primitives`] or the unified-API surface in
+//! [`crate::unified_api`]. Cryptographic constant-time guarantees in
+//! this crate come from the `subtle` crate's `ConstantTimeEq` /
+//! `Choice` primitives applied at every secret-bearing comparison
+//! site, plus the underlying `aws-lc-rs` / `chacha20poly1305` /
+//! `fips204` / `fips205` backends — not from this module's timing
+//! sampler.
 //!
-//! Side-channel attacks exploit information leaked through timing, power
-//! consumption, or other physical characteristics of cryptographic operations.
+//! Use this module's `UtilityTimingAnalyzer` when you want a
+//! coarse-grained sanity check that a new utility function does not
+//! exhibit gross timing variance correlated with its input. Do not
+//! use the results as evidence of cryptographic constant-time
+//! behaviour or to satisfy any FIPS / CMVP requirement.
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]

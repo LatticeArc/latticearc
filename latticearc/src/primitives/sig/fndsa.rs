@@ -86,6 +86,13 @@ pub enum FnDsaError {
     /// preserved via `tracing::debug!` for operator diagnostics.
     #[error("FN-DSA signing failed")]
     SigningFailed,
+
+    /// Failed to spawn the 32 MiB worker thread that FN-DSA's stack-
+    /// heavy backend operations run on. Surfaced when the OS refuses
+    /// the thread allocation (RLIMIT_NPROC reached, container quota,
+    /// etc.) — recovery is operator-side.
+    #[error("FN-DSA worker thread spawn failed: {0}")]
+    WorkerSpawnFailed(String),
 }
 
 impl From<FnDsaError> for LatticeArcError {
@@ -107,8 +114,59 @@ impl From<FnDsaError> for LatticeArcError {
             )]
             FnDsaError::MessageTooLong => Self::MessageTooLong,
             FnDsaError::SigningFailed => Self::SigningError("FN-DSA signing failed".to_string()),
+            FnDsaError::WorkerSpawnFailed(msg) => {
+                Self::KeyGenerationError(format!("FN-DSA worker thread spawn failed: {msg}"))
+            }
         }
     }
+}
+
+/// Stack size handed to the FN-DSA worker thread.
+///
+/// `fn-dsa 0.3` allocates large polynomial FFT buffers on the stack —
+/// `KeyPair::generate`, `SigningKey::sign`, `SigningKey::from_bytes`,
+/// and `VerifyingKey::{from_bytes, verify}` each exceed the default
+/// 2 MiB thread stack in debug builds and produce
+/// `thread '...' has overflowed its stack / SIGABRT`. Release-mode
+/// optimisation shrinks the frames enough to fit on the default
+/// stack, but that is an optimiser property, not an API contract —
+/// any future fn-dsa version bump or unrelated optimiser regression
+/// could silently re-introduce the overflow. Routing the heavy work
+/// through a dedicated worker thread makes the requirement explicit
+/// and platform-independent.
+///
+/// 32 MiB is the value the in-crate unit tests historically used (see
+/// pre-fix `tests` mod). FN-DSA's published reference stack
+/// requirement is well below this; the headroom absorbs future
+/// version drift without re-tuning.
+const FN_DSA_WORKER_STACK_BYTES: usize = 32 * 1024 * 1024;
+
+/// Run `f` on a worker thread with [`FN_DSA_WORKER_STACK_BYTES`] of stack.
+///
+/// Uses `std::thread::scope` + `spawn_scoped` so the closure can borrow
+/// from the caller's frame (essential for `&mut SigningKey` /
+/// `&mut R: RngCore` capture). Panics inside `f` are caught and
+/// re-raised on the caller thread via `resume_unwind`, so the worker
+/// boundary is panic-transparent.
+///
+/// Cost: a single `pthread_create` + `pthread_join` per call — ~50µs on
+/// macOS, well under 1% of FN-DSA's keygen wall time (~10-50 ms range).
+fn run_on_fndsa_worker<R, F>(f: F) -> Result<R>
+where
+    F: FnOnce() -> Result<R> + Send,
+    R: Send,
+{
+    std::thread::scope(|s| -> Result<R> {
+        let handle = std::thread::Builder::new()
+            .name("latticearc-fndsa".to_string())
+            .stack_size(FN_DSA_WORKER_STACK_BYTES)
+            .spawn_scoped(s, f)
+            .map_err(|e| FnDsaError::WorkerSpawnFailed(e.to_string()))?;
+        match handle.join() {
+            Ok(inner) => inner,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    })
 }
 
 /// Module-local Result alias for FN-DSA operations.
@@ -360,7 +418,9 @@ impl VerifyingKey {
     /// Create verifying key from bytes
     ///
     /// # Errors
-    /// Returns an error if the key length is incorrect or decoding fails.
+    /// Returns an error if the key length is incorrect, decoding fails,
+    /// or the [`FN_DSA_WORKER_STACK_BYTES`] worker thread cannot be
+    /// spawned (see [`FnDsaError::WorkerSpawnFailed`]).
     pub fn from_bytes(bytes: &[u8], security_level: FnDsaSecurityLevel) -> Result<Self> {
         if bytes.len() != security_level.verifying_key_size() {
             return Err(FnDsaError::InvalidKeyLength {
@@ -369,9 +429,15 @@ impl VerifyingKey {
             });
         }
 
-        let inner = FnDsaVerifyingKeyStandard::decode(bytes)
-            .ok_or_else(|| FnDsaError::InvalidKey("Failed to decode verifying key".to_string()))?;
-        Ok(Self { security_level, inner, bytes: bytes.to_vec() })
+        // FN-DSA decode allocates large polynomial buffers on the stack
+        // — route through the 32 MiB worker thread (see
+        // run_on_fndsa_worker for rationale).
+        run_on_fndsa_worker(|| {
+            let inner = FnDsaVerifyingKeyStandard::decode(bytes).ok_or_else(|| {
+                FnDsaError::InvalidKey("Failed to decode verifying key".to_string())
+            })?;
+            Ok(Self { security_level, inner, bytes: bytes.to_vec() })
+        })
     }
 
     /// Borrow the raw verifying key bytes.
@@ -413,8 +479,12 @@ impl VerifyingKey {
             return Ok(false);
         }
 
-        let valid = self.inner.verify(signature.as_ref(), &DOMAIN_NONE, &HASH_ID_RAW, message);
-        Ok(valid)
+        // FN-DSA verify allocates large polynomial FFT buffers on the
+        // stack — route through the 32 MiB worker thread.
+        let inner = &self.inner;
+        run_on_fndsa_worker(move || {
+            Ok(inner.verify(signature.as_ref(), &DOMAIN_NONE, &HASH_ID_RAW, message))
+        })
     }
 }
 
@@ -460,8 +530,19 @@ impl VerifyingKey {
 pub struct SigningKey {
     /// Security level for this key
     security_level: FnDsaSecurityLevel,
-    /// Internal signing key from fn-dsa crate (zeroized on drop)
-    inner: FnDsaSigningKeyStandard,
+    /// Internal signing key from fn-dsa crate (zeroized on drop).
+    ///
+    /// `Box`-ed because `FnDsaSigningKeyStandard` is ~118 KB inline
+    /// (FN-DSA-1024's worst-case storage). Keeping it on the stack
+    /// meant every `KeyPair` move in debug mode was a >118 KB memcpy
+    /// — chained through `generate_with_rng -> ? -> let keypair = ...`
+    /// the cumulative stack pressure exceeded the 2 MiB default test
+    /// thread, SIGABRT'd `m4_fndsa_to_bytes_roundtrip`, and was masked
+    /// only by release-mode optimisation that elides the intermediate
+    /// moves. Boxing collapses each move to a single 8-byte pointer
+    /// copy; the 118 KB lives on the heap throughout the value's
+    /// lifetime.
+    inner: Box<FnDsaSigningKeyStandard>,
     /// Serialized key bytes for secure storage (zeroized on drop)
     bytes: Vec<u8>,
     /// Associated verifying key (public key)
@@ -507,7 +588,9 @@ impl SigningKey {
     /// Create signing key from bytes
     ///
     /// # Errors
-    /// Returns an error if the key length is incorrect or decoding fails.
+    /// Returns an error if the key length is incorrect, decoding fails,
+    /// or the [`FN_DSA_WORKER_STACK_BYTES`] worker thread cannot be
+    /// spawned (see [`FnDsaError::WorkerSpawnFailed`]).
     pub fn from_bytes(bytes: &[u8], security_level: FnDsaSecurityLevel) -> Result<Self> {
         if bytes.len() != security_level.signing_key_size() {
             return Err(FnDsaError::InvalidKeyLength {
@@ -515,15 +598,31 @@ impl SigningKey {
                 actual: bytes.len(),
             });
         }
-        let inner = FnDsaSigningKeyStandard::decode(bytes)
-            .ok_or_else(|| FnDsaError::InvalidKey("Failed to decode signing key".to_string()))?;
+        // FN-DSA decode + to_verifying_key both allocate large
+        // polynomial buffers on the stack — route through the 32 MiB
+        // worker thread (see run_on_fndsa_worker for rationale). The
+        // decoded SigningKeyStandard is also ~118 KB itself, so we Box
+        // it inside the worker before returning across the join
+        // boundary — keeping it on the worker's stack until the heap
+        // allocation lands avoids any large memcpy at the
+        // worker->main hand-off.
+        run_on_fndsa_worker(|| {
+            let inner = FnDsaSigningKeyStandard::decode(bytes).ok_or_else(|| {
+                FnDsaError::InvalidKey("Failed to decode signing key".to_string())
+            })?;
 
-        // Extract verifying key from signing key
-        let mut vrfy_key_bytes = vec![0u8; security_level.verifying_key_size()];
-        inner.to_verifying_key(&mut vrfy_key_bytes);
-        let verifying_key = VerifyingKey::from_bytes(&vrfy_key_bytes, security_level)?;
+            // Extract verifying key from signing key
+            let mut vrfy_key_bytes = vec![0u8; security_level.verifying_key_size()];
+            inner.to_verifying_key(&mut vrfy_key_bytes);
+            let verifying_key = VerifyingKey::from_bytes(&vrfy_key_bytes, security_level)?;
 
-        Ok(Self { security_level, inner, bytes: bytes.to_vec(), verifying_key })
+            Ok(Self {
+                security_level,
+                inner: Box::new(inner),
+                bytes: bytes.to_vec(),
+                verifying_key,
+            })
+        })
     }
 
     /// Expose the signing key bytes.
@@ -572,10 +671,17 @@ impl SigningKey {
 
     /// Sign a message using a caller-supplied CSPRNG.
     ///
+    /// `R: Send` is required because FN-DSA signing is dispatched to a
+    /// 32 MiB worker thread (see [`run_on_fndsa_worker`]). Standard
+    /// crypto RNGs (`OsRng`, `ChaCha20Rng`, etc.) all impl `Send`; a
+    /// caller using a custom non-`Send` RNG must clone / wrap to a
+    /// `Send`-able adapter at the call site.
+    ///
     /// # Errors
-    /// Returns an error if signature encoding fails.
+    /// Returns an error if signature encoding fails or the worker
+    /// thread cannot be spawned (see [`FnDsaError::WorkerSpawnFailed`]).
     #[instrument(level = "debug", skip(self, rng, message), fields(security_level = ?self.security_level, message_len = message.len()))]
-    pub fn sign_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng>(
+    pub fn sign_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng + Send>(
         &mut self,
         rng: &mut R,
         message: &[u8],
@@ -596,11 +702,17 @@ impl SigningKey {
             FnDsaSecurityLevel::Level512 => FN_DSA_LOGN_512,
             FnDsaSecurityLevel::Level1024 => FN_DSA_LOGN_1024,
         };
-        // sig_bytes is an intermediate signing buffer; FN-DSA signatures
-        // expose lattice nonce information, so wipe on drop.
-        let mut sig_bytes = Zeroizing::new(vec![0u8; signature_size(logn)]);
-        self.inner.sign(rng, &DOMAIN_NONE, &HASH_ID_RAW, message, &mut sig_bytes);
-        Signature::from_bytes(&sig_bytes)
+        // FN-DSA sign allocates large polynomial FFT buffers on the
+        // stack — route through the 32 MiB worker thread.
+        let inner = &mut self.inner;
+        run_on_fndsa_worker(move || {
+            // sig_bytes is an intermediate signing buffer; FN-DSA
+            // signatures expose lattice nonce information, so wipe on
+            // drop.
+            let mut sig_bytes = Zeroizing::new(vec![0u8; signature_size(logn)]);
+            inner.sign(rng, &DOMAIN_NONE, &HASH_ID_RAW, message, &mut sig_bytes);
+            Signature::from_bytes(&sig_bytes)
+        })
     }
 }
 
@@ -715,23 +827,39 @@ impl KeyPair {
     /// Use this form when you need deterministic key generation (seeded RNG)
     /// for tests or KAT validation.
     ///
+    /// `R: Send` is required because keygen is dispatched to a 32 MiB
+    /// worker thread (see [`run_on_fndsa_worker`]). Standard crypto RNGs
+    /// (`OsRng`, `ChaCha20Rng`, etc.) all impl `Send`; a caller using a
+    /// custom non-`Send` RNG must wrap to a `Send`-able adapter.
+    ///
     /// # Errors
-    /// Returns an error if the backend keygen or FIPS 140-3 PCT fails.
+    /// Returns an error if the backend keygen, the FIPS 140-3 PCT, or
+    /// the worker thread spawn fails (see
+    /// [`FnDsaError::WorkerSpawnFailed`]).
     #[must_use = "generated FN-DSA keypair must be stored or used"]
     #[instrument(level = "debug", skip(rng), fields(security_level = ?security_level))]
-    pub fn generate_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng>(
+    pub fn generate_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng + Send>(
         rng: &mut R,
         security_level: FnDsaSecurityLevel,
     ) -> Result<Self> {
-        let mut kg = KeyPairGeneratorStandard::default();
         let logn = security_level.to_logn();
 
-        let mut sk_bytes = Zeroizing::new(vec![0u8; sign_key_size(logn)]);
-        let mut vk_bytes = vec![0u8; vrfy_key_size(logn)];
+        // FN-DSA keygen allocates large polynomial buffers on the stack
+        // — route through the 32 MiB worker thread.
+        let (sk_bytes_zeroized, vk_bytes) =
+            run_on_fndsa_worker(move || -> Result<(Zeroizing<Vec<u8>>, Vec<u8>)> {
+                let mut kg = KeyPairGeneratorStandard::default();
+                let mut sk_bytes = Zeroizing::new(vec![0u8; sign_key_size(logn)]);
+                let mut vk_bytes = vec![0u8; vrfy_key_size(logn)];
+                kg.keygen(logn, rng, &mut sk_bytes, &mut vk_bytes);
+                Ok((sk_bytes, vk_bytes))
+            })?;
 
-        kg.keygen(logn, rng, &mut sk_bytes, &mut vk_bytes);
-
-        let signing_key = SigningKey::from_bytes(&sk_bytes, security_level)?;
+        // SigningKey::from_bytes and VerifyingKey::from_bytes each spawn
+        // their own worker thread internally; not bundling them inside
+        // the keygen worker keeps each operation's stack budget
+        // independent.
+        let signing_key = SigningKey::from_bytes(&sk_bytes_zeroized, security_level)?;
         let verifying_key = VerifyingKey::from_bytes(&vk_bytes, security_level)?;
 
         let mut keypair = Self { signing_key, verifying_key };
@@ -788,10 +916,13 @@ impl KeyPair {
     /// Sign a message using a caller-supplied CSPRNG.
     ///
     /// Use this for deterministic signing with a seeded RNG (e.g., KAT tests).
+    /// `R: Send` is required — see [`SigningKey::sign_with_rng`] for the
+    /// worker-thread rationale.
     ///
     /// # Errors
-    /// Returns an error if signature encoding fails.
-    pub fn sign_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng>(
+    /// Returns an error if signature encoding fails or the worker
+    /// thread cannot be spawned (see [`FnDsaError::WorkerSpawnFailed`]).
+    pub fn sign_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng + Send>(
         &mut self,
         rng: &mut R,
         message: &[u8],
@@ -868,138 +999,100 @@ mod tests {
     use super::*;
     use rand_core_0_6::OsRng;
 
+    // Per-test thread::Builder workarounds were removed in the
+    // FN-DSA-stack-overflow follow-up commit — `KeyPair::generate_with_rng`,
+    // `SigningKey::from_bytes`, `KeyPair::sign_with_rng`, etc. now dispatch
+    // to a 32 MiB worker thread internally via `run_on_fndsa_worker`,
+    // so test callers no longer need to wrap. See the module docstring
+    // on `FN_DSA_WORKER_STACK_BYTES` for the rationale.
+
     #[test]
     fn test_fndsa_key_generation_512_succeeds() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let mut rng = OsRng;
+        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
 
-                assert_eq!(
-                    keypair.signing_key().to_bytes().len(),
-                    FnDsaSecurityLevel::Level512.signing_key_size()
-                );
-                assert_eq!(
-                    keypair.verifying_key().to_bytes().len(),
-                    FnDsaSecurityLevel::Level512.verifying_key_size()
-                );
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        assert_eq!(
+            keypair.signing_key().to_bytes().len(),
+            FnDsaSecurityLevel::Level512.signing_key_size()
+        );
+        assert_eq!(
+            keypair.verifying_key().to_bytes().len(),
+            FnDsaSecurityLevel::Level512.verifying_key_size()
+        );
     }
 
     #[test]
     fn test_fndsa_key_generation_1024_succeeds() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024).unwrap();
+        let mut rng = OsRng;
+        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024).unwrap();
 
-                assert_eq!(
-                    keypair.signing_key().to_bytes().len(),
-                    FnDsaSecurityLevel::Level1024.signing_key_size()
-                );
-                assert_eq!(
-                    keypair.verifying_key().to_bytes().len(),
-                    FnDsaSecurityLevel::Level1024.verifying_key_size()
-                );
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        assert_eq!(
+            keypair.signing_key().to_bytes().len(),
+            FnDsaSecurityLevel::Level1024.signing_key_size()
+        );
+        assert_eq!(
+            keypair.verifying_key().to_bytes().len(),
+            FnDsaSecurityLevel::Level1024.verifying_key_size()
+        );
     }
 
     #[test]
     fn test_fndsa_signature_sign_verify_roundtrip() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
-                let message = b"Hello, FN-DSA world!";
+        let mut rng = OsRng;
+        let mut keypair =
+            KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let message = b"Hello, FN-DSA world!";
 
-                let mut rng = OsRng;
-                let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
-                let verified = keypair.verify(message, &signature).unwrap();
-                assert!(verified);
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        let mut rng = OsRng;
+        let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
+        let verified = keypair.verify(message, &signature).unwrap();
+        assert!(verified);
     }
 
     #[test]
     fn test_fndsa_wrong_message_fails() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
-                let message = b"Correct message";
-                let wrong_message = b"Wrong message";
+        let mut rng = OsRng;
+        let mut keypair =
+            KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let message = b"Correct message";
+        let wrong_message = b"Wrong message";
 
-                let mut rng = OsRng;
-                let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
-                let verified = keypair.verify(wrong_message, &signature).unwrap();
-                assert!(!verified);
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        let mut rng = OsRng;
+        let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
+        let verified = keypair.verify(wrong_message, &signature).unwrap();
+        assert!(!verified);
     }
 
     #[test]
     fn test_fndsa_key_serialization_roundtrip() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let mut rng = OsRng;
+        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
 
-                // Serialize/deserialize signing key
-                let sk_bytes = keypair.signing_key().to_bytes();
-                let deserialized_sk =
-                    SigningKey::from_bytes(&sk_bytes, FnDsaSecurityLevel::Level512).unwrap();
-                assert_eq!(keypair.signing_key().to_bytes(), deserialized_sk.to_bytes());
+        // Serialize/deserialize signing key
+        let sk_bytes = keypair.signing_key().to_bytes();
+        let deserialized_sk =
+            SigningKey::from_bytes(&sk_bytes, FnDsaSecurityLevel::Level512).unwrap();
+        assert_eq!(keypair.signing_key().to_bytes(), deserialized_sk.to_bytes());
 
-                // Serialize/deserialize verifying key
-                let vk_bytes = keypair.verifying_key().to_bytes();
-                let deserialized_vk =
-                    VerifyingKey::from_bytes(&vk_bytes, FnDsaSecurityLevel::Level512).unwrap();
-                assert_eq!(keypair.verifying_key().to_bytes(), deserialized_vk.to_bytes());
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        // Serialize/deserialize verifying key
+        let vk_bytes = keypair.verifying_key().to_bytes();
+        let deserialized_vk =
+            VerifyingKey::from_bytes(&vk_bytes, FnDsaSecurityLevel::Level512).unwrap();
+        assert_eq!(keypair.verifying_key().to_bytes(), deserialized_vk.to_bytes());
     }
 
     #[test]
     fn test_fndsa_signature_serialization_roundtrip() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
-                let message = b"Test message";
-                let mut rng = OsRng;
-                let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
+        let mut rng = OsRng;
+        let mut keypair =
+            KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let message = b"Test message";
+        let mut rng = OsRng;
+        let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
 
-                let sig_bytes = signature.to_bytes();
-                let deserialized_sig = Signature::from_bytes(&sig_bytes).unwrap();
-                assert_eq!(signature.to_bytes(), deserialized_sig.to_bytes());
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        let sig_bytes = signature.to_bytes();
+        let deserialized_sig = Signature::from_bytes(&sig_bytes).unwrap();
+        assert_eq!(signature.to_bytes(), deserialized_sig.to_bytes());
     }
 
     #[test]
@@ -1064,169 +1157,123 @@ mod tests {
     /// but its internal state is not exposed for direct byte-level verification.
     #[test]
     fn test_fndsa_signing_key_zeroization_clears_bytes_succeeds() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                // Create a signing key directly from bytes to avoid KeyPair's Drop constraint
-                let mut rng = OsRng;
-                let keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
-                let sk_bytes = keypair.signing_key().to_bytes();
-                drop(keypair);
+        // Create a signing key directly from bytes to avoid KeyPair's Drop constraint
+        let mut rng = OsRng;
+        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let sk_bytes = keypair.signing_key().to_bytes();
+        drop(keypair);
 
-                // Create a new signing key from the bytes
-                let mut signing_key =
-                    SigningKey::from_bytes(&sk_bytes, FnDsaSecurityLevel::Level512).unwrap();
+        // Create a new signing key from the bytes
+        let mut signing_key =
+            SigningKey::from_bytes(&sk_bytes, FnDsaSecurityLevel::Level512).unwrap();
 
-                // Store the original key bytes for comparison
-                let original_bytes = signing_key.to_bytes();
-                let key_len = original_bytes.len();
+        // Store the original key bytes for comparison
+        let original_bytes = signing_key.to_bytes();
+        let key_len = original_bytes.len();
 
-                // Verify the key has non-zero content before zeroization
-                assert!(
-                    original_bytes.iter().any(|&b| b != 0),
-                    "Key bytes should not be all zeros before zeroization"
-                );
+        // Verify the key has non-zero content before zeroization
+        assert!(
+            original_bytes.iter().any(|&b| b != 0),
+            "Key bytes should not be all zeros before zeroization"
+        );
 
-                // Explicitly zeroize the key
-                signing_key.zeroize();
+        // Explicitly zeroize the key
+        signing_key.zeroize();
 
-                // Verify the internal bytes field is now zeroed
-                // Note: to_bytes() returns a clone of the internal bytes field
-                let zeroized_bytes = signing_key.to_bytes();
-                assert_eq!(
-                    zeroized_bytes.len(),
-                    key_len,
-                    "Key bytes length should remain unchanged after zeroization"
-                );
-                assert!(
-                    zeroized_bytes.iter().all(|&b| b == 0),
-                    "Key bytes should be all zeros after zeroization"
-                );
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        // Verify the internal bytes field is now zeroed
+        // Note: to_bytes() returns a clone of the internal bytes field
+        let zeroized_bytes = signing_key.to_bytes();
+        assert_eq!(
+            zeroized_bytes.len(),
+            key_len,
+            "Key bytes length should remain unchanged after zeroization"
+        );
+        assert!(
+            zeroized_bytes.iter().all(|&b| b == 0),
+            "Key bytes should be all zeros after zeroization"
+        );
     }
 
     /// Test that KeyPair properly zeroizes its signing key on drop.
     #[test]
     fn test_fndsa_keypair_zeroization_clears_bytes_succeeds() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let mut rng = OsRng;
+        let mut keypair =
+            KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
 
-                // Store the original key bytes for comparison
-                let original_bytes = keypair.signing_key().to_bytes();
+        // Store the original key bytes for comparison
+        let original_bytes = keypair.signing_key().to_bytes();
 
-                // Verify the key has non-zero content
-                assert!(
-                    original_bytes.iter().any(|&b| b != 0),
-                    "Key bytes should not be all zeros"
-                );
+        // Verify the key has non-zero content
+        assert!(original_bytes.iter().any(|&b| b != 0), "Key bytes should not be all zeros");
 
-                // Explicitly zeroize the keypair
-                keypair.zeroize();
+        // Explicitly zeroize the keypair
+        keypair.zeroize();
 
-                // Verify the signing key's bytes are now zeroed
-                let zeroized_bytes = keypair.signing_key().to_bytes();
-                assert!(
-                    zeroized_bytes.iter().all(|&b| b == 0),
-                    "Key bytes should be all zeros after zeroization"
-                );
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        // Verify the signing key's bytes are now zeroed
+        let zeroized_bytes = keypair.signing_key().to_bytes();
+        assert!(
+            zeroized_bytes.iter().all(|&b| b == 0),
+            "Key bytes should be all zeros after zeroization"
+        );
     }
 
     /// The `MessageTooLong` variant must be triggerable through the
-    /// public sign path. Default global cap is
-    /// 64 KiB; pass 64 KiB + 1 to exceed it before the upstream
-    /// `fn-dsa` signer runs. H7 collapsed the variant to the
-    /// opaque `SigningFailed`. FN-DSA uses a stack-heavy signer so the
-    /// test runs on a worker thread (matching the rest of this file).
+    /// public sign path. Default global cap is 64 KiB; pass 64 KiB + 1
+    /// to exceed it before the upstream `fn-dsa` signer runs. H7
+    /// collapsed the variant to the opaque `SigningFailed`.
     #[test]
     fn test_fndsa_sign_oversized_message_rejects_opaquely() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
-                        .expect("Key generation failed");
-                let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
-                let err = keypair.sign(&oversize).expect_err("oversized message must be rejected");
-                assert!(
-                    matches!(err, FnDsaError::SigningFailed),
-                    "expected SigningFailed, got {err:?}"
-                );
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        let mut rng = OsRng;
+        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+            .expect("Key generation failed");
+        let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
+        let err = keypair.sign(&oversize).expect_err("oversized message must be rejected");
+        assert!(matches!(err, FnDsaError::SigningFailed), "expected SigningFailed, got {err:?}");
     }
 }
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
-#[expect(clippy::expect_used, reason = "Tests use expect for simplicity")]
 mod integration_tests {
     use super::*;
     use rand_core_0_6::OsRng;
 
     #[test]
     fn test_fndsa_multiple_messages_same_key_all_verify_succeeds() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let mut rng = OsRng;
+        let mut keypair =
+            KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
 
-                let message1 = b"Message 1";
-                let message2 = b"Message 2";
+        let message1 = b"Message 1";
+        let message2 = b"Message 2";
 
-                let mut rng = OsRng;
-                let sig1 = keypair.sign_with_rng(&mut rng, message1).unwrap();
-                let mut rng = OsRng;
-                let sig2 = keypair.sign_with_rng(&mut rng, message2).unwrap();
+        let mut rng = OsRng;
+        let sig1 = keypair.sign_with_rng(&mut rng, message1).unwrap();
+        let mut rng = OsRng;
+        let sig2 = keypair.sign_with_rng(&mut rng, message2).unwrap();
 
-                // Verify each signature with its message
-                assert!(keypair.verify(message1, &sig1).unwrap());
-                assert!(keypair.verify(message2, &sig2).unwrap());
+        // Verify each signature with its message
+        assert!(keypair.verify(message1, &sig1).unwrap());
+        assert!(keypair.verify(message2, &sig2).unwrap());
 
-                // Cross-verify should fail
-                assert!(!keypair.verify(message2, &sig1).unwrap());
-                assert!(!keypair.verify(message1, &sig2).unwrap());
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        // Cross-verify should fail
+        assert!(!keypair.verify(message2, &sig1).unwrap());
+        assert!(!keypair.verify(message1, &sig2).unwrap());
     }
 
     #[test]
     fn test_fndsa_level1024_signature_sign_verify_roundtrip() {
-        std::thread::Builder::new()
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let mut rng = OsRng;
-                let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024).unwrap();
-                let message = b"Test message for FN-DSA-1024";
+        let mut rng = OsRng;
+        let mut keypair =
+            KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024).unwrap();
+        let message = b"Test message for FN-DSA-1024";
 
-                let mut rng = OsRng;
-                let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
-                assert_eq!(signature.len(), 1280);
+        let mut rng = OsRng;
+        let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
+        assert_eq!(signature.len(), 1280);
 
-                let verified = keypair.verify(message, &signature).unwrap();
-                assert!(verified);
-            })
-            .expect("Thread spawn failed")
-            .join()
-            .expect("Thread join failed");
+        let verified = keypair.verify(message, &signature).unwrap();
+        assert!(verified);
     }
 }

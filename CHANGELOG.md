@@ -296,6 +296,170 @@ direct consequence.
   `verify()` since the operator explicitly opted out of trust-anchor
   pinning; M5 still gates upstream at SignedData deserialization.
 
+### Security — third audit follow-up (FN-DSA stack + PoP-L1-redux + misc)
+
+The second follow-up bundle (commit `985c0a4ca`) had its own gaps; a
+breadth review of never-examined modules surfaced more. All closed
+below.
+
+- **FN-DSA stack overflow (HIGH).** Discovered empirically: under
+  `cargo test` in debug mode (the default), `m4_fndsa_to_bytes_
+  roundtrip` SIGABRT'd with `thread '...' has overflowed its stack` /
+  signal 6. Release-mode optimisation shrunk the frames enough to
+  pass, which is why the pre-commit hook's `--release` test matrix
+  missed it. Root cause was the ~118 KB `fn_dsa::SigningKeyStandard`
+  living inline in our `primitives::sig::fndsa::SigningKey` — every
+  move on the main thread copied 118 KB, and the chain `generate_with_
+  rng -> ? -> let keypair = ...` exhausted the 2 MiB default test
+  stack. Fix: (1) box the inner `FnDsaSigningKeyStandard` so moves
+  become 8-byte pointer copies; (2) wrap every heavy fn-dsa call
+  (`KeyPair::generate_with_rng`, `SigningKey::sign_with_rng`,
+  `SigningKey::from_bytes`, `VerifyingKey::from_bytes`,
+  `VerifyingKey::verify`) in a `std::thread::scope`-managed 32 MiB
+  worker thread (`run_on_fndsa_worker`) so the fn-dsa backend's
+  stack-heavy lattice-FFT buffers live on a dedicated thread with
+  guaranteed headroom. Wire-format unchanged — this is purely a
+  runtime / API-surface change. `R: Send` is now required on the
+  `_with_rng` methods (worker dispatch needs `Send` on the captured
+  RNG); standard crypto RNGs (`OsRng`, `ChaCha20Rng`, etc.) all impl
+  `Send`. New `FnDsaError::WorkerSpawnFailed(String)` variant
+  surfaces OS-level thread-spawn failures (RLIMIT_NPROC etc.).
+- **Pre-commit hook gains a debug-mode smoke pass.** The release-mode-
+  only test matrix masked the FN-DSA overflow above for the entire
+  v0.9.0 audit cycle. The hook now appends a focused debug-mode
+  `cargo test` over `audit_regression_primitives` + `primitives::sig
+  ::fndsa` after the release matrix, costing ~90 s to close the
+  blind spot.
+- **PoP-L1 redux (LOW).** The original L1 fix collapsed the
+  replay-detected branch to `Ok(false)` but left two sibling
+  cache-exhausted branches returning `Err`:
+  `:1182` (per-PK quota) and `:1204` (global cache full). Both fire
+  AFTER a successful crypto verify, both are adversary-reachable via
+  cache flooding, and both produce the exact Pattern-6 oracle the
+  fix was supposed to close — a caller branching on `Result::is_err()`
+  could distinguish "valid-but-cache-full" from "invalid/replay".
+  Both branches now return `Ok(false)`; cause stays in
+  `tracing::warn!` for operator visibility. The CHANGELOG claim
+  "Both paths now return Ok(false)" from the prior commit is now
+  accurate.
+- **PoP empty-challenge runtime guard.** `generate_pop` /
+  `verify_pop` previously accepted `challenge: &[]` silently — a
+  caller passing empty on both sides structurally lost the
+  cross-verifier-instance replay protection the parameter exists to
+  provide. `generate_pop` now emits a `tracing::warn!` on empty
+  challenge; `verify_pop` hard-rejects with
+  `Err(CoreError::InvalidInput(...))`. Reject (not `Ok(false)`)
+  because the cause is operator-misuse, not adversary-attainable.
+- **SP 800-108 KDF label NUL-collision.** The counter-KDF input
+  encoding is `i || label || 0x00 || context || L` (per SP 800-108
+  §5.1). An embedded `0x00` in `label` would let two distinct
+  (label, context) pairs serialise to identical bytes and derive the
+  same key. The three crate-internal labels (`SP800_108_LABEL_*`)
+  are NUL-free by construction, but `CounterKdfParams.label` is a
+  public `Vec<u8>` field — any consumer could supply NUL-containing
+  bytes. `counter_kdf` now rejects NUL in `label` with
+  `InvalidParameter`. Context is unaffected (it appears after the
+  separator and runs to the fixed-width `L` field — no splitting
+  ambiguity).
+- **`run_formal_verification()` removed.** The function in
+  `prelude::formal_verification` was a no-op that emitted three
+  `tracing::info!` lines telling the operator how to install Kani —
+  it performed no verification yet its name implied otherwise. The
+  module is now a documentation stub pointing at the real Kani
+  proofs (under `#[cfg(kani)]`) and the dedicated CI workflow that
+  runs them.
+- **`PreludeCiReport` "Compliance Status" section.** Lines 425-430
+  hardcoded six `✅` checkmarks regardless of actual test outcomes
+  — a consumer reading the bottom of the report would see all-green
+  even when the per-line summary above said FAILED. Each row is now
+  driven off the underlying `unit_tests_passed` /
+  `property_tests_passed` / `memory_safety_passed` flags, and the
+  CAVP / side-channel rows now report `ATTACHED` / `NOT ATTACHED`
+  rather than a misleading `✅`.
+- **`primitives::*` FIPS gate scope documented at the module level.**
+  The unified-API entry points have always routed through
+  `fips_verify_operational()`; the primitives layer (Expert tier)
+  intentionally does not. This was documented in
+  `docs/FIPS_SECURITY_POLICY.md` §7 but not at the source. The
+  primitives module now carries a `⚠️ FIPS gate scope` callout
+  pointing operators at the right gate (`primitives::self_test::
+  verify_operational`) for Expert-tier callers under
+  `--features fips`. Note: the v0.9.0 follow-up audit's claim
+  "fips_verify_operational() is a no-op unless --features
+  fips-self-test" was partially incorrect — `Cargo.toml` line 35
+  shows `fips = [..., "fips-self-test", ...]` so the `fips` umbrella
+  feature already enables the gate transitively. The "primitives
+  ungated" portion of the finding is correct and is the part the
+  doc update addresses.
+- **`side_channel_analysis` / `memory_safety_testing` module docs
+  scoped.** Both modules measure the prelude's general-purpose
+  helpers (hex / UUID / panic-freedom), NOT cryptographic
+  constant-time guarantees or memory safety beyond what
+  `#![forbid(unsafe_code)]` already provides. Module-level
+  docstrings now lead with a `⚠️ Scope` warning so a consumer
+  reading the module name doesn't mistake the smoke tests for an
+  assurance suite.
+- **Clippy `implicit_clone` lint surface cleaned.** CI's clippy
+  (1.93.0) flagged `kp.public_key_bytes().to_vec()` on 6 sites in
+  `audit_regression_signatures.rs` — `public_key_bytes()` already
+  returns `Vec<u8>`, so `.to_vec()` is an implicit clone. Replaced
+  with the direct returned `Vec`. (Local clippy at the same minor
+  version didn't fire — CI version drift catches caught the rest.)
+- **`serialize_keypair` eliminates transient base64 SK copies.**
+  The pre-fix path called `BASE64_ENGINE.encode(sk_bytes)` which
+  returned a fresh `String` built via repeated `Vec::reserve`. Each
+  reserve copied the already-written base64 SK bytes into a larger
+  backing buffer and deallocated the old buffer without zeroising,
+  leaving `~log₂(final_size)` partial SK copies on the freed heap
+  before `SerializableKeyPair.drop()` could scrub the final value.
+  Now uses `Engine::encode_string` against a `Zeroizing<String>`
+  pre-allocated to the exact `ceil(input_len / 3) * 4` final size,
+  so no grow-and-drop occurs and the only buffer that ever holds
+  base64 SK bytes is the one that gets zeroised on drop.
+- **ML-DSA-44 KAT upgraded to full-output coverage.**
+  `kat_ml_dsa()` previously compared only 64 bytes of the 1,312-byte
+  pk and 64 bytes of the 2,560-byte sk against ACVP head/tail
+  constants — any bit-flip in the middle 1,184 / 2,432 bytes would
+  pass undetected. Now compares the SHA-256 digest of the full pk
+  and the full sk against in-source `PK_SHA256` / `SK_SHA256`
+  constants derived by running `fips204 v0.4.6` against the ACVP
+  `tcId=1` seed. SHA-256 collision resistance is computationally
+  infeasible, so digest-equality implies byte-equality. Head/tail
+  ACVP constants were verified to match the locally-generated full
+  outputs byte-exactly, transferring the external ACVP attestation
+  to the embedded digests.
+- **FN-DSA-512 KAT upgraded to deterministic-seed digest comparison.**
+  `kat_fn_dsa()` previously was a round-trip-only test on a fresh
+  `OsRng` keypair — a passing round-trip there only proved encap
+  and decap shared the same arithmetic. Now drives a deterministic
+  64-byte seed through a new `CyclingSeedRng` into
+  `KeyPair::generate_with_rng`, then compares the resulting vk and
+  sk SHA-256 digests against in-source `EXPECTED_VK_SHA256` /
+  `EXPECTED_SK_SHA256` constants captured from `fn-dsa 0.3.x`.
+  Treat as a CHANGE-DETECTION KAT against the `fn-dsa 0.3.x`
+  baseline (true external attestation against NIST FIPS 206 CAVP
+  vectors is blocked on upstream — FIPS 206 isn't finalised and
+  fn-dsa doesn't yet ship NIST-attested vectors). Sign / verify
+  round-trip on the deterministic keypair is also asserted; signing
+  is randomised so the signature bytes aren't KAT'd byte-equal.
+- **ML-KEM-768 KAT replaces self-consistency round-trip with
+  fixed-keypair load + encap/decap.** Pre-fix `roundtrip_ml_kem_768`
+  generated a fresh keypair every call — encap and decap sharing
+  the same bug would pass. Now embeds a 1,184-byte pk + 2,400-byte
+  sk pair captured from `aws-lc-rs 1.17.0` as `KAT_PK` / `KAT_SK`
+  const arrays, plus their SHA-256 digests as `PK_SHA256` /
+  `SK_SHA256` for in-source corruption detection. The test loads
+  the pair via `MlKemDecapsulationKeyPair::from_key_bytes` (which
+  exercises the `DecapsulationKey::new` + `EncapsulationKey::new`
+  paths and the FIPS 203 SK/PK cross-check), encapsulates against
+  the loaded pk, decapsulates the resulting ct with the loaded sk,
+  and asserts ss matches. Encap remains randomised (aws-lc-rs draws
+  the encap nonce internally; no deterministic-seed entry point is
+  exposed), so `(ct, ss)` aren't KAT'd byte-equal — but the
+  pinned-keypair load + round-trip catches the original bug class.
+  Treat as a CHANGE-DETECTION KAT against the `aws-lc-rs 1.17.0`
+  baseline.
+
 ### Security — second audit follow-up (PoP-H1 / PoP-M1 / PoP-L1 / misc)
 
 A second breadth review found a HIGH-severity flaw in the very next

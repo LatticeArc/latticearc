@@ -1,50 +1,20 @@
-//! Formal Verification for Prelude Utilities
+//! Documentation-only stub for formal-verification call-out.
 //!
-//! This module provides formal verification capabilities for critical utility functions.
-//! Kani formal verification proofs are available in the LatticeArc crate.
+//! The previously-exported `run_formal_verification()` was a no-op that
+//! only emitted three `tracing::info!` lines telling the operator how
+//! to install Kani — it performed no verification, yet its name in the
+//! prelude implied otherwise. The function was therefore decorative /
+//! misleading assurance and has been removed; this docstring is the
+//! replacement.
 //!
-//! # Usage
-//!
-//! To run formal verification:
-//! ```bash
-//! cargo kani --package latticearc
-//! ```
-//!
-//! # Requirements
-//!
-//! - Kani model checker must be installed: `cargo install kani-verifier`
-//! - Only supported on Linux x86_64 and macOS aarch64
+//! Real Kani proofs live in the crate under `#[cfg(kani)]` and run via
+//! `cargo kani --package latticearc`. Install Kani with
+//! `cargo install --locked kani-verifier` (Linux x86_64 / macOS
+//! aarch64 only). The CI `cargo kani --only-codegen` step exercises
+//! the proof harnesses' build path on every push; full proofs run on
+//! the dedicated `kani-proofs.yml` workflow.
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
-
-/// Logs instructions for running formal verification.
-///
-/// This function provides guidance on using the Kani model checker
-/// for formal verification of cryptographic operations.
-///
-/// # Example
-///
-/// ```rust
-/// use latticearc::prelude::formal_verification::run_formal_verification;
-///
-/// run_formal_verification();
-/// ```
-pub fn run_formal_verification() {
-    tracing::info!("Formal verification requires Kani model checker");
-    tracing::info!("Install with: cargo install kani-verifier");
-    tracing::info!("Run verification with: cargo kani --package latticearc");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_run_formal_verification_succeeds() {
-        // Verify the function executes without panic
-        run_formal_verification();
-    }
-}
