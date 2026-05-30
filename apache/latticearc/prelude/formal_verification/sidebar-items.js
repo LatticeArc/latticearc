@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["run_formal_verification"]};
+window.SIDEBAR_ITEMS = {};

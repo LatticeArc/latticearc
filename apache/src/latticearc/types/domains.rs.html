@@ -111,495 +111,577 @@
 <a href=#111 id=111 data-nosnippet>111</a><span class="doccomment">/// Hybrid ML-DSA-87 + Ed25519 per-scheme context. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519`].
 <a href=#112 id=112 data-nosnippet>112</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519: <span class="kw-2">&amp;</span>[u8] =
 <a href=#113 id=113 data-nosnippet>113</a>    <span class="string">b"LatticeArc-Sig-hybrid-ml-dsa-87-ed25519-v1"</span>;
-<a href=#114 id=114 data-nosnippet>114</a><span class="doccomment">/// Pure Ed25519 per-scheme context. Bound via prefix-padding.
-<a href=#115 id=115 data-nosnippet>115</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SIG_CONTEXT_ED25519: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-Sig-ed25519-v1"</span>;
-<a href=#116 id=116 data-nosnippet>116</a>
-<a href=#117 id=117 data-nosnippet>117</a><span class="comment">// ============================================================================
-<a href=#118 id=118 data-nosnippet>118</a>// SP 800-108 Counter-mode KDF labels (DP-M1 fix)
-<a href=#119 id=119 data-nosnippet>119</a>// ============================================================================
-<a href=#120 id=120 data-nosnippet>120</a>//
-<a href=#121 id=121 data-nosnippet>121</a>// `primitives::kdf::sp800_108_counter_kdf::Sp800_108CounterKdfParams::for_*`
-<a href=#122 id=122 data-nosnippet>122</a>// constructors previously embedded these labels inline at the call site.
-<a href=#123 id=123 data-nosnippet>123</a>// Pattern 2 (Domain Separation Registry) requires every domain label live in
-<a href=#124 id=124 data-nosnippet>124</a>// this module so the crate has a single auditable inventory. SP 800-108 is a
-<a href=#125 id=125 data-nosnippet>125</a>// structurally distinct KDF from HKDF; these labels are NOT part of the HKDF
-<a href=#126 id=126 data-nosnippet>126</a>// pairwise-distinctness proof and use their plain SP 800-108 §5.1 spelling
-<a href=#127 id=127 data-nosnippet>127</a>// (no `LatticeArc-…-v1` prefix) so they remain interoperable with external
-<a href=#128 id=128 data-nosnippet>128</a>// SP 800-108 KAT vectors.
-<a href=#129 id=129 data-nosnippet>129</a>//
-<a href=#130 id=130 data-nosnippet>130</a>// Naming kept identical to the spec-cited convenience identifiers to preserve
-<a href=#131 id=131 data-nosnippet>131</a>// KAT compatibility.
-<a href=#132 id=132 data-nosnippet>132</a>
-<a href=#133 id=133 data-nosnippet>133</a></span><span class="doccomment">/// SP 800-108 counter-KDF label for encryption-key derivation.
-<a href=#134 id=134 data-nosnippet>134</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SP800_108_LABEL_ENCRYPTION: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Encryption Key"</span>;
-<a href=#135 id=135 data-nosnippet>135</a><span class="doccomment">/// SP 800-108 counter-KDF label for MAC-key derivation.
-<a href=#136 id=136 data-nosnippet>136</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SP800_108_LABEL_MAC: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"MAC Key"</span>;
-<a href=#137 id=137 data-nosnippet>137</a><span class="doccomment">/// SP 800-108 counter-KDF label for IV / nonce derivation.
-<a href=#138 id=138 data-nosnippet>138</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SP800_108_LABEL_IV: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"IV Generation"</span>;
-<a href=#139 id=139 data-nosnippet>139</a>
-<a href=#140 id=140 data-nosnippet>140</a><span class="doccomment">/// Closed enum of signature schemes whose transcripts the apache library binds.
-<a href=#141 id=141 data-nosnippet>141</a>///
-<a href=#142 id=142 data-nosnippet>142</a>/// Closed (`pub(crate)`) so the set of recognised schemes is structurally
-<a href=#143 id=143 data-nosnippet>143</a>/// fixed at compile time. Used both for context lookup at sign/verify time
-<a href=#144 id=144 data-nosnippet>144</a>/// and as the M5 deserialization allowlist: any `scheme` field on a
-<a href=#145 id=145 data-nosnippet>145</a>/// `SignedData` envelope that does not map to a variant here is rejected
-<a href=#146 id=146 data-nosnippet>146</a>/// before the verifier dispatches.
-<a href=#147 id=147 data-nosnippet>147</a></span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-<a href=#148 id=148 data-nosnippet>148</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>SigSchemeLabel {
-<a href=#149 id=149 data-nosnippet>149</a>    <span class="doccomment">/// `ml-dsa-44`
-<a href=#150 id=150 data-nosnippet>150</a>    </span>MlDsa44,
-<a href=#151 id=151 data-nosnippet>151</a>    <span class="doccomment">/// `ml-dsa-65`
-<a href=#152 id=152 data-nosnippet>152</a>    </span>MlDsa65,
-<a href=#153 id=153 data-nosnippet>153</a>    <span class="doccomment">/// `ml-dsa-87`
-<a href=#154 id=154 data-nosnippet>154</a>    </span>MlDsa87,
-<a href=#155 id=155 data-nosnippet>155</a>    <span class="doccomment">/// `slh-dsa-shake-128s`
-<a href=#156 id=156 data-nosnippet>156</a>    </span>SlhDsaShake128s,
-<a href=#157 id=157 data-nosnippet>157</a>    <span class="doccomment">/// `slh-dsa-shake-192s`
-<a href=#158 id=158 data-nosnippet>158</a>    </span>SlhDsaShake192s,
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="doccomment">/// `slh-dsa-shake-256s`
-<a href=#160 id=160 data-nosnippet>160</a>    </span>SlhDsaShake256s,
-<a href=#161 id=161 data-nosnippet>161</a>    <span class="doccomment">/// `fn-dsa-512` (also accepts the alias `fn-dsa`)
-<a href=#162 id=162 data-nosnippet>162</a>    </span>FnDsa512,
-<a href=#163 id=163 data-nosnippet>163</a>    <span class="doccomment">/// `fn-dsa-1024`
-<a href=#164 id=164 data-nosnippet>164</a>    </span>FnDsa1024,
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// `hybrid-ml-dsa-44-ed25519` (also accepts `ml-dsa-44-hybrid-ed25519`)
-<a href=#166 id=166 data-nosnippet>166</a>    </span>HybridMlDsa44Ed25519,
-<a href=#167 id=167 data-nosnippet>167</a>    <span class="doccomment">/// `hybrid-ml-dsa-65-ed25519` (also accepts `ml-dsa-65-hybrid-ed25519`)
-<a href=#168 id=168 data-nosnippet>168</a>    </span>HybridMlDsa65Ed25519,
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="doccomment">/// `hybrid-ml-dsa-87-ed25519` (also accepts `ml-dsa-87-hybrid-ed25519`)
-<a href=#170 id=170 data-nosnippet>170</a>    </span>HybridMlDsa87Ed25519,
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="doccomment">/// `ed25519`
-<a href=#172 id=172 data-nosnippet>172</a>    </span>Ed25519,
-<a href=#173 id=173 data-nosnippet>173</a>}
-<a href=#174 id=174 data-nosnippet>174</a>
-<a href=#175 id=175 data-nosnippet>175</a><span class="kw">impl </span>SigSchemeLabel {
-<a href=#176 id=176 data-nosnippet>176</a>    <span class="doccomment">/// Returns the per-scheme NUL-free domain-separation context. Mirrors the
-<a href=#177 id=177 data-nosnippet>177</a>    /// [`HkdfKemLabel::as_bytes`] pattern for sealed crate-controlled labels.
-<a href=#178 id=178 data-nosnippet>178</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>as_bytes(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
-<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#180 id=180 data-nosnippet>180</a>            <span class="self">Self</span>::MlDsa44 =&gt; SIG_CONTEXT_ML_DSA_44,
-<a href=#181 id=181 data-nosnippet>181</a>            <span class="self">Self</span>::MlDsa65 =&gt; SIG_CONTEXT_ML_DSA_65,
-<a href=#182 id=182 data-nosnippet>182</a>            <span class="self">Self</span>::MlDsa87 =&gt; SIG_CONTEXT_ML_DSA_87,
-<a href=#183 id=183 data-nosnippet>183</a>            <span class="self">Self</span>::SlhDsaShake128s =&gt; SIG_CONTEXT_SLH_DSA_SHAKE_128S,
-<a href=#184 id=184 data-nosnippet>184</a>            <span class="self">Self</span>::SlhDsaShake192s =&gt; SIG_CONTEXT_SLH_DSA_SHAKE_192S,
-<a href=#185 id=185 data-nosnippet>185</a>            <span class="self">Self</span>::SlhDsaShake256s =&gt; SIG_CONTEXT_SLH_DSA_SHAKE_256S,
-<a href=#186 id=186 data-nosnippet>186</a>            <span class="self">Self</span>::FnDsa512 =&gt; SIG_CONTEXT_FN_DSA_512,
-<a href=#187 id=187 data-nosnippet>187</a>            <span class="self">Self</span>::FnDsa1024 =&gt; SIG_CONTEXT_FN_DSA_1024,
-<a href=#188 id=188 data-nosnippet>188</a>            <span class="self">Self</span>::HybridMlDsa44Ed25519 =&gt; SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519,
-<a href=#189 id=189 data-nosnippet>189</a>            <span class="self">Self</span>::HybridMlDsa65Ed25519 =&gt; SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519,
-<a href=#190 id=190 data-nosnippet>190</a>            <span class="self">Self</span>::HybridMlDsa87Ed25519 =&gt; SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519,
-<a href=#191 id=191 data-nosnippet>191</a>            <span class="self">Self</span>::Ed25519 =&gt; SIG_CONTEXT_ED25519,
-<a href=#192 id=192 data-nosnippet>192</a>        }
-<a href=#193 id=193 data-nosnippet>193</a>    }
-<a href=#194 id=194 data-nosnippet>194</a>
-<a href=#195 id=195 data-nosnippet>195</a>    <span class="doccomment">/// Parse a wire-format `scheme` string into a label. Aliases that the
-<a href=#196 id=196 data-nosnippet>196</a>    /// codebase already emits (`pq-ml-dsa-65` for ML-DSA-65,
-<a href=#197 id=197 data-nosnippet>197</a>    /// `ml-dsa-65-hybrid-ed25519` for the hybrid) are accepted; unknown
-<a href=#198 id=198 data-nosnippet>198</a>    /// strings return `None` and are rejected by the deserializer (M5).
-<a href=#199 id=199 data-nosnippet>199</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_scheme_str(scheme: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
-<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">match </span>scheme {
-<a href=#201 id=201 data-nosnippet>201</a>            <span class="string">"ml-dsa-44" </span>| <span class="string">"pq-ml-dsa-44" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::MlDsa44),
-<a href=#202 id=202 data-nosnippet>202</a>            <span class="string">"ml-dsa-65" </span>| <span class="string">"pq-ml-dsa-65" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::MlDsa65),
-<a href=#203 id=203 data-nosnippet>203</a>            <span class="string">"ml-dsa-87" </span>| <span class="string">"pq-ml-dsa-87" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::MlDsa87),
-<a href=#204 id=204 data-nosnippet>204</a>            <span class="string">"slh-dsa-shake-128s" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::SlhDsaShake128s),
-<a href=#205 id=205 data-nosnippet>205</a>            <span class="string">"slh-dsa-shake-192s" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::SlhDsaShake192s),
-<a href=#206 id=206 data-nosnippet>206</a>            <span class="string">"slh-dsa-shake-256s" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::SlhDsaShake256s),
-<a href=#207 id=207 data-nosnippet>207</a>            <span class="string">"fn-dsa-512" </span>| <span class="string">"fn-dsa" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::FnDsa512),
-<a href=#208 id=208 data-nosnippet>208</a>            <span class="string">"fn-dsa-1024" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::FnDsa1024),
-<a href=#209 id=209 data-nosnippet>209</a>            <span class="string">"hybrid-ml-dsa-44-ed25519" </span>| <span class="string">"ml-dsa-44-hybrid-ed25519" </span>=&gt; {
-<a href=#210 id=210 data-nosnippet>210</a>                <span class="prelude-val">Some</span>(<span class="self">Self</span>::HybridMlDsa44Ed25519)
-<a href=#211 id=211 data-nosnippet>211</a>            }
-<a href=#212 id=212 data-nosnippet>212</a>            <span class="string">"hybrid-ml-dsa-65-ed25519" </span>| <span class="string">"ml-dsa-65-hybrid-ed25519" </span>=&gt; {
-<a href=#213 id=213 data-nosnippet>213</a>                <span class="prelude-val">Some</span>(<span class="self">Self</span>::HybridMlDsa65Ed25519)
-<a href=#214 id=214 data-nosnippet>214</a>            }
-<a href=#215 id=215 data-nosnippet>215</a>            <span class="string">"hybrid-ml-dsa-87-ed25519" </span>| <span class="string">"ml-dsa-87-hybrid-ed25519" </span>=&gt; {
-<a href=#216 id=216 data-nosnippet>216</a>                <span class="prelude-val">Some</span>(<span class="self">Self</span>::HybridMlDsa87Ed25519)
-<a href=#217 id=217 data-nosnippet>217</a>            }
-<a href=#218 id=218 data-nosnippet>218</a>            <span class="string">"ed25519" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Ed25519),
-<a href=#219 id=219 data-nosnippet>219</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#220 id=220 data-nosnippet>220</a>        }
-<a href=#221 id=221 data-nosnippet>221</a>    }
-<a href=#222 id=222 data-nosnippet>222</a>}
-<a href=#223 id=223 data-nosnippet>223</a>
-<a href=#224 id=224 data-nosnippet>224</a><span class="doccomment">/// Convenience accessor for the per-scheme context.
-<a href=#225 id=225 data-nosnippet>225</a></span><span class="attr">#[inline]
-<a href=#226 id=226 data-nosnippet>226</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>sig_context(label: SigSchemeLabel) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
-<a href=#227 id=227 data-nosnippet>227</a>    label.as_bytes()
-<a href=#228 id=228 data-nosnippet>228</a>}
-<a href=#229 id=229 data-nosnippet>229</a>
-<a href=#230 id=230 data-nosnippet>230</a><span class="doccomment">/// Domain-separated SHA-512 digest for signature primitives without a native
-<a href=#231 id=231 data-nosnippet>231</a>/// context parameter — Ed25519 (RFC 8032 §5.1) and FN-DSA (`fn-dsa 0.3`).
-<a href=#232 id=232 data-nosnippet>232</a>///
-<a href=#233 id=233 data-nosnippet>233</a>/// Returns `SHA-512(scheme_ctx || 0x00 || message)`. The 64-byte fixed-size
-<a href=#234 id=234 data-nosnippet>234</a>/// output is bound to the scheme (via `scheme_ctx`) while sidestepping the
-<a href=#235 id=235 data-nosnippet>235</a>/// per-primitive message-size cap that would otherwise reject the
-<a href=#236 id=236 data-nosnippet>236</a>/// prefix-padded form for messages near the cap (the cap is sized for the
-<a href=#237 id=237 data-nosnippet>237</a>/// caller's message, not for our internal scheme-binding overhead).
-<a href=#238 id=238 data-nosnippet>238</a>///
-<a href=#239 id=239 data-nosnippet>239</a>/// SHA-512 is collision-resistant under the standard assumptions, so signing
-<a href=#240 id=240 data-nosnippet>240</a>/// the digest is cryptographically equivalent to signing the prefix-padded
-<a href=#241 id=241 data-nosnippet>241</a>/// form for unforgeability purposes; the same construction is used on
-<a href=#242 id=242 data-nosnippet>242</a>/// verify, so legitimate signatures round-trip.
-<a href=#243 id=243 data-nosnippet>243</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hash_with_context(scheme_ctx: <span class="kw-2">&amp;</span>[u8], message: <span class="kw-2">&amp;</span>[u8]) -&gt; [u8; <span class="number">64</span>] {
-<a href=#244 id=244 data-nosnippet>244</a>    <span class="kw">use </span>sha2::{Digest, Sha512};
-<a href=#245 id=245 data-nosnippet>245</a>    <span class="kw">let </span><span class="kw-2">mut </span>hasher = Sha512::new();
-<a href=#246 id=246 data-nosnippet>246</a>    hasher.update(scheme_ctx);
-<a href=#247 id=247 data-nosnippet>247</a>    hasher.update([<span class="number">0x00</span>]);
-<a href=#248 id=248 data-nosnippet>248</a>    hasher.update(message);
-<a href=#249 id=249 data-nosnippet>249</a>    hasher.finalize().into()
-<a href=#250 id=250 data-nosnippet>250</a>}
-<a href=#251 id=251 data-nosnippet>251</a>
-<a href=#252 id=252 data-nosnippet>252</a><span class="doccomment">/// Domain-separation label tag for [`hkdf_kem_info_with_pk`].
-<a href=#253 id=253 data-nosnippet>253</a>///
-<a href=#254 id=254 data-nosnippet>254</a>/// Closed enum — only crate-controlled labels can be passed to the
-<a href=#255 id=255 data-nosnippet>255</a>/// HKDF info builder, so a future caller cannot accidentally pass an
-<a href=#256 id=256 data-nosnippet>256</a>/// arbitrary `&amp;[u8]` containing `0x00` and break the NUL-separator
-<a href=#257 id=257 data-nosnippet>257</a>/// disambiguation in [`hkdf_kem_info_with_pk`]. The tests below assert each
-<a href=#258 id=258 data-nosnippet>258</a>/// variant maps to a NUL-free byte string, locking the invariant the
-<a href=#259 id=259 data-nosnippet>259</a>/// separator depends on.
-<a href=#260 id=260 data-nosnippet>260</a></span><span class="attr">#[derive(Clone, Copy, Debug)]
-<a href=#261 id=261 data-nosnippet>261</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>HkdfKemLabel {
-<a href=#262 id=262 data-nosnippet>262</a>    <span class="doccomment">/// `pq_kem` convenience-API AEAD key derivation
-<a href=#263 id=263 data-nosnippet>263</a>    /// → [`PQ_KEM_AEAD_KEY_INFO`].
-<a href=#264 id=264 data-nosnippet>264</a>    </span>PqKemAead,
-<a href=#265 id=265 data-nosnippet>265</a>    <span class="doccomment">/// `pq_only` hybrid-module encryption derivation
-<a href=#266 id=266 data-nosnippet>266</a>    /// → [`PQ_ONLY_ENCRYPTION_INFO`].
-<a href=#267 id=267 data-nosnippet>267</a>    </span>PqOnlyEncryption,
-<a href=#268 id=268 data-nosnippet>268</a>}
-<a href=#269 id=269 data-nosnippet>269</a>
-<a href=#270 id=270 data-nosnippet>270</a><span class="kw">impl </span>HkdfKemLabel {
-<a href=#271 id=271 data-nosnippet>271</a>    <span class="doccomment">/// Map the variant to its canonical NUL-free domain-separation
-<a href=#272 id=272 data-nosnippet>272</a>    /// byte string. The set of permitted labels is closed by this
-<a href=#273 id=273 data-nosnippet>273</a>    /// match arm — adding a new variant requires reviewer attention
-<a href=#274 id=274 data-nosnippet>274</a>    /// here.
-<a href=#275 id=275 data-nosnippet>275</a>    </span><span class="kw">fn </span>as_bytes(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#277 id=277 data-nosnippet>277</a>            <span class="self">Self</span>::PqKemAead =&gt; PQ_KEM_AEAD_KEY_INFO,
-<a href=#278 id=278 data-nosnippet>278</a>            <span class="self">Self</span>::PqOnlyEncryption =&gt; PQ_ONLY_ENCRYPTION_INFO,
-<a href=#279 id=279 data-nosnippet>279</a>        }
-<a href=#280 id=280 data-nosnippet>280</a>    }
-<a href=#281 id=281 data-nosnippet>281</a>}
-<a href=#282 id=282 data-nosnippet>282</a>
-<a href=#283 id=283 data-nosnippet>283</a><span class="comment">// The label-only `hkdf_kem_info` helper was removed once
-<a href=#284 id=284 data-nosnippet>284</a>// `convenience::pq_kem` was migrated to the PK-binding variant. Every
-<a href=#285 id=285 data-nosnippet>285</a>// internal KEM-AEAD path now uses `hkdf_kem_info_with_pk` so
-<a href=#286 id=286 data-nosnippet>286</a>// encrypt/decrypt drift across parallel APIs is structurally
-<a href=#287 id=287 data-nosnippet>287</a>// impossible. The original doc comment for that
-<a href=#288 id=288 data-nosnippet>288</a>// function described the label-only encoding (`label || 0x00 ||
-<a href=#289 id=289 data-nosnippet>289</a>// kem_ciphertext`) which no longer exists in the codebase.
-<a href=#290 id=290 data-nosnippet>290</a>
-<a href=#291 id=291 data-nosnippet>291</a></span><span class="doccomment">/// Build the HKDF `info` string with both recipient public key and KEM
-<a href=#292 id=292 data-nosnippet>292</a>/// ciphertext binding (HPKE / RFC 9180 §5.1 channel binding).
-<a href=#293 id=293 data-nosnippet>293</a>///
-<a href=#294 id=294 data-nosnippet>294</a>/// Encodes
-<a href=#295 id=295 data-nosnippet>295</a>/// `label || 0x00 || pk_len_be32 || recipient_pk || ct_len_be32 || kem_ciphertext`.
-<a href=#296 id=296 data-nosnippet>296</a>/// Length-prefixing both fields prevents prefix-free ambiguity between
-<a href=#297 id=297 data-nosnippet>297</a>/// adjacent variable-length values. The previous label-only
-<a href=#298 id=298 data-nosnippet>298</a>/// `hkdf_kem_info` helper was removed; every internal KEM-AEAD path
-<a href=#299 id=299 data-nosnippet>299</a>/// now uses this PK-binding variant so encrypt/decrypt drift across
-<a href=#300 id=300 data-nosnippet>300</a>/// parallel APIs is structurally impossible.
-<a href=#301 id=301 data-nosnippet>301</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hkdf_kem_info_with_pk(
-<a href=#302 id=302 data-nosnippet>302</a>    label: HkdfKemLabel,
-<a href=#303 id=303 data-nosnippet>303</a>    recipient_pk: <span class="kw-2">&amp;</span>[u8],
-<a href=#304 id=304 data-nosnippet>304</a>    kem_ciphertext: <span class="kw-2">&amp;</span>[u8],
-<a href=#305 id=305 data-nosnippet>305</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, <span class="kw">crate</span>::prelude::error::LatticeArcError&gt; {
-<a href=#306 id=306 data-nosnippet>306</a>    <span class="kw">let </span>label_bytes = label.as_bytes();
-<a href=#307 id=307 data-nosnippet>307</a>    <span class="comment">// Runtime belt-and-suspenders guard against the test-time invariant
-<a href=#308 id=308 data-nosnippet>308</a>    // below. The `HkdfKemLabel` enum is closed and pub(crate), and the
-<a href=#309 id=309 data-nosnippet>309</a>    // `domain_labels_contain_no_nul_separator` test pins every variant
-<a href=#310 id=310 data-nosnippet>310</a>    // to a NUL-free byte string. If a future variant is added that
-<a href=#311 id=311 data-nosnippet>311</a>    // contains 0x00 without updating the test (or the test is removed
-<a href=#312 id=312 data-nosnippet>312</a>    // outright), the separator `label || 0x00 || payload` becomes
-<a href=#313 id=313 data-nosnippet>313</a>    // ambiguous with `label_that_ends_in_0x00 || payload` — an HPKE
-<a href=#314 id=314 data-nosnippet>314</a>    // channel-binding collision. The debug_assert! catches that in
-<a href=#315 id=315 data-nosnippet>315</a>    // any debug build; the explicit return-Err catches it in release.
-<a href=#316 id=316 data-nosnippet>316</a>    </span><span class="macro">debug_assert!</span>(
-<a href=#317 id=317 data-nosnippet>317</a>        !label_bytes.contains(<span class="kw-2">&amp;</span><span class="number">0x00</span>),
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="string">"HkdfKemLabel::as_bytes() must be NUL-free; the 0x00 separator below would collide"
-<a href=#319 id=319 data-nosnippet>319</a>    </span>);
-<a href=#320 id=320 data-nosnippet>320</a>    <span class="kw">if </span>label_bytes.contains(<span class="kw-2">&amp;</span><span class="number">0x00</span>) {
-<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="kw">crate</span>::prelude::error::LatticeArcError::ValidationError {
-<a href=#322 id=322 data-nosnippet>322</a>            message: <span class="string">"HKDF label contains a NUL byte; would collide with the domain separator"
-<a href=#323 id=323 data-nosnippet>323</a>                </span>.to_string(),
-<a href=#324 id=324 data-nosnippet>324</a>        });
-<a href=#325 id=325 data-nosnippet>325</a>    }
-<a href=#326 id=326 data-nosnippet>326</a>    <span class="kw">let </span>cap = label_bytes
-<a href=#327 id=327 data-nosnippet>327</a>        .len()
-<a href=#328 id=328 data-nosnippet>328</a>        .saturating_add(<span class="number">1</span>)
-<a href=#329 id=329 data-nosnippet>329</a>        .saturating_add(<span class="number">4</span>)
-<a href=#330 id=330 data-nosnippet>330</a>        .saturating_add(recipient_pk.len())
-<a href=#331 id=331 data-nosnippet>331</a>        .saturating_add(<span class="number">4</span>)
-<a href=#332 id=332 data-nosnippet>332</a>        .saturating_add(kem_ciphertext.len());
-<a href=#333 id=333 data-nosnippet>333</a>    <span class="kw">let </span><span class="kw-2">mut </span>info = Vec::with_capacity(cap);
-<a href=#334 id=334 data-nosnippet>334</a>    info.extend_from_slice(label_bytes);
-<a href=#335 id=335 data-nosnippet>335</a>    info.push(<span class="number">0x00</span>); <span class="comment">// domain separator between label and the PK || ct payload
-<a href=#336 id=336 data-nosnippet>336</a>    // hard-error on length-prefix overflow
-<a href=#337 id=337 data-nosnippet>337</a>    // instead of saturating to `u32::MAX`. Saturation collapses every
-<a href=#338 id=338 data-nosnippet>338</a>    // PK or ciphertext above 4 GiB onto the same prefix, breaking
-<a href=#339 id=339 data-nosnippet>339</a>    // HPKE channel binding's prefix-injectivity guarantee. In
-<a href=#340 id=340 data-nosnippet>340</a>    // practice no real KEM ciphertext or PK approaches the 4 GiB
-<a href=#341 id=341 data-nosnippet>341</a>    // line, but the audit-grade defensive fix is to fail loudly so a
-<a href=#342 id=342 data-nosnippet>342</a>    // future bug that introduces such inputs surfaces immediately.
-<a href=#343 id=343 data-nosnippet>343</a>    </span><span class="kw">let </span>pk_len_u32 = u32::try_from(recipient_pk.len()).map_err(|_overflow| {
-<a href=#344 id=344 data-nosnippet>344</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(
-<a href=#345 id=345 data-nosnippet>345</a>            <span class="string">"recipient PK exceeds 4 GiB"</span>.to_string(),
-<a href=#346 id=346 data-nosnippet>346</a>        )
-<a href=#347 id=347 data-nosnippet>347</a>    })<span class="question-mark">?</span>;
-<a href=#348 id=348 data-nosnippet>348</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>pk_len_u32.to_be_bytes());
-<a href=#349 id=349 data-nosnippet>349</a>    info.extend_from_slice(recipient_pk);
-<a href=#350 id=350 data-nosnippet>350</a>    <span class="kw">let </span>ct_len_u32 = u32::try_from(kem_ciphertext.len()).map_err(|_overflow| {
-<a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(
-<a href=#352 id=352 data-nosnippet>352</a>            <span class="string">"KEM ciphertext exceeds 4 GiB"</span>.to_string(),
-<a href=#353 id=353 data-nosnippet>353</a>        )
-<a href=#354 id=354 data-nosnippet>354</a>    })<span class="question-mark">?</span>;
-<a href=#355 id=355 data-nosnippet>355</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>ct_len_u32.to_be_bytes());
-<a href=#356 id=356 data-nosnippet>356</a>    info.extend_from_slice(kem_ciphertext);
-<a href=#357 id=357 data-nosnippet>357</a>    <span class="prelude-val">Ok</span>(info)
-<a href=#358 id=358 data-nosnippet>358</a>}
-<a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a><span class="doccomment">/// AAD-binding sibling of [`hkdf_kem_info_with_pk`] (M3 fix).
-<a href=#361 id=361 data-nosnippet>361</a>///
-<a href=#362 id=362 data-nosnippet>362</a>/// Encodes
-<a href=#363 id=363 data-nosnippet>363</a>/// `label || 0x00 || aad_len_be32 || aad || pk_len_be32 || recipient_pk
-<a href=#364 id=364 data-nosnippet>364</a>///  || ct_len_be32 || kem_ciphertext`.
-<a href=#365 id=365 data-nosnippet>365</a>///
-<a href=#366 id=366 data-nosnippet>366</a>/// `encrypt_hybrid::derive_encryption_key` already mixed AAD into the HKDF
-<a href=#367 id=367 data-nosnippet>367</a>/// info as a length-prefixed segment, but the `pq_only` path only included
-<a href=#368 id=368 data-nosnippet>368</a>/// it in the AEAD tag — leaving AAD's key-separation role to chance. This
-<a href=#369 id=369 data-nosnippet>369</a>/// helper adds AAD as a third length-prefixed segment between the label and
-<a href=#370 id=370 data-nosnippet>370</a>/// the recipient PK. Wire format is **different** from
-<a href=#371 id=371 data-nosnippet>371</a>/// [`hkdf_kem_info_with_pk`]; callers picking the wrong helper would derive
-<a href=#372 id=372 data-nosnippet>372</a>/// different keys and the AEAD tag check would fail closed.
-<a href=#373 id=373 data-nosnippet>373</a>///
-<a href=#374 id=374 data-nosnippet>374</a>/// Empty AAD is encoded as a `0_be32` length prefix followed by zero
-<a href=#375 id=375 data-nosnippet>375</a>/// payload bytes — distinct from "no AAD field" (which would produce a
-<a href=#376 id=376 data-nosnippet>376</a>/// shorter info string). This keeps the prefix-injectivity guarantee
-<a href=#377 id=377 data-nosnippet>377</a>/// (HPKE §5.1) intact.
-<a href=#378 id=378 data-nosnippet>378</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hkdf_kem_info_with_pk_and_aad(
-<a href=#379 id=379 data-nosnippet>379</a>    label: HkdfKemLabel,
-<a href=#380 id=380 data-nosnippet>380</a>    aad: <span class="kw-2">&amp;</span>[u8],
-<a href=#381 id=381 data-nosnippet>381</a>    recipient_pk: <span class="kw-2">&amp;</span>[u8],
-<a href=#382 id=382 data-nosnippet>382</a>    kem_ciphertext: <span class="kw-2">&amp;</span>[u8],
-<a href=#383 id=383 data-nosnippet>383</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, <span class="kw">crate</span>::prelude::error::LatticeArcError&gt; {
-<a href=#384 id=384 data-nosnippet>384</a>    <span class="kw">let </span>label_bytes = label.as_bytes();
-<a href=#385 id=385 data-nosnippet>385</a>    <span class="macro">debug_assert!</span>(
-<a href=#386 id=386 data-nosnippet>386</a>        !label_bytes.contains(<span class="kw-2">&amp;</span><span class="number">0x00</span>),
-<a href=#387 id=387 data-nosnippet>387</a>        <span class="string">"HkdfKemLabel::as_bytes() must be NUL-free; the 0x00 separator below would collide"
-<a href=#388 id=388 data-nosnippet>388</a>    </span>);
-<a href=#389 id=389 data-nosnippet>389</a>    <span class="kw">if </span>label_bytes.contains(<span class="kw-2">&amp;</span><span class="number">0x00</span>) {
-<a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="kw">crate</span>::prelude::error::LatticeArcError::ValidationError {
-<a href=#391 id=391 data-nosnippet>391</a>            message: <span class="string">"HKDF label contains a NUL byte; would collide with the domain separator"
-<a href=#392 id=392 data-nosnippet>392</a>                </span>.to_string(),
-<a href=#393 id=393 data-nosnippet>393</a>        });
-<a href=#394 id=394 data-nosnippet>394</a>    }
-<a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">let </span>cap = label_bytes
-<a href=#396 id=396 data-nosnippet>396</a>        .len()
-<a href=#397 id=397 data-nosnippet>397</a>        .saturating_add(<span class="number">1</span>)
-<a href=#398 id=398 data-nosnippet>398</a>        .saturating_add(<span class="number">4</span>)
-<a href=#399 id=399 data-nosnippet>399</a>        .saturating_add(aad.len())
-<a href=#400 id=400 data-nosnippet>400</a>        .saturating_add(<span class="number">4</span>)
-<a href=#401 id=401 data-nosnippet>401</a>        .saturating_add(recipient_pk.len())
-<a href=#402 id=402 data-nosnippet>402</a>        .saturating_add(<span class="number">4</span>)
-<a href=#403 id=403 data-nosnippet>403</a>        .saturating_add(kem_ciphertext.len());
-<a href=#404 id=404 data-nosnippet>404</a>    <span class="kw">let </span><span class="kw-2">mut </span>info = Vec::with_capacity(cap);
-<a href=#405 id=405 data-nosnippet>405</a>    info.extend_from_slice(label_bytes);
-<a href=#406 id=406 data-nosnippet>406</a>    info.push(<span class="number">0x00</span>); <span class="comment">// domain separator between label and the AAD || PK || CT payload
-<a href=#407 id=407 data-nosnippet>407</a>    </span><span class="kw">let </span>aad_len_u32 = u32::try_from(aad.len()).map_err(|_overflow| {
-<a href=#408 id=408 data-nosnippet>408</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(<span class="string">"AAD exceeds 4 GiB"</span>.to_string())
-<a href=#409 id=409 data-nosnippet>409</a>    })<span class="question-mark">?</span>;
-<a href=#410 id=410 data-nosnippet>410</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>aad_len_u32.to_be_bytes());
-<a href=#411 id=411 data-nosnippet>411</a>    info.extend_from_slice(aad);
-<a href=#412 id=412 data-nosnippet>412</a>    <span class="kw">let </span>pk_len_u32 = u32::try_from(recipient_pk.len()).map_err(|_overflow| {
-<a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(
-<a href=#414 id=414 data-nosnippet>414</a>            <span class="string">"recipient PK exceeds 4 GiB"</span>.to_string(),
-<a href=#415 id=415 data-nosnippet>415</a>        )
-<a href=#416 id=416 data-nosnippet>416</a>    })<span class="question-mark">?</span>;
-<a href=#417 id=417 data-nosnippet>417</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>pk_len_u32.to_be_bytes());
-<a href=#418 id=418 data-nosnippet>418</a>    info.extend_from_slice(recipient_pk);
-<a href=#419 id=419 data-nosnippet>419</a>    <span class="kw">let </span>ct_len_u32 = u32::try_from(kem_ciphertext.len()).map_err(|_overflow| {
-<a href=#420 id=420 data-nosnippet>420</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(
-<a href=#421 id=421 data-nosnippet>421</a>            <span class="string">"KEM ciphertext exceeds 4 GiB"</span>.to_string(),
-<a href=#422 id=422 data-nosnippet>422</a>        )
-<a href=#423 id=423 data-nosnippet>423</a>    })<span class="question-mark">?</span>;
-<a href=#424 id=424 data-nosnippet>424</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>ct_len_u32.to_be_bytes());
-<a href=#425 id=425 data-nosnippet>425</a>    info.extend_from_slice(kem_ciphertext);
-<a href=#426 id=426 data-nosnippet>426</a>    <span class="prelude-val">Ok</span>(info)
-<a href=#427 id=427 data-nosnippet>427</a>}
-<a href=#428 id=428 data-nosnippet>428</a>
-<a href=#429 id=429 data-nosnippet>429</a><span class="attr">#[cfg(test)]
-<a href=#430 id=430 data-nosnippet>430</a></span><span class="kw">mod </span>hkdf_kem_label_tests {
-<a href=#431 id=431 data-nosnippet>431</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#432 id=432 data-nosnippet>432</a>
-<a href=#433 id=433 data-nosnippet>433</a>    <span class="doccomment">/// Locks the NUL-freeness invariant the `0x00` separator depends
-<a href=#434 id=434 data-nosnippet>434</a>    /// on. Adding a new `HkdfKemLabel` variant whose byte string
-<a href=#435 id=435 data-nosnippet>435</a>    /// contains `0x00` would break the separator's disambiguation
-<a href=#436 id=436 data-nosnippet>436</a>    /// guarantee — this test catches that at CI time. See L2 audit
-<a href=#437 id=437 data-nosnippet>437</a>    /// fix in [`hkdf_kem_info_with_pk`].
-<a href=#438 id=438 data-nosnippet>438</a>    </span><span class="attr">#[test]
-<a href=#439 id=439 data-nosnippet>439</a>    </span><span class="kw">fn </span>all_label_variants_are_nul_free() {
-<a href=#440 id=440 data-nosnippet>440</a>        <span class="kw">for </span>label <span class="kw">in </span>[HkdfKemLabel::PqKemAead, HkdfKemLabel::PqOnlyEncryption] {
-<a href=#441 id=441 data-nosnippet>441</a>            <span class="kw">let </span>bytes = label.as_bytes();
-<a href=#442 id=442 data-nosnippet>442</a>            <span class="macro">assert!</span>(
-<a href=#443 id=443 data-nosnippet>443</a>                !bytes.contains(<span class="kw-2">&amp;</span><span class="number">0u8</span>),
-<a href=#444 id=444 data-nosnippet>444</a>                <span class="string">"HkdfKemLabel::{:?} maps to a byte string containing 0x00 \
-<a href=#445 id=445 data-nosnippet>445</a>                 ({:?}) — this breaks the NUL separator in hkdf_kem_info_with_pk"</span>,
-<a href=#446 id=446 data-nosnippet>446</a>                label,
-<a href=#447 id=447 data-nosnippet>447</a>                bytes,
-<a href=#448 id=448 data-nosnippet>448</a>            );
-<a href=#449 id=449 data-nosnippet>449</a>        }
-<a href=#450 id=450 data-nosnippet>450</a>    }
-<a href=#451 id=451 data-nosnippet>451</a>}
-<a href=#452 id=452 data-nosnippet>452</a>
-<a href=#453 id=453 data-nosnippet>453</a><span class="attr">#[cfg(test)]
-<a href=#454 id=454 data-nosnippet>454</a></span><span class="kw">mod </span>sig_scheme_label_tests {
-<a href=#455 id=455 data-nosnippet>455</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#456 id=456 data-nosnippet>456</a>
-<a href=#457 id=457 data-nosnippet>457</a>    <span class="kw">const </span>ALL_LABELS: <span class="kw-2">&amp;</span>[SigSchemeLabel] = <span class="kw-2">&amp;</span>[
-<a href=#458 id=458 data-nosnippet>458</a>        SigSchemeLabel::MlDsa44,
-<a href=#459 id=459 data-nosnippet>459</a>        SigSchemeLabel::MlDsa65,
-<a href=#460 id=460 data-nosnippet>460</a>        SigSchemeLabel::MlDsa87,
-<a href=#461 id=461 data-nosnippet>461</a>        SigSchemeLabel::SlhDsaShake128s,
-<a href=#462 id=462 data-nosnippet>462</a>        SigSchemeLabel::SlhDsaShake192s,
-<a href=#463 id=463 data-nosnippet>463</a>        SigSchemeLabel::SlhDsaShake256s,
-<a href=#464 id=464 data-nosnippet>464</a>        SigSchemeLabel::FnDsa512,
-<a href=#465 id=465 data-nosnippet>465</a>        SigSchemeLabel::FnDsa1024,
-<a href=#466 id=466 data-nosnippet>466</a>        SigSchemeLabel::HybridMlDsa44Ed25519,
-<a href=#467 id=467 data-nosnippet>467</a>        SigSchemeLabel::HybridMlDsa65Ed25519,
-<a href=#468 id=468 data-nosnippet>468</a>        SigSchemeLabel::HybridMlDsa87Ed25519,
-<a href=#469 id=469 data-nosnippet>469</a>        SigSchemeLabel::Ed25519,
-<a href=#470 id=470 data-nosnippet>470</a>    ];
-<a href=#471 id=471 data-nosnippet>471</a>
-<a href=#472 id=472 data-nosnippet>472</a>    <span class="doccomment">/// Mirrors `all_label_variants_are_nul_free` for sig contexts. ML-DSA and
-<a href=#473 id=473 data-nosnippet>473</a>    /// SLH-DSA pass the context to the underlying primitive (FIPS 204 §5.2,
-<a href=#474 id=474 data-nosnippet>474</a>    /// FIPS 205 §10.2). FN-DSA and Ed25519 use prefix-padding: the wire form
-<a href=#475 id=475 data-nosnippet>475</a>    /// is `context || 0x00 || message`, so a context containing 0x00 would
-<a href=#476 id=476 data-nosnippet>476</a>    /// make the separator ambiguous and let an attacker craft two distinct
-<a href=#477 id=477 data-nosnippet>477</a>    /// (context, message) pairs that produce identical signed bytes.
-<a href=#478 id=478 data-nosnippet>478</a>    </span><span class="attr">#[test]
-<a href=#479 id=479 data-nosnippet>479</a>    </span><span class="kw">fn </span>all_sig_context_variants_are_nul_free() {
-<a href=#480 id=480 data-nosnippet>480</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>label <span class="kw">in </span>ALL_LABELS {
-<a href=#481 id=481 data-nosnippet>481</a>            <span class="kw">let </span>bytes = label.as_bytes();
-<a href=#482 id=482 data-nosnippet>482</a>            <span class="macro">assert!</span>(
-<a href=#483 id=483 data-nosnippet>483</a>                !bytes.contains(<span class="kw-2">&amp;</span><span class="number">0u8</span>),
-<a href=#484 id=484 data-nosnippet>484</a>                <span class="string">"SigSchemeLabel::{label:?} maps to {bytes:?} which contains 0x00; \
-<a href=#485 id=485 data-nosnippet>485</a>                 the prefix-padding separator below would collide"
-<a href=#486 id=486 data-nosnippet>486</a>            </span>);
-<a href=#487 id=487 data-nosnippet>487</a>        }
-<a href=#488 id=488 data-nosnippet>488</a>    }
-<a href=#489 id=489 data-nosnippet>489</a>
-<a href=#490 id=490 data-nosnippet>490</a>    <span class="doccomment">/// All scheme contexts must be pairwise distinct. A collision would mean
-<a href=#491 id=491 data-nosnippet>491</a>    /// two scheme identifiers share a transcript-binding, defeating H1's
-<a href=#492 id=492 data-nosnippet>492</a>    /// fix — `(ml-dsa-65 sk, msg)` would produce the same signed bytes as
-<a href=#493 id=493 data-nosnippet>493</a>    /// `(hybrid-ml-dsa-65-ed25519 ML-DSA leg, msg)` and the downgrade attack
-<a href=#494 id=494 data-nosnippet>494</a>    /// would still succeed.
-<a href=#495 id=495 data-nosnippet>495</a>    </span><span class="attr">#[test]
-<a href=#496 id=496 data-nosnippet>496</a>    </span><span class="kw">fn </span>all_sig_contexts_pairwise_distinct() {
-<a href=#497 id=497 data-nosnippet>497</a>        <span class="kw">for </span>(i, <span class="kw-2">&amp;</span>a) <span class="kw">in </span>ALL_LABELS.iter().enumerate() {
-<a href=#498 id=498 data-nosnippet>498</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(rest) = ALL_LABELS.get(i.saturating_add(<span class="number">1</span>)..) <span class="kw">else </span>{
-<a href=#499 id=499 data-nosnippet>499</a>                <span class="kw">continue</span>;
-<a href=#500 id=500 data-nosnippet>500</a>            };
-<a href=#501 id=501 data-nosnippet>501</a>            <span class="kw">for </span><span class="kw-2">&amp;</span>b <span class="kw">in </span>rest {
-<a href=#502 id=502 data-nosnippet>502</a>                <span class="macro">assert_ne!</span>(
-<a href=#503 id=503 data-nosnippet>503</a>                    a.as_bytes(),
-<a href=#504 id=504 data-nosnippet>504</a>                    b.as_bytes(),
-<a href=#505 id=505 data-nosnippet>505</a>                    <span class="string">"SigSchemeLabel::{a:?} and ::{b:?} share a context"
-<a href=#506 id=506 data-nosnippet>506</a>                </span>);
-<a href=#507 id=507 data-nosnippet>507</a>            }
-<a href=#508 id=508 data-nosnippet>508</a>        }
-<a href=#509 id=509 data-nosnippet>509</a>    }
-<a href=#510 id=510 data-nosnippet>510</a>
-<a href=#511 id=511 data-nosnippet>511</a>    <span class="doccomment">/// Wire-format strings the codebase emits at sign-side must round-trip
-<a href=#512 id=512 data-nosnippet>512</a>    /// through `from_scheme_str`. If `sign_with_key` ever produces a scheme
-<a href=#513 id=513 data-nosnippet>513</a>    /// string that the M5 allowlist rejects, signing and verification would
-<a href=#514 id=514 data-nosnippet>514</a>    /// silently disagree.
-<a href=#515 id=515 data-nosnippet>515</a>    </span><span class="attr">#[test]
-<a href=#516 id=516 data-nosnippet>516</a>    </span><span class="kw">fn </span>canonical_scheme_strings_round_trip() {
-<a href=#517 id=517 data-nosnippet>517</a>        <span class="kw">let </span>pairs: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, SigSchemeLabel)] = <span class="kw-2">&amp;</span>[
-<a href=#518 id=518 data-nosnippet>518</a>            (<span class="string">"ml-dsa-44"</span>, SigSchemeLabel::MlDsa44),
-<a href=#519 id=519 data-nosnippet>519</a>            (<span class="string">"ml-dsa-65"</span>, SigSchemeLabel::MlDsa65),
-<a href=#520 id=520 data-nosnippet>520</a>            (<span class="string">"ml-dsa-87"</span>, SigSchemeLabel::MlDsa87),
-<a href=#521 id=521 data-nosnippet>521</a>            (<span class="string">"pq-ml-dsa-44"</span>, SigSchemeLabel::MlDsa44),
-<a href=#522 id=522 data-nosnippet>522</a>            (<span class="string">"pq-ml-dsa-65"</span>, SigSchemeLabel::MlDsa65),
-<a href=#523 id=523 data-nosnippet>523</a>            (<span class="string">"pq-ml-dsa-87"</span>, SigSchemeLabel::MlDsa87),
-<a href=#524 id=524 data-nosnippet>524</a>            (<span class="string">"slh-dsa-shake-128s"</span>, SigSchemeLabel::SlhDsaShake128s),
-<a href=#525 id=525 data-nosnippet>525</a>            (<span class="string">"slh-dsa-shake-192s"</span>, SigSchemeLabel::SlhDsaShake192s),
-<a href=#526 id=526 data-nosnippet>526</a>            (<span class="string">"slh-dsa-shake-256s"</span>, SigSchemeLabel::SlhDsaShake256s),
-<a href=#527 id=527 data-nosnippet>527</a>            (<span class="string">"fn-dsa-512"</span>, SigSchemeLabel::FnDsa512),
-<a href=#528 id=528 data-nosnippet>528</a>            (<span class="string">"fn-dsa"</span>, SigSchemeLabel::FnDsa512),
-<a href=#529 id=529 data-nosnippet>529</a>            (<span class="string">"fn-dsa-1024"</span>, SigSchemeLabel::FnDsa1024),
-<a href=#530 id=530 data-nosnippet>530</a>            (<span class="string">"hybrid-ml-dsa-44-ed25519"</span>, SigSchemeLabel::HybridMlDsa44Ed25519),
-<a href=#531 id=531 data-nosnippet>531</a>            (<span class="string">"ml-dsa-44-hybrid-ed25519"</span>, SigSchemeLabel::HybridMlDsa44Ed25519),
-<a href=#532 id=532 data-nosnippet>532</a>            (<span class="string">"hybrid-ml-dsa-65-ed25519"</span>, SigSchemeLabel::HybridMlDsa65Ed25519),
-<a href=#533 id=533 data-nosnippet>533</a>            (<span class="string">"ml-dsa-65-hybrid-ed25519"</span>, SigSchemeLabel::HybridMlDsa65Ed25519),
-<a href=#534 id=534 data-nosnippet>534</a>            (<span class="string">"hybrid-ml-dsa-87-ed25519"</span>, SigSchemeLabel::HybridMlDsa87Ed25519),
-<a href=#535 id=535 data-nosnippet>535</a>            (<span class="string">"ml-dsa-87-hybrid-ed25519"</span>, SigSchemeLabel::HybridMlDsa87Ed25519),
-<a href=#536 id=536 data-nosnippet>536</a>            (<span class="string">"ed25519"</span>, SigSchemeLabel::Ed25519),
-<a href=#537 id=537 data-nosnippet>537</a>        ];
-<a href=#538 id=538 data-nosnippet>538</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>(s, want) <span class="kw">in </span>pairs {
-<a href=#539 id=539 data-nosnippet>539</a>            <span class="macro">assert_eq!</span>(
-<a href=#540 id=540 data-nosnippet>540</a>                SigSchemeLabel::from_scheme_str(s),
-<a href=#541 id=541 data-nosnippet>541</a>                <span class="prelude-val">Some</span>(want),
-<a href=#542 id=542 data-nosnippet>542</a>                <span class="string">"scheme string {s:?} did not map to {want:?}"
-<a href=#543 id=543 data-nosnippet>543</a>            </span>);
-<a href=#544 id=544 data-nosnippet>544</a>        }
-<a href=#545 id=545 data-nosnippet>545</a>    }
-<a href=#546 id=546 data-nosnippet>546</a>
-<a href=#547 id=547 data-nosnippet>547</a>    <span class="attr">#[test]
-<a href=#548 id=548 data-nosnippet>548</a>    </span><span class="kw">fn </span>unknown_scheme_strings_rejected() {
-<a href=#549 id=549 data-nosnippet>549</a>        <span class="kw">for </span>s <span class="kw">in </span>[
-<a href=#550 id=550 data-nosnippet>550</a>            <span class="string">""</span>,
-<a href=#551 id=551 data-nosnippet>551</a>            <span class="string">"ml-dsa-99"</span>,
-<a href=#552 id=552 data-nosnippet>552</a>            <span class="string">"rsa-2048"</span>,
-<a href=#553 id=553 data-nosnippet>553</a>            <span class="string">"hybrid-ml-dsa-65"</span>,               <span class="comment">// missing classical
-<a href=#554 id=554 data-nosnippet>554</a>            </span><span class="string">"ml-dsa-65-hybrid"</span>,               <span class="comment">// missing classical
-<a href=#555 id=555 data-nosnippet>555</a>            </span><span class="string">"hybrid-ml-dsa-65-ed25519-extra"</span>, <span class="comment">// suffix tampering
-<a href=#556 id=556 data-nosnippet>556</a>            </span><span class="string">"Ml-Dsa-65"</span>,                      <span class="comment">// case-sensitive
-<a href=#557 id=557 data-nosnippet>557</a>        </span>] {
-<a href=#558 id=558 data-nosnippet>558</a>            <span class="macro">assert_eq!</span>(
-<a href=#559 id=559 data-nosnippet>559</a>                SigSchemeLabel::from_scheme_str(s),
-<a href=#560 id=560 data-nosnippet>560</a>                <span class="prelude-val">None</span>,
-<a href=#561 id=561 data-nosnippet>561</a>                <span class="string">"scheme string {s:?} must be rejected by the M5 allowlist"
-<a href=#562 id=562 data-nosnippet>562</a>            </span>);
-<a href=#563 id=563 data-nosnippet>563</a>        }
-<a href=#564 id=564 data-nosnippet>564</a>    }
-<a href=#565 id=565 data-nosnippet>565</a>}
-<a href=#566 id=566 data-nosnippet>566</a>
-<a href=#567 id=567 data-nosnippet>567</a><span class="comment">// Formal verification with Kani
-<a href=#568 id=568 data-nosnippet>568</a></span><span class="attr">#[cfg(kani)]
-<a href=#569 id=569 data-nosnippet>569</a>#[expect(
-<a href=#570 id=570 data-nosnippet>570</a>    clippy::indexing_slicing,
-<a href=#571 id=571 data-nosnippet>571</a>    reason = <span class="string">"indexing into a slice whose length is known at this site"
-<a href=#572 id=572 data-nosnippet>572</a></span>)]
-<a href=#573 id=573 data-nosnippet>573</a></span><span class="kw">mod </span>kani_proofs {
-<a href=#574 id=574 data-nosnippet>574</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#575 id=575 data-nosnippet>575</a>
-<a href=#576 id=576 data-nosnippet>576</a>    <span class="doccomment">/// Proves all 8 HKDF domain constants are pairwise distinct (C(8,2)=28 pairs).
-<a href=#577 id=577 data-nosnippet>577</a>    /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
-<a href=#578 id=578 data-nosnippet>578</a>    </span><span class="attr">#[kani::proof]
-<a href=#579 id=579 data-nosnippet>579</a>    </span><span class="kw">fn </span>domain_constants_pairwise_distinct() {
-<a href=#580 id=580 data-nosnippet>580</a>        <span class="kw">let </span>constants: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]] = <span class="kw-2">&amp;</span>[
-<a href=#581 id=581 data-nosnippet>581</a>            CASCADE_OUTER,
-<a href=#582 id=582 data-nosnippet>582</a>            CASCADE_INNER,
-<a href=#583 id=583 data-nosnippet>583</a>            HYBRID_ENCRYPTION_INFO,
-<a href=#584 id=584 data-nosnippet>584</a>            HYBRID_KEM_SS_INFO,
-<a href=#585 id=585 data-nosnippet>585</a>            DERIVE_KEY_INFO,
-<a href=#586 id=586 data-nosnippet>586</a>            MODULE_INTEGRITY_HMAC_KEY,
-<a href=#587 id=587 data-nosnippet>587</a>            PQ_KEM_AEAD_KEY_INFO,
-<a href=#588 id=588 data-nosnippet>588</a>            PQ_ONLY_ENCRYPTION_INFO,
-<a href=#589 id=589 data-nosnippet>589</a>        ];
-<a href=#590 id=590 data-nosnippet>590</a>        <span class="kw">let </span>n = constants.len();
-<a href=#591 id=591 data-nosnippet>591</a>        <span class="kw">let </span><span class="kw-2">mut </span>i = <span class="number">0</span>;
-<a href=#592 id=592 data-nosnippet>592</a>        <span class="kw">while </span>i &lt; n {
-<a href=#593 id=593 data-nosnippet>593</a>            <span class="kw">let </span><span class="kw-2">mut </span>j = i + <span class="number">1</span>;
-<a href=#594 id=594 data-nosnippet>594</a>            <span class="kw">while </span>j &lt; n {
-<a href=#595 id=595 data-nosnippet>595</a>                kani::assert(
-<a href=#596 id=596 data-nosnippet>596</a>                    constants[i] != constants[j],
-<a href=#597 id=597 data-nosnippet>597</a>                    <span class="string">"All HKDF domain constants must be pairwise distinct"</span>,
-<a href=#598 id=598 data-nosnippet>598</a>                );
-<a href=#599 id=599 data-nosnippet>599</a>                j += <span class="number">1</span>;
-<a href=#600 id=600 data-nosnippet>600</a>            }
-<a href=#601 id=601 data-nosnippet>601</a>            i += <span class="number">1</span>;
-<a href=#602 id=602 data-nosnippet>602</a>        }
-<a href=#603 id=603 data-nosnippet>603</a>    }
-<a href=#604 id=604 data-nosnippet>604</a>}
+<a href=#114 id=114 data-nosnippet>114</a><span class="doccomment">/// Pure Ed25519 per-scheme context. Bound via prefix-padding. cfg-gated to
+<a href=#115 id=115 data-nosnippet>115</a>/// match the corresponding [`SigSchemeLabel::Ed25519`] variant and the
+<a href=#116 id=116 data-nosnippet>116</a>/// `unified_api::convenience::api` dispatch arms — non-FIPS only.
+<a href=#117 id=117 data-nosnippet>117</a></span><span class="attr">#[cfg(not(feature = <span class="string">"fips"</span>))]
+<a href=#118 id=118 data-nosnippet>118</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SIG_CONTEXT_ED25519: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-Sig-ed25519-v1"</span>;
+<a href=#119 id=119 data-nosnippet>119</a>
+<a href=#120 id=120 data-nosnippet>120</a><span class="doccomment">/// PoP (proof-of-possession) Ed25519 context. Separate from the pure-Ed25519
+<a href=#121 id=121 data-nosnippet>121</a>/// SignedData context so a captured PoP signature cannot be replayed as a
+<a href=#122 id=122 data-nosnippet>122</a>/// pure-Ed25519 SignedData (and vice versa). PoP messages are never wire
+<a href=#123 id=123 data-nosnippet>123</a>/// scheme strings, so this constant is not exposed via [`SigSchemeLabel`] —
+<a href=#124 id=124 data-nosnippet>124</a>/// the M5 allowlist would conflate it with the pure path. Used directly by
+<a href=#125 id=125 data-nosnippet>125</a>/// `unified_api::zero_trust::generate_pop` / `verify_pop`.
+<a href=#126 id=126 data-nosnippet>126</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SIG_CONTEXT_POP_ED25519: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-PoP-ed25519-v1"</span>;
+<a href=#127 id=127 data-nosnippet>127</a>
+<a href=#128 id=128 data-nosnippet>128</a><span class="doccomment">/// Zero-knowledge identity-proof Ed25519 context. Separate from both pure
+<a href=#129 id=129 data-nosnippet>129</a>/// Ed25519 and PoP so a ZK proof captured at one complexity level cannot be
+<a href=#130 id=130 data-nosnippet>130</a>/// replayed as a SignedData or PoP, and the existing Low/Medium/High intra-
+<a href=#131 id=131 data-nosnippet>131</a>/// protocol domain tags (0x01/0x02/0x03) keep their semantics within the
+<a href=#132 id=132 data-nosnippet>132</a>/// hash. Used directly by `unified_api::zero_trust::generate_proof_data` /
+<a href=#133 id=133 data-nosnippet>133</a>/// `verify_proof_data`.
+<a href=#134 id=134 data-nosnippet>134</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SIG_CONTEXT_ZK_PROOF_ED25519: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-ZK-Proof-ed25519-v1"</span>;
+<a href=#135 id=135 data-nosnippet>135</a>
+<a href=#136 id=136 data-nosnippet>136</a><span class="comment">// ============================================================================
+<a href=#137 id=137 data-nosnippet>137</a>// SP 800-108 Counter-mode KDF labels (DP-M1 fix)
+<a href=#138 id=138 data-nosnippet>138</a>// ============================================================================
+<a href=#139 id=139 data-nosnippet>139</a>//
+<a href=#140 id=140 data-nosnippet>140</a>// `primitives::kdf::sp800_108_counter_kdf::Sp800_108CounterKdfParams::for_*`
+<a href=#141 id=141 data-nosnippet>141</a>// constructors previously embedded these labels inline at the call site.
+<a href=#142 id=142 data-nosnippet>142</a>// Pattern 2 (Domain Separation Registry) requires every domain label live in
+<a href=#143 id=143 data-nosnippet>143</a>// this module so the crate has a single auditable inventory. SP 800-108 is a
+<a href=#144 id=144 data-nosnippet>144</a>// structurally distinct KDF from HKDF; these labels are NOT part of the HKDF
+<a href=#145 id=145 data-nosnippet>145</a>// pairwise-distinctness proof and use their plain SP 800-108 §5.1 spelling
+<a href=#146 id=146 data-nosnippet>146</a>// (no `LatticeArc-…-v1` prefix) so they remain interoperable with external
+<a href=#147 id=147 data-nosnippet>147</a>// SP 800-108 KAT vectors.
+<a href=#148 id=148 data-nosnippet>148</a>//
+<a href=#149 id=149 data-nosnippet>149</a>// Naming kept identical to the spec-cited convenience identifiers to preserve
+<a href=#150 id=150 data-nosnippet>150</a>// KAT compatibility.
+<a href=#151 id=151 data-nosnippet>151</a>
+<a href=#152 id=152 data-nosnippet>152</a></span><span class="doccomment">/// SP 800-108 counter-KDF label for encryption-key derivation.
+<a href=#153 id=153 data-nosnippet>153</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SP800_108_LABEL_ENCRYPTION: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"Encryption Key"</span>;
+<a href=#154 id=154 data-nosnippet>154</a><span class="doccomment">/// SP 800-108 counter-KDF label for MAC-key derivation.
+<a href=#155 id=155 data-nosnippet>155</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SP800_108_LABEL_MAC: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"MAC Key"</span>;
+<a href=#156 id=156 data-nosnippet>156</a><span class="doccomment">/// SP 800-108 counter-KDF label for IV / nonce derivation.
+<a href=#157 id=157 data-nosnippet>157</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SP800_108_LABEL_IV: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"IV Generation"</span>;
+<a href=#158 id=158 data-nosnippet>158</a>
+<a href=#159 id=159 data-nosnippet>159</a><span class="doccomment">/// Closed enum of signature schemes whose transcripts the apache library binds.
+<a href=#160 id=160 data-nosnippet>160</a>///
+<a href=#161 id=161 data-nosnippet>161</a>/// Closed (`pub(crate)`) so the set of recognised schemes is structurally
+<a href=#162 id=162 data-nosnippet>162</a>/// fixed at compile time. Used both for context lookup at sign/verify time
+<a href=#163 id=163 data-nosnippet>163</a>/// and as the M5 deserialization allowlist: any `scheme` field on a
+<a href=#164 id=164 data-nosnippet>164</a>/// `SignedData` envelope that does not map to a variant here is rejected
+<a href=#165 id=165 data-nosnippet>165</a>/// before the verifier dispatches.
+<a href=#166 id=166 data-nosnippet>166</a></span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+<a href=#167 id=167 data-nosnippet>167</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>SigSchemeLabel {
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="doccomment">/// `ml-dsa-44`
+<a href=#169 id=169 data-nosnippet>169</a>    </span>MlDsa44,
+<a href=#170 id=170 data-nosnippet>170</a>    <span class="doccomment">/// `ml-dsa-65`
+<a href=#171 id=171 data-nosnippet>171</a>    </span>MlDsa65,
+<a href=#172 id=172 data-nosnippet>172</a>    <span class="doccomment">/// `ml-dsa-87`
+<a href=#173 id=173 data-nosnippet>173</a>    </span>MlDsa87,
+<a href=#174 id=174 data-nosnippet>174</a>    <span class="doccomment">/// `slh-dsa-shake-128s`
+<a href=#175 id=175 data-nosnippet>175</a>    </span>SlhDsaShake128s,
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="doccomment">/// `slh-dsa-shake-192s`
+<a href=#177 id=177 data-nosnippet>177</a>    </span>SlhDsaShake192s,
+<a href=#178 id=178 data-nosnippet>178</a>    <span class="doccomment">/// `slh-dsa-shake-256s`
+<a href=#179 id=179 data-nosnippet>179</a>    </span>SlhDsaShake256s,
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// `fn-dsa-512` (also accepts the alias `fn-dsa`)
+<a href=#181 id=181 data-nosnippet>181</a>    </span>FnDsa512,
+<a href=#182 id=182 data-nosnippet>182</a>    <span class="doccomment">/// `fn-dsa-1024`
+<a href=#183 id=183 data-nosnippet>183</a>    </span>FnDsa1024,
+<a href=#184 id=184 data-nosnippet>184</a>    <span class="doccomment">/// `hybrid-ml-dsa-44-ed25519` (also accepts `ml-dsa-44-hybrid-ed25519`)
+<a href=#185 id=185 data-nosnippet>185</a>    </span>HybridMlDsa44Ed25519,
+<a href=#186 id=186 data-nosnippet>186</a>    <span class="doccomment">/// `hybrid-ml-dsa-65-ed25519` (also accepts `ml-dsa-65-hybrid-ed25519`)
+<a href=#187 id=187 data-nosnippet>187</a>    </span>HybridMlDsa65Ed25519,
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="doccomment">/// `hybrid-ml-dsa-87-ed25519` (also accepts `ml-dsa-87-hybrid-ed25519`)
+<a href=#189 id=189 data-nosnippet>189</a>    </span>HybridMlDsa87Ed25519,
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="doccomment">/// `ed25519`. cfg-gated out under `feature = "fips"` because pure
+<a href=#191 id=191 data-nosnippet>191</a>    /// Ed25519 is not on the FIPS 186-5 / SP 800-186 approved-curve list
+<a href=#192 id=192 data-nosnippet>192</a>    /// for FIPS-mode deployments — the variant must not exist at all so
+<a href=#193 id=193 data-nosnippet>193</a>    /// the M5 allowlist rejects ed25519 envelopes before dispatch, keeping
+<a href=#194 id=194 data-nosnippet>194</a>    /// the FIPS verify path symmetric with the sign path.
+<a href=#195 id=195 data-nosnippet>195</a>    </span><span class="attr">#[cfg(not(feature = <span class="string">"fips"</span>))]
+<a href=#196 id=196 data-nosnippet>196</a>    </span>Ed25519,
+<a href=#197 id=197 data-nosnippet>197</a>}
+<a href=#198 id=198 data-nosnippet>198</a>
+<a href=#199 id=199 data-nosnippet>199</a><span class="kw">impl </span>SigSchemeLabel {
+<a href=#200 id=200 data-nosnippet>200</a>    <span class="doccomment">/// Returns the per-scheme NUL-free domain-separation context. Mirrors the
+<a href=#201 id=201 data-nosnippet>201</a>    /// [`HkdfKemLabel::as_bytes`] pattern for sealed crate-controlled labels.
+<a href=#202 id=202 data-nosnippet>202</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>as_bytes(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
+<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#204 id=204 data-nosnippet>204</a>            <span class="self">Self</span>::MlDsa44 =&gt; SIG_CONTEXT_ML_DSA_44,
+<a href=#205 id=205 data-nosnippet>205</a>            <span class="self">Self</span>::MlDsa65 =&gt; SIG_CONTEXT_ML_DSA_65,
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="self">Self</span>::MlDsa87 =&gt; SIG_CONTEXT_ML_DSA_87,
+<a href=#207 id=207 data-nosnippet>207</a>            <span class="self">Self</span>::SlhDsaShake128s =&gt; SIG_CONTEXT_SLH_DSA_SHAKE_128S,
+<a href=#208 id=208 data-nosnippet>208</a>            <span class="self">Self</span>::SlhDsaShake192s =&gt; SIG_CONTEXT_SLH_DSA_SHAKE_192S,
+<a href=#209 id=209 data-nosnippet>209</a>            <span class="self">Self</span>::SlhDsaShake256s =&gt; SIG_CONTEXT_SLH_DSA_SHAKE_256S,
+<a href=#210 id=210 data-nosnippet>210</a>            <span class="self">Self</span>::FnDsa512 =&gt; SIG_CONTEXT_FN_DSA_512,
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="self">Self</span>::FnDsa1024 =&gt; SIG_CONTEXT_FN_DSA_1024,
+<a href=#212 id=212 data-nosnippet>212</a>            <span class="self">Self</span>::HybridMlDsa44Ed25519 =&gt; SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519,
+<a href=#213 id=213 data-nosnippet>213</a>            <span class="self">Self</span>::HybridMlDsa65Ed25519 =&gt; SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519,
+<a href=#214 id=214 data-nosnippet>214</a>            <span class="self">Self</span>::HybridMlDsa87Ed25519 =&gt; SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519,
+<a href=#215 id=215 data-nosnippet>215</a>            <span class="attr">#[cfg(not(feature = <span class="string">"fips"</span>))]
+<a href=#216 id=216 data-nosnippet>216</a>            </span><span class="self">Self</span>::Ed25519 =&gt; SIG_CONTEXT_ED25519,
+<a href=#217 id=217 data-nosnippet>217</a>        }
+<a href=#218 id=218 data-nosnippet>218</a>    }
+<a href=#219 id=219 data-nosnippet>219</a>
+<a href=#220 id=220 data-nosnippet>220</a>    <span class="doccomment">/// Parse a wire-format `scheme` string into a label. Aliases that the
+<a href=#221 id=221 data-nosnippet>221</a>    /// codebase already emits (`pq-ml-dsa-65` for ML-DSA-65,
+<a href=#222 id=222 data-nosnippet>222</a>    /// `ml-dsa-65-hybrid-ed25519` for the hybrid) are accepted; unknown
+<a href=#223 id=223 data-nosnippet>223</a>    /// strings return `None` and are rejected by the deserializer (M5).
+<a href=#224 id=224 data-nosnippet>224</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_scheme_str(scheme: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+<a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">match </span>scheme {
+<a href=#226 id=226 data-nosnippet>226</a>            <span class="string">"ml-dsa-44" </span>| <span class="string">"pq-ml-dsa-44" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::MlDsa44),
+<a href=#227 id=227 data-nosnippet>227</a>            <span class="string">"ml-dsa-65" </span>| <span class="string">"pq-ml-dsa-65" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::MlDsa65),
+<a href=#228 id=228 data-nosnippet>228</a>            <span class="string">"ml-dsa-87" </span>| <span class="string">"pq-ml-dsa-87" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::MlDsa87),
+<a href=#229 id=229 data-nosnippet>229</a>            <span class="string">"slh-dsa-shake-128s" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::SlhDsaShake128s),
+<a href=#230 id=230 data-nosnippet>230</a>            <span class="string">"slh-dsa-shake-192s" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::SlhDsaShake192s),
+<a href=#231 id=231 data-nosnippet>231</a>            <span class="string">"slh-dsa-shake-256s" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::SlhDsaShake256s),
+<a href=#232 id=232 data-nosnippet>232</a>            <span class="string">"fn-dsa-512" </span>| <span class="string">"fn-dsa" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::FnDsa512),
+<a href=#233 id=233 data-nosnippet>233</a>            <span class="string">"fn-dsa-1024" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::FnDsa1024),
+<a href=#234 id=234 data-nosnippet>234</a>            <span class="string">"hybrid-ml-dsa-44-ed25519" </span>| <span class="string">"ml-dsa-44-hybrid-ed25519" </span>=&gt; {
+<a href=#235 id=235 data-nosnippet>235</a>                <span class="prelude-val">Some</span>(<span class="self">Self</span>::HybridMlDsa44Ed25519)
+<a href=#236 id=236 data-nosnippet>236</a>            }
+<a href=#237 id=237 data-nosnippet>237</a>            <span class="string">"hybrid-ml-dsa-65-ed25519" </span>| <span class="string">"ml-dsa-65-hybrid-ed25519" </span>=&gt; {
+<a href=#238 id=238 data-nosnippet>238</a>                <span class="prelude-val">Some</span>(<span class="self">Self</span>::HybridMlDsa65Ed25519)
+<a href=#239 id=239 data-nosnippet>239</a>            }
+<a href=#240 id=240 data-nosnippet>240</a>            <span class="string">"hybrid-ml-dsa-87-ed25519" </span>| <span class="string">"ml-dsa-87-hybrid-ed25519" </span>=&gt; {
+<a href=#241 id=241 data-nosnippet>241</a>                <span class="prelude-val">Some</span>(<span class="self">Self</span>::HybridMlDsa87Ed25519)
+<a href=#242 id=242 data-nosnippet>242</a>            }
+<a href=#243 id=243 data-nosnippet>243</a>            <span class="attr">#[cfg(not(feature = <span class="string">"fips"</span>))]
+<a href=#244 id=244 data-nosnippet>244</a>            </span><span class="string">"ed25519" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Ed25519),
+<a href=#245 id=245 data-nosnippet>245</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#246 id=246 data-nosnippet>246</a>        }
+<a href=#247 id=247 data-nosnippet>247</a>    }
+<a href=#248 id=248 data-nosnippet>248</a>}
+<a href=#249 id=249 data-nosnippet>249</a>
+<a href=#250 id=250 data-nosnippet>250</a><span class="doccomment">/// Convenience accessor for the per-scheme context.
+<a href=#251 id=251 data-nosnippet>251</a></span><span class="attr">#[inline]
+<a href=#252 id=252 data-nosnippet>252</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>sig_context(label: SigSchemeLabel) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
+<a href=#253 id=253 data-nosnippet>253</a>    label.as_bytes()
+<a href=#254 id=254 data-nosnippet>254</a>}
+<a href=#255 id=255 data-nosnippet>255</a>
+<a href=#256 id=256 data-nosnippet>256</a><span class="doccomment">/// Convenience accessor for the PoP-specific Ed25519 context.
+<a href=#257 id=257 data-nosnippet>257</a>///
+<a href=#258 id=258 data-nosnippet>258</a>/// Separate from [`sig_context`] because PoP messages are not in the M5
+<a href=#259 id=259 data-nosnippet>259</a>/// allowlist — they're an internal zero-trust protocol artifact, not a wire
+<a href=#260 id=260 data-nosnippet>260</a>/// scheme string. Routing through [`SigSchemeLabel`] would conflict with the
+<a href=#261 id=261 data-nosnippet>261</a>/// closed-allowlist contract that backs SignedData deserialization.
+<a href=#262 id=262 data-nosnippet>262</a></span><span class="attr">#[inline]
+<a href=#263 id=263 data-nosnippet>263</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>pop_sig_context() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
+<a href=#264 id=264 data-nosnippet>264</a>    SIG_CONTEXT_POP_ED25519
+<a href=#265 id=265 data-nosnippet>265</a>}
+<a href=#266 id=266 data-nosnippet>266</a>
+<a href=#267 id=267 data-nosnippet>267</a><span class="doccomment">/// Convenience accessor for the ZK-identity-proof Ed25519 context. See
+<a href=#268 id=268 data-nosnippet>268</a>/// [`pop_sig_context`] for why this is separate from [`SigSchemeLabel`].
+<a href=#269 id=269 data-nosnippet>269</a></span><span class="attr">#[inline]
+<a href=#270 id=270 data-nosnippet>270</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>zk_proof_sig_context() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
+<a href=#271 id=271 data-nosnippet>271</a>    SIG_CONTEXT_ZK_PROOF_ED25519
+<a href=#272 id=272 data-nosnippet>272</a>}
+<a href=#273 id=273 data-nosnippet>273</a>
+<a href=#274 id=274 data-nosnippet>274</a><span class="doccomment">/// Domain-separated SHA-512 digest for signature primitives without a native
+<a href=#275 id=275 data-nosnippet>275</a>/// context parameter — Ed25519 (RFC 8032 §5.1) and FN-DSA (`fn-dsa 0.3`).
+<a href=#276 id=276 data-nosnippet>276</a>///
+<a href=#277 id=277 data-nosnippet>277</a>/// Returns `SHA-512(scheme_ctx || 0x00 || message)`. The 64-byte fixed-size
+<a href=#278 id=278 data-nosnippet>278</a>/// output is bound to the scheme (via `scheme_ctx`) while sidestepping the
+<a href=#279 id=279 data-nosnippet>279</a>/// per-primitive message-size cap that would otherwise reject the
+<a href=#280 id=280 data-nosnippet>280</a>/// prefix-padded form for messages near the cap (the cap is sized for the
+<a href=#281 id=281 data-nosnippet>281</a>/// caller's message, not for our internal scheme-binding overhead).
+<a href=#282 id=282 data-nosnippet>282</a>///
+<a href=#283 id=283 data-nosnippet>283</a>/// SHA-512 is collision-resistant under the standard assumptions, so signing
+<a href=#284 id=284 data-nosnippet>284</a>/// the digest is cryptographically equivalent to signing the prefix-padded
+<a href=#285 id=285 data-nosnippet>285</a>/// form for unforgeability purposes; the same construction is used on
+<a href=#286 id=286 data-nosnippet>286</a>/// verify, so legitimate signatures round-trip.
+<a href=#287 id=287 data-nosnippet>287</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hash_with_context(scheme_ctx: <span class="kw-2">&amp;</span>[u8], message: <span class="kw-2">&amp;</span>[u8]) -&gt; [u8; <span class="number">64</span>] {
+<a href=#288 id=288 data-nosnippet>288</a>    <span class="kw">use </span>sha2::{Digest, Sha512};
+<a href=#289 id=289 data-nosnippet>289</a>    <span class="kw">let </span><span class="kw-2">mut </span>hasher = Sha512::new();
+<a href=#290 id=290 data-nosnippet>290</a>    hasher.update(scheme_ctx);
+<a href=#291 id=291 data-nosnippet>291</a>    hasher.update([<span class="number">0x00</span>]);
+<a href=#292 id=292 data-nosnippet>292</a>    hasher.update(message);
+<a href=#293 id=293 data-nosnippet>293</a>    hasher.finalize().into()
+<a href=#294 id=294 data-nosnippet>294</a>}
+<a href=#295 id=295 data-nosnippet>295</a>
+<a href=#296 id=296 data-nosnippet>296</a><span class="doccomment">/// Domain-separation label tag for [`hkdf_kem_info_with_pk`].
+<a href=#297 id=297 data-nosnippet>297</a>///
+<a href=#298 id=298 data-nosnippet>298</a>/// Closed enum — only crate-controlled labels can be passed to the
+<a href=#299 id=299 data-nosnippet>299</a>/// HKDF info builder, so a future caller cannot accidentally pass an
+<a href=#300 id=300 data-nosnippet>300</a>/// arbitrary `&amp;[u8]` containing `0x00` and break the NUL-separator
+<a href=#301 id=301 data-nosnippet>301</a>/// disambiguation in [`hkdf_kem_info_with_pk`]. The tests below assert each
+<a href=#302 id=302 data-nosnippet>302</a>/// variant maps to a NUL-free byte string, locking the invariant the
+<a href=#303 id=303 data-nosnippet>303</a>/// separator depends on.
+<a href=#304 id=304 data-nosnippet>304</a></span><span class="attr">#[derive(Clone, Copy, Debug)]
+<a href=#305 id=305 data-nosnippet>305</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>HkdfKemLabel {
+<a href=#306 id=306 data-nosnippet>306</a>    <span class="doccomment">/// `pq_kem` convenience-API AEAD key derivation
+<a href=#307 id=307 data-nosnippet>307</a>    /// → [`PQ_KEM_AEAD_KEY_INFO`].
+<a href=#308 id=308 data-nosnippet>308</a>    </span>PqKemAead,
+<a href=#309 id=309 data-nosnippet>309</a>    <span class="doccomment">/// `pq_only` hybrid-module encryption derivation
+<a href=#310 id=310 data-nosnippet>310</a>    /// → [`PQ_ONLY_ENCRYPTION_INFO`].
+<a href=#311 id=311 data-nosnippet>311</a>    </span>PqOnlyEncryption,
+<a href=#312 id=312 data-nosnippet>312</a>}
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a><span class="kw">impl </span>HkdfKemLabel {
+<a href=#315 id=315 data-nosnippet>315</a>    <span class="doccomment">/// Map the variant to its canonical NUL-free domain-separation
+<a href=#316 id=316 data-nosnippet>316</a>    /// byte string. The set of permitted labels is closed by this
+<a href=#317 id=317 data-nosnippet>317</a>    /// match arm — adding a new variant requires reviewer attention
+<a href=#318 id=318 data-nosnippet>318</a>    /// here.
+<a href=#319 id=319 data-nosnippet>319</a>    </span><span class="kw">fn </span>as_bytes(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
+<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#321 id=321 data-nosnippet>321</a>            <span class="self">Self</span>::PqKemAead =&gt; PQ_KEM_AEAD_KEY_INFO,
+<a href=#322 id=322 data-nosnippet>322</a>            <span class="self">Self</span>::PqOnlyEncryption =&gt; PQ_ONLY_ENCRYPTION_INFO,
+<a href=#323 id=323 data-nosnippet>323</a>        }
+<a href=#324 id=324 data-nosnippet>324</a>    }
+<a href=#325 id=325 data-nosnippet>325</a>}
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a><span class="comment">// The label-only `hkdf_kem_info` helper was removed once
+<a href=#328 id=328 data-nosnippet>328</a>// `convenience::pq_kem` was migrated to the PK-binding variant. Every
+<a href=#329 id=329 data-nosnippet>329</a>// internal KEM-AEAD path now uses `hkdf_kem_info_with_pk` so
+<a href=#330 id=330 data-nosnippet>330</a>// encrypt/decrypt drift across parallel APIs is structurally
+<a href=#331 id=331 data-nosnippet>331</a>// impossible. The original doc comment for that
+<a href=#332 id=332 data-nosnippet>332</a>// function described the label-only encoding (`label || 0x00 ||
+<a href=#333 id=333 data-nosnippet>333</a>// kem_ciphertext`) which no longer exists in the codebase.
+<a href=#334 id=334 data-nosnippet>334</a>
+<a href=#335 id=335 data-nosnippet>335</a></span><span class="doccomment">/// Build the HKDF `info` string with both recipient public key and KEM
+<a href=#336 id=336 data-nosnippet>336</a>/// ciphertext binding (HPKE / RFC 9180 §5.1 channel binding).
+<a href=#337 id=337 data-nosnippet>337</a>///
+<a href=#338 id=338 data-nosnippet>338</a>/// Encodes
+<a href=#339 id=339 data-nosnippet>339</a>/// `label || 0x00 || pk_len_be32 || recipient_pk || ct_len_be32 || kem_ciphertext`.
+<a href=#340 id=340 data-nosnippet>340</a>/// Length-prefixing both fields prevents prefix-free ambiguity between
+<a href=#341 id=341 data-nosnippet>341</a>/// adjacent variable-length values. The previous label-only
+<a href=#342 id=342 data-nosnippet>342</a>/// `hkdf_kem_info` helper was removed; every internal KEM-AEAD path
+<a href=#343 id=343 data-nosnippet>343</a>/// now uses this PK-binding variant so encrypt/decrypt drift across
+<a href=#344 id=344 data-nosnippet>344</a>/// parallel APIs is structurally impossible.
+<a href=#345 id=345 data-nosnippet>345</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hkdf_kem_info_with_pk(
+<a href=#346 id=346 data-nosnippet>346</a>    label: HkdfKemLabel,
+<a href=#347 id=347 data-nosnippet>347</a>    recipient_pk: <span class="kw-2">&amp;</span>[u8],
+<a href=#348 id=348 data-nosnippet>348</a>    kem_ciphertext: <span class="kw-2">&amp;</span>[u8],
+<a href=#349 id=349 data-nosnippet>349</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, <span class="kw">crate</span>::prelude::error::LatticeArcError&gt; {
+<a href=#350 id=350 data-nosnippet>350</a>    <span class="kw">let </span>label_bytes = label.as_bytes();
+<a href=#351 id=351 data-nosnippet>351</a>    <span class="comment">// Runtime belt-and-suspenders guard against the test-time invariant
+<a href=#352 id=352 data-nosnippet>352</a>    // below. The `HkdfKemLabel` enum is closed and pub(crate), and the
+<a href=#353 id=353 data-nosnippet>353</a>    // `domain_labels_contain_no_nul_separator` test pins every variant
+<a href=#354 id=354 data-nosnippet>354</a>    // to a NUL-free byte string. If a future variant is added that
+<a href=#355 id=355 data-nosnippet>355</a>    // contains 0x00 without updating the test (or the test is removed
+<a href=#356 id=356 data-nosnippet>356</a>    // outright), the separator `label || 0x00 || payload` becomes
+<a href=#357 id=357 data-nosnippet>357</a>    // ambiguous with `label_that_ends_in_0x00 || payload` — an HPKE
+<a href=#358 id=358 data-nosnippet>358</a>    // channel-binding collision. The debug_assert! catches that in
+<a href=#359 id=359 data-nosnippet>359</a>    // any debug build; the explicit return-Err catches it in release.
+<a href=#360 id=360 data-nosnippet>360</a>    </span><span class="macro">debug_assert!</span>(
+<a href=#361 id=361 data-nosnippet>361</a>        !label_bytes.contains(<span class="kw-2">&amp;</span><span class="number">0x00</span>),
+<a href=#362 id=362 data-nosnippet>362</a>        <span class="string">"HkdfKemLabel::as_bytes() must be NUL-free; the 0x00 separator below would collide"
+<a href=#363 id=363 data-nosnippet>363</a>    </span>);
+<a href=#364 id=364 data-nosnippet>364</a>    <span class="kw">if </span>label_bytes.contains(<span class="kw-2">&amp;</span><span class="number">0x00</span>) {
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="kw">crate</span>::prelude::error::LatticeArcError::ValidationError {
+<a href=#366 id=366 data-nosnippet>366</a>            message: <span class="string">"HKDF label contains a NUL byte; would collide with the domain separator"
+<a href=#367 id=367 data-nosnippet>367</a>                </span>.to_string(),
+<a href=#368 id=368 data-nosnippet>368</a>        });
+<a href=#369 id=369 data-nosnippet>369</a>    }
+<a href=#370 id=370 data-nosnippet>370</a>    <span class="kw">let </span>cap = label_bytes
+<a href=#371 id=371 data-nosnippet>371</a>        .len()
+<a href=#372 id=372 data-nosnippet>372</a>        .saturating_add(<span class="number">1</span>)
+<a href=#373 id=373 data-nosnippet>373</a>        .saturating_add(<span class="number">4</span>)
+<a href=#374 id=374 data-nosnippet>374</a>        .saturating_add(recipient_pk.len())
+<a href=#375 id=375 data-nosnippet>375</a>        .saturating_add(<span class="number">4</span>)
+<a href=#376 id=376 data-nosnippet>376</a>        .saturating_add(kem_ciphertext.len());
+<a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">let </span><span class="kw-2">mut </span>info = Vec::with_capacity(cap);
+<a href=#378 id=378 data-nosnippet>378</a>    info.extend_from_slice(label_bytes);
+<a href=#379 id=379 data-nosnippet>379</a>    info.push(<span class="number">0x00</span>); <span class="comment">// domain separator between label and the PK || ct payload
+<a href=#380 id=380 data-nosnippet>380</a>    // hard-error on length-prefix overflow
+<a href=#381 id=381 data-nosnippet>381</a>    // instead of saturating to `u32::MAX`. Saturation collapses every
+<a href=#382 id=382 data-nosnippet>382</a>    // PK or ciphertext above 4 GiB onto the same prefix, breaking
+<a href=#383 id=383 data-nosnippet>383</a>    // HPKE channel binding's prefix-injectivity guarantee. In
+<a href=#384 id=384 data-nosnippet>384</a>    // practice no real KEM ciphertext or PK approaches the 4 GiB
+<a href=#385 id=385 data-nosnippet>385</a>    // line, but the audit-grade defensive fix is to fail loudly so a
+<a href=#386 id=386 data-nosnippet>386</a>    // future bug that introduces such inputs surfaces immediately.
+<a href=#387 id=387 data-nosnippet>387</a>    </span><span class="kw">let </span>pk_len_u32 = u32::try_from(recipient_pk.len()).map_err(|_overflow| {
+<a href=#388 id=388 data-nosnippet>388</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(
+<a href=#389 id=389 data-nosnippet>389</a>            <span class="string">"recipient PK exceeds 4 GiB"</span>.to_string(),
+<a href=#390 id=390 data-nosnippet>390</a>        )
+<a href=#391 id=391 data-nosnippet>391</a>    })<span class="question-mark">?</span>;
+<a href=#392 id=392 data-nosnippet>392</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>pk_len_u32.to_be_bytes());
+<a href=#393 id=393 data-nosnippet>393</a>    info.extend_from_slice(recipient_pk);
+<a href=#394 id=394 data-nosnippet>394</a>    <span class="kw">let </span>ct_len_u32 = u32::try_from(kem_ciphertext.len()).map_err(|_overflow| {
+<a href=#395 id=395 data-nosnippet>395</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(
+<a href=#396 id=396 data-nosnippet>396</a>            <span class="string">"KEM ciphertext exceeds 4 GiB"</span>.to_string(),
+<a href=#397 id=397 data-nosnippet>397</a>        )
+<a href=#398 id=398 data-nosnippet>398</a>    })<span class="question-mark">?</span>;
+<a href=#399 id=399 data-nosnippet>399</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>ct_len_u32.to_be_bytes());
+<a href=#400 id=400 data-nosnippet>400</a>    info.extend_from_slice(kem_ciphertext);
+<a href=#401 id=401 data-nosnippet>401</a>    <span class="prelude-val">Ok</span>(info)
+<a href=#402 id=402 data-nosnippet>402</a>}
+<a href=#403 id=403 data-nosnippet>403</a>
+<a href=#404 id=404 data-nosnippet>404</a><span class="doccomment">/// AAD-binding sibling of [`hkdf_kem_info_with_pk`] (M3 fix).
+<a href=#405 id=405 data-nosnippet>405</a>///
+<a href=#406 id=406 data-nosnippet>406</a>/// Encodes
+<a href=#407 id=407 data-nosnippet>407</a>/// `label || 0x00 || aad_len_be32 || aad || pk_len_be32 || recipient_pk
+<a href=#408 id=408 data-nosnippet>408</a>///  || ct_len_be32 || kem_ciphertext`.
+<a href=#409 id=409 data-nosnippet>409</a>///
+<a href=#410 id=410 data-nosnippet>410</a>/// `encrypt_hybrid::derive_encryption_key` already mixed AAD into the HKDF
+<a href=#411 id=411 data-nosnippet>411</a>/// info as a length-prefixed segment, but the `pq_only` path only included
+<a href=#412 id=412 data-nosnippet>412</a>/// it in the AEAD tag — leaving AAD's key-separation role to chance. This
+<a href=#413 id=413 data-nosnippet>413</a>/// helper adds AAD as a third length-prefixed segment between the label and
+<a href=#414 id=414 data-nosnippet>414</a>/// the recipient PK. Wire format is **different** from
+<a href=#415 id=415 data-nosnippet>415</a>/// [`hkdf_kem_info_with_pk`]; callers picking the wrong helper would derive
+<a href=#416 id=416 data-nosnippet>416</a>/// different keys and the AEAD tag check would fail closed.
+<a href=#417 id=417 data-nosnippet>417</a>///
+<a href=#418 id=418 data-nosnippet>418</a>/// Empty AAD is encoded as a `0_be32` length prefix followed by zero
+<a href=#419 id=419 data-nosnippet>419</a>/// payload bytes — distinct from "no AAD field" (which would produce a
+<a href=#420 id=420 data-nosnippet>420</a>/// shorter info string). This keeps the prefix-injectivity guarantee
+<a href=#421 id=421 data-nosnippet>421</a>/// (HPKE §5.1) intact.
+<a href=#422 id=422 data-nosnippet>422</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hkdf_kem_info_with_pk_and_aad(
+<a href=#423 id=423 data-nosnippet>423</a>    label: HkdfKemLabel,
+<a href=#424 id=424 data-nosnippet>424</a>    aad: <span class="kw-2">&amp;</span>[u8],
+<a href=#425 id=425 data-nosnippet>425</a>    recipient_pk: <span class="kw-2">&amp;</span>[u8],
+<a href=#426 id=426 data-nosnippet>426</a>    kem_ciphertext: <span class="kw-2">&amp;</span>[u8],
+<a href=#427 id=427 data-nosnippet>427</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, <span class="kw">crate</span>::prelude::error::LatticeArcError&gt; {
+<a href=#428 id=428 data-nosnippet>428</a>    <span class="kw">let </span>label_bytes = label.as_bytes();
+<a href=#429 id=429 data-nosnippet>429</a>    <span class="macro">debug_assert!</span>(
+<a href=#430 id=430 data-nosnippet>430</a>        !label_bytes.contains(<span class="kw-2">&amp;</span><span class="number">0x00</span>),
+<a href=#431 id=431 data-nosnippet>431</a>        <span class="string">"HkdfKemLabel::as_bytes() must be NUL-free; the 0x00 separator below would collide"
+<a href=#432 id=432 data-nosnippet>432</a>    </span>);
+<a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">if </span>label_bytes.contains(<span class="kw-2">&amp;</span><span class="number">0x00</span>) {
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="kw">crate</span>::prelude::error::LatticeArcError::ValidationError {
+<a href=#435 id=435 data-nosnippet>435</a>            message: <span class="string">"HKDF label contains a NUL byte; would collide with the domain separator"
+<a href=#436 id=436 data-nosnippet>436</a>                </span>.to_string(),
+<a href=#437 id=437 data-nosnippet>437</a>        });
+<a href=#438 id=438 data-nosnippet>438</a>    }
+<a href=#439 id=439 data-nosnippet>439</a>    <span class="kw">let </span>cap = label_bytes
+<a href=#440 id=440 data-nosnippet>440</a>        .len()
+<a href=#441 id=441 data-nosnippet>441</a>        .saturating_add(<span class="number">1</span>)
+<a href=#442 id=442 data-nosnippet>442</a>        .saturating_add(<span class="number">4</span>)
+<a href=#443 id=443 data-nosnippet>443</a>        .saturating_add(aad.len())
+<a href=#444 id=444 data-nosnippet>444</a>        .saturating_add(<span class="number">4</span>)
+<a href=#445 id=445 data-nosnippet>445</a>        .saturating_add(recipient_pk.len())
+<a href=#446 id=446 data-nosnippet>446</a>        .saturating_add(<span class="number">4</span>)
+<a href=#447 id=447 data-nosnippet>447</a>        .saturating_add(kem_ciphertext.len());
+<a href=#448 id=448 data-nosnippet>448</a>    <span class="kw">let </span><span class="kw-2">mut </span>info = Vec::with_capacity(cap);
+<a href=#449 id=449 data-nosnippet>449</a>    info.extend_from_slice(label_bytes);
+<a href=#450 id=450 data-nosnippet>450</a>    info.push(<span class="number">0x00</span>); <span class="comment">// domain separator between label and the AAD || PK || CT payload
+<a href=#451 id=451 data-nosnippet>451</a>    </span><span class="kw">let </span>aad_len_u32 = u32::try_from(aad.len()).map_err(|_overflow| {
+<a href=#452 id=452 data-nosnippet>452</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(<span class="string">"AAD exceeds 4 GiB"</span>.to_string())
+<a href=#453 id=453 data-nosnippet>453</a>    })<span class="question-mark">?</span>;
+<a href=#454 id=454 data-nosnippet>454</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>aad_len_u32.to_be_bytes());
+<a href=#455 id=455 data-nosnippet>455</a>    info.extend_from_slice(aad);
+<a href=#456 id=456 data-nosnippet>456</a>    <span class="kw">let </span>pk_len_u32 = u32::try_from(recipient_pk.len()).map_err(|_overflow| {
+<a href=#457 id=457 data-nosnippet>457</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(
+<a href=#458 id=458 data-nosnippet>458</a>            <span class="string">"recipient PK exceeds 4 GiB"</span>.to_string(),
+<a href=#459 id=459 data-nosnippet>459</a>        )
+<a href=#460 id=460 data-nosnippet>460</a>    })<span class="question-mark">?</span>;
+<a href=#461 id=461 data-nosnippet>461</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>pk_len_u32.to_be_bytes());
+<a href=#462 id=462 data-nosnippet>462</a>    info.extend_from_slice(recipient_pk);
+<a href=#463 id=463 data-nosnippet>463</a>    <span class="kw">let </span>ct_len_u32 = u32::try_from(kem_ciphertext.len()).map_err(|_overflow| {
+<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">crate</span>::prelude::error::LatticeArcError::InvalidInput(
+<a href=#465 id=465 data-nosnippet>465</a>            <span class="string">"KEM ciphertext exceeds 4 GiB"</span>.to_string(),
+<a href=#466 id=466 data-nosnippet>466</a>        )
+<a href=#467 id=467 data-nosnippet>467</a>    })<span class="question-mark">?</span>;
+<a href=#468 id=468 data-nosnippet>468</a>    info.extend_from_slice(<span class="kw-2">&amp;</span>ct_len_u32.to_be_bytes());
+<a href=#469 id=469 data-nosnippet>469</a>    info.extend_from_slice(kem_ciphertext);
+<a href=#470 id=470 data-nosnippet>470</a>    <span class="prelude-val">Ok</span>(info)
+<a href=#471 id=471 data-nosnippet>471</a>}
+<a href=#472 id=472 data-nosnippet>472</a>
+<a href=#473 id=473 data-nosnippet>473</a><span class="attr">#[cfg(test)]
+<a href=#474 id=474 data-nosnippet>474</a></span><span class="kw">mod </span>hkdf_kem_label_tests {
+<a href=#475 id=475 data-nosnippet>475</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#476 id=476 data-nosnippet>476</a>
+<a href=#477 id=477 data-nosnippet>477</a>    <span class="doccomment">/// Locks the NUL-freeness invariant the `0x00` separator depends
+<a href=#478 id=478 data-nosnippet>478</a>    /// on. Adding a new `HkdfKemLabel` variant whose byte string
+<a href=#479 id=479 data-nosnippet>479</a>    /// contains `0x00` would break the separator's disambiguation
+<a href=#480 id=480 data-nosnippet>480</a>    /// guarantee — this test catches that at CI time. See L2 audit
+<a href=#481 id=481 data-nosnippet>481</a>    /// fix in [`hkdf_kem_info_with_pk`].
+<a href=#482 id=482 data-nosnippet>482</a>    </span><span class="attr">#[test]
+<a href=#483 id=483 data-nosnippet>483</a>    </span><span class="kw">fn </span>all_label_variants_are_nul_free() {
+<a href=#484 id=484 data-nosnippet>484</a>        <span class="kw">for </span>label <span class="kw">in </span>[HkdfKemLabel::PqKemAead, HkdfKemLabel::PqOnlyEncryption] {
+<a href=#485 id=485 data-nosnippet>485</a>            <span class="kw">let </span>bytes = label.as_bytes();
+<a href=#486 id=486 data-nosnippet>486</a>            <span class="macro">assert!</span>(
+<a href=#487 id=487 data-nosnippet>487</a>                !bytes.contains(<span class="kw-2">&amp;</span><span class="number">0u8</span>),
+<a href=#488 id=488 data-nosnippet>488</a>                <span class="string">"HkdfKemLabel::{:?} maps to a byte string containing 0x00 \
+<a href=#489 id=489 data-nosnippet>489</a>                 ({:?}) — this breaks the NUL separator in hkdf_kem_info_with_pk"</span>,
+<a href=#490 id=490 data-nosnippet>490</a>                label,
+<a href=#491 id=491 data-nosnippet>491</a>                bytes,
+<a href=#492 id=492 data-nosnippet>492</a>            );
+<a href=#493 id=493 data-nosnippet>493</a>        }
+<a href=#494 id=494 data-nosnippet>494</a>    }
+<a href=#495 id=495 data-nosnippet>495</a>}
+<a href=#496 id=496 data-nosnippet>496</a>
+<a href=#497 id=497 data-nosnippet>497</a><span class="attr">#[cfg(test)]
+<a href=#498 id=498 data-nosnippet>498</a></span><span class="kw">mod </span>sig_scheme_label_tests {
+<a href=#499 id=499 data-nosnippet>499</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#500 id=500 data-nosnippet>500</a>
+<a href=#501 id=501 data-nosnippet>501</a>    <span class="kw">const </span>ALL_LABELS: <span class="kw-2">&amp;</span>[SigSchemeLabel] = <span class="kw-2">&amp;</span>[
+<a href=#502 id=502 data-nosnippet>502</a>        SigSchemeLabel::MlDsa44,
+<a href=#503 id=503 data-nosnippet>503</a>        SigSchemeLabel::MlDsa65,
+<a href=#504 id=504 data-nosnippet>504</a>        SigSchemeLabel::MlDsa87,
+<a href=#505 id=505 data-nosnippet>505</a>        SigSchemeLabel::SlhDsaShake128s,
+<a href=#506 id=506 data-nosnippet>506</a>        SigSchemeLabel::SlhDsaShake192s,
+<a href=#507 id=507 data-nosnippet>507</a>        SigSchemeLabel::SlhDsaShake256s,
+<a href=#508 id=508 data-nosnippet>508</a>        SigSchemeLabel::FnDsa512,
+<a href=#509 id=509 data-nosnippet>509</a>        SigSchemeLabel::FnDsa1024,
+<a href=#510 id=510 data-nosnippet>510</a>        SigSchemeLabel::HybridMlDsa44Ed25519,
+<a href=#511 id=511 data-nosnippet>511</a>        SigSchemeLabel::HybridMlDsa65Ed25519,
+<a href=#512 id=512 data-nosnippet>512</a>        SigSchemeLabel::HybridMlDsa87Ed25519,
+<a href=#513 id=513 data-nosnippet>513</a>        <span class="attr">#[cfg(not(feature = <span class="string">"fips"</span>))]
+<a href=#514 id=514 data-nosnippet>514</a>        </span>SigSchemeLabel::Ed25519,
+<a href=#515 id=515 data-nosnippet>515</a>    ];
+<a href=#516 id=516 data-nosnippet>516</a>
+<a href=#517 id=517 data-nosnippet>517</a>    <span class="doccomment">/// Mirrors `all_label_variants_are_nul_free` for sig contexts. ML-DSA and
+<a href=#518 id=518 data-nosnippet>518</a>    /// SLH-DSA pass the context to the underlying primitive (FIPS 204 §5.2,
+<a href=#519 id=519 data-nosnippet>519</a>    /// FIPS 205 §10.2). FN-DSA and Ed25519 use prefix-padding: the wire form
+<a href=#520 id=520 data-nosnippet>520</a>    /// is `context || 0x00 || message`, so a context containing 0x00 would
+<a href=#521 id=521 data-nosnippet>521</a>    /// make the separator ambiguous and let an attacker craft two distinct
+<a href=#522 id=522 data-nosnippet>522</a>    /// (context, message) pairs that produce identical signed bytes.
+<a href=#523 id=523 data-nosnippet>523</a>    </span><span class="attr">#[test]
+<a href=#524 id=524 data-nosnippet>524</a>    </span><span class="kw">fn </span>all_sig_context_variants_are_nul_free() {
+<a href=#525 id=525 data-nosnippet>525</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>label <span class="kw">in </span>ALL_LABELS {
+<a href=#526 id=526 data-nosnippet>526</a>            <span class="kw">let </span>bytes = label.as_bytes();
+<a href=#527 id=527 data-nosnippet>527</a>            <span class="macro">assert!</span>(
+<a href=#528 id=528 data-nosnippet>528</a>                !bytes.contains(<span class="kw-2">&amp;</span><span class="number">0u8</span>),
+<a href=#529 id=529 data-nosnippet>529</a>                <span class="string">"SigSchemeLabel::{label:?} maps to {bytes:?} which contains 0x00; \
+<a href=#530 id=530 data-nosnippet>530</a>                 the prefix-padding separator below would collide"
+<a href=#531 id=531 data-nosnippet>531</a>            </span>);
+<a href=#532 id=532 data-nosnippet>532</a>        }
+<a href=#533 id=533 data-nosnippet>533</a>    }
+<a href=#534 id=534 data-nosnippet>534</a>
+<a href=#535 id=535 data-nosnippet>535</a>    <span class="doccomment">/// All scheme contexts must be pairwise distinct. A collision would mean
+<a href=#536 id=536 data-nosnippet>536</a>    /// two scheme identifiers share a transcript-binding, defeating H1's
+<a href=#537 id=537 data-nosnippet>537</a>    /// fix — `(ml-dsa-65 sk, msg)` would produce the same signed bytes as
+<a href=#538 id=538 data-nosnippet>538</a>    /// `(hybrid-ml-dsa-65-ed25519 ML-DSA leg, msg)` and the downgrade attack
+<a href=#539 id=539 data-nosnippet>539</a>    /// would still succeed.
+<a href=#540 id=540 data-nosnippet>540</a>    </span><span class="attr">#[test]
+<a href=#541 id=541 data-nosnippet>541</a>    </span><span class="kw">fn </span>all_sig_contexts_pairwise_distinct() {
+<a href=#542 id=542 data-nosnippet>542</a>        <span class="kw">for </span>(i, <span class="kw-2">&amp;</span>a) <span class="kw">in </span>ALL_LABELS.iter().enumerate() {
+<a href=#543 id=543 data-nosnippet>543</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(rest) = ALL_LABELS.get(i.saturating_add(<span class="number">1</span>)..) <span class="kw">else </span>{
+<a href=#544 id=544 data-nosnippet>544</a>                <span class="kw">continue</span>;
+<a href=#545 id=545 data-nosnippet>545</a>            };
+<a href=#546 id=546 data-nosnippet>546</a>            <span class="kw">for </span><span class="kw-2">&amp;</span>b <span class="kw">in </span>rest {
+<a href=#547 id=547 data-nosnippet>547</a>                <span class="macro">assert_ne!</span>(
+<a href=#548 id=548 data-nosnippet>548</a>                    a.as_bytes(),
+<a href=#549 id=549 data-nosnippet>549</a>                    b.as_bytes(),
+<a href=#550 id=550 data-nosnippet>550</a>                    <span class="string">"SigSchemeLabel::{a:?} and ::{b:?} share a context"
+<a href=#551 id=551 data-nosnippet>551</a>                </span>);
+<a href=#552 id=552 data-nosnippet>552</a>            }
+<a href=#553 id=553 data-nosnippet>553</a>        }
+<a href=#554 id=554 data-nosnippet>554</a>    }
+<a href=#555 id=555 data-nosnippet>555</a>
+<a href=#556 id=556 data-nosnippet>556</a>    <span class="doccomment">/// Wire-format strings the codebase emits at sign-side must round-trip
+<a href=#557 id=557 data-nosnippet>557</a>    /// through `from_scheme_str`. If `sign_with_key` ever produces a scheme
+<a href=#558 id=558 data-nosnippet>558</a>    /// string that the M5 allowlist rejects, signing and verification would
+<a href=#559 id=559 data-nosnippet>559</a>    /// silently disagree.
+<a href=#560 id=560 data-nosnippet>560</a>    </span><span class="attr">#[test]
+<a href=#561 id=561 data-nosnippet>561</a>    </span><span class="kw">fn </span>canonical_scheme_strings_round_trip() {
+<a href=#562 id=562 data-nosnippet>562</a>        <span class="kw">let </span>pairs: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, SigSchemeLabel)] = <span class="kw-2">&amp;</span>[
+<a href=#563 id=563 data-nosnippet>563</a>            (<span class="string">"ml-dsa-44"</span>, SigSchemeLabel::MlDsa44),
+<a href=#564 id=564 data-nosnippet>564</a>            (<span class="string">"ml-dsa-65"</span>, SigSchemeLabel::MlDsa65),
+<a href=#565 id=565 data-nosnippet>565</a>            (<span class="string">"ml-dsa-87"</span>, SigSchemeLabel::MlDsa87),
+<a href=#566 id=566 data-nosnippet>566</a>            (<span class="string">"pq-ml-dsa-44"</span>, SigSchemeLabel::MlDsa44),
+<a href=#567 id=567 data-nosnippet>567</a>            (<span class="string">"pq-ml-dsa-65"</span>, SigSchemeLabel::MlDsa65),
+<a href=#568 id=568 data-nosnippet>568</a>            (<span class="string">"pq-ml-dsa-87"</span>, SigSchemeLabel::MlDsa87),
+<a href=#569 id=569 data-nosnippet>569</a>            (<span class="string">"slh-dsa-shake-128s"</span>, SigSchemeLabel::SlhDsaShake128s),
+<a href=#570 id=570 data-nosnippet>570</a>            (<span class="string">"slh-dsa-shake-192s"</span>, SigSchemeLabel::SlhDsaShake192s),
+<a href=#571 id=571 data-nosnippet>571</a>            (<span class="string">"slh-dsa-shake-256s"</span>, SigSchemeLabel::SlhDsaShake256s),
+<a href=#572 id=572 data-nosnippet>572</a>            (<span class="string">"fn-dsa-512"</span>, SigSchemeLabel::FnDsa512),
+<a href=#573 id=573 data-nosnippet>573</a>            (<span class="string">"fn-dsa"</span>, SigSchemeLabel::FnDsa512),
+<a href=#574 id=574 data-nosnippet>574</a>            (<span class="string">"fn-dsa-1024"</span>, SigSchemeLabel::FnDsa1024),
+<a href=#575 id=575 data-nosnippet>575</a>            (<span class="string">"hybrid-ml-dsa-44-ed25519"</span>, SigSchemeLabel::HybridMlDsa44Ed25519),
+<a href=#576 id=576 data-nosnippet>576</a>            (<span class="string">"ml-dsa-44-hybrid-ed25519"</span>, SigSchemeLabel::HybridMlDsa44Ed25519),
+<a href=#577 id=577 data-nosnippet>577</a>            (<span class="string">"hybrid-ml-dsa-65-ed25519"</span>, SigSchemeLabel::HybridMlDsa65Ed25519),
+<a href=#578 id=578 data-nosnippet>578</a>            (<span class="string">"ml-dsa-65-hybrid-ed25519"</span>, SigSchemeLabel::HybridMlDsa65Ed25519),
+<a href=#579 id=579 data-nosnippet>579</a>            (<span class="string">"hybrid-ml-dsa-87-ed25519"</span>, SigSchemeLabel::HybridMlDsa87Ed25519),
+<a href=#580 id=580 data-nosnippet>580</a>            (<span class="string">"ml-dsa-87-hybrid-ed25519"</span>, SigSchemeLabel::HybridMlDsa87Ed25519),
+<a href=#581 id=581 data-nosnippet>581</a>            <span class="attr">#[cfg(not(feature = <span class="string">"fips"</span>))]
+<a href=#582 id=582 data-nosnippet>582</a>            </span>(<span class="string">"ed25519"</span>, SigSchemeLabel::Ed25519),
+<a href=#583 id=583 data-nosnippet>583</a>        ];
+<a href=#584 id=584 data-nosnippet>584</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>(s, want) <span class="kw">in </span>pairs {
+<a href=#585 id=585 data-nosnippet>585</a>            <span class="macro">assert_eq!</span>(
+<a href=#586 id=586 data-nosnippet>586</a>                SigSchemeLabel::from_scheme_str(s),
+<a href=#587 id=587 data-nosnippet>587</a>                <span class="prelude-val">Some</span>(want),
+<a href=#588 id=588 data-nosnippet>588</a>                <span class="string">"scheme string {s:?} did not map to {want:?}"
+<a href=#589 id=589 data-nosnippet>589</a>            </span>);
+<a href=#590 id=590 data-nosnippet>590</a>        }
+<a href=#591 id=591 data-nosnippet>591</a>    }
+<a href=#592 id=592 data-nosnippet>592</a>
+<a href=#593 id=593 data-nosnippet>593</a>    <span class="attr">#[test]
+<a href=#594 id=594 data-nosnippet>594</a>    </span><span class="kw">fn </span>unknown_scheme_strings_rejected() {
+<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">for </span>s <span class="kw">in </span>[
+<a href=#596 id=596 data-nosnippet>596</a>            <span class="string">""</span>,
+<a href=#597 id=597 data-nosnippet>597</a>            <span class="string">"ml-dsa-99"</span>,
+<a href=#598 id=598 data-nosnippet>598</a>            <span class="string">"rsa-2048"</span>,
+<a href=#599 id=599 data-nosnippet>599</a>            <span class="string">"hybrid-ml-dsa-65"</span>,               <span class="comment">// missing classical
+<a href=#600 id=600 data-nosnippet>600</a>            </span><span class="string">"ml-dsa-65-hybrid"</span>,               <span class="comment">// missing classical
+<a href=#601 id=601 data-nosnippet>601</a>            </span><span class="string">"hybrid-ml-dsa-65-ed25519-extra"</span>, <span class="comment">// suffix tampering
+<a href=#602 id=602 data-nosnippet>602</a>            </span><span class="string">"Ml-Dsa-65"</span>,                      <span class="comment">// case-sensitive
+<a href=#603 id=603 data-nosnippet>603</a>        </span>] {
+<a href=#604 id=604 data-nosnippet>604</a>            <span class="macro">assert_eq!</span>(
+<a href=#605 id=605 data-nosnippet>605</a>                SigSchemeLabel::from_scheme_str(s),
+<a href=#606 id=606 data-nosnippet>606</a>                <span class="prelude-val">None</span>,
+<a href=#607 id=607 data-nosnippet>607</a>                <span class="string">"scheme string {s:?} must be rejected by the M5 allowlist"
+<a href=#608 id=608 data-nosnippet>608</a>            </span>);
+<a href=#609 id=609 data-nosnippet>609</a>        }
+<a href=#610 id=610 data-nosnippet>610</a>    }
+<a href=#611 id=611 data-nosnippet>611</a>
+<a href=#612 id=612 data-nosnippet>612</a>    <span class="doccomment">/// Under `--features fips` the wire scheme string `"ed25519"` must not
+<a href=#613 id=613 data-nosnippet>613</a>    /// be in the M5 allowlist — closes the L-A leak where the verify path
+<a href=#614 id=614 data-nosnippet>614</a>    /// returned `Err(InvalidInput("Unsupported scheme: ed25519"))` while
+<a href=#615 id=615 data-nosnippet>615</a>    /// the M5 allowlist accepted it, breaking the Pattern-6 contract that
+<a href=#616 id=616 data-nosnippet>616</a>    /// [`verify_with_anchor`] documents.
+<a href=#617 id=617 data-nosnippet>617</a>    </span><span class="attr">#[cfg(feature = <span class="string">"fips"</span>)]
+<a href=#618 id=618 data-nosnippet>618</a>    #[test]
+<a href=#619 id=619 data-nosnippet>619</a>    </span><span class="kw">fn </span>fips_rejects_pure_ed25519_at_allowlist() {
+<a href=#620 id=620 data-nosnippet>620</a>        <span class="macro">assert_eq!</span>(
+<a href=#621 id=621 data-nosnippet>621</a>            SigSchemeLabel::from_scheme_str(<span class="string">"ed25519"</span>),
+<a href=#622 id=622 data-nosnippet>622</a>            <span class="prelude-val">None</span>,
+<a href=#623 id=623 data-nosnippet>623</a>            <span class="string">"pure ed25519 must be rejected by M5 under --features fips"
+<a href=#624 id=624 data-nosnippet>624</a>        </span>);
+<a href=#625 id=625 data-nosnippet>625</a>    }
+<a href=#626 id=626 data-nosnippet>626</a>
+<a href=#627 id=627 data-nosnippet>627</a>    <span class="doccomment">/// PoP / ZK contexts must be pairwise distinct from each other AND
+<a href=#628 id=628 data-nosnippet>628</a>    /// from every SigSchemeLabel context. Cross-protocol collision would
+<a href=#629 id=629 data-nosnippet>629</a>    /// let a captured PoP or ZK signature replay as a SignedData (or vice
+<a href=#630 id=630 data-nosnippet>630</a>    /// versa). Locks the M-A PoP-binding invariant.
+<a href=#631 id=631 data-nosnippet>631</a>    </span><span class="attr">#[test]
+<a href=#632 id=632 data-nosnippet>632</a>    </span><span class="kw">fn </span>extra_ed25519_contexts_pairwise_distinct_from_sig_scheme_contexts() {
+<a href=#633 id=633 data-nosnippet>633</a>        <span class="kw">let </span>pop = pop_sig_context();
+<a href=#634 id=634 data-nosnippet>634</a>        <span class="kw">let </span>zk = zk_proof_sig_context();
+<a href=#635 id=635 data-nosnippet>635</a>        <span class="macro">assert_ne!</span>(pop, zk, <span class="string">"PoP and ZK contexts must differ"</span>);
+<a href=#636 id=636 data-nosnippet>636</a>        <span class="macro">assert!</span>(!pop.contains(<span class="kw-2">&amp;</span><span class="number">0u8</span>), <span class="string">"PoP context must be NUL-free for prefix-padding"</span>);
+<a href=#637 id=637 data-nosnippet>637</a>        <span class="macro">assert!</span>(!zk.contains(<span class="kw-2">&amp;</span><span class="number">0u8</span>), <span class="string">"ZK context must be NUL-free for prefix-padding"</span>);
+<a href=#638 id=638 data-nosnippet>638</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>label <span class="kw">in </span>ALL_LABELS {
+<a href=#639 id=639 data-nosnippet>639</a>            <span class="macro">assert_ne!</span>(
+<a href=#640 id=640 data-nosnippet>640</a>                label.as_bytes(),
+<a href=#641 id=641 data-nosnippet>641</a>                pop,
+<a href=#642 id=642 data-nosnippet>642</a>                <span class="string">"PoP context collides with SigSchemeLabel::{label:?}"
+<a href=#643 id=643 data-nosnippet>643</a>            </span>);
+<a href=#644 id=644 data-nosnippet>644</a>            <span class="macro">assert_ne!</span>(label.as_bytes(), zk, <span class="string">"ZK context collides with SigSchemeLabel::{label:?}"</span>);
+<a href=#645 id=645 data-nosnippet>645</a>        }
+<a href=#646 id=646 data-nosnippet>646</a>    }
+<a href=#647 id=647 data-nosnippet>647</a>}
+<a href=#648 id=648 data-nosnippet>648</a>
+<a href=#649 id=649 data-nosnippet>649</a><span class="comment">// Formal verification with Kani
+<a href=#650 id=650 data-nosnippet>650</a></span><span class="attr">#[cfg(kani)]
+<a href=#651 id=651 data-nosnippet>651</a>#[expect(
+<a href=#652 id=652 data-nosnippet>652</a>    clippy::indexing_slicing,
+<a href=#653 id=653 data-nosnippet>653</a>    reason = <span class="string">"indexing into a slice whose length is known at this site"
+<a href=#654 id=654 data-nosnippet>654</a></span>)]
+<a href=#655 id=655 data-nosnippet>655</a></span><span class="kw">mod </span>kani_proofs {
+<a href=#656 id=656 data-nosnippet>656</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#657 id=657 data-nosnippet>657</a>
+<a href=#658 id=658 data-nosnippet>658</a>    <span class="doccomment">/// Proves all 8 HKDF domain constants are pairwise distinct (C(8,2)=28 pairs).
+<a href=#659 id=659 data-nosnippet>659</a>    /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
+<a href=#660 id=660 data-nosnippet>660</a>    </span><span class="attr">#[kani::proof]
+<a href=#661 id=661 data-nosnippet>661</a>    </span><span class="kw">fn </span>domain_constants_pairwise_distinct() {
+<a href=#662 id=662 data-nosnippet>662</a>        <span class="kw">let </span>constants: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]] = <span class="kw-2">&amp;</span>[
+<a href=#663 id=663 data-nosnippet>663</a>            CASCADE_OUTER,
+<a href=#664 id=664 data-nosnippet>664</a>            CASCADE_INNER,
+<a href=#665 id=665 data-nosnippet>665</a>            HYBRID_ENCRYPTION_INFO,
+<a href=#666 id=666 data-nosnippet>666</a>            HYBRID_KEM_SS_INFO,
+<a href=#667 id=667 data-nosnippet>667</a>            DERIVE_KEY_INFO,
+<a href=#668 id=668 data-nosnippet>668</a>            MODULE_INTEGRITY_HMAC_KEY,
+<a href=#669 id=669 data-nosnippet>669</a>            PQ_KEM_AEAD_KEY_INFO,
+<a href=#670 id=670 data-nosnippet>670</a>            PQ_ONLY_ENCRYPTION_INFO,
+<a href=#671 id=671 data-nosnippet>671</a>        ];
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="kw">let </span>n = constants.len();
+<a href=#673 id=673 data-nosnippet>673</a>        <span class="kw">let </span><span class="kw-2">mut </span>i = <span class="number">0</span>;
+<a href=#674 id=674 data-nosnippet>674</a>        <span class="kw">while </span>i &lt; n {
+<a href=#675 id=675 data-nosnippet>675</a>            <span class="kw">let </span><span class="kw-2">mut </span>j = i + <span class="number">1</span>;
+<a href=#676 id=676 data-nosnippet>676</a>            <span class="kw">while </span>j &lt; n {
+<a href=#677 id=677 data-nosnippet>677</a>                kani::assert(
+<a href=#678 id=678 data-nosnippet>678</a>                    constants[i] != constants[j],
+<a href=#679 id=679 data-nosnippet>679</a>                    <span class="string">"All HKDF domain constants must be pairwise distinct"</span>,
+<a href=#680 id=680 data-nosnippet>680</a>                );
+<a href=#681 id=681 data-nosnippet>681</a>                j += <span class="number">1</span>;
+<a href=#682 id=682 data-nosnippet>682</a>            }
+<a href=#683 id=683 data-nosnippet>683</a>            i += <span class="number">1</span>;
+<a href=#684 id=684 data-nosnippet>684</a>        }
+<a href=#685 id=685 data-nosnippet>685</a>    }
+<a href=#686 id=686 data-nosnippet>686</a>}
 </code></pre></div></section></main></body></html>
