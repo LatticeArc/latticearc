@@ -1,8 +1,8 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Post-Quantum Cryptography Library
-**Version:** 0.9.0 (preparing — no tag cut yet; sources still on 0.8.4)
-**Date:** 2026-05-29 (last doc update)
+**Version:** 0.9.0
+**Date:** 2026-05-31 (release tag)
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
 ## Executive Summary

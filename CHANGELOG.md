@@ -7,13 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.9.0] — Unreleased
+## [0.9.0] — 2026-05-31
 
-> **Doc-side version target.** Sources still on `0.8.4`; the workspace
-> `Cargo.toml` will be bumped to `0.9.0` as part of the tag-cut
-> commit. This `[0.9.0]` heading signals the intended next release so
-> downstream consumers reading the CHANGELOG can identify the upcoming
-> breaking-change wave without scanning an `[Unreleased]` block.
+Tag-cut release: bundles the v0.8.4-era audit rollup, three follow-up
+audit rounds (M-A / M-B / L-A / L-B / L-C → PoP-H1 / PoP-M1 / PoP-L1
+→ FN-DSA stack + real KATs + 10 misc), and the workspace version bump
+from 0.8.4 → 0.9.0.
 
 ### ⚠️ BREAKING: signature wire format
 
