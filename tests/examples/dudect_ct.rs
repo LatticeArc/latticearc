@@ -77,10 +77,17 @@ fn bench_verify_hmac_sha256(runner: &mut CtRunner, _rng: &mut BenchRng) {
 // Right: sk_a.ct_eq(diff_pool[i])   — bytes differ from sk_a
 //
 // Each class draws its `other` operand from a pool of POOL_SIZE
-// independently-allocated keys so per-sample heap addresses are drawn
-// from the same distribution in both classes. That eliminates
-// allocation-layout bias and leaves content-dependent work in `ct_eq`
-// as the only possible source of a t-signal.
+// independently-allocated keys. The two pools are built in lockstep
+// (one `equal` push, one `diff` push, repeat) rather than as two
+// contiguous bulk allocations. That way the allocator interleaves the
+// `ct_compare_bytes` heap buffers of the two pools across the same
+// address region, instead of placing all-equal-then-all-diff in two
+// disjoint regions. Without lockstep construction the per-sample heap
+// addresses are segregated by class, the CPU's cache prefetcher /
+// TLB-coverage patterns diverge between Left and Right, and a |t|
+// signal in the thousands appears that is entirely a bench artifact
+// rather than a property of `subtle::ConstantTimeEq` (which is a
+// branch-free XOR/OR loop over every byte).
 // -----------------------------------------------------------------------------
 fn bench_hybrid_secret_key_ct_eq(runner: &mut CtRunner, _rng: &mut BenchRng) {
     const POOL_SIZE: usize = 32;
@@ -97,9 +104,13 @@ fn bench_hybrid_secret_key_ct_eq(runner: &mut CtRunner, _rng: &mut BenchRng) {
         HybridKemSecretKey::from_serialized(sk_a.security_level(), &ml_sk_a, &ml_pk_a, &ecdh_seed_a)
             .expect("reconstruct equal key")
     };
-    let equal_pool: Vec<HybridKemSecretKey> = (0..POOL_SIZE).map(|_| clone_sk_a()).collect();
-    let diff_pool: Vec<HybridKemSecretKey> =
-        (0..POOL_SIZE).map(|_| generate_keypair().expect("hybrid keygen").1).collect();
+    // Lockstep allocation — see bench header for the heap-layout rationale.
+    let mut equal_pool: Vec<HybridKemSecretKey> = Vec::with_capacity(POOL_SIZE);
+    let mut diff_pool: Vec<HybridKemSecretKey> = Vec::with_capacity(POOL_SIZE);
+    for _ in 0..POOL_SIZE {
+        equal_pool.push(clone_sk_a());
+        diff_pool.push(generate_keypair().expect("hybrid keygen").1);
+    }
 
     // Independent indices per class so Left and Right each traverse the
     // full 0..POOL_SIZE range of their respective pool rather than only
