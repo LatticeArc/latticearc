@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: lint-extras-${{ github.workflow }}-${{ github.ref }}
+  group: lint-extras-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
