@@ -1,12 +1,21 @@
 //! DudeCT statistical constant-time harness.
 //!
-//! Runs Welch's t-test across two input classes for selected operations.
+//! Runs Welch's t-test across two input classes for the single code path
+//! whose CT property cannot be checked by `ctgrind.yml`:
+//! `HmacSha256Verifier::verify`, which touches aws-lc-rs FFI that
+//! Valgrind-memcheck cannot cleanly reason about.
+//!
 //! A large `|t|` (conventionally > 5) is strong statistical evidence that
 //! the operation's runtime depends on secret data — i.e., a timing side
 //! channel. Small `|t|` is *not* a proof of constant-timeness (the chosen
 //! input distribution might not exercise the leak), but it's the standard
 //! empirical check used by the crypto literature since Reparaz et al.'s
 //! DudeCT paper (2016/1123).
+//!
+//! Pure-Rust paths (including `HybridKemSecretKey::ct_eq`) are verified
+//! by `tests/examples/ctgrind_ct.rs` under Valgrind memcheck instead —
+//! that gives a deterministic instruction-level oracle without the
+//! shared-runner statistical noise dudect is sensitive to.
 //!
 //! Invoke via:
 //!     cargo run --release --example dudect_ct -p latticearc-tests
@@ -22,14 +31,12 @@
 
 use dudect_bencher::{BenchRng, Class, CtRunner, ctbench_main};
 
-use latticearc::hybrid::kem_hybrid::{HybridKemSecretKey, generate_keypair};
 use latticearc::primitives::mac::hmac::{HmacSha256Verifier, hmac_sha256};
-use subtle::ConstantTimeEq;
 
 const SAMPLES: usize = 100_000;
 
 // -----------------------------------------------------------------------------
-// Bench 1: `HmacSha256Verifier::verify` timing under valid vs. tampered tags.
+// `HmacSha256Verifier::verify` timing under valid vs. tampered tags.
 //
 // Left:  verifier.verify(message, valid_tag)
 // Right: verifier.verify(message, valid_tag with one byte flipped)
@@ -70,68 +77,4 @@ fn bench_verify_hmac_sha256(runner: &mut CtRunner, _rng: &mut BenchRng) {
     }
 }
 
-// -----------------------------------------------------------------------------
-// Bench 2: `HybridKemSecretKey::ct_eq` timing on equal vs. differing keys.
-//
-// Left:  sk_a.ct_eq(equal_pool[i])  — bytes identical to sk_a
-// Right: sk_a.ct_eq(diff_pool[i])   — bytes differ from sk_a
-//
-// Each class draws its `other` operand from a pool of POOL_SIZE
-// independently-allocated keys. The two pools are built in lockstep
-// (one `equal` push, one `diff` push, repeat) rather than as two
-// contiguous bulk allocations. That way the allocator interleaves the
-// `ct_compare_bytes` heap buffers of the two pools across the same
-// address region, instead of placing all-equal-then-all-diff in two
-// disjoint regions. Without lockstep construction the per-sample heap
-// addresses are segregated by class, the CPU's cache prefetcher /
-// TLB-coverage patterns diverge between Left and Right, and a |t|
-// signal in the thousands appears that is entirely a bench artifact
-// rather than a property of `subtle::ConstantTimeEq` (which is a
-// branch-free XOR/OR loop over every byte).
-// -----------------------------------------------------------------------------
-fn bench_hybrid_secret_key_ct_eq(runner: &mut CtRunner, _rng: &mut BenchRng) {
-    const POOL_SIZE: usize = 32;
-
-    let (_, sk_a) = generate_keypair().expect("hybrid keygen");
-
-    // Build a pool of keys byte-equal to `sk_a` by round-tripping its
-    // serialized components through `from_serialized`. Each pool element
-    // is an independent heap allocation.
-    let ml_sk_a = sk_a.ml_kem_sk_bytes().expect("ml_kem sk bytes");
-    let ml_pk_a = sk_a.ml_kem_pk_bytes();
-    let ecdh_seed_a = sk_a.ecdh_seed_bytes().expect("ecdh seed bytes");
-    let clone_sk_a = || {
-        HybridKemSecretKey::from_serialized(sk_a.security_level(), &ml_sk_a, &ml_pk_a, &ecdh_seed_a)
-            .expect("reconstruct equal key")
-    };
-    // Lockstep allocation — see bench header for the heap-layout rationale.
-    let mut equal_pool: Vec<HybridKemSecretKey> = Vec::with_capacity(POOL_SIZE);
-    let mut diff_pool: Vec<HybridKemSecretKey> = Vec::with_capacity(POOL_SIZE);
-    for _ in 0..POOL_SIZE {
-        equal_pool.push(clone_sk_a());
-        diff_pool.push(generate_keypair().expect("hybrid keygen").1);
-    }
-
-    // Independent indices per class so Left and Right each traverse the
-    // full 0..POOL_SIZE range of their respective pool rather than only
-    // the even/odd subset dictated by the global sample counter.
-    let mut left_idx = 0usize;
-    let mut right_idx = 0usize;
-    for i in 0..SAMPLES {
-        if i % 2 == 0 {
-            let idx = left_idx % POOL_SIZE;
-            left_idx = left_idx.wrapping_add(1);
-            runner.run_one(Class::Left, || {
-                let _c = sk_a.ct_eq(&equal_pool[idx]);
-            });
-        } else {
-            let idx = right_idx % POOL_SIZE;
-            right_idx = right_idx.wrapping_add(1);
-            runner.run_one(Class::Right, || {
-                let _c = sk_a.ct_eq(&diff_pool[idx]);
-            });
-        }
-    }
-}
-
-ctbench_main!(bench_verify_hmac_sha256, bench_hybrid_secret_key_ct_eq);
+ctbench_main!(bench_verify_hmac_sha256);
