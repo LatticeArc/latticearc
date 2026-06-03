@@ -85,7 +85,7 @@ jobs:
       is_nightly: ${{ github.event.schedule == '0 2 * * *' }}
       is_weekly: ${{ github.event.schedule == '0 4 * * 0' }}
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
     - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
       id: filter
@@ -120,7 +120,7 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -216,7 +216,7 @@ jobs:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -254,7 +254,7 @@ jobs:
     # blocking once a baseline release lands. Tracked separately.
     continue-on-error: true
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -292,7 +292,7 @@ jobs:
             target: x86_64-pc-windows-msvc
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -338,7 +338,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: quality
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
     - name: Install Rust (Edition 2024)
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
@@ -349,7 +349,7 @@ jobs:
       # behaviour between identical source revisions. Bump intentionally.
       # Uses taiki-e/install-action (prebuilt binaries) to match the
       # cargo-llvm-cov pinning pattern earlier in this file.
-      uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # main
+      uses: taiki-e/install-action@6887963ccf37a9ddcd8c5fa4baeb3e1e5fd61fa1 # main
       with:
         tool: cargo-audit@0.22.1,cargo-deny@0.19.6
 
@@ -400,7 +400,7 @@ jobs:
     needs: [changes, quality]
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -485,7 +485,7 @@ jobs:
             coverage: false
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -496,7 +496,7 @@ jobs:
 
     - name: Install cargo-llvm-cov
       if: matrix.features.coverage
-      uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # main
+      uses: taiki-e/install-action@6887963ccf37a9ddcd8c5fa4baeb3e1e5fd61fa1 # main
       with:
         tool: cargo-llvm-cov
 
@@ -558,7 +558,7 @@ jobs:
     needs: [changes, quality]
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -596,7 +596,7 @@ jobs:
     needs: [changes, quality, build]
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -628,7 +628,7 @@ jobs:
     needs: [changes, quality, build]
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -671,7 +671,7 @@ jobs:
           - os: windows-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -716,7 +716,7 @@ jobs:
         fuzz-target: ["encrypt_fuzz", "hash_data_fuzz"]
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -816,7 +816,7 @@ jobs:
           - fuzz_target_1
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -863,7 +863,7 @@ jobs:
     # Run on PRs when crypto code changed
     if: github.event_name == 'pull_request' && needs.changes.outputs.crypto == 'true'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -925,7 +925,7 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
         fetch-depth: 0
@@ -986,7 +986,7 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -1026,7 +1026,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
     - name: Download docs artifact
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
@@ -1053,7 +1053,7 @@ jobs:
           - os: windows-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -1093,7 +1093,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, security]
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -1141,7 +1141,7 @@ jobs:
             artifact-name: x86_64-windows
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -1178,7 +1178,7 @@ jobs:
     needs: [changes, quality]
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
     - name: Verify KAT test vector checksums
       run: ./scripts/verify-kat-checksums.sh
@@ -1190,7 +1190,7 @@ jobs:
     needs: [changes, quality]
     if: needs.changes.outputs.is_weekly == 'true' || github.event.inputs.tier == 'weekly'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         submodules: recursive
 
@@ -1198,7 +1198,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # main
+      uses: taiki-e/install-action@6887963ccf37a9ddcd8c5fa4baeb3e1e5fd61fa1 # main
       with:
         tool: cargo-hack
 
