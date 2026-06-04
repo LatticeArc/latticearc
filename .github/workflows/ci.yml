@@ -137,6 +137,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -227,6 +233,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -303,6 +315,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -411,6 +429,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -502,6 +526,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -567,6 +597,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -605,6 +641,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -637,6 +679,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -686,6 +734,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -730,6 +784,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -830,6 +890,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -877,6 +943,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -935,6 +1007,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -995,6 +1073,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -1068,6 +1152,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -1102,6 +1192,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
@@ -1204,6 +1300,12 @@ jobs:
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes (especially the Windows post-save
+      # step, which occasionally returns non-zero without a useful error and
+      # historically failed `Pipeline Status` despite all tests passing).
+      # A failed cache save is non-fatal — the next run just recompiles from
+      # scratch; it does not affect any test or build result.
+      continue-on-error: true
       with:
         path: |
           ~/.cargo/registry
