@@ -32,6 +32,28 @@ ignore = [
     # ubuntu-latest with the default System allocator, so the precondition
     # is never met. Same dev-only provenance.
     "RUSTSEC-2021-0145",
+    # pqcrypto-internals 0.3.x, pqcrypto-mldsa 0.1.2, pqcrypto-sphincsplus
+    # 0.7.x, pqcrypto-traits 0.3.x — all marked unmaintained (no CVE; the
+    # `unmaintained` informational advisory class). All four are direct
+    # dev-deps of the `latticearc-tests` crate (`tests/Cargo.toml`) and
+    # power the cross-implementation conformance tests in
+    # `tests/tests/cross_impl_ml_dsa.rs` and
+    # `tests/tests/cross_impl_slh_dsa.rs`: our authoritative paths
+    # (fips204 / fips205 / aws-lc-rs) are cross-checked against the PQClean
+    # C reference bindings these crates wrap. The published `latticearc`
+    # crate does NOT depend on any pqcrypto-* crate — runtime surface is
+    # unaffected. PQClean itself is the NIST PQC reference implementation
+    # source and is essentially complete, which is why these wrappers see
+    # no new releases; the "unmaintained" tag reflects upstream stability
+    # rather than abandonment risk for an actual CVE. Revisit if (a) a
+    # real CVE lands against the underlying PQClean C code, (b) a
+    # maintained alternative ships an independent ML-DSA / SLH-DSA Rust
+    # impl suitable for cross-validation, or (c) the cross-impl test
+    # suite is retired.
+    "RUSTSEC-2026-0163", # pqcrypto-internals
+    "RUSTSEC-2026-0166", # pqcrypto-mldsa
+    "RUSTSEC-2026-0160", # pqcrypto-sphincsplus
+    "RUSTSEC-2026-0162", # pqcrypto-traits
 ]
 
 # Treat informational advisories as warnings (not errors). Combined with

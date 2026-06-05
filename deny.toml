@@ -52,6 +52,22 @@ ignore = [
     # Same provenance (clap 2 → dudect-bencher, dev-only). Same tracking as
     # RUSTSEC-2021-0139.
     "RUSTSEC-2021-0145",
+    # pqcrypto-{internals,mldsa,sphincsplus,traits} — all marked unmaintained
+    # (informational, not CVE). Direct dev-deps of `latticearc-tests`
+    # (tests/Cargo.toml) used for cross-implementation validation
+    # (cross_impl_ml_dsa.rs / cross_impl_slh_dsa.rs) against the PQClean C
+    # reference bindings. The published `latticearc` crate does NOT pull
+    # any pqcrypto-* crate. PQClean itself is the NIST PQC reference
+    # implementation and is essentially complete — the "unmaintained" tag
+    # reflects upstream stability rather than abandonment. Same tracking
+    # entry as the existing RUSTSEC-2024-0436 (paste) note. Revisit if a
+    # real CVE lands against the underlying PQClean C code, a maintained
+    # alternative independent Rust impl appears, or the cross-impl tests
+    # are retired.
+    "RUSTSEC-2026-0163", # pqcrypto-internals
+    "RUSTSEC-2026-0166", # pqcrypto-mldsa
+    "RUSTSEC-2026-0160", # pqcrypto-sphincsplus
+    "RUSTSEC-2026-0162", # pqcrypto-traits
 ]
 
 [bans]
