@@ -320,6 +320,7 @@ libfuzzer-sys = { version = "0.4.8" }
 # Elliptic curve cryptography - latest stable
 ecdsa = { version = "0.16.9", features = ["signing", "verifying"] }
 p256 = { version = "0.13.2", features = ["ecdsa", "ecdh"] }
+p384 = { version = "0.13.1", features = ["ecdsa", "std"] }
 k256 = { version = "0.13.4", features = ["ecdsa", "std"] }
 ed25519-dalek = { version = "2.2.0", features = ["rand_core", "zeroize"] }
 # X25519 needed for CAVP test vector validation (deterministic key generation).

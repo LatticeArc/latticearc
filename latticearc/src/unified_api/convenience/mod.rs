@@ -98,6 +98,7 @@
 
 mod aes_gcm;
 mod api;
+pub(crate) mod ecdsa_p384;
 pub(crate) mod ed25519;
 mod hashing;
 mod hybrid;
@@ -158,6 +159,11 @@ pub use hashing::{
 // Ed25519
 pub use ed25519::{
     sign_ed25519, sign_ed25519_with_config, verify_ed25519, verify_ed25519_with_config,
+};
+// ECDSA-P384
+pub use ecdsa_p384::{
+    ECDSA_P384_SIGNATURE_LEN, generate_ecdsa_p384_keypair, sign_ecdsa_p384, verify_ecdsa_p384,
+    verify_ecdsa_p384_prehash,
 };
 
 // AES-GCM

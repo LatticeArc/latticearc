@@ -483,6 +483,12 @@ pub use unified_api::{
     sign_ed25519, sign_ed25519_with_config, verify_ed25519, verify_ed25519_with_config,
 };
 
+// ECDSA-P384 (FIPS 186-4)
+pub use unified_api::{
+    ECDSA_P384_SIGNATURE_LEN, generate_ecdsa_p384_keypair, sign_ecdsa_p384, verify_ecdsa_p384,
+    verify_ecdsa_p384_prehash,
+};
+
 // Post-Quantum KEM (ML-KEM)
 #[doc(hidden)]
 pub use unified_api::{

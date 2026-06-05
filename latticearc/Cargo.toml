@@ -152,6 +152,7 @@ hmac = { workspace = true }
 chacha20poly1305 = { workspace = true }
 ed25519-dalek = { workspace = true }
 k256 = { workspace = true, features = ["sha256"] }
+p384 = { workspace = true }
 ecdsa = { workspace = true }
 blake2 = { workspace = true }
 ciborium = { workspace = true }

@@ -331,6 +331,8 @@ pub use convenience::{
 // ============================================================================
 
 pub use convenience::{
+    // ECDSA-P384
+    ECDSA_P384_SIGNATURE_LEN,
     // AES-GCM
     decrypt_aes_gcm,
     decrypt_aes_gcm_with_aad,
@@ -343,6 +345,8 @@ pub use convenience::{
     encrypt_aes_gcm_with_config,
     encrypt_pq_ml_kem,
     encrypt_pq_ml_kem_with_config,
+    generate_ecdsa_p384_keypair,
+    sign_ecdsa_p384,
     // Ed25519
     sign_ed25519,
     sign_ed25519_with_config,
@@ -353,6 +357,8 @@ pub use convenience::{
     sign_pq_ml_dsa_with_config,
     sign_pq_slh_dsa,
     sign_pq_slh_dsa_with_config,
+    verify_ecdsa_p384,
+    verify_ecdsa_p384_prehash,
     verify_ed25519,
     verify_ed25519_with_config,
     verify_pq_fn_dsa,
