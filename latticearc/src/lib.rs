@@ -486,7 +486,7 @@ pub use unified_api::{
 // ECDSA-P384 (FIPS 186-4)
 pub use unified_api::{
     ECDSA_P384_SIGNATURE_LEN, generate_ecdsa_p384_keypair, sign_ecdsa_p384, verify_ecdsa_p384,
-    verify_ecdsa_p384_prehash,
+    verify_ecdsa_p384_prehash, verify_ecdsa_p384_prehash_der,
 };
 
 // Post-Quantum KEM (ML-KEM)

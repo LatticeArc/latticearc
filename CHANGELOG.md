@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.1] — 2026-06-06
+
+Additive, non-breaking. Adds an ECDSA over NIST P-384 (FIPS 186-4) convenience
+facade to the unified API, alongside CI/dev-dependency hardening.
+
+### Added
+
+- **ECDSA-P384 (FIPS 186-4) facade** in `unified_api::convenience::ecdsa_p384`,
+  re-exported at the crate root. Mirrors the Ed25519 facade: `SecurityMode`-gated,
+  returns the crate `Result`, never panics.
+  - `generate_ecdsa_p384_keypair` — `(public_key_sec1_uncompressed, secret_key_scalar)`.
+  - `sign_ecdsa_p384` / `verify_ecdsa_p384` — sign/verify over a message with
+    ECDSA-P384/SHA-384; a malformed or non-matching signature yields `Ok(false)`.
+  - `verify_ecdsa_p384_prehash` — verify a fixed-width `r‖s` signature over a
+    pre-computed digest (e.g. a COSE_Sign1 `Sig_structure` digest, as in AWS
+    Nitro Enclave attestation).
+  - `verify_ecdsa_p384_prehash_der` — verify an ASN.1 DER `SEQUENCE { r, s }`
+    signature over a pre-computed digest (e.g. an X.509 certificate-chain link
+    `signatureValue`).
+  - `ECDSA_P384_SIGNATURE_LEN` constant (96).
+
+### Changed
+
+- CI: harden cache steps against flaky cache-service writes; demote a dudect
+  hybrid-secret-key comparison benchmark to informational and interleave its
+  equal/different pools to remove a heap-layout `|t|` signal.
+- Dev-dependencies: ignore four new RUSTSEC unmaintained advisories on
+  `pqcrypto-*` dev-deps.
+
+---
+
 ## [0.9.0] — 2026-05-31
 
 Tag-cut release: bundles the v0.8.4-era audit rollup, three follow-up

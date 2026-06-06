@@ -1834,7 +1834,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "aes 0.9.1",
  "aws-lc-rs",
@@ -1883,7 +1883,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc-cli"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "anyhow",
  "base64",
@@ -1903,7 +1903,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc-tests"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "aes-gcm",
  "anyhow",

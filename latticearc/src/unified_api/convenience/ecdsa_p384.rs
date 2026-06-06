@@ -90,6 +90,28 @@ pub fn verify_ecdsa_p384_prehash(
         .is_some_and(|sig| vk.verify_prehash(prehash, &sig).is_ok()))
 }
 
+/// Verify an ECDSA-P384 signature supplied as an ASN.1 DER `SEQUENCE { r, s }`
+/// over a pre-computed digest — e.g. an X.509 certificate-chain link signature
+/// (the `signatureValue` BIT STRING content), as distinct from the fixed-width
+/// `r‖s` form a COSE_Sign1 envelope carries. `prehash` is the digest (SHA-384 of
+/// the certificate's TBS bytes), not the message. A non-matching or malformed
+/// signature returns `Ok(false)`.
+///
+/// # Errors
+/// Returns an error on an invalid public key or an invalid session.
+pub fn verify_ecdsa_p384_prehash_der(
+    prehash: &[u8],
+    signature_der: &[u8],
+    public_key: &[u8],
+    mode: SecurityMode,
+) -> Result<bool> {
+    mode.validate()?;
+    let vk = verifying_key(public_key)?;
+    Ok(Signature::from_der(signature_der)
+        .ok()
+        .is_some_and(|sig| vk.verify_prehash(prehash, &sig).is_ok()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +156,41 @@ mod tests {
         assert_eq!(
             verify_ecdsa_p384_prehash(&digest, &sig, &pk, SecurityMode::Unverified).ok(),
             Some(true)
+        );
+    }
+
+    #[test]
+    fn prehash_der_verifies_x509_style_signature() {
+        use sha2::{Digest, Sha384};
+        let Some((pk, sk)) = keypair() else { return };
+        let tbs = b"to-be-signed certificate bytes";
+        // Sign produces fixed-width r‖s; re-encode as ASN.1 DER to mirror the
+        // X.509 `signatureValue` form that the cert-chain verifier hands in.
+        let Ok(raw) = sign_ecdsa_p384(tbs, &sk, SecurityMode::Unverified) else {
+            return;
+        };
+        let Some(sig) = Signature::from_slice(&raw).ok() else {
+            return;
+        };
+        let der = sig.to_der();
+        let digest = Sha384::digest(tbs);
+        assert_eq!(
+            verify_ecdsa_p384_prehash_der(&digest, der.as_bytes(), &pk, SecurityMode::Unverified)
+                .ok(),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn prehash_der_rejects_raw_signature() {
+        // A fixed-width r‖s value is not valid DER — must be Ok(false), not panic.
+        let Some((pk, sk)) = keypair() else { return };
+        let Ok(raw) = sign_ecdsa_p384(b"m", &sk, SecurityMode::Unverified) else {
+            return;
+        };
+        assert_eq!(
+            verify_ecdsa_p384_prehash_der(&[0u8; 48], &raw, &pk, SecurityMode::Unverified).ok(),
+            Some(false)
         );
     }
 

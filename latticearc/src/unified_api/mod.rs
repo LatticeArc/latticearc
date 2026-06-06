@@ -359,6 +359,7 @@ pub use convenience::{
     sign_pq_slh_dsa_with_config,
     verify_ecdsa_p384,
     verify_ecdsa_p384_prehash,
+    verify_ecdsa_p384_prehash_der,
     verify_ed25519,
     verify_ed25519_with_config,
     verify_pq_fn_dsa,

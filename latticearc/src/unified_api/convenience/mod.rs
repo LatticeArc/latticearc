@@ -163,7 +163,7 @@ pub use ed25519::{
 // ECDSA-P384
 pub use ecdsa_p384::{
     ECDSA_P384_SIGNATURE_LEN, generate_ecdsa_p384_keypair, sign_ecdsa_p384, verify_ecdsa_p384,
-    verify_ecdsa_p384_prehash,
+    verify_ecdsa_p384_prehash, verify_ecdsa_p384_prehash_der,
 };
 
 // AES-GCM
