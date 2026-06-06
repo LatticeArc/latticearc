@@ -68,6 +68,18 @@ jobs:
       - name: Publish latticearc
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        # Override GitHub's default `bash --noprofile --norc -eo pipefail`
+        # shell with `bash {0}` (no `-e`). The script below captures cargo's
+        # exit code explicitly into `PUBLISH_EXIT` and routes "already
+        # uploaded" to a tolerated-warning branch. With `-e` on, the
+        # `OUTPUT=$(cargo publish ...)` command substitution aborts the
+        # whole script when cargo exits non-zero — BEFORE the tolerance
+        # check ever runs — which is what failed run 27053313529: v0.9.1
+        # was published manually at 05:04:30Z, the workflow's later
+        # cargo publish hit "already uploaded" 56 minutes after, and the
+        # tolerance branch was unreachable. `set -uo pipefail` below
+        # re-enables `-u` and pipefail explicitly.
+        shell: bash --noprofile --norc {0}
         run: |
           set -uo pipefail
           OUTPUT=$(cargo publish -p latticearc --token "$CARGO_REGISTRY_TOKEN" 2>&1)
