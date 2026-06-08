@@ -317,16 +317,17 @@ jobs:
             exit 1
           fi
 
-      - name: fuzz-matrix-coverage — every fuzz_targets/*.rs binary must appear in fuzz-weekly matrix
+      - name: fuzz-matrix-coverage — every fuzz_targets/*.rs binary must appear in fuzzing.yml fuzz matrix
         run: |
           set -e
-          # 3 of 31 fuzz targets declared in
-          # fuzz/Cargo.toml were absent from the fuzz-weekly matrix.
-          # an earlier audit fixed the inverse (matrix entries with no binary).
-          # This rule closes the gap in both directions: every binary
-          # in `[[bin]]` blocks of fuzz/Cargo.toml must appear in the
-          # fuzz-weekly target list, and every matrix entry must
-          # correspond to a real binary.
+          # Bidirectional cover check between `fuzz/Cargo.toml` and the
+          # `fuzz` job matrix in `.github/workflows/fuzzing.yml`. Every
+          # binary in fuzz/Cargo.toml's `[[bin]]` blocks must appear in
+          # the fuzz job's `matrix.target` list, and every matrix entry
+          # must correspond to a real binary. (Previously this rule
+          # scanned `ci.yml`'s `fuzz-weekly` job; that job was retired
+          # when the long-running fuzz coverage moved into `fuzzing.yml`
+          # as the dedicated workflow.)
           BINS=$(awk '
             /^\[\[bin\]\]/ { in_bin = 1; next }
             in_bin && /^name = "/ {
@@ -336,16 +337,16 @@ jobs:
             }
           ' fuzz/Cargo.toml | sort -u)
           MATRIX=$(awk '
-            /^  fuzz-weekly:/ { in_w = 1; next }
+            /^  fuzz:/ { in_w = 1; next }
             in_w && /^[a-zA-Z]/ { in_w = 0 }
-            in_w && /fuzz-target:/ { in_t = 1; next }
+            in_w && /target:/ { in_t = 1; next }
             in_t && /^[ ]+- / {
                 gsub(/^[ ]+- /, "")
                 gsub(/[ \t]/, "")
                 print
             }
             in_t && /^[ ]+steps:/ { in_t = 0 }
-          ' .github/workflows/ci.yml | sort -u)
+          ' .github/workflows/fuzzing.yml | sort -u)
           MISSING_FROM_MATRIX=""
           while IFS= read -r bin; do
             [ -z "$bin" ] && continue
@@ -361,12 +362,12 @@ jobs:
             fi
           done <<< "$MATRIX"
           if [ -n "$MISSING_FROM_MATRIX" ]; then
-            echo "::error::fuzz binaries declared in fuzz/Cargo.toml but missing from ci.yml fuzz-weekly matrix:$MISSING_FROM_MATRIX"
-            echo "Add the missing entries to .github/workflows/ci.yml fuzz-weekly.matrix.fuzz-target."
+            echo "::error::fuzz binaries declared in fuzz/Cargo.toml but missing from fuzzing.yml fuzz matrix:$MISSING_FROM_MATRIX"
+            echo "Add the missing entries to .github/workflows/fuzzing.yml fuzz.matrix.target."
             exit 1
           fi
           if [ -n "$MISSING_BINS" ]; then
-            echo "::error::fuzz-weekly matrix entries with no matching [[bin]] in fuzz/Cargo.toml:$MISSING_BINS"
+            echo "::error::fuzzing.yml fuzz matrix entries with no matching [[bin]] in fuzz/Cargo.toml:$MISSING_BINS"
             echo "These targets will fail at runtime."
             exit 1
           fi

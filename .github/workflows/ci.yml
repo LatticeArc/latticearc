@@ -15,15 +15,18 @@ on:
     branches: [ main, develop, master ]
   pull_request:
     branches: [ main, develop, master ]
-  # Tier 4 (nightly) and Tier 5 (weekly) scheduled runs. Without these
-  # crons the `is_nightly` / `is_weekly` outputs in the `changes` job —
-  # which gate the heavyweight fuzz / feature-powerset / formal-
-  # verification jobs — never evaluate true outside `workflow_dispatch`,
-  # so those jobs effectively never run. Re-enabling here so the
-  # schedule-driven coverage is real, not aspirational.
-  schedule:
-    - cron: '0 2 * * *'  # Tier 4: Daily at 2 AM UTC (Nightly)
-    - cron: '0 4 * * 0'  # Tier 5: Weekly at 4 AM UTC Sunday
+  # No `schedule:` block — this workflow is the push-driven correctness
+  # gate; long-running coverage sweeps live in dedicated workflows:
+  #   - .github/workflows/feature-powerset.yml — weekly `cargo hack
+  #     --feature-powerset` (formerly the Tier 5 `feature-powerset` job
+  #     here, moved out because it exceeds GitHub's 360-min default job
+  #     timeout)
+  #   - .github/workflows/fuzzing.yml — nightly + weekly fuzz coverage
+  #     (formerly `fuzz-nightly` / `fuzz-weekly` here; duplicates of
+  #     the dedicated workflow's `fuzz` / `extended-fuzz` jobs)
+  # Removing the Sunday cron also stops it from cancelling the
+  # nightly cron in the concurrency group, and stops the badge from
+  # rendering Sunday-only timeout cancellations as red.
   workflow_dispatch:
     inputs:
       tier:
@@ -35,8 +38,6 @@ on:
           - quick
           - standard
           - full
-          - nightly
-          - weekly
 
 permissions: read-all
 
@@ -82,8 +83,6 @@ jobs:
       # Dependabot github-actions bumps. Used to skip heavy build/test jobs
       # on PRs that can't affect their outcome.
       code: ${{ steps.filter.outputs.code }}
-      is_nightly: ${{ github.event.schedule == '0 2 * * *' }}
-      is_weekly: ${{ github.event.schedule == '0 4 * * 0' }}
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
@@ -754,173 +753,6 @@ jobs:
       run: cargo run -p latticearc-cli --release -- info
       shell: bash
 
-  # =============================================================================
-  # Tier 4/5 - Scheduled Tests (Nightly/Weekly)
-  # =============================================================================
-
-  # === Fuzzing - Nightly (Tier 4) ===
-  fuzz-nightly:
-    name: Fuzzing Tests (Nightly)
-    runs-on: ubuntu-latest
-    needs: [changes, quality, build]
-    # Run on nightly schedule or when manually triggered with nightly/weekly tier
-    if: needs.changes.outputs.is_nightly == 'true' || github.event.inputs.tier == 'nightly' || github.event.inputs.tier == 'weekly'
-    strategy:
-      matrix:
-        fuzz-target: ["encrypt_fuzz", "hash_data_fuzz"]
-
-    steps:
-    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      with:
-        submodules: recursive
-
-    - name: Install Rust Nightly
-      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # nightly
-      with:
-        toolchain: nightly
-
-    - name: Install cargo-fuzz
-      run: cargo install cargo-fuzz --locked
-
-    - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-      # Tolerate flaky cache-service writes (especially the Windows post-save
-      # step, which occasionally returns non-zero without a useful error and
-      # historically failed `Pipeline Status` despite all tests passing).
-      # A failed cache save is non-fatal — the next run just recompiles from
-      # scratch; it does not affect any test or build result.
-      continue-on-error: true
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-fuzz-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Run fuzz tests (5 min each for nightly)
-      run: |
-        cd fuzz
-        cargo +nightly fuzz run ${{ matrix.fuzz-target }} -- -max_total_time=300
-
-    - name: Upload crash artifacts
-      if: failure()
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      with:
-        name: fuzz-crash-nightly-${{ matrix.fuzz-target }}
-        path: fuzz/artifacts/${{ matrix.fuzz-target }}/
-
-  # === Fuzzing - Weekly Extended (Tier 5) ===
-  fuzz-weekly:
-    name: Fuzzing Tests (Weekly Extended)
-    runs-on: ubuntu-latest
-    needs: [changes, quality, build]
-    # Run only on weekly schedule
-    if: needs.changes.outputs.is_weekly == 'true' || github.event.inputs.tier == 'weekly'
-    strategy:
-      fail-fast: false
-      matrix:
-        # 7 of 9 prior matrix entries were fictional
-        # target names (decrypt_fuzz, kem_fuzz, signature_fuzz,
-        # hybrid_fuzz, kdf_fuzz, hash_fuzz, serialization_fuzz) — none
-        # declared in fuzz/Cargo.toml. They `cargo fuzz run`-failed
-        # silently every weekly run, so 90% of the advertised "weekly
-        # fuzz coverage" was theatre. Replaced with the actual target
-        # names from `fuzz/Cargo.toml`, grouped by surface for
-        # operator readability. Verify with `cargo fuzz list` before
-        # adding entries.
-        fuzz-target:
-          # AEAD / symmetric
-          - encrypt_fuzz
-          - fuzz_aes_gcm
-          - fuzz_chacha20
-          - chacha_poly_fuzz
-          # KEM
-          - hybrid_kem_fuzz
-          - fuzz_ml_kem_keygen
-          - fuzz_ml_kem_encaps
-          - fuzz_ml_kem_decaps
-          # Signatures
-          - hybrid_sign_fuzz
-          - ml_dsa_fuzz
-          - fuzz_ml_dsa_sign
-          - fuzz_ml_dsa_verify
-          - fuzz_slh_dsa_sign
-          - fuzz_fn_dsa_sign
-          - fuzz_fn_dsa_verify
-          - fuzz_ed25519
-          # Hash / MAC / KDF
-          - fuzz_sha256
-          - hash_data_fuzz
-          - fuzz_hkdf
-          - fuzz_pbkdf2
-          - fuzz_hmac_sha512
-          - hmac_fuzz
-          # Serialization / wire-format
-          - fuzz_portable_key_json
-          - fuzz_encrypted_data_deser
-          # ECDH / key agreement
-          - fuzz_x25519
-          - fuzz_ecdh_p256
-          # DoS / resource bounds
-          - fuzz_dos_alloc_bounded
-          - fuzz_random
-          # three targets declared in
-          # `fuzz/Cargo.toml` were absent from this matrix —
-          # `constant_time_fuzz` (CT discipline for a crypto library),
-          # `hybrid_encrypt_fuzz` (e2e hybrid path), and
-          # `fuzz_target_1` (libfuzzer scaffolding). Added below;
-          # the lint v3 fuzz-matrix-coverage rule now blocks future
-          # divergence between Cargo.toml and the matrix.
-          - constant_time_fuzz
-          - hybrid_encrypt_fuzz
-          - fuzz_target_1
-
-    steps:
-    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      with:
-        submodules: recursive
-
-    - name: Install Rust Nightly
-      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # nightly
-      with:
-        toolchain: nightly
-
-    - name: Install cargo-fuzz
-      run: cargo install cargo-fuzz --locked
-
-    - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-      # Tolerate flaky cache-service writes (especially the Windows post-save
-      # step, which occasionally returns non-zero without a useful error and
-      # historically failed `Pipeline Status` despite all tests passing).
-      # A failed cache save is non-fatal — the next run just recompiles from
-      # scratch; it does not affect any test or build result.
-      continue-on-error: true
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-fuzz-weekly-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Run fuzz tests (30 min each for weekly)
-      # `continue-on-error: true` rather than `|| true` so the step's
-      # actual exit code is preserved — `if: failure()` on the upload
-      # below will still fire on a crash, while the workflow as a whole
-      # remains green. The earlier `|| true` masked the exit code to 0,
-      # so the upload never ran and crashes left no signal at all.
-      continue-on-error: true
-      run: |
-        cd fuzz
-        cargo +nightly fuzz run ${{ matrix.fuzz-target }} -- -max_total_time=1800
-
-    - name: Upload crash artifacts
-      if: failure()
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      with:
-        name: fuzz-crash-weekly-${{ matrix.fuzz-target }}
-        path: fuzz/artifacts/${{ matrix.fuzz-target }}/
-
   # === Quick Fuzz Smoke Test (PRs only) ===
   fuzz-smoke:
     name: Fuzz Smoke Test
@@ -1279,51 +1111,11 @@ jobs:
     - name: Verify KAT test vector checksums
       run: ./scripts/verify-kat-checksums.sh
 
-  # === Feature Flag Powerset Check (Weekly) ===
-  feature-powerset:
-    name: Feature Flag Powerset
-    runs-on: ubuntu-latest
-    needs: [changes, quality]
-    if: needs.changes.outputs.is_weekly == 'true' || github.event.inputs.tier == 'weekly'
-    steps:
-    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      with:
-        submodules: recursive
-
-    - name: Install Rust (Edition 2024)
-      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
-
-    - name: Install cargo-hack
-      uses: taiki-e/install-action@6887963ccf37a9ddcd8c5fa4baeb3e1e5fd61fa1 # main
-      with:
-        tool: cargo-hack
-
-    - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-      # Tolerate flaky cache-service writes (especially the Windows post-save
-      # step, which occasionally returns non-zero without a useful error and
-      # historically failed `Pipeline Status` despite all tests passing).
-      # A failed cache save is non-fatal — the next run just recompiles from
-      # scratch; it does not affect any test or build result.
-      continue-on-error: true
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-feature-powerset-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Check feature powerset compiles
-      run: |
-        cargo hack check --feature-powerset --exclude-all-features \
-          --exclude-no-default-features \
-          -p latticearc
-
   # === Final Status Check ===
   status-check:
     name: Pipeline Status
     runs-on: ubuntu-latest
-    needs: [quality, msrv, semver-checks, build, test, default-debug-parity, security, regression-tests, concurrency-tests, api-stability-tests, cli-tests, fuzz-nightly, fuzz-weekly, fuzz-smoke, performance, docs, integration, security-tests, feature-powerset, kat-integrity]
+    needs: [quality, msrv, semver-checks, build, test, default-debug-parity, security, regression-tests, concurrency-tests, api-stability-tests, cli-tests, fuzz-smoke, performance, docs, integration, security-tests, kat-integrity]
     if: always()
     steps:
     - name: Check all job statuses
@@ -1368,26 +1160,16 @@ jobs:
         # mismatch — adding it here closes the actual bug; the lint rule
         # prevents recurrence.
         [[ "${{ needs.kat-integrity.result }}" == "failure" ]] && failed_jobs="$failed_jobs kat-integrity"
-        [[ "${{ needs.feature-powerset.result }}" == "failure" ]] && failed_jobs="$failed_jobs feature-powerset"
         [[ "${{ needs.performance.result }}" == "failure" ]] && failed_jobs="$failed_jobs performance"
 
-        # , corrected by fuzz-smoke
-        # is the ~30s every-PR job and MUST block merge — a live crash
-        # in encrypt_fuzz / hybrid_kem_fuzz was previously silently
-        # warned-and-merged. fuzz-nightly / fuzz-weekly remain non-
-        # blocking because they run multi-hour campaigns and their
-        # flakes shouldn't gate cryptographic-bugfix PRs that haven't
-        # yet had time to fix every old finding. (an earlier audit fixed
-        # `kem_fuzz` typo here — the an earlier audit H-5 comment named a
-        # target that didn't exist.)
+        # fuzz-smoke is the ~30s every-PR job and MUST block merge — a
+        # live crash in encrypt_fuzz / hybrid_kem_fuzz was previously
+        # silently warned-and-merged. Multi-hour nightly / weekly fuzz
+        # campaigns live in fuzzing.yml and are intentionally
+        # non-PR-blocking (their flakes shouldn't gate
+        # cryptographic-bugfix PRs that haven't yet had time to fix
+        # every old finding).
         [[ "${{ needs.fuzz-smoke.result }}" == "failure" ]] && failed_jobs="$failed_jobs fuzz-smoke"
-
-        if [[ "${{ needs.fuzz-nightly.result }}" == "failure" ]]; then
-          echo "⚠️ Warning: fuzz-nightly failed (non-blocking — see audit fix H-5 rationale)"
-        fi
-        if [[ "${{ needs.fuzz-weekly.result }}" == "failure" ]]; then
-          echo "⚠️ Warning: fuzz-weekly failed (non-blocking — see audit fix H-5 rationale)"
-        fi
 
         if [ -n "$failed_jobs" ]; then
           echo "❌ Critical jobs failed:$failed_jobs"

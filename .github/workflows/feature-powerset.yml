@@ -1,0 +1,88 @@
+# Feature Flag Powerset Check
+#
+# Runs `cargo hack --feature-powerset` over `latticearc` once a week.
+# Verifies that every combination of feature flags (excluding the
+# trivial all-on / all-off cases that the standard CI build already
+# covers) still compiles cleanly. Slow by design — combinatorial
+# expansion of the flag space takes hours.
+#
+# Originally a Tier 5 job inside `ci.yml`. Moved out for two reasons:
+#
+#   1. GitHub Actions' default per-job timeout is 360 minutes. The
+#      powerset check exceeds that on Sundays when the workspace's
+#      cold-cache build is included, so the job was being cancelled
+#      at exactly 6h — making the entire CI workflow report
+#      `cancelled` even though every push-blocking job passed
+#      independently. `timeout-minutes: 720` here gives an explicit
+#      12h budget matched to the actual job cost.
+#
+#   2. Mixing a weekly long-running coverage sweep with the
+#      push-blocking correctness gate in one workflow made the CI
+#      badge ambiguous: Sunday cancellations rendered as red even
+#      though main was green on every commit. Splitting the powerset
+#      into its own workflow lets `ci.yml`'s status reflect only the
+#      gates that block merge, and lets this workflow's status
+#      reflect only the long-running coverage check.
+#
+# Manual trigger: workflow_dispatch (for one-off verification before
+# adding a new feature flag or refactoring an existing gate).
+#
+# Not PR-blocking. Powerset failures are tracked separately; merging
+# is gated on `ci.yml`'s `Pipeline Status`.
+
+name: Feature Flag Powerset
+
+on:
+  schedule:
+    - cron: '0 4 * * 0'  # Sundays 04:00 UTC
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  feature-powerset:
+    name: Feature Flag Powerset
+    runs-on: ubuntu-latest
+    # 12h explicit budget — see header comment for the 360-min default
+    # timeout incident this workflow exists to escape.
+    timeout-minutes: 720
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        submodules: recursive
+
+    - name: Install Rust (Edition 2024)
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+    - name: Install cargo-hack
+      uses: taiki-e/install-action@6887963ccf37a9ddcd8c5fa4baeb3e1e5fd61fa1 # main
+      with:
+        tool: cargo-hack
+
+    - name: Cache Cargo registry
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Tolerate flaky cache-service writes — see the same comment in
+      # `ci.yml`. A failed cache save is non-fatal; it just costs the
+      # next run a cold rebuild.
+      continue-on-error: true
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-feature-powerset-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check feature powerset compiles
+      run: |
+        cargo hack check --feature-powerset --exclude-all-features \
+          --exclude-no-default-features \
+          -p latticearc
