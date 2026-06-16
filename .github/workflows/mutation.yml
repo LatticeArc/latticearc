@@ -72,7 +72,7 @@ jobs:
           key: ${{ runner.os }}-mutation-pr-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-mutants (prebuilt)
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # main
+        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # main
         with:
           tool: cargo-mutants
 
@@ -164,7 +164,7 @@ jobs:
           key: ${{ runner.os }}-mutation-primitives-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-mutants (prebuilt)
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # main
+        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # main
         with:
           tool: cargo-mutants
 
@@ -218,7 +218,7 @@ jobs:
           key: ${{ runner.os }}-mutation-unified-api-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-mutants (prebuilt)
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # main
+        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # main
         with:
           tool: cargo-mutants
 
@@ -272,7 +272,7 @@ jobs:
           key: ${{ runner.os }}-mutation-hybrid-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-mutants (prebuilt)
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # main
+        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # main
         with:
           tool: cargo-mutants
 
