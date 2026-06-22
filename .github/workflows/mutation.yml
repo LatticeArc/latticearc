@@ -55,7 +55,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout repository (full history for --in-diff)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -72,7 +72,7 @@ jobs:
           key: ${{ runner.os }}-mutation-pr-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-mutants (prebuilt)
-        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # main
+        uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
         with:
           tool: cargo-mutants
 
@@ -149,7 +149,7 @@ jobs:
     timeout-minutes: 240
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
@@ -164,7 +164,7 @@ jobs:
           key: ${{ runner.os }}-mutation-primitives-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-mutants (prebuilt)
-        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # main
+        uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
         with:
           tool: cargo-mutants
 
@@ -203,7 +203,7 @@ jobs:
     timeout-minutes: 240
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
@@ -218,7 +218,7 @@ jobs:
           key: ${{ runner.os }}-mutation-unified-api-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-mutants (prebuilt)
-        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # main
+        uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
         with:
           tool: cargo-mutants
 
@@ -257,7 +257,7 @@ jobs:
     timeout-minutes: 240
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
@@ -272,7 +272,7 @@ jobs:
           key: ${{ runner.os }}-mutation-hybrid-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-mutants (prebuilt)
-        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # main
+        uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
         with:
           tool: cargo-mutants
 
