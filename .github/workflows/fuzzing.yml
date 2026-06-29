@@ -96,7 +96,7 @@ jobs:
       run: cargo install cargo-fuzz --locked
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.cargo/registry
@@ -175,7 +175,7 @@ jobs:
       run: cargo install cargo-fuzz --locked
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.cargo/registry
@@ -238,12 +238,12 @@ jobs:
       run: cargo install cargo-fuzz --locked
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
+      uses: taiki-e/install-action@9bcaee1dcae34154180f412e2fa69355a7cda9f6 # main
       with:
         tool: cargo-llvm-cov
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.cargo/registry

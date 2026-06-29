@@ -30,7 +30,7 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Install cargo-audit
         # Pinned: see ci.yml security-tools install rationale.
-        uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
+        uses: taiki-e/install-action@9bcaee1dcae34154180f412e2fa69355a7cda9f6 # main
         with:
           tool: cargo-audit@0.22.1
       - name: Security audit
@@ -181,7 +181,7 @@ jobs:
         # the correct semantic now that the downstream sign step refuses
         # placeholder SBOMs: a tool-install failure should abort the
         # release here rather than continue and fail at signing.
-        uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
+        uses: taiki-e/install-action@9bcaee1dcae34154180f412e2fa69355a7cda9f6 # main
         with:
           tool: cargo-sbom@0.10.0,cargo-cyclonedx@0.5.9
       - name: Generate SBOM (SPDX)
@@ -280,7 +280,7 @@ jobs:
       # Go is required for aws-lc-fips-sys FIPS builds
       - name: Install Go (macOS)
         if: runner.os == 'macOS'
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
         with:
           go-version: 'stable'
           cache: false
