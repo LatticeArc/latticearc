@@ -86,7 +86,7 @@ jobs:
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-    - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+    - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
       id: filter
       with:
         filters: |
@@ -135,7 +135,7 @@ jobs:
         echo "OpenTelemetry tracing enabled for CI quality checks"
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -231,7 +231,7 @@ jobs:
         toolchain: "1.93"
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -313,7 +313,7 @@ jobs:
         targets: ${{ matrix.target }}
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -329,7 +329,7 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
       with:
         go-version: '1.22'
 
@@ -366,7 +366,7 @@ jobs:
       # behaviour between identical source revisions. Bump intentionally.
       # Uses taiki-e/install-action (prebuilt binaries) to match the
       # cargo-llvm-cov pinning pattern earlier in this file.
-      uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
+      uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # main
       with:
         tool: cargo-audit@0.22.1,cargo-deny@0.19.6
 
@@ -427,7 +427,7 @@ jobs:
         toolchain: stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -519,12 +519,12 @@ jobs:
 
     - name: Install cargo-llvm-cov
       if: matrix.features.coverage
-      uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # main
+      uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # main
       with:
         tool: cargo-llvm-cov
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -595,7 +595,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -639,7 +639,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -677,7 +677,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -727,12 +727,12 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
       with:
         go-version: 'stable'
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -774,7 +774,7 @@ jobs:
       run: cargo install cargo-fuzz --locked
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -838,7 +838,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -904,7 +904,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -978,12 +978,12 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
       with:
         go-version: 'stable'
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -1023,7 +1023,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       # Tolerate flaky cache-service writes (especially the Windows post-save
       # step, which occasionally returns non-zero without a useful error and
       # historically failed `Pipeline Status` despite all tests passing).
@@ -1079,7 +1079,7 @@ jobs:
     # Go is required for aws-lc-fips-sys FIPS builds
     - name: Install Go (macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
       with:
         go-version: 'stable'
         cache: false
