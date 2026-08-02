@@ -3,7 +3,7 @@
     sk_bytes: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>],
     pk_path: &amp;<a class="struct" href="https://doc.rust-lang.org/1.93.1/std/path/struct.Path.html" title="struct std::path::Path">Path</a>,
     args: &amp;<a class="struct" href="struct.SignArgs.html" title="struct latticearc_cli::commands::sign::SignArgs">SignArgs</a>,
-) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.102/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.unit.html">()</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Sign using the library’s unified <code>sign_with_key()</code> API.</p>
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.104/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.unit.html">()</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Sign using the library’s unified <code>sign_with_key()</code> API.</p>
 <p>Produces a <code>SignedData</code> envelope (scheme + timestamp + public key + signature)
 that can be verified by the library’s <code>verify()</code> function directly.</p>
 <p>When the caller hasn’t passed <code>--use-case</code> / <code>--security-level</code>, the

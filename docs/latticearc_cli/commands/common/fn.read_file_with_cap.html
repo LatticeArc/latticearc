@@ -2,7 +2,7 @@
     path: &amp;<a class="struct" href="https://doc.rust-lang.org/1.93.1/std/path/struct.Path.html" title="struct std::path::Path">Path</a>,
     limit_bytes: <a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u64.html">u64</a>,
     operation: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.str.html">str</a>,
-) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.102/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.93.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>&gt;&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>read a file with a hard size cap by opening
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.104/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.93.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>&gt;&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>read a file with a hard size cap by opening
 once and using a <code>Take</code> adapter. A previous stat-then-open shape
 (<code>metadata().len()</code> + <code>std::fs::read</code>) was unsafe because
 <code>metadata().len()</code> returns 0 for <code>/dev/zero</code>, FIFOs, <code>/proc/*</code>,
