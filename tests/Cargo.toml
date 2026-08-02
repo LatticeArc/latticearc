@@ -72,15 +72,12 @@ tracing = { workspace = true }
 #
 # `aes-gcm` IS used directly by `tests/src/validation/cavp/tests.rs`
 # (CAVP vector cross-validation against the bare RustCrypto AES-GCM
-# impl). Keeping `aes-gcm 0.10`
-# here splits the workspace into two `aes` major versions (0.8 transitively
-# from `aes-gcm 0.10`, vs 0.9 used directly by `latticearc`). The split
-# is contained — tests don't touch library cipher internals — and
-# `aes-gcm 0.11` is not yet on crates.io. Revisit when `aes-gcm` cuts a
-# 0.11 release that aligns with `aes 0.9+`. Exact-pin is intentional;
-# do not relax to a caret range without re-checking the workspace
-# `aes` major-version split.
-aes-gcm = "=0.10.3"
+# impl). `aes-gcm 0.11` depends on `aes ^0.9` / `ctr ^0.10`, matching the
+# versions `latticearc` pins directly, so the workspace resolves a single
+# `aes` and `ctr` major — the 0.8/0.9 and 0.9/0.10 splits that the 0.10
+# line forced are gone. Exact-pin is intentional; do not relax to a caret
+# range without re-checking the workspace `aes` major-version split.
+aes-gcm = "=0.11.0"
 hkdf = { workspace = true }
 libm = "0.2.8"
 fips203 = { version = "=0.4.3", registry = "crates-io" }
@@ -119,14 +116,16 @@ pqcrypto-traits = "0.3"
 # to the dudect example binary.
 dudect-bencher = "0.7"
 
-# Linux-only dev-deps. `crabgrind 0.2` ships a build.rs that compiles a
+# Linux-only dev-deps. `crabgrind` ships a build.rs that compiles a
 # small C stub referencing `<valgrind/valgrind.h>`, which does not exist
 # on Windows/macOS. The ctgrind harness only runs on the Linux-only
 # `ctgrind.yml` workflow anyway, so gating the dep on `cfg(target_os =
 # "linux")` is the right scope. `tests/examples/ctgrind_ct.rs` has a
 # matching `#[cfg(target_os = "linux")]` guard on its harness module.
+# Because of that gate, a non-Linux `cargo check` cannot compile this dep —
+# `ctgrind.yml` is the first place a breaking bump would surface.
 [target.'cfg(target_os = "linux")'.dev-dependencies]
-crabgrind = "0.2"
+crabgrind = "0.3"
 
 [lib]
 path = "src/lib.rs"

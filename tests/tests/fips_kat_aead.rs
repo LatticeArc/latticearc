@@ -1558,12 +1558,13 @@ mod chacha20_poly1305 {
 
             // Create cipher
             let key_array: [u8; 32] = key.clone().try_into().expect("key is 32 bytes");
+            let nonce_array: [u8; 12] = nonce.clone().try_into().expect("nonce is 12 bytes");
             let cipher = ChaCha20Poly1305::new(&key_array.into());
 
             // Test encryption
             let payload = Payload { msg: &plaintext, aad: &aad };
             let ciphertext_with_tag =
-                cipher.encrypt((&nonce[..]).into(), payload).expect("encryption should succeed");
+                cipher.encrypt((&nonce_array).into(), payload).expect("encryption should succeed");
 
             // Verify ciphertext
             let (ct_part, tag_part) = ciphertext_with_tag.split_at(expected_ciphertext.len());
@@ -1582,12 +1583,13 @@ mod chacha20_poly1305 {
                 let expected_tag = decode_hex(vector.expected_tag).unwrap();
 
                 let key_array: [u8; 32] = key.try_into().expect("key is 32 bytes");
+                let nonce_array: [u8; 12] = nonce.try_into().expect("nonce is 12 bytes");
                 let cipher = ChaCha20Poly1305::new(&key_array.into());
 
                 // Test encryption
                 let payload = Payload { msg: &plaintext, aad: &aad };
                 let ciphertext_with_tag = cipher
-                    .encrypt((&nonce[..]).into(), payload)
+                    .encrypt((&nonce_array).into(), payload)
                     .expect("encryption should succeed");
 
                 let (ct_part, tag_part) = ciphertext_with_tag.split_at(expected_ciphertext.len());
@@ -1607,7 +1609,7 @@ mod chacha20_poly1305 {
                 // Test decryption
                 let payload_dec = Payload { msg: &ciphertext_with_tag, aad: &aad };
                 let decrypted = cipher
-                    .decrypt((&nonce[..]).into(), payload_dec)
+                    .decrypt((&nonce_array).into(), payload_dec)
                     .expect("decryption should succeed");
 
                 assert_eq!(
@@ -2349,10 +2351,11 @@ mod chacha20_poly1305 {
             let plaintext = decode_hex(vector.plaintext).unwrap();
 
             let key_array: [u8; 32] = key.try_into().expect("key is 32 bytes");
+            let nonce_array: [u8; 12] = nonce.try_into().expect("nonce is 12 bytes");
             let cipher = ChaCha20Poly1305::new(&key_array.into());
 
             let ciphertext = cipher
-                .encrypt((&nonce[..]).into(), Payload { msg: &plaintext, aad: &aad })
+                .encrypt((&nonce_array).into(), Payload { msg: &plaintext, aad: &aad })
                 .expect("encryption should succeed");
 
             // The ciphertext length should be plaintext + tag
@@ -2441,10 +2444,11 @@ mod chacha20_poly1305 {
             let expected_tag = decode_hex("1ae10b594f09e26a7e902ecbd0600691").unwrap();
 
             let key_array: [u8; 32] = key.try_into().expect("key is 32 bytes");
+            let nonce_array: [u8; 12] = nonce.try_into().expect("nonce is 12 bytes");
             let cipher = ChaCha20Poly1305::new(&key_array.into());
 
             let ciphertext_with_tag = cipher
-                .encrypt((&nonce[..]).into(), Payload { msg: &plaintext, aad: &aad })
+                .encrypt((&nonce_array).into(), Payload { msg: &plaintext, aad: &aad })
                 .expect("encryption should succeed");
 
             let (ct_part, tag_part) = ciphertext_with_tag.split_at(expected_ciphertext.len());
@@ -2483,10 +2487,11 @@ mod chacha20_poly1305 {
             let expected_tag = decode_hex(vector.expected_tag).unwrap();
 
             let key_array: [u8; 32] = key.try_into().expect("key is 32 bytes");
+            let nonce_array: [u8; 12] = nonce.try_into().expect("nonce is 12 bytes");
             let cipher = ChaCha20Poly1305::new(&key_array.into());
 
             let ciphertext_with_tag = cipher
-                .encrypt((&nonce[..]).into(), Payload { msg: &plaintext, aad: &aad })
+                .encrypt((&nonce_array).into(), Payload { msg: &plaintext, aad: &aad })
                 .expect("encryption should succeed");
 
             let (ct_part, tag_part) = ciphertext_with_tag.split_at(expected_ciphertext.len());

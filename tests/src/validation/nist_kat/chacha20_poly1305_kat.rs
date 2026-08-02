@@ -70,13 +70,16 @@ fn run_chacha20_poly1305_test(vector: &ChaCha20Poly1305TestVector) -> Result<(),
     let key_array: [u8; 32] = key
         .try_into()
         .map_err(|_err| NistKatError::ImplementationError("Invalid key length".to_string()))?;
+    let nonce_array: [u8; 12] = nonce
+        .try_into()
+        .map_err(|_err| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
     let cipher = ChaCha20Poly1305::new(&key_array.into());
 
     // Test encryption
     let payload = Payload { msg: &plaintext, aad: &aad };
 
     let ciphertext_with_tag = cipher
-        .encrypt((&nonce[..]).into(), payload)
+        .encrypt((&nonce_array).into(), payload)
         .map_err(|e| NistKatError::ImplementationError(format!("Encryption failed: {:?}", e)))?;
 
     // Verify ciphertext and tag
@@ -122,7 +125,7 @@ fn run_chacha20_poly1305_test(vector: &ChaCha20Poly1305TestVector) -> Result<(),
     let payload_dec = Payload { msg: &ciphertext_with_tag, aad: &aad };
 
     let decrypted = cipher
-        .decrypt((&nonce[..]).into(), payload_dec)
+        .decrypt((&nonce_array).into(), payload_dec)
         .map_err(|e| NistKatError::ImplementationError(format!("Decryption failed: {:?}", e)))?;
 
     if decrypted != plaintext {
@@ -252,10 +255,11 @@ mod tests {
         let plaintext = decode_hex("48656c6c6f").expect("valid hex"); // "Hello"
 
         let key_array: [u8; 32] = key.try_into().expect("key is 32 bytes");
+        let nonce_array: [u8; 12] = nonce.try_into().expect("nonce is 12 bytes");
         let cipher = ChaCha20Poly1305::new(&key_array.into());
 
         let ciphertext_with_tag = cipher
-            .encrypt((&nonce[..]).into(), Payload { msg: &plaintext, aad: &aad })
+            .encrypt((&nonce_array).into(), Payload { msg: &plaintext, aad: &aad })
             .expect("encryption should succeed");
 
         // Extract the correct ciphertext (first 5 bytes) but use wrong tag
@@ -451,10 +455,11 @@ mod tests {
         let plaintext = decode_hex("48656c6c6f").expect("valid hex");
 
         let key_array: [u8; 32] = key.try_into().expect("key is 32 bytes");
+        let nonce_array: [u8; 12] = nonce.try_into().expect("nonce is 12 bytes");
         let cipher = ChaCha20Poly1305::new(&key_array.into());
 
         let ciphertext_with_tag = cipher
-            .encrypt((&nonce[..]).into(), Payload { msg: &plaintext, aad: &aad })
+            .encrypt((&nonce_array).into(), Payload { msg: &plaintext, aad: &aad })
             .expect("encryption should succeed");
 
         let _ct_hex = hex::encode(&ciphertext_with_tag[..5]);

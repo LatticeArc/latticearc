@@ -309,6 +309,14 @@ mod tests {
                     }
                 };
 
+                let nonce_array: [u8; 12] = match nonce.try_into() {
+                    Ok(n) => n,
+                    Err(_) => {
+                        results.add_skip();
+                        continue;
+                    }
+                };
+
                 let cipher = ChaCha20Poly1305::new(&key_array.into());
 
                 // Combine ciphertext and tag for decryption
@@ -316,7 +324,7 @@ mod tests {
                 ct_with_tag.extend_from_slice(tag);
 
                 let decrypt_result =
-                    cipher.decrypt(nonce.into(), Payload { msg: &ct_with_tag, aad });
+                    cipher.decrypt((&nonce_array).into(), Payload { msg: &ct_with_tag, aad });
 
                 match test.result {
                     TestResult::Valid => {

@@ -108,6 +108,7 @@ mod tests {
 
         // Nonce (96-bit)
         let nonce = hex::decode("070000004041424344454647").expect("hex decode");
+        let nonce_array: [u8; 12] = nonce.try_into().expect("nonce length");
 
         // AAD
         let aad = hex::decode("50515253c0c1c2c3c4c5c6c7").expect("hex decode");
@@ -126,7 +127,7 @@ mod tests {
 
         // Encrypt
         let ciphertext_result =
-            cipher.encrypt((&nonce[..]).into(), Payload { msg: plaintext, aad: &aad });
+            cipher.encrypt((&nonce_array).into(), Payload { msg: plaintext, aad: &aad });
 
         match ciphertext_result {
             Ok(ct) => {
@@ -158,7 +159,7 @@ mod tests {
         ct_with_tag.extend_from_slice(&expected_tag);
 
         let decrypt_result =
-            cipher.decrypt((&nonce[..]).into(), Payload { msg: &ct_with_tag, aad: &aad });
+            cipher.decrypt((&nonce_array).into(), Payload { msg: &ct_with_tag, aad: &aad });
 
         match decrypt_result {
             Ok(pt) => {

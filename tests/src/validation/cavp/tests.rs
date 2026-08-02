@@ -260,7 +260,7 @@ mod cavp_validation_tests {
 
     #[test]
     fn test_aes_256_gcm_cavp_vectors_match_expected_ciphertext_matches_expected() {
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
+        use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
 
         // Test only the first few well-verified NIST vectors (without AAD)
         for (i, vector) in AES_256_GCM_VECTORS.iter().take(2).enumerate() {
@@ -280,12 +280,11 @@ mod cavp_validation_tests {
             let nonce_array: [u8; 12] = nonce.as_slice().try_into().unwrap();
 
             let cipher = Aes256Gcm::new_from_slice(&key_array).unwrap();
-            let nonce = Nonce::from_slice(&nonce_array);
 
             // For AES-GCM with AAD, we need to use the encrypt_in_place method
             // or construct the payload properly
             if aad.is_empty() {
-                let result = cipher.encrypt(nonce, plaintext.as_ref());
+                let result = cipher.encrypt((&nonce_array).into(), plaintext.as_ref());
 
                 if let Ok(ciphertext_with_tag) = result {
                     // The result includes both ciphertext and tag
@@ -312,7 +311,7 @@ mod cavp_validation_tests {
 
     #[test]
     fn test_aes_128_gcm_cavp_vectors_match_expected_ciphertext_matches_expected() {
-        use aes_gcm::{Aes128Gcm, KeyInit, Nonce, aead::Aead};
+        use aes_gcm::{Aes128Gcm, KeyInit, aead::Aead};
 
         // Test only the first few well-verified NIST vectors (without AAD)
         for (i, vector) in AES_128_GCM_VECTORS.iter().take(2).enumerate() {
@@ -332,10 +331,9 @@ mod cavp_validation_tests {
             let nonce_array: [u8; 12] = nonce.as_slice().try_into().unwrap();
 
             let cipher = Aes128Gcm::new_from_slice(&key_array).unwrap();
-            let nonce = Nonce::from_slice(&nonce_array);
 
             if aad.is_empty() {
-                let result = cipher.encrypt(nonce, plaintext.as_ref());
+                let result = cipher.encrypt((&nonce_array).into(), plaintext.as_ref());
 
                 if let Ok(ciphertext_with_tag) = result {
                     let ct_len = ciphertext_with_tag.len().saturating_sub(16);
@@ -378,7 +376,7 @@ mod cavp_validation_tests {
 
     #[test]
     fn test_chacha20_poly1305_cavp_vectors_encrypt_succeeds() {
-        use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce, aead::Aead};
+        use chacha20poly1305::{ChaCha20Poly1305, KeyInit, aead::Aead};
 
         // Note: RFC 8439 vectors 0 and 1 have AAD, so we skip the assertion test
         // for them and only validate that encryption produces some output.
@@ -398,12 +396,11 @@ mod cavp_validation_tests {
             let nonce_array: [u8; 12] = nonce.as_slice().try_into().unwrap();
 
             let cipher = ChaCha20Poly1305::new_from_slice(&key_array).unwrap();
-            let nonce = Nonce::from_slice(&nonce_array);
 
             // Only test vectors without AAD for the basic test
             // (vectors with AAD require the Payload API)
             if aad.is_empty() {
-                let result = cipher.encrypt(nonce, plaintext.as_ref());
+                let result = cipher.encrypt((&nonce_array).into(), plaintext.as_ref());
                 // Just verify encryption succeeds without panic
                 assert!(
                     result.is_ok(),

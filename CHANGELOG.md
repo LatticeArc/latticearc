@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Dependency refresh.** Workspace-wide update to current compatible
+  versions, including `aws-lc-rs` 1.17.0 → 1.17.3 (`aws-lc-sys` 0.41.0 →
+  0.43.0, `aws-lc-fips-sys` 0.13.14 → 0.13.16), `tokio` → 1.53.1, `rustls`
+  0.23.40 → 0.23.43, `serde` → 1.0.229, `clap` → 4.6.5, `http` → 1.5.0 and
+  `time` → 0.3.55, plus their transitive dependencies.
+- **AEAD crates moved to the `aead 0.6` / `cipher 0.5` generation:**
+  `chacha20poly1305` 0.10.1 → 0.11.0 and `aes-gcm` (dev-only, used for CAVP
+  cross-validation) `=0.10.3` → `=0.11.0`, alongside `aes` `=0.9.1` →
+  `=0.9.2`. This collapses five crates that the old AEAD line had pinned open
+  at two major versions each — `aes` (0.8 + 0.9 → 0.9), `ctr` (0.9 + 0.10 →
+  0.10), `chacha20` (0.9 + 0.10 → 0.10), `cipher` (0.4 + 0.5 → 0.5) and
+  `inout` (0.1 + 0.2 → 0.2). Library AEAD behaviour is unchanged; production
+  AES-GCM continues to come from `aws-lc-rs`.
+- `base64` 0.22.1 → 0.23.0; `crabgrind` (Linux-only dev-dep for the ctgrind
+  harness) 0.2 → 0.3.
+- KAT/CAVP validation code now builds its AEAD nonces from fixed-size arrays.
+  `aead 0.6` removed `Nonce::from_slice` and the `&[u8] -> &Array` conversion,
+  so slices are converted explicitly and length mismatches are surfaced
+  through the existing skip/error paths rather than silently.
+
+### Notes
+
+- `sha3` is held at `=0.11.0`. Version 0.12 removes the XOF surface entirely
+  (`Shake128`/`Shake256` and their reader types), which the C2SP CCTV ML-KEM
+  accumulated vectors depend on, and ships no in-crate replacement.
+- The elliptic-curve group (`elliptic-curve`, `ecdsa`, `k256`, `p384`,
+  `p256`) and the dalek crates are held one major back as a unit. Their next
+  versions require `rand_core 0.10`, which is traits-only and no longer
+  provides an OS-backed RNG, so moving them requires migrating the workspace
+  `rand` stack from 0.9 to 0.10 — a change to the RNG feeding ECDSA key
+  generation that warrants its own FIPS/CAVP re-validation.
+- `fips204` 0.4.6 and `fips205` 0.4.1 remain the newest published versions and
+  still require `sha2 0.10` / `sha3 0.10` / `rand_core 0.6`, so the two
+  RustCrypto generations in the graph cannot be unified at present.
+
+---
+
 ## [0.9.1] — 2026-06-06
 
 Additive, non-breaking. Adds an ECDSA over NIST P-384 (FIPS 186-4) convenience
