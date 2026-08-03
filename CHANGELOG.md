@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **FIPS power-up integrity test no longer aborts under cargo's new build-dir
+  layout.** `path_looks_like_latticearc_module` required the running binary's
+  parent directory to be literally `deps`. Cargo's build-dir layout v2
+  (default on nightly since 2026-07-24, stabilized for 1.99.0) moves unit-test
+  binaries from `target/<triple>/<profile>/deps/<crate>-<hash>` to
+  `target/<triple>/<profile>/build/<pkg>/<hash>/out/<crate>-<hash>`, so every
+  test binary was rejected as "not a LatticeArc module". That failed the
+  integrity test, failed the power-up self-test, and hit FIPS 140-3 §9.1's
+  `process::abort()` — SIGABRT-ing the whole test runner before any result was
+  reported. Observed on the weekly ASan/TSan/LSan jobs, which are the only
+  ones on nightly; it would have reached every `cargo test` on Rust 1.99.0.
+
+  The check now matches on the two properties cargo does *not* document as
+  internal and subject to change — the `<crate-name>-<16-hex>` file-name shape
+  and containment under a `target` ancestor — instead of pinning an
+  intermediate directory name that the next layout revision can move again.
+  Host-interpreter paths (the case the helper exists to catch) are still
+  rejected, and module authenticity is still established by HMAC, not by path.
+
 ### Changed
 
 - **Dependency refresh.** Workspace-wide update to current compatible

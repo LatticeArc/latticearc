@@ -238,9 +238,20 @@ print_split_counts() {
 #
 # On success the log is deleted; on failure it is preserved so the operator
 # can inspect what cargo printed (the failure path itself echoes the path).
+#
+# The `XXXXXX` MUST stay at the END of the template. BSD `mktemp` (macOS,
+# where this hook actually runs) only substitutes a trailing run of `X`s;
+# given `...XXXXXX.log` it does not expand anything and instead tries to
+# create a file named literally `pre-commit-test-output.XXXXXX.log`. That
+# succeeded once, and because the log is deliberately PRESERVED on failure,
+# every subsequent commit then died at
+#     mktemp: mkstemp failed on .../pre-commit-test-output.XXXXXX.log: File exists
+# before running a single test — i.e. one failed commit bricked all later
+# commits until someone manually deleted the file. Do not "tidy" the suffix
+# back to the middle of the template.
 TEST_LOG_DIR="${LATTICEARC_HOOK_TMPDIR:-/tmp}"
 mkdir -p "$TEST_LOG_DIR"
-TEST_LOG=$(mktemp "$TEST_LOG_DIR/pre-commit-test-output.XXXXXX.log")
+TEST_LOG=$(mktemp "$TEST_LOG_DIR/pre-commit-test-output.log.XXXXXX")
 HOOK_OK=false
 cleanup_test_log() {
     if [ "$HOOK_OK" = true ]; then

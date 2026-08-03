@@ -6,23 +6,36 @@
 # covers) still compiles cleanly. Slow by design — combinatorial
 # expansion of the flag space takes hours.
 #
-# Originally a Tier 5 job inside `ci.yml`. Moved out for two reasons:
+# Originally a Tier 5 job inside `ci.yml`. Moved out because mixing a
+# weekly long-running sweep with the push-blocking correctness gate made
+# the CI badge ambiguous: Sunday cancellations rendered as red even
+# though main was green on every commit. Splitting the powerset into its
+# own workflow lets `ci.yml`'s status reflect only the gates that block
+# merge.
 #
-#   1. GitHub Actions' default per-job timeout is 360 minutes. The
-#      powerset check exceeds that on Sundays when the workspace's
-#      cold-cache build is included, so the job was being cancelled
-#      at exactly 6h — making the entire CI workflow report
-#      `cancelled` even though every push-blocking job passed
-#      independently. `timeout-minutes: 720` here gives an explicit
-#      12h budget matched to the actual job cost.
+# The 6-hour cap, and why `timeout-minutes` does not lift it
+# ---------------------------------------------------------
+# This workflow previously carried `timeout-minutes: 720` on the theory
+# that it bought a 12h budget. It does not. Six hours is a hard GitHub
+# limit on job execution time for hosted runners; `timeout-minutes` can
+# only lower it, never raise it. The job consequently hit the cap and
+# was killed at exactly 6h00m on every single scheduled run from at
+# least 2026-06-28 through 2026-08-02 — and because the cap terminates a
+# job as `cancelled` rather than `failure`, the workflow never went red
+# and the silent breakage went unnoticed for months. The powerset check
+# provided zero coverage over that entire window.
 #
-#   2. Mixing a weekly long-running coverage sweep with the
-#      push-blocking correctness gate in one workflow made the CI
-#      badge ambiguous: Sunday cancellations rendered as red even
-#      though main was green on every commit. Splitting the powerset
-#      into its own workflow lets `ci.yml`'s status reflect only the
-#      gates that block merge, and lets this workflow's status
-#      reflect only the long-running coverage check.
+# Two changes keep that from recurring:
+#
+#   1. The 5119-combination sweep is sharded across the 8 jobs of the
+#      `partition` matrix via `cargo hack --partition M/8`, so each shard
+#      runs ~640 combinations and finishes well inside the cap.
+#
+#   2. `timeout-minutes` is set BELOW the cap, so a shard that overruns
+#      is killed by us as a visible `failure` instead of by GitHub as a
+#      silent `cancelled`. If a shard starts timing out, raise the
+#      partition count — do not raise `timeout-minutes` past 360, which
+#      would just restore the silent-cancellation behaviour.
 #
 # Manual trigger: workflow_dispatch (for one-off verification before
 # adding a new feature flag or refactoring an existing gate).
@@ -50,11 +63,16 @@ env:
 
 jobs:
   feature-powerset:
-    name: Feature Flag Powerset
+    name: Feature Flag Powerset (${{ matrix.partition }}/8)
     runs-on: ubuntu-latest
-    # 12h explicit budget — see header comment for the 360-min default
-    # timeout incident this workflow exists to escape.
-    timeout-minutes: 720
+    # Deliberately below GitHub's hard 6h (360 min) cap so an overrun
+    # surfaces as `failure`, not a silent `cancelled`. See header.
+    timeout-minutes: 300
+    strategy:
+      # One shard failing must not hide the results of the other seven.
+      fail-fast: false
+      matrix:
+        partition: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -79,10 +97,26 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-feature-powerset-cargo-${{ hashFiles('**/Cargo.lock') }}
+        # Keyed per shard: eight jobs sharing one key would race on save
+        # and thrash a single entry. `restore-keys` lets a new shard warm
+        # from any sibling's registry rather than starting fully cold.
+        key: ${{ runner.os }}-feature-powerset-${{ matrix.partition }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-feature-powerset-${{ matrix.partition }}-cargo-
+          ${{ runner.os }}-feature-powerset-
 
     - name: Check feature powerset compiles
+      # 5119 combinations total, so ~640 per shard. `--partition M/N`
+      # assigns each run to exactly one shard (contiguous, disjoint
+      # blocks of `ceil(total/N)`), so the eight shards cover the sweep
+      # exactly once between them. Raise the matrix size (here and in
+      # the job `name`) if a shard approaches `timeout-minutes` — never
+      # raise the timeout past 360, which reinstates the silent 6h
+      # cancellation.
       run: |
         cargo hack check --feature-powerset --exclude-all-features \
           --exclude-no-default-features \
+          --partition "${PARTITION}/8" \
           -p latticearc
+      env:
+        PARTITION: ${{ matrix.partition }}
