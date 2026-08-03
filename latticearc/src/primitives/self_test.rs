@@ -1764,9 +1764,11 @@ pub fn kat_fn_dsa() -> Result<()> {
 ///   * the platform-specific shared library (`liblatticearc.so` /
 ///     `liblatticearc.dylib` / `latticearc.dll`)
 ///   * the LatticeArc CLI binary (`latticearc-cli` / `latticearc-cli.exe`)
-///   * any other binary whose file name contains `latticearc` (covers
-///     statically-linked downstream binaries that have re-exported the
-///     name into their own image).
+///   * any cargo-generated `<crate-name>-<16-hex>` binary under a
+///     `target` directory. The crate-name prefix is intentionally
+///     unconstrained: integration tests across the workspace produce
+///     binaries named after the test file, not after `latticearc`, and
+///     they all statically link this crate.
 ///
 /// Anything else is treated as an unverifiable host process and the
 /// integrity test refuses to HMAC it.
@@ -1815,45 +1817,54 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
     if exact_names.iter().any(|n| lower == *n) {
         return true;
     }
-    // Accept any cargo-test binary under a `…/target/**/deps/` path
-    // (no hardcoded profile name, but bounded nesting depth). An exact
-    // `target/<profile>/deps/` allowlist would reject:
-    //   * custom profiles (`[profile.valgrind]`, `[profile.release-validation]`)
-    //   * `cargo llvm-cov`'s nested `target/llvm-cov-target/release/deps/`
-    //   * any future tool that scopes its target dir under `target/`
-    // — and the resulting `path_looks_like` rejection would fail the
-    // integrity test, abort the FIPS POST, and SIGABRT the process.
+    // Accept any cargo-generated test binary that sits under a `target`
+    // ancestor. Deliberately does NOT pin the directory that immediately
+    // contains the binary.
     //
-    // Security note: walking the parent chain for `target` is safe
-    // even at this fuzzier shape because the integrity-test threat
-    // model rejects adversary-injected binaries by HMAC mismatch, not
-    // by path. The profile-name and any tool-specific nesting are
-    // just where the build system chose to put the artifact; an
-    // attacker who can write into `target/<arbitrary>/../deps/` can
-    // already write into `target/release/deps/` too.
+    // Cargo documents the build-dir layout as "internal to Cargo, and
+    // subject to change", and it does change: build-dir layout v2
+    // (rust-lang/cargo#17258, default on nightly from 2026-07-24, and
+    // stabilized for 1.99.0 by rust-lang/cargo#16807) moved unit-test
+    // binaries out of
+    //     target/<triple>/<profile>/deps/<crate>-<hash>
+    // and into
+    //     target/<triple>/<profile>/build/<pkg>/<hash>/out/<crate>-<hash>
+    // A check that required the parent to be `deps` rejected every test
+    // binary the moment that landed, which failed the integrity test,
+    // aborted the FIPS POST, and SIGABRT'd the whole test runner.
     //
-    // Hop bound: the deepest known cargo-tooling layout is
-    // `target/llvm-cov-target/<profile>/deps/binary` — exactly 3 hops
-    // from `deps`'s parent (`<profile>` → `llvm-cov-target` → `target`).
-    // The plain `target/<profile>/deps/binary` shape is 2 hops. Bound
-    // at 3 hops: covers every known cargo, llvm-cov, and custom-
-    // profile layout while rejecting deeper Bazel-style or pathological
-    // CI paths like `/builds/foo/target/cache/x/y/deps/`.
-    let parent_ok = path.parent().and_then(|p| {
-        if p.file_name().and_then(|n| n.to_str()) != Some("deps") {
-            return None;
-        }
+    // So the shape we match on is the one cargo does NOT reserve the
+    // right to reshuffle: the `<crate-name>-<16-hex>` file name (checked
+    // below) plus containment under `target`. Pinning any intermediate
+    // directory name re-creates the same outage on the next layout
+    // revision.
+    //
+    // Security note: this is a "did we find our own artifact, or the host
+    // interpreter that dlopen'd us" check, NOT the tamper gate — an
+    // adversary-injected binary is rejected by HMAC mismatch, not by
+    // path. Which subdirectory of `target/` the build system chose is
+    // not a security property: an attacker who can write into
+    // `target/<anything>/` can write into `target/release/deps/` too.
+    //
+    // Hop bound: the deepest known layout is a nested tool target dir
+    // plus an explicit `--target <triple>` under layout v2 —
+    // `target/llvm-cov-target/<triple>/<profile>/build/<pkg>/<hash>/out/`
+    // — 8 hops from the binary's parent. Bounded at 12 rather than 8:
+    // the bound exists only to stop the walk wandering to the filesystem
+    // root, it is not a trust boundary, and sizing it flush against the
+    // deepest layout known today is exactly the brittleness that caused
+    // the layout-v2 outage. The margin costs nothing.
+    const MAX_TARGET_ANCESTOR_HOPS: usize = 12;
+    let under_target = path.parent().is_some_and(|p| {
         p.ancestors()
-            .skip(1)
-            .take(3)
+            .take(MAX_TARGET_ANCESTOR_HOPS)
             .any(|a| a.file_name().and_then(|n| n.to_str()) == Some("target"))
-            .then_some(())
     });
-    if parent_ok.is_some() {
+    if under_target {
         // Strip `.exe` if present, then split on the LAST `-` to get
-        // crate-name vs hex-suffix. Accept any 16-hex-suffix file in
-        // `target/{debug,release}/deps/` — see the comment above for
-        // why the crate-name prefix is not constrained further.
+        // crate-name vs hex-suffix. Accept any 16-hex-suffix file under
+        // `target/` — see the comment above for why neither the
+        // crate-name prefix nor the containing directory is constrained.
         let stem = lower.strip_suffix(".exe").unwrap_or(&lower);
         if let Some((_crate_name, suffix)) = stem.rsplit_once('-')
             && suffix.len() == 16
@@ -2533,22 +2544,41 @@ mod tests {
             );
         }
 
-        // Cargo-test deps shapes within the bounded ancestor walk.
-        // Layouts at depth >3 (more than `target/../<profile>/deps/`)
-        // are intentionally NOT accepted — see the rejection test below.
+        // Cargo-generated `<crate>-<16-hex>` binaries under `target`.
+        // The containing directory is deliberately not pinned: cargo
+        // treats the build-dir layout as internal and has already moved
+        // these binaries once (layout v1 `deps/` -> layout v2
+        // `build/<pkg>/<hash>/out/`).
         for path in [
-            // Standard `target/<profile>/deps/` (2 hops to target).
+            // Layout v1: standard `target/<profile>/deps/`.
             "/work/repo/target/release/deps/latticearc-0123456789abcdef",
             "/work/repo/target/debug/deps/audit_regression_signatures-fedcba9876543210",
-            // Custom profile (e.g. `[profile.valgrind]`) — still 2 hops.
+            // Layout v1 with an explicit `--target <triple>`.
+            "/work/repo/target/x86_64-unknown-linux-gnu/debug/deps/latticearc-53a673efabc83b87",
+            // Custom profile (e.g. `[profile.valgrind]`).
             "/work/repo/target/valgrind/deps/latticearc-0123456789abcdef",
-            // `cargo llvm-cov` nested target dir — 3 hops (the deepest
-            // known legitimate cargo-tooling layout).
+            // Directly under the profile dir, with no intervening
+            // artifact directory at all. Accepted because the trust
+            // scope is `target/` plus the cargo file-name shape, not
+            // any particular subdirectory — the same reason layout v2
+            // is accepted below.
+            "/work/repo/target/release/latticearc-0123456789abcdef",
+            // `cargo llvm-cov` nested target dir.
             "/work/repo/target/llvm-cov-target/release/deps/latticearc-0123456789abcdef",
+            // Layout v2 (`build/<pkg>/<hash>/out/`), as produced by the
+            // sanitizer jobs' `cargo +nightly test -Z build-std
+            // --target x86_64-unknown-linux-gnu`. This exact path shape
+            // aborted the FIPS POST on every sanitizer run once cargo
+            // enabled layout v2 by default on nightly.
+            "/work/repo/target/x86_64-unknown-linux-gnu/debug/build/latticearc/\
+             2dfe6b1649723639/out/latticearc-2dfe6b1649723639",
+            // Layout v2 without an explicit target triple.
+            "/work/repo/target/debug/build/latticearc/2dfe6b1649723639/out/\
+             latticearc-2dfe6b1649723639",
         ] {
             assert!(
                 path_looks_like_latticearc_module(&PathBuf::from(path)),
-                "cargo-test deps shape should be accepted: {path}"
+                "cargo-generated binary under target/ should be accepted: {path}"
             );
         }
     }
@@ -2562,17 +2592,20 @@ mod tests {
             "/work/repo/target/release/deps/latticearc-0123456789abcde",
             // Suffix is not hex.
             "/work/repo/target/release/deps/latticearc-evil-not-hex-here",
-            // No `deps` parent.
-            "/work/repo/target/release/latticearc-0123456789abcdef",
             // Not under any `target` ancestor — host interpreter case.
+            // This is the case the helper actually exists to catch: a
+            // Python/Node process that dlopen'd liblatticearc.
             "/usr/bin/python3.12",
             "/opt/node/bin/node",
-            // Depth >3 from `deps` to `target`. Beyond the deepest
-            // known cargo-tooling layout (`target/llvm-cov-target/
-            // <profile>/deps/`); accepting this opens the trust scope
-            // to Bazel-style or pathological CI paths like
-            // `/builds/foo/target/cache/x/y/deps/`.
-            "/work/repo/target/some-tool/release/instrumented/deps/foo-0123456789abcdef",
+            // Cargo-shaped file name, but no `target` ancestor: an
+            // installed artifact is not a build-tree artifact.
+            "/usr/lib/python3/dist-packages/latticearc-0123456789abcdef",
+            // `target` exists but is further up than the ancestor walk
+            // goes, so the walk stops before reaching it rather than
+            // climbing to the filesystem root. Deeper than any real
+            // cargo/llvm-cov layout — this pins the walk's termination,
+            // not a trust boundary.
+            "/builds/foo/target/a/b/c/d/e/f/g/h/i/j/k/deps/latticearc-0123456789abcdef",
         ] {
             assert!(
                 !path_looks_like_latticearc_module(&PathBuf::from(path)),

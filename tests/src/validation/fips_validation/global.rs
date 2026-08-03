@@ -194,21 +194,43 @@ pub fn get_fips_validation_result() -> Option<ValidationResult> {
 mod tests {
     use super::*;
 
-    /// serialization lock for tests that mutate
-    /// `FIPS_VALIDATION_RESULT` AND read it back. Cargo runs tests in
-    /// parallel by default, so two tests both calling
+    /// Serialization lock for the `FIPS_VALIDATION_RESULT` global.
+    ///
+    /// Cargo runs tests in parallel, and every `validate_module()` call
+    /// produces a fresh `validation_id`. Two tests both calling
     /// `FIPS_VALIDATION_RESULT.lock().replace(...)` then reading the
     /// global can interleave: test A stores ID-A, test B stores ID-B
-    /// (overwriting), test A reads ID-B (mismatched assertion). Tests
-    /// that need to observe their own write must hold this serial
-    /// guard for the entire store-then-read window.
+    /// (overwriting), test A reads ID-B (mismatched assertion).
+    ///
+    /// The invariant is therefore on the WRITE side: **every** writer of
+    /// `FIPS_VALIDATION_RESULT` holds this guard for its whole write
+    /// window, not just the tests that read their own write back. A
+    /// reader holding the guard is worthless if a writer ignores it —
+    /// which is exactly how
+    /// `test_get_fips_validation_result_consistency_succeeds` flaked:
+    /// it held the guard across both of its reads while
+    /// `ensure_initialized_for_test` and
+    /// `test_init_lock_and_store_result_succeeds` replaced the global
+    /// without it.
+    ///
+    /// This is a plain, non-reentrant `Mutex`: code already holding the
+    /// guard must not call `ensure_initialized_for_test`, which takes it
+    /// itself and would deadlock.
     static FIPS_GLOBAL_SERIAL: Mutex<()> = Mutex::new(());
 
     /// Helper to ensure FIPS is initialized by setting the flag and storing
     /// a valid result directly, bypassing the abort paths in init().
     /// This lets us test run_conditional_self_test and continuous_rng_test
     /// which check the FIPS_INITIALIZED flag.
+    ///
+    /// Takes [`FIPS_GLOBAL_SERIAL`] and re-checks the flag under it. The
+    /// check-then-act was previously unguarded, so several tests could
+    /// each observe `false`, each run `validate_module()`, and each store
+    /// a different `validation_id`. Under the guard, initialization
+    /// happens exactly once and later callers return without writing.
     fn ensure_initialized_for_test() {
+        let _serial = FIPS_GLOBAL_SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
         if FIPS_INITIALIZED.load(Ordering::Acquire) {
             return;
         }
@@ -272,6 +294,11 @@ mod tests {
     /// We manually replicate this by locking the mutex and replacing.
     #[test]
     fn test_init_lock_and_store_result_succeeds() {
+        // Hold the serial guard: this test replaces the global
+        // unconditionally on every run, so without it this is the one
+        // writer guaranteed to clobber a concurrent reader's window.
+        let _serial = FIPS_GLOBAL_SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Should succeed");
 
