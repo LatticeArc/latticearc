@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.9.2] — 2026-08-04
+
+Patch release, no public API change (`cargo-semver-checks`: 196 checks pass,
+"no semver update required"). Clears three RUSTSEC advisories via a workspace
+dependency refresh, moves the AEAD crates onto the `aead 0.6` generation, and
+fixes a FIPS power-up abort triggered by cargo's new build-dir layout.
 
 ### Fixed
 
