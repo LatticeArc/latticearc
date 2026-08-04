@@ -1,22 +1,22 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Post-Quantum Cryptography Library
-**Version:** 0.9.0
-**Date:** 2026-05-31 (release tag)
+**Version:** 0.9.2
+**Date:** 2026-08-04 (release tag)
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
 ## Executive Summary
 
-All dependencies vetted for security (audits, memory safety), licensing (Apache/MIT/BSD — no copyleft), standards compliance (FIPS 203–205, draft 206), and supply chain (crates.io only). **376 total components** including transitive dependencies.
+All dependencies vetted for security (audits, memory safety), licensing (Apache/MIT/BSD — no copyleft), standards compliance (FIPS 203–205, draft 206), and supply chain (crates.io only). **417 lockfile entries across 386 distinct crates** — the two numbers differ because several crates resolve at two major versions at once; see "Crates resolved at two major versions" below.
 
 ```mermaid
 flowchart TB
     subgraph "latticearc"
-        LA[LatticeArc 0.9.0 target]
+        LA[LatticeArc 0.9.2 target]
     end
 
     subgraph "FIPS-Validated"
-        AWSLC["aws-lc-rs 1.16.3\nML-KEM · AES-GCM · HKDF · X25519"]
+        AWSLC["aws-lc-rs 1.17.3\nML-KEM · AES-GCM · HKDF · X25519"]
     end
 
     subgraph "NIST PQ Signatures"
@@ -61,7 +61,7 @@ flowchart TB
 
 ### Post-Quantum Cryptography (NIST Standards)
 
-#### 1. aws-lc-rs (v1.16.3)
+#### 1. aws-lc-rs (v1.17.3)
 - **Purpose**: Core crypto backend — ML-KEM (FIPS 203), AES-GCM, HKDF, X25519
 - **Justification**:
   - AWS's cryptographic library with FIPS 140-3 validation (with `--features fips`)
@@ -75,7 +75,7 @@ flowchart TB
 - **Security Audit**: FIPS 140-3 Level 1 validated (Certificates #4631, #4759, #4816)
 - **Usage**: `latticearc::primitives` (KEM, AEAD, HKDF), `latticearc::hybrid`, `latticearc::unified_api`
 
-#### 2. aws-lc-sys (v0.37.0)
+#### 2. aws-lc-sys (v0.43.0)
 - **Purpose**: FFI bindings to AWS-LC native library
 - **Justification**:
   - Required by aws-lc-rs for native cryptographic operations
@@ -138,7 +138,7 @@ flowchart TB
 
 ## Symmetric Cryptography & AEAD
 
-#### 7. aes-gcm (v0.10.3) — test-only
+#### 7. aes-gcm (v0.11.0) — test-only
 - **Purpose**: AES-GCM cross-library validation in tests
 - **Justification**:
   - NIST SP 800-38D standard implementation (RustCrypto)
@@ -148,7 +148,7 @@ flowchart TB
 - **Security Audit**: RustCrypto audited
 - **Usage**: `latticearc-tests` only (cross-library validation)
 
-#### 8. chacha20poly1305 (v0.10.1)
+#### 8. chacha20poly1305 (v0.11.0)
 - **Purpose**: ChaCha20-Poly1305 AEAD cipher
 - **Justification**:
   - RFC 8439 standard
@@ -159,7 +159,7 @@ flowchart TB
 - **Security Audit**: RustCrypto audited
 - **Usage**: `latticearc::primitives` (AEAD)
 
-#### 9. aes (v0.9.1)
+#### 9. aes (v0.9.2)
 - **Purpose**: Low-level AES block cipher
 - **Justification**:
   - Required by aes-gcm
@@ -169,7 +169,7 @@ flowchart TB
 - **Security Audit**: RustCrypto
 - **Usage**: Transitive via aes-gcm
 
-#### 10. chacha20 (v0.9.1)
+#### 10. chacha20 (v0.10.1)
 - **Purpose**: ChaCha20 stream cipher
 - **Justification**:
   - Core of ChaCha20-Poly1305
@@ -183,7 +183,7 @@ flowchart TB
 
 ## Cryptographic Primitives
 
-#### 11. sha2 (v0.10.9)
+#### 11. sha2 (v0.11.0, v0.10.9 transitive)
 - **Purpose**: SHA-256, SHA-384, SHA-512 hash functions
 - **Justification**:
   - FIPS 180-4 standard
@@ -194,7 +194,7 @@ flowchart TB
 - **Security Audit**: RustCrypto
 - **Usage**: `latticearc::primitives` (hash, KDF)
 
-#### 12. sha3 (v0.10.8)
+#### 12. sha3 (v0.11.0, v0.10.9 transitive)
 - **Purpose**: SHA-3 and SHAKE hash functions
 - **Justification**:
   - FIPS 202 standard
@@ -216,7 +216,7 @@ flowchart TB
 - **Security Audit**: RustCrypto
 - **Usage**: `latticearc::primitives` (hash options)
 
-#### 14. digest (v0.10.7)
+#### 14. digest (v0.11.3, v0.10.7 transitive)
 - **Purpose**: Common hash function traits
 - **Justification**:
   - Unified interface for all hash functions
@@ -226,7 +226,7 @@ flowchart TB
 - **Security Audit**: RustCrypto
 - **Usage**: All hash-using crates
 
-#### 15. hkdf (v0.12.4)
+#### 15. hkdf (v0.13.0, v0.12.4 transitive)
 - **Purpose**: HKDF key derivation function
 - **Justification**:
   - RFC 5869 standard
@@ -241,7 +241,7 @@ flowchart TB
 
 ## Memory Safety & Side-Channel Protection
 
-#### 17. zeroize (v1.8.2)
+#### 17. zeroize (v1.9.0)
 - **Purpose**: Secure memory zeroing
 - **Justification**:
   - **Critical for security**: Prevents key material leakage
@@ -253,7 +253,7 @@ flowchart TB
 - **Security Audit**: Widely reviewed
 - **Usage**: All cryptographic modules (keys, secrets)
 
-#### 18. zeroize_derive (v1.4.3)
+#### 18. zeroize_derive (v1.5.0)
 - **Purpose**: Derive macro for Zeroize trait
 - **Justification**:
   - Automatic implementation for structs
@@ -279,18 +279,20 @@ flowchart TB
 
 ## Random Number Generation
 
-#### 20. rand (v0.8.5, v0.9.2)
+#### 20. rand (v0.9.5, v0.10.2 dev-only)
 - **Purpose**: Random number generation
 - **Justification**:
   - Rust ecosystem standard RNG
-  - Multiple versions for compatibility
   - Cryptographically secure sources (getrandom)
   - Required for key generation, nonces
+  - The second version in the lockfile is dev-only; see "Crates resolved at
+    two major versions" for why each version is present
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: Widely used
-- **Usage**: Test code, benchmarks
+- **Usage**: `latticearc`, `latticearc-cli`, `latticearc-tests` (0.9.5);
+  `dudect-bencher` dev-dependency only (0.10.2)
 
-#### 21. rand_core (v0.6.4, v0.9.5)
+#### 21. rand_core (v0.9.5, v0.6.4 bridge, v0.10.1 transitive)
 - **Purpose**: Core RNG traits
 - **Justification**:
   - Minimal trait definitions
@@ -300,7 +302,7 @@ flowchart TB
 - **Security Audit**: Part of rand
 - **Usage**: All RNG-using crates
 
-#### 22. rand_chacha (v0.3.1, v0.9.0)
+#### 22. rand_chacha (v0.9.0, v0.10.0 transitive)
 - **Purpose**: ChaCha-based CSPRNG
 - **Justification**:
   - Cryptographically secure PRNG
@@ -310,7 +312,7 @@ flowchart TB
 - **Security Audit**: Part of rand
 - **Usage**: Transitive via rand
 
-#### 23. getrandom (v0.2.17, v0.3.4)
+#### 23. getrandom (v0.3.4, v0.2.17 and v0.4.3 transitive)
 - **Purpose**: OS random number source
 - **Justification**:
   - Access to OS CSPRNG (/dev/urandom, BCryptGenRandom, etc.)
@@ -334,7 +336,7 @@ flowchart TB
 - **Security Audit**: RustCrypto
 - **Usage**: Transitive via PQC crates
 
-#### 25. crypto-common (v0.1.7)
+#### 25. crypto-common (v0.1.7, v0.2.2 transitive)
 - **Purpose**: Common cryptographic traits
 - **Justification**:
   - Shared types across RustCrypto
@@ -353,6 +355,49 @@ flowchart TB
 - **License**: MIT OR Apache-2.0 OR BSD-1-Clause
 - **Security Audit**: Formally verified
 - **Usage**: Transitive via curve operations
+
+---
+
+## Crates resolved at two major versions
+
+`Cargo.lock` holds 417 entries across 386 distinct crates. The gap is a set of
+crates that resolve at more than one major simultaneously. Every case below was
+confirmed with `cargo tree -i <crate>@<version> --workspace --all-features`;
+none is accidental, and none is resolvable from our own manifests alone.
+
+### RustCrypto 0.10 generation
+
+Our direct dependencies are all on the 0.11 generation (`sha2 0.11`,
+`sha3 0.11`, `hmac 0.13`, `hkdf 0.13`, `digest 0.11`). The 0.10 generation is
+held in the graph by dependencies that have not migrated:
+
+| Retained version | Pulled in by |
+|------------------|--------------|
+| `sha2 0.10.9` | `ed25519-dalek`, `fips204`, `fips205`, `k256`, `p384` |
+| `sha3 0.10.9` | `fips203`, `fips204`, `fips205` |
+| `digest 0.10.7` | `blake2`, `curve25519-dalek`, `ecdsa`, `elliptic-curve`, `hmac 0.12`, `sha2 0.10`, `sha3 0.10`, `signature` |
+| `hkdf 0.12.4` | `elliptic-curve 0.13.8` |
+| `crypto-common 0.1.7` | `digest 0.10.7` |
+
+Collapsing this requires upstream releases from three separate families — the
+dalek crates, the RustCrypto elliptic-curve stack, and `fips204`/`fips205`.
+Tracked in #46 (elliptic-curve and dalek) and #17 (ML-DSA via aws-lc-rs).
+
+### Random number generation
+
+| Version | Why it is present |
+|---------|-------------------|
+| `rand 0.9.5` | workspace direct dependency |
+| `rand 0.10.2` | dev-only, via `dudect-bencher` for `tests/examples/dudect_ct.rs` |
+| `rand_core 0.9.5` | workspace direct dependency |
+| `rand_core 0.6.4` | deliberate aliased bridge (`rand_core_0_6`) for `fn-dsa` and `ed25519-dalek 2.x`, whose latest stable releases pre-date the `rand_core 0.9` API |
+| `rand_core 0.10.1` | via `getrandom 0.4.3` and `crypto-common 0.2.2` |
+| `rand_chacha 0.9.0` | workspace direct dependency |
+| `getrandom 0.3.4` | workspace direct dependency |
+| `getrandom 0.2.17` | via `rand_core 0.6.4` |
+| `getrandom 0.4.3` | via `rand_core 0.10.1` |
+
+`rand 0.8` is no longer present in the graph.
 
 ---
 
