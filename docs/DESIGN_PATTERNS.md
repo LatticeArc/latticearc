@@ -34,7 +34,7 @@ LatticeArc is a three-layer post-quantum cryptography platform:
 | **Layer 2 — Enterprise Capabilities** | `proprietary_repo` | Self-healing security ^[Implementation: K-Means anomaly detection over op telemetry; CVE-driven algorithm rotation. See `proprietary_repo/arc-enterprise-security/`.]^, zero-trust crypto ops, runtime-adaptive selection ^[Implementation: data-characteristic + hardware-capability scoring; see `proprietary_repo/arc-enterprise-perf/adaptive_selector.rs`.]^ |
 | **Layer 3 — Products** | `proprietary_repo` | Migration Accelerator, CryptoSOC, Code Signing, Governed Database, Timelock, 45+ more |
 
-The apache core is published to crates.io as a single `latticearc` crate. The
+LatticeArc is published to crates.io as a single `latticearc` crate. The
 proprietary repo depends on it via Cargo. Capabilities and products that live
 in the proprietary repo are documented there; this document covers only the
 apache-side design patterns.
@@ -105,7 +105,7 @@ requirements govern their code.
 | **RFC 7748** | Elliptic Curves for Security (X25519/X448) | X25519 Diffie-Hellman key agreement | `primitives::kem::ecdh::X25519KeyPair` — ephemeral ECDH with low-order point rejection per §6.1. |
 | **RFC 8032** | Edwards-Curve Digital Signature Algorithm (Ed25519/Ed448) | Ed25519 signing and verification | `primitives::ec::ed25519` — used in hybrid signatures (ML-DSA + Ed25519 AND-composition). |
 | **RFC 8439** | ChaCha20 and Poly1305 for IETF Protocols | AEAD for software-only environments | `primitives::aead::chacha20poly1305` — fallback when AES-NI hardware is unavailable. |
-| **RFC 9180** | Hybrid Public Key Encryption (HPKE) | HPKE-style key schedule for hybrid encryption | `hybrid::encrypt_hybrid::derive_encryption_key` — follows HPKE §5.1 LabeledExtract pattern with length-prefixed info+AAD binding. |
+| **RFC 9180** | Hybrid Public Key Encryption (HPKE) | HPKE-style key schedule for hybrid encryption | `hybrid::encrypt_hybrid::derive_hybrid_encryption_key` — follows HPKE §5.1 LabeledExtract pattern with length-prefixed info+AAD binding. |
 | **RFC 8949** | Concise Binary Object Representation (CBOR) | Binary key serialization | `unified_api::key_format::PortableKey::to_cbor()` — compact wire format for key exchange. |
 
 ## NSA CNSA 2.0 (Commercial National Security Algorithm Suite)
@@ -341,7 +341,7 @@ compiles cleanly.
 | Item | Convention | Example |
 |------|-----------|---------|
 | Types (structs, enums, traits) | `PascalCase` | `MlKemSecurityLevel`, `AeadCipher`, `HybridCiphertext` |
-| Functions, methods | `snake_case` | `generate_keypair()`, `encrypt_hybrid()`, `derive_encryption_key()` |
+| Functions, methods | `snake_case` | `generate_keypair()`, `encrypt_hybrid()`, `derive_hybrid_encryption_key()` |
 | Constants | `SCREAMING_SNAKE_CASE` | `HYBRID_KEM_SS_INFO`, `NONCE_LEN`, `TAG_LEN` |
 | Type parameters | Single uppercase letter or short `PascalCase` | `<T>`, `<R: RngCore>` |
 | Feature flags | `kebab-case` | `fips`, `fn-dsa`, `zkp-serde` |
@@ -1069,6 +1069,10 @@ fields are actually wired — especially across 30+ crates.
 3. No `_param` prefixed parameters in production functions — implement it or remove it
 4. For every config field, a test `test_<field>_influences_<operation>` must exist
 5. If you cannot write the influence test, the field is dead. Wire it or remove it.
+6. Exemption: config structs that exist only inside `#[cfg(test)]` scaffolding
+   (e.g. `PropertyTestConfig`) are exempt from Consumer tags — their consumer
+   is the test harness itself. Private fields are also outside rule 1's letter,
+   but tagging them anyway (as `CryptoConfig` does) keeps the audit greppable.
 
 ---
 
@@ -1080,7 +1084,7 @@ Every `pub enum` must have `#[non_exhaustive]`.
 ### Why This Is The Right Pattern
 Adding a variant to a public enum is a semver-breaking change in Rust. Without
 `#[non_exhaustive]`, downstream crates (including all 30+ enterprise crates) must pin
-exact versions or risk build breaks when the apache core adds an algorithm or security
+exact versions or risk build breaks when the `latticearc` core adds an algorithm or security
 level. With `#[non_exhaustive]`, new variants are additive and non-breaking.
 
 ---

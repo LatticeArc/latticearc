@@ -525,9 +525,7 @@ pub fn encrypt_with_aad(
             } else {
                 Some(crate::hybrid::encrypt_hybrid::HybridEncryptionContext::with_aad(aad.to_vec()))
             };
-            let ct = encrypt_hybrid(pk, data, ctx.as_ref()).map_err(|e| {
-                CoreError::EncryptionFailed(format!("Hybrid encryption failed: {e}"))
-            })?;
+            let ct = encrypt_hybrid(pk, data, ctx.as_ref())?;
             let timestamp = current_timestamp();
             EncryptedOutput::new(
                 scheme,
@@ -548,9 +546,7 @@ pub fn encrypt_with_aad(
         }
         // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
         (EncryptKey::PqOnly(pk), _) if scheme.requires_pq_key() => {
-            let ct = pq_only::encrypt_pq_only_with_aad(pk, data, aad).map_err(|e| {
-                CoreError::EncryptionFailed(format!("PQ-only encryption failed: {e}"))
-            })?;
+            let ct = pq_only::encrypt_pq_only_with_aad(pk, data, aad)?;
             let timestamp = current_timestamp();
             let (kem_ct, sym_ct, nonce, tag) = ct.into_parts();
             EncryptedOutput::new(

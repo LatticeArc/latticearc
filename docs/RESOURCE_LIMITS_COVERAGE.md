@@ -20,7 +20,6 @@ Global defaults (`primitives/resource_limits.rs`):
 | `max_encryption_size_bytes` | 100 MiB |
 | `max_decryption_size_bytes` | 100 MiB |
 | `max_signature_size_bytes` | 64 KiB |
-| `max_key_derivations_per_call` | 1000 |
 
 Runtime-configurable via `ResourceLimitsManager::update_limits`.
 
@@ -62,11 +61,11 @@ inside the delegated `verify` call, so the cap applies transitively.
 | `convenience::pq_kem` | `encrypt_pq_ml_kem*`, `decrypt_pq_ml_kem*` | `validate_encryption_size` at one site (`pq_kem.rs:72`). **Gap**: the `*_unverified` and `*_with_config*` variants share internals but each public wrapper should verify before dispatch. |
 | `convenience::pq_sig` | `sign_pq_{ml,slh,fn}_dsa*`, `verify_pq_{ml,slh,fn}_dsa*` | `validate_signature_size` at 6 sites (`pq_sig.rs:94,125,171,201,247,287`). Covers the primary `sign` / `verify` entry points; `*_unverified` variants share internals so the cap applies transitively. |
 | `convenience::hybrid_sig` | `sign_hybrid*`, `verify_hybrid_signature*` | `validate_signature_size` at 2 sites (`hybrid_sig.rs:72,97`). |
-| `convenience::hashing` | `derive_key`, `hmac`, `hmac_check` | `validate_key_derivation_count(1)` at 2 sites (`hashing.rs:75,130`). |
+| `convenience::hashing` | `derive_key`, `hmac`, `hmac_check` | Each call performs exactly one derivation, so no per-call batch cap applies. |
 | `convenience::aes_gcm` | 12 public variants (`encrypt_aes_gcm*`, `decrypt_aes_gcm*`, `*_with_aad*`) | **Gap**: no top-level `validate_*` calls; the underlying AEAD primitive (`aead::aes_gcm`) does call `validate_encryption_size` / `validate_decryption_size` at the primitive layer (`aead/aes_gcm.rs:72,123`), so the cap applies — but not at the convenience-API boundary. Adding a validation step at the convenience layer would fail faster and uniformly with the rest of the API. |
 | `convenience::ed25519` | 8 public variants | Signature output is fixed-size (64 B) so `validate_signature_size` is informational; the **data to be signed** is uncapped at the convenience layer. Add `validate_signature_size(data.len())` to be consistent with the ML-DSA / SLH-DSA sign paths. |
 | `convenience::ecdsa_p384` | `sign_ecdsa_p384`, `verify_ecdsa_p384`, `verify_ecdsa_p384_prehash`, `verify_ecdsa_p384_prehash_der` | `sign_ecdsa_p384` and `verify_ecdsa_p384` call `validate_signature_size(data.len())` at the convenience boundary (`ecdsa_p384.rs:47,68`). The two `_prehash` variants intentionally do not — `prehash` is a fixed-size digest (caller is expected to supply a SHA-384 result, 48 B). The underlying `p384` crate's `Signature::verify_prehash` truncates any oversized prehash to the curve scalar size per ECDSA spec, so an attacker-controlled large slice cannot amplify verify cost beyond the bounded curve-order arithmetic. `signature` is 96 B raw or DER-bounded by ASN.1 framing; `public_key` is SEC1-encoded (33/49/65/97 B) and rejected by the `p384`/`ecdsa` parser before any cryptographic work runs. Status: covered. |
-| `convenience::keygen` | 14 `generate_*` variants | N/A for size; `max_key_derivations_per_call` gates key-derivation call counts, not keygen. No input length to validate. |
+| `convenience::keygen` | 14 `generate_*` variants | N/A — no input length to validate. |
 | `convenience::hybrid` | `generate_hybrid_keypair*` | N/A — no input length. |
 
 ### Primitives layer
@@ -77,8 +76,8 @@ inside the delegated `verify` call, so the cap applies transitively.
 | `primitives::aead::aes_gcm` | `validate_encryption_size` / `validate_decryption_size` at 2 sites (`aes_gcm.rs:72,123`). Covers the main cipher object. |
 | `primitives::aead::chacha20poly1305` | Same pattern (`chacha20poly1305.rs:71,116`). |
 | `primitives::sig::ml_dsa` | `validate_signature_size` is enforced inside `MlDsaSecretKey::sign` on the message-length hot path (see `ml_dsa.rs::sign`). `generate_keypair` and `MlDsaPublicKey::verify` do not call it (keys are fixed-size; verify's cost is verification-only, not message-size-bounded). |
-| `primitives::sig::slh_dsa`, `sig::fn_dsa` | **Gap**: same as `ml_dsa`. |
-| `primitives::kdf::pbkdf2::verify_password` | **Gap**: `iterations` argument is attacker-controllable when derived from serialized parameter blocks. No upper-bound enforcement beyond the `max_key_derivations_per_call` global, and that only fires if the caller explicitly calls `validate_key_derivation_count(iterations)` — `pbkdf2` itself does not. Caps: see `iteration_bounds.md`. |
+| `primitives::sig::slh_dsa`, `sig::fn_dsa` | `validate_signature_size` is enforced on both the sign and verify message-length hot paths (see `slh_dsa.rs`, `fndsa.rs`). |
+| `primitives::kdf::pbkdf2::verify_password` | **Gap**: `iterations` argument is attacker-controllable when derived from serialized parameter blocks; `pbkdf2` enforces no upper bound itself. Caps: see `iteration_bounds.md`. |
 | `primitives::kdf::hkdf` | No input-length cap. HKDF-Expand output length is an `OutputLength` type parameter so it cannot exceed the algorithm maximum, but the `info` byte string is uncapped. Real-world attacks here require enormous `info` — not practical DoS, but worth documenting. |
 | `primitives::mac::hmac`, `mac::cmac` | No input-length cap. Tag verify paths use `subtle::ConstantTimeEq` (correct). |
 
@@ -101,7 +100,7 @@ Non-breaking fixes (same public API, just fail faster):
 4. `convenience::aes_gcm::encrypt_aes_gcm*` / `decrypt_aes_gcm*` — mirror the primitive-layer call at the convenience boundary.
 5. `convenience::ed25519::sign_ed25519*` / `verify_ed25519*` — add `validate_signature_size(data.len())`.
 6. `primitives::sig::{ml_dsa, slh_dsa, fn_dsa}::sign` — call `validate_signature_size(message.len())`.
-7. `primitives::kdf::pbkdf2` — hard-cap `iterations` at `max_key_derivations_per_call`; see `iteration_bounds.md` for the rationale and chosen upper bound.
+7. `primitives::kdf::pbkdf2` — hard-cap `iterations`; see `iteration_bounds.md` for the rationale and chosen upper bound.
 
 All remediations are behavior-preserving for legitimate input (caps are well above any realistic crypto input) and convert oversized input into an early `ResourceExceeded` error instead of allowing allocation / iteration to proceed.
 
@@ -114,8 +113,7 @@ documented, not undetected.
 
 Primitives — MAC / KDF (caps applied at cipher layer but not at MAC boundary):
 
-- `primitives::mac::cmac::cmac_128`, `cmac_192`, `cmac_256`
-- `primitives::mac::cmac::verify_cmac_128`, `verify_cmac_192`, `verify_cmac_256`
+- `primitives::mac::cmac::cmac`, `verify_cmac`
 - `primitives::mac::hmac::hmac_sha256`, `verify_hmac_sha256`
 
 Primitives — ECDH public-key validators (semantic validation, not size):
@@ -170,7 +168,7 @@ Primitives — KDF (input `info`/`context` is attacker-influenced but output is 
 
 Hybrid layer — internal shared-secret derivation (fed from fixed-size inputs):
 
-- `hybrid::encrypt_hybrid::derive_encryption_key`
+- `hybrid::encrypt_hybrid::derive_hybrid_encryption_key`
 - `hybrid::kem_hybrid::derive_hybrid_shared_secret`
 
 ECDH ephemeral agreement (fixed-size inputs, no DoS vector):

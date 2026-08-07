@@ -8,8 +8,6 @@
 //!
 //! - **Post-Quantum Cryptography**: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205)
 //! - **Hybrid Schemes**: Combined PQC + classical for defense in depth
-//! - **Hardware Traits**: Type definitions for hardware-capability dispatch
-//!   (see [`crate::types::traits::HardwareInfo`])
 //! - **Zero-Trust Authentication**: Challenge-response with continuous verification
 //! - **FIPS 140-3 Compliance**: Power-up self-tests and validated implementations
 //! - **Unified API**: Single API with `SecurityMode` parameter for verified/unverified operations
@@ -229,20 +227,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub use crate::types::config::{
     CoreConfig, EncryptionConfig, ProofComplexity, SignatureConfig, UseCaseConfig, ZeroTrustConfig,
 };
-pub use audit::{
-    AuditConfig, AuditEvent, AuditEventBuilder, AuditEventType, AuditOutcome, AuditStorage,
-    FileAuditStorage,
-};
-pub use error::{CoreError, Result};
-// Hardware types re-exported directly from traits (there is no `hardware` submodule).
 pub use crate::types::key_lifecycle::{
     CustodianRole, KeyCustodian, KeyLifecycleRecord, KeyLifecycleState, KeyStateMachine,
     StateTransition,
 };
 pub use crate::types::traits::{
-    ContinuousVerifiable, DataCharacteristics, HardwareCapabilities, HardwareInfo, HardwareType,
-    PatternType, ProofOfPossession, SchemeSelector, VerificationStatus, ZeroTrustAuthenticable,
+    ContinuousVerifiable, DataCharacteristics, PatternType, ProofOfPossession, SchemeSelector,
+    VerificationStatus, ZeroTrustAuthenticable,
 };
+pub use audit::{
+    AuditConfig, AuditEvent, AuditEventBuilder, AuditEventType, AuditOutcome, AuditStorage,
+    FileAuditStorage,
+};
+pub use error::{CoreError, Result};
 pub use selector::{
     // Classical schemes
     CLASSICAL_AES_GCM,
@@ -418,8 +415,6 @@ pub use convenience::{
     verify_pq_slh_dsa_unverified,
     verify_pq_slh_dsa_with_config_unverified,
 };
-
-// HardwareAware is re-exported from traits below
 
 /// Library version from Cargo.toml.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -462,7 +462,6 @@ impl ConstantTimeEq for XChaCha20Poly1305Cipher {
 #[expect(clippy::panic, reason = "Tests use panic! for error case validation")]
 mod tests {
     use super::*;
-    use crate::primitives::aead::{verify_tag_constant_time, zeroize_data};
     use zeroize::Zeroize;
 
     #[test]
@@ -605,23 +604,6 @@ mod tests {
         } else {
             panic!("Expected DecryptionFailed error");
         }
-    }
-
-    #[test]
-    fn test_chacha20_poly1305_constant_time_tag_verification_is_correct() {
-        let tag1 = [1u8; 16];
-        let tag2 = [1u8; 16];
-        let tag3 = [2u8; 16];
-
-        assert!(verify_tag_constant_time(&tag1, &tag2));
-        assert!(!verify_tag_constant_time(&tag1, &tag3));
-    }
-
-    #[test]
-    fn test_chacha20_poly1305_zeroize_data_clears_bytes_succeeds() {
-        let mut data = vec![0xFF; 100];
-        zeroize_data(&mut data);
-        assert_eq!(data, vec![0u8; 100]);
     }
 
     #[test]

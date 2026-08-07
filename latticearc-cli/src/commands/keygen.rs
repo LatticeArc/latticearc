@@ -450,6 +450,54 @@ fn generate_ml_kem(
     Ok(())
 }
 
+/// Generate a single-key-file keypair (ML-DSA, SLH-DSA, FN-DSA, Ed25519)
+/// and write it to `<output>/<stem>.{pub,sec}.json`.
+///
+/// Collapses the four near-identical `generate_ml_dsa` / `generate_slh_dsa`
+/// / `generate_fn_dsa` / `generate_ed25519` skeletons: resolve passphrase →
+/// run `keygen_fn` → derive `pk_path`/`sk_path` from `stem` →
+/// `write_key_protected` (SK first — see SK-first-ordering rationale
+/// above) → `write_key` (PK) → `print_keypair_report`.
+///
+/// `keygen_fn` returns an already-`anyhow`-mapped `Result` so each caller
+/// controls its own error message (all four currently use the identical
+/// `"Keygen failed: {e}"` wording, preserved verbatim at each call site).
+fn generate_and_write_simple_keypair(
+    args: &KeygenArgs,
+    stem: &str,
+    algorithm: KeyAlgorithm,
+    report_label: &str,
+    keygen_fn: impl FnOnce() -> Result<(latticearc::PublicKey, latticearc::PrivateKey)>,
+) -> Result<()> {
+    let passphrase = resolve_keygen_passphrase(args)?;
+    let (pk, sk) = keygen_fn()?;
+
+    let pk_path = args.output.join(format!("{stem}.pub.json"));
+    let sk_path = args.output.join(format!("{stem}.sec.json"));
+
+    // SK first — see SK-first-ordering rationale above.
+    keyfile::write_key_protected(
+        &sk_path,
+        algorithm,
+        KeyType::Secret,
+        sk.expose_secret(),
+        args.label.clone(),
+        passphrase.as_ref().map(|p| p.as_bytes()),
+        args.force,
+    )?;
+    keyfile::write_key(
+        &pk_path,
+        algorithm,
+        KeyType::Public,
+        pk.as_ref(),
+        args.label.clone(),
+        args.force,
+    )?;
+
+    print_keypair_report(report_label, &pk_path, &sk_path, passphrase.is_some());
+    Ok(())
+}
+
 fn generate_ml_dsa(
     args: &KeygenArgs,
     param_set: latticearc::primitives::sig::ml_dsa::MlDsaParameterSet,
@@ -467,128 +515,44 @@ fn generate_ml_dsa(
         _ => return Err(anyhow::anyhow!("Unsupported ML-DSA parameter set")),
     };
 
-    let passphrase = resolve_keygen_passphrase(args)?;
-    let (pk, sk) = latticearc::generate_ml_dsa_keypair(param_set)
-        .map_err(|e| anyhow::anyhow!("Keygen failed: {e}"))?;
-
-    let pk_path = args.output.join(format!("{alg_name}.pub.json"));
-    let sk_path = args.output.join(format!("{alg_name}.sec.json"));
-
-    // SK first — see SK-first-ordering rationale above.
-    keyfile::write_key_protected(
-        &sk_path,
-        alg,
-        KeyType::Secret,
-        sk.expose_secret(),
-        args.label.clone(),
-        passphrase.as_ref().map(|p| p.as_bytes()),
-        args.force,
-    )?;
-    keyfile::write_key(
-        &pk_path,
-        alg,
-        KeyType::Public,
-        pk.as_ref(),
-        args.label.clone(),
-        args.force,
-    )?;
-
-    print_keypair_report(&format!("{alg_name} signing"), &pk_path, &sk_path, passphrase.is_some());
-    Ok(())
+    generate_and_write_simple_keypair(args, alg_name, alg, &format!("{alg_name} signing"), || {
+        latticearc::generate_ml_dsa_keypair(param_set)
+            .map_err(|e| anyhow::anyhow!("Keygen failed: {e}"))
+    })
 }
 
 fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
-    let passphrase = resolve_keygen_passphrase(args)?;
     let level = latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s;
-    let (pk, sk) = latticearc::generate_slh_dsa_keypair(level)
-        .map_err(|e| anyhow::anyhow!("Keygen failed: {e}"))?;
-
-    let pk_path = args.output.join("slh-dsa-shake-128s.pub.json");
-    let sk_path = args.output.join("slh-dsa-shake-128s.sec.json");
-
-    // SK first — see SK-first-ordering rationale above.
-    keyfile::write_key_protected(
-        &sk_path,
+    generate_and_write_simple_keypair(
+        args,
+        "slh-dsa-shake-128s",
         KeyAlgorithm::SlhDsaShake128s,
-        KeyType::Secret,
-        sk.expose_secret(),
-        args.label.clone(),
-        passphrase.as_ref().map(|p| p.as_bytes()),
-        args.force,
-    )?;
-    keyfile::write_key(
-        &pk_path,
-        KeyAlgorithm::SlhDsaShake128s,
-        KeyType::Public,
-        pk.as_ref(),
-        args.label.clone(),
-        args.force,
-    )?;
-
-    print_keypair_report("SLH-DSA-SHAKE-128s signing", &pk_path, &sk_path, passphrase.is_some());
-    Ok(())
+        "SLH-DSA-SHAKE-128s signing",
+        || {
+            latticearc::generate_slh_dsa_keypair(level)
+                .map_err(|e| anyhow::anyhow!("Keygen failed: {e}"))
+        },
+    )
 }
 
 fn generate_fn_dsa(args: &KeygenArgs) -> Result<()> {
-    let passphrase = resolve_keygen_passphrase(args)?;
-    let (pk, sk) =
-        latticearc::generate_fn_dsa_keypair().map_err(|e| anyhow::anyhow!("Keygen failed: {e}"))?;
-
-    let pk_path = args.output.join("fn-dsa-512.pub.json");
-    let sk_path = args.output.join("fn-dsa-512.sec.json");
-
-    // SK first — see SK-first-ordering rationale above.
-    keyfile::write_key_protected(
-        &sk_path,
+    generate_and_write_simple_keypair(
+        args,
+        "fn-dsa-512",
         KeyAlgorithm::FnDsa512,
-        KeyType::Secret,
-        sk.expose_secret(),
-        args.label.clone(),
-        passphrase.as_ref().map(|p| p.as_bytes()),
-        args.force,
-    )?;
-    keyfile::write_key(
-        &pk_path,
-        KeyAlgorithm::FnDsa512,
-        KeyType::Public,
-        pk.as_ref(),
-        args.label.clone(),
-        args.force,
-    )?;
-
-    print_keypair_report("FN-DSA-512 signing", &pk_path, &sk_path, passphrase.is_some());
-    Ok(())
+        "FN-DSA-512 signing",
+        || latticearc::generate_fn_dsa_keypair().map_err(|e| anyhow::anyhow!("Keygen failed: {e}")),
+    )
 }
 
 fn generate_ed25519(args: &KeygenArgs) -> Result<()> {
-    let passphrase = resolve_keygen_passphrase(args)?;
-    let (pk, sk) =
-        latticearc::generate_keypair().map_err(|e| anyhow::anyhow!("Keygen failed: {e}"))?;
-
-    let pk_path = args.output.join("ed25519.pub.json");
-    let sk_path = args.output.join("ed25519.sec.json");
-
-    // SK first — see SK-first-ordering rationale above.
-    keyfile::write_key_protected(
-        &sk_path,
+    generate_and_write_simple_keypair(
+        args,
+        "ed25519",
         KeyAlgorithm::Ed25519,
-        KeyType::Secret,
-        sk.expose_secret(),
-        args.label.clone(),
-        passphrase.as_ref().map(|p| p.as_bytes()),
-        args.force,
-    )?;
-    keyfile::write_key(
-        &pk_path,
-        KeyAlgorithm::Ed25519,
-        KeyType::Public,
-        pk.as_ref(),
-        args.label.clone(),
-        args.force,
-    )?;
-
-    print_keypair_report("Ed25519 signing", &pk_path, &sk_path, passphrase.is_some());
-    Ok(())
+        "Ed25519 signing",
+        || latticearc::generate_keypair().map_err(|e| anyhow::anyhow!("Keygen failed: {e}")),
+    )
 }
 
 fn generate_hybrid_kem(args: &KeygenArgs) -> Result<()> {
@@ -669,31 +633,24 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
 
 /// Map a scheme name string (from `generate_signing_keypair`) to a `KeyAlgorithm`.
 ///
-/// Accepts both the canonical name and the `pq-` / `ml-dsa-*-hybrid-ed25519`
-/// aliases that the library's scheme selector can emit.
+/// Delegates to the library's [`KeyAlgorithm::from_canonical_name`] (the
+/// same approach `keyfile::parse_algorithm_name` uses) after stripping the
+/// optional `pq-` prefix the scheme selector emits for pure-PQ ML-DSA
+/// schemes (`selector::PQ_SIGNATURE_44/65/87` — see also `verify.rs`'s
+/// `strip_prefix("pq-")` normalization on the verify path). This call site
+/// is only reached for non-hybrid schemes (`is_hybrid_ml_dsa_scheme`
+/// intercepts every `hybrid-ml-dsa-*-ed25519` / `ml-dsa-*-hybrid-ed25519`
+/// form first), so the hybrid aliases this function previously hand-rolled
+/// were dead here; `from_canonical_name` already covers everything else
+/// this function needs, including both `fn-dsa` and `fn-dsa-512`.
 fn parse_scheme_to_algorithm(scheme: &str) -> Result<KeyAlgorithm> {
-    match scheme {
-        "hybrid-ml-dsa-44-ed25519" | "ml-dsa-44-hybrid-ed25519" => {
-            Ok(KeyAlgorithm::HybridMlDsa44Ed25519)
-        }
-        "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
-            Ok(KeyAlgorithm::HybridMlDsa65Ed25519)
-        }
-        "hybrid-ml-dsa-87-ed25519" | "ml-dsa-87-hybrid-ed25519" => {
-            Ok(KeyAlgorithm::HybridMlDsa87Ed25519)
-        }
-        "ml-dsa-44" | "pq-ml-dsa-44" => Ok(KeyAlgorithm::MlDsa44),
-        "ml-dsa-65" | "pq-ml-dsa-65" => Ok(KeyAlgorithm::MlDsa65),
-        "ml-dsa-87" | "pq-ml-dsa-87" => Ok(KeyAlgorithm::MlDsa87),
-        "slh-dsa-shake-128s" => Ok(KeyAlgorithm::SlhDsaShake128s),
-        "fn-dsa" | "fn-dsa-512" => Ok(KeyAlgorithm::FnDsa512),
-        "fn-dsa-1024" => Ok(KeyAlgorithm::FnDsa1024),
-        "ed25519" => Ok(KeyAlgorithm::Ed25519),
-        other => bail!(
-            "Unrecognized scheme '{other}' — the library selected a scheme the CLI \
+    let normalized = scheme.strip_prefix("pq-").unwrap_or(scheme);
+    KeyAlgorithm::from_canonical_name(normalized).ok_or_else(|| {
+        anyhow::anyhow!(
+            "Unrecognized scheme '{scheme}' — the library selected a scheme the CLI \
              cannot serialize. This is a CLI bug; please file an issue."
-        ),
-    }
+        )
+    })
 }
 
 /// Returns `true` if `scheme` is a hybrid ML-DSA + Ed25519 signing scheme.

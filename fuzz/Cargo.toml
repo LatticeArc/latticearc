@@ -304,13 +304,6 @@ test = false
 doc = false
 bench = false
 
-[[bin]]
-name = "fuzz_ecdh_p256"
-path = "fuzz_targets/fuzz_ecdh_p256.rs"
-test = false
-doc = false
-bench = false
-
 # ============================================================================
 # RNG Fuzzing
 # ============================================================================

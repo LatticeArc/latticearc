@@ -102,12 +102,23 @@ fn default_compliance_for_use_case(use_case: UseCase) -> ComplianceMode {
 pub struct CryptoConfig<'a> {
     /// Optional Zero Trust verified session.
     /// If None, operates in unverified mode.
+    ///
+    /// Consumer: `CryptoConfig::validate()` (session expiry gate, called at
+    /// the top of every unified-API operation).
     session: Option<&'a VerifiedSession>,
     /// Algorithm selection mode (use case or security level).
+    ///
+    /// Consumer: `convenience::api::{select_encryption_scheme, select_signature_scheme}`
+    /// via `get_selection()`.
     selection: AlgorithmSelection,
     /// Compliance mode for regulatory requirements.
+    ///
+    /// Consumer: `CryptoConfig::validate_scheme_compliance()` via `get_compliance()`.
     compliance: ComplianceMode,
     /// Whether the user explicitly set compliance (vs. auto-set by use_case).
+    ///
+    /// Consumer: `CryptoConfig::validate_scheme_compliance()` (explicit
+    /// compliance is enforced; use-case-derived compliance is advisory).
     compliance_explicit: bool,
     /// Whether the user explicitly pinned a `SecurityLevel` (vs. left it
     /// at the constructor default). Only when this is true does
@@ -118,11 +129,17 @@ pub struct CryptoConfig<'a> {
     /// config would reject every ml-dsa-44 / ml-kem-512 caller.
     security_level_explicit: bool,
     /// Cryptographic mode: hybrid (default) or PQ-only.
+    ///
+    /// Consumer: `convenience::api` dispatch arms via `get_crypto_mode()`
+    /// (routes to the PQ-only scheme table when `CryptoMode::PqOnly`).
     crypto_mode: CryptoMode,
     /// Optional maximum age (seconds) for `EncryptedOutput.timestamp` on
     /// decrypt. `None` (default) skips the check; `Some(n)` rejects any
     /// ciphertext whose stamped timestamp is more than `n` seconds older
     /// than the current wall-clock. See [`max_age`](Self::max_age).
+    ///
+    /// Consumer: `convenience::api::decrypt_with_aad()` replay-window guard
+    /// (surfaces as `CoreError::Replay`).
     max_age_seconds: Option<u64>,
 }
 

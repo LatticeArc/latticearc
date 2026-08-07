@@ -21,9 +21,7 @@
 //! # }
 //! ```
 
-use crate::hybrid::sig_hybrid::{
-    self, HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
-};
+use crate::hybrid::sig_hybrid::{self, HybridSigPublicKey, HybridSigSecretKey, HybridSignature};
 
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::zero_trust::SecurityMode;
@@ -47,9 +45,7 @@ pub fn generate_hybrid_signing_keypair(
 ) -> Result<(HybridSigPublicKey, HybridSigSecretKey)> {
     mode.validate()?;
 
-    sig_hybrid::generate_keypair().map_err(|e| {
-        CoreError::SignatureFailed(format!("Hybrid signing keypair generation failed: {e}"))
-    })
+    Ok(sig_hybrid::generate_keypair()?)
 }
 
 /// Sign a message using hybrid signatures (ML-DSA-65 + Ed25519).
@@ -77,7 +73,7 @@ pub fn sign_hybrid(
         return Err(CoreError::ResourceExceeded("message exceeds resource limit".to_string()));
     }
 
-    sig_hybrid::sign(sk, message).map_err(hybrid_sig_error_to_core)
+    Ok(sig_hybrid::sign(sk, message)?)
 }
 
 /// Verify a hybrid signature (ML-DSA-65 + Ed25519).
@@ -211,37 +207,6 @@ pub fn verify_hybrid_signature_unverified(
     pk: &HybridSigPublicKey,
 ) -> Result<bool> {
     verify_hybrid_signature(message, signature, pk, SecurityMode::Unverified)
-}
-
-/// Convert `HybridSignatureError` to `CoreError`.
-///
-/// DP-M3 fix: the sign-path opaque `SigningFailed` variant maps to
-/// `CoreError::SignatureFailed` with a non-component-identifying message
-/// so the Pattern-6 opacity holds through the conversion. The retained
-/// `MlDsaError` / `Ed25519Error` variants here cover the keygen and
-/// other non-adversary-reachable paths where component identification is
-/// useful for operator diagnostics; they nevertheless route into the
-/// same `CoreError::SignatureFailed` variant so external callers can't
-/// distinguish stage at the `CoreError` layer either.
-fn hybrid_sig_error_to_core(e: HybridSignatureError) -> CoreError {
-    match e {
-        HybridSignatureError::SigningFailed(msg) => {
-            CoreError::SignatureFailed(format!("Hybrid signing failed: {msg}"))
-        }
-        HybridSignatureError::MlDsaError(msg) => {
-            CoreError::SignatureFailed(format!("Hybrid ML-DSA error: {msg}"))
-        }
-        HybridSignatureError::Ed25519Error(msg) => {
-            CoreError::SignatureFailed(format!("Hybrid Ed25519 error: {msg}"))
-        }
-        HybridSignatureError::VerificationFailed(_msg) => CoreError::VerificationFailed,
-        HybridSignatureError::InvalidKeyMaterial(msg) => {
-            CoreError::InvalidKey(format!("Hybrid key material error: {msg}"))
-        }
-        HybridSignatureError::CryptoError(msg) => {
-            CoreError::SignatureFailed(format!("Hybrid crypto error: {msg}"))
-        }
-    }
 }
 
 #[cfg(test)]

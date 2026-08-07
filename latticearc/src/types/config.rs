@@ -63,7 +63,9 @@ pub struct CoreConfig {
     /// Uses CPU features like AVX2/AVX-512 or GPU acceleration when available.
     /// Default: `true`
     ///
-    /// Consumer: `CryptoPolicyEngine::select_encryption_scheme()` — unused since audit (all levels now return hybrid PQC)
+    /// Consumer: `CryptoPolicyEngine::select_encryption_scheme()` — `false` opts
+    /// into the software-only AEAD path (ChaCha20-Poly1305) at Standard level and
+    /// refuses a silent PQ-strip at High/Maximum.
     pub hardware_acceleration: bool,
 
     /// Whether fallback to software implementations is enabled.
@@ -328,32 +330,24 @@ pub enum ProofComplexity {
     High,
 }
 
-/// Configuration tailored for a specific use case.
+/// Per-use-case signature configuration.
 ///
-/// Combines encryption, signature, and zero-trust configurations
-/// with settings optimized for the given use case.
-///
-/// **Note:** `UseCaseConfig` is not yet wired to the unified `encrypt()`/`sign_with_key()` API.
-/// For use-case-based algorithm selection, use `CryptoConfig::new().use_case(UseCase::...)`.
-/// `UseCaseConfig` remains available for advanced per-component configuration.
+/// Carries the `CoreConfig` (security level, performance preference) that the
+/// unified API's signature-scheme dispatcher applies for a given [`UseCase`].
+/// Encryption-scheme selection for use cases goes through
+/// `CryptoPolicyEngine::recommend_scheme` directly and does not use this type.
+/// For use-case-based selection at the API level, prefer
+/// `CryptoConfig::new().use_case(UseCase::...)`.
 #[derive(Debug, Clone)]
 pub struct UseCaseConfig {
     /// The use case this configuration is optimized for.
     ///
-    /// Consumer: None — reserved for unified API integration
+    /// Consumer: `unified_api::convenience::api::select_signature_scheme()` (via `UseCaseConfig::new`)
     pub use_case: UseCase,
-    /// Encryption configuration for this use case.
-    ///
-    /// Consumer: None — reserved for unified API integration
-    pub encryption: CoreConfig,
     /// Signature configuration for this use case.
     ///
-    /// Consumer: None — reserved for unified API integration
+    /// Consumer: `unified_api::convenience::api::select_signature_scheme()`
     pub signature: CoreConfig,
-    /// Zero-trust configuration for this use case.
-    ///
-    /// Consumer: None — reserved for unified API integration
-    pub zero_trust: ZeroTrustConfig,
 }
 
 impl UseCaseConfig {
@@ -411,27 +405,16 @@ impl UseCaseConfig {
             UseCase::AuditLog => CoreConfig::new().with_security_level(SecurityLevel::High),
         };
 
-        Self {
-            use_case,
-            encryption: base_config.clone(),
-            signature: base_config.clone(),
-            zero_trust: ZeroTrustConfig { base: base_config, ..Default::default() },
-        }
+        Self { use_case, signature: base_config }
     }
 
-    /// Validates all nested configuration settings for the use case.
+    /// Validates the signature configuration for the use case.
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the nested configurations fail validation:
-    /// - Encryption `CoreConfig` validation fails
-    /// - Signature `CoreConfig` validation fails
-    /// - Zero-trust configuration validation fails
+    /// Returns an error if the signature `CoreConfig` fails validation.
     pub fn validate(&self) -> Result<()> {
-        self.encryption.validate()?;
-        self.signature.validate()?;
-        self.zero_trust.validate()?;
-        Ok(())
+        self.signature.validate()
     }
 }
 
@@ -602,14 +585,14 @@ mod tests {
     fn test_use_case_config_financial_transactions_selects_maximum_security_succeeds() {
         let config = UseCaseConfig::new(UseCase::FinancialTransactions);
         assert_eq!(config.use_case, UseCase::FinancialTransactions);
-        assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+        assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
     }
 
     #[test]
     fn test_use_case_config_iot_device_succeeds() {
         let config = UseCaseConfig::new(UseCase::IoTDevice);
-        assert_eq!(config.encryption.security_level, SecurityLevel::Standard);
-        assert_eq!(config.encryption.performance_preference, PerformancePreference::Memory);
+        assert_eq!(config.signature.security_level, SecurityLevel::Standard);
+        assert_eq!(config.signature.performance_preference, PerformancePreference::Memory);
     }
 
     // =========================================================================

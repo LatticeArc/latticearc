@@ -7,7 +7,7 @@
 //! without crashing and correctly rejects malformed or wrong-key signatures.
 //! Uses Level512 for speed (FN-DSA-512, ~128-bit security).
 
-use latticearc::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair, Signature};
+use latticearc::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel, FnDsaSignature};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
@@ -16,7 +16,7 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Generate a fresh keypair for signing and verification
-    let mut keypair = match KeyPair::generate(FnDsaSecurityLevel::Level512) {
+    let mut keypair = match FnDsaKeyPair::generate(FnDsaSecurityLevel::Level512) {
         Ok(kp) => kp,
         Err(_) => return,
     };
@@ -38,10 +38,10 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 2: Fuzz arbitrary bytes as a signature — must not crash, must reject
-    // Signature::from_bytes rejects empty slices; any non-empty slice is accepted
+    // FnDsaSignature::from_bytes rejects empty slices; any non-empty slice is accepted
     // as raw bytes and then rejected by the crypto layer during verify.
     if !data.is_empty() {
-        if let Ok(fuzzed_sig) = Signature::from_bytes(data) {
+        if let Ok(fuzzed_sig) = FnDsaSignature::from_bytes(data) {
             let vk = keypair.verifying_key();
             // Fuzzed bytes are astronomically unlikely to be a valid signature;
             // the important property is that verification never panics.
@@ -60,7 +60,7 @@ fuzz_target!(|data: &[u8]| {
         }
         // Only proceed if we actually changed something
         if corrupted != valid_sig.to_bytes() {
-            if let Ok(corrupted_sig) = Signature::from_bytes(&corrupted) {
+            if let Ok(corrupted_sig) = FnDsaSignature::from_bytes(&corrupted) {
                 let vk = keypair.verifying_key();
                 if let Ok(valid) = vk.verify(message, &corrupted_sig) {
                     assert!(!valid, "Corrupted FN-DSA signature must not verify");
@@ -71,14 +71,14 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 4: Wrong-key verification — sign with keypair1, verify with keypair2
-    let mut keypair2 = match KeyPair::generate(FnDsaSecurityLevel::Level512) {
+    let mut keypair2 = match FnDsaKeyPair::generate(FnDsaSecurityLevel::Level512) {
         Ok(kp) => kp,
         Err(_) => return,
     };
     if let Ok(signature) = keypair2.sign(message) {
         let vk1 = keypair.verifying_key();
         if let Ok(valid) = vk1.verify(message, &signature) {
-            assert!(!valid, "Signature from keypair2 must not verify with keypair1's key");
+            assert!(!valid, "FnDsaSignature from keypair2 must not verify with keypair1's key");
         }
     }
 });

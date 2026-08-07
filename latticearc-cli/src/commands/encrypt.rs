@@ -16,7 +16,7 @@
 //! JSON format ensures the encrypted file can be stored, transmitted, and
 //! decrypted without any external state.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;
 
@@ -312,33 +312,16 @@ fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
 }
 
 fn write_output(path: &Option<PathBuf>, data: &str, force: bool) -> Result<()> {
-    match path {
-        Some(p) => {
-            // Atomic write — closes the partial-file confidentiality
-            // window for decrypted material at rest. Same helper the
-            // keyfile writer uses.
-            // only overwrite when --force is
-            // passed; otherwise refuse to clobber, matching keygen's
-            // default-safe behavior.
-            // LINT-OK: public-write-ciphertext (encrypted data is not secret)
-            latticearc::unified_api::atomic_write::AtomicWrite::new(data.as_bytes())
-                .overwrite_existing(force)
-                .write(p)
-                .with_context(|| {
-                    format!("Failed to write {} (use --force to overwrite)", p.display())
-                })?;
-            // Path on stderr would leak through process accounting and log
-            // aggregation; route to tracing::debug! instead. Mirrors
-            // sign.rs:271 and decrypt.rs:174.
-            tracing::debug!(path = %p.display(), "encrypted data written");
-        }
-        None => {
-            // `print!` (not `println!`) — byte-exact stdout for
-            // pipelines that hash or chain into other tools. Callers
-            // that want a trailing newline can redirect through `cat`
-            // or append themselves.
-            print!("{data}");
-        }
-    }
-    Ok(())
+    // Ciphertext isn't secret: no TTY guard, default (non-secret)
+    // atomic-write file permissions. `data` is always valid UTF-8 JSON, so
+    // the shared helper's UTF-8 stdout branch is the only one exercised —
+    // byte-identical to the prior bare `print!("{data}")`.
+    super::common::write_output_or_stdout(
+        path.as_deref(),
+        data.as_bytes(),
+        force,
+        false,
+        None,
+        "encrypted data",
+    )
 }

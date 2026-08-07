@@ -6,7 +6,9 @@
 //! Tests that SLH-DSA operations handle arbitrary message data
 //! without crashing and produce valid signatures.
 
-use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel, VerifyingKey};
+use latticearc::primitives::sig::slh_dsa::{
+    SlhDsaSecurityLevel, SlhDsaSignature, SlhDsaSigningKey, SlhDsaVerifyingKey,
+};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
@@ -26,7 +28,7 @@ fuzz_target!(|data: &[u8]| {
     let message = if data.len() > 1 { &data[1..] } else { &[] };
 
     // Generate keypair
-    let (sk, pk) = match SigningKey::generate(level) {
+    let (sk, pk) = match SlhDsaSigningKey::generate(level) {
         Ok(kp) => kp,
         Err(_) => return,
     };
@@ -99,25 +101,30 @@ fuzz_target!(|data: &[u8]| {
     // — which previously caused a fuzz crash with "Corrupted signature
     // must fail verification" as the false-positive trigger. Force a
     // non-no-op flip on byte 0 first, then layer the fuzz XOR on top.
+    // The mutated bytes always keep the original length, so
+    // reconstruction through the length-validating constructor cannot
+    // fail on this path.
     if let Ok(sig) = sk.sign(message, &[]) {
-        let mut corrupted_sig = sig.clone();
-        let len = corrupted_sig.len();
+        let mut corrupted_bytes = sig.as_bytes().to_vec();
+        let len = corrupted_bytes.len();
         if len > 0 {
-            corrupted_sig[0] ^= 0xFF;
+            corrupted_bytes[0] ^= 0xFF;
             for (i, b) in data.iter().enumerate() {
                 let idx = i % len;
-                corrupted_sig[idx] ^= b;
+                corrupted_bytes[idx] ^= b;
             }
             // After the guaranteed flip + fuzz layer, verify the
             // corrupted bytes actually differ from the original
             // signature before asserting verification fails.
-            if corrupted_sig != sig {
-                match pk.verify(message, &corrupted_sig, &[]) {
-                    Ok(is_valid) => {
-                        assert!(!is_valid, "Corrupted signature must fail verification");
-                    }
-                    Err(_) => {
-                        // Error is acceptable for malformed signature
+            if corrupted_bytes.as_slice() != sig.as_bytes() {
+                if let Ok(corrupted_sig) = SlhDsaSignature::new(level, corrupted_bytes) {
+                    match pk.verify(message, &corrupted_sig, &[]) {
+                        Ok(is_valid) => {
+                            assert!(!is_valid, "Corrupted signature must fail verification");
+                        }
+                        Err(_) => {
+                            // Error is acceptable for malformed signature
+                        }
                     }
                 }
             }
@@ -148,7 +155,7 @@ fuzz_target!(|data: &[u8]| {
     // Test 7: Test with fuzzed verifying key bytes
     if data.len() >= level.public_key_size() {
         let pk_bytes = &data[..level.public_key_size()];
-        match VerifyingKey::new(level, pk_bytes) {
+        match SlhDsaVerifyingKey::new(level, pk_bytes) {
             Ok(fuzzed_pk) => {
                 if let Ok(sig) = sk.sign(message, &[]) {
                     // Verify with fuzzed key - should fail
@@ -163,10 +170,17 @@ fuzz_target!(|data: &[u8]| {
 
     // Test 8: Test invalid signature length
     if let Ok(sig) = sk.sign(message, &[]) {
-        // Truncate signature
-        let truncated = &sig[..sig.len().saturating_sub(10)];
-        match pk.verify(message, truncated, &[]) {
-            Ok(_) => {}
+        // Truncate signature. The shorter byte slice fails the
+        // length-validating constructor for every real security level,
+        // so the `Err` arm below is the expected path; the `Ok` arm is
+        // dead in practice but kept so a future security level with a
+        // zero-length signature would still be exercised correctly.
+        let sig_bytes = sig.as_bytes();
+        let truncated_bytes = sig_bytes[..sig_bytes.len().saturating_sub(10)].to_vec();
+        match SlhDsaSignature::new(level, truncated_bytes) {
+            Ok(truncated_sig) => {
+                let _ = pk.verify(message, &truncated_sig, &[]);
+            }
             Err(_) => {
                 // Error expected for wrong size
             }

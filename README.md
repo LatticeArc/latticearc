@@ -250,7 +250,7 @@ Multi-layered — each tier catches what the tier below cannot.
 | Tool | What it proves | Scope |
 |------|----------------|-------|
 | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | Machine-checked correctness of C primitives | AES-GCM, HMAC, HKDF, SHA-2, ECDSA, ECDH — see [aws-lc-verification](https://github.com/awslabs/aws-lc-verification) for the up-to-date proof inventory |
-| [Kani](https://github.com/model-checking/kani) | Bounded model checking of Rust code | 30 proofs; 18 PR-blocking, full suite scheduled nightly |
+| [Kani](https://github.com/model-checking/kani) | Bounded model checking of Rust code | 29 proofs; 18 PR-blocking, full suite scheduled nightly |
 
 ### Property-based, differential, attacker-chosen
 
@@ -324,6 +324,7 @@ cargo build --features fips       # FIPS-validated backend
 | `tracing-init` | off | Exposes `init_tracing[_with_file]` helpers. Libraries must NOT enable this — subscriber init belongs in the binary. Enabled by `latticearc-cli`. |
 | `secret-mlock` | off | `mlock(2)` / `VirtualLock` for heap-backed `SecretVec` buffers — prevents swap and core-dump exposure. |
 | `kat-test-vectors` | off | **Test-only.** Exposes `AeadCipher::new_allow_weak_key` to reproduce NIST AES-GCM Test Cases 1 & 2 (all-zero key). |
+| `perf` | off | Benchmarking/metrics module (`latticearc::perf`) — bench scaffolding with no production consumer; enable only for perf tooling. |
 
 ### Migration
 

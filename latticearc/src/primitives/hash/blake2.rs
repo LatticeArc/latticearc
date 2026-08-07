@@ -5,10 +5,10 @@
 
 //! BLAKE2 Hash Functions
 //!
-//! This module provides BLAKE2b-256 and BLAKE2s-256 (RFC 7693) hashing.
+//! This module provides BLAKE2b-256 (RFC 7693) hashing.
 
 use blake2::digest::consts::U32;
-use blake2::{Blake2b, Blake2s256, Digest};
+use blake2::{Blake2b, Digest};
 
 /// BLAKE2b-256 hash function (RFC 7693).
 ///
@@ -25,26 +25,6 @@ use blake2::{Blake2b, Blake2s256, Digest};
 #[must_use]
 pub fn blake2b_256(data: &[u8]) -> [u8; 32] {
     let mut hasher = Blake2b::<U32>::new();
-    hasher.update(data);
-    hasher.finalize().into()
-}
-
-/// BLAKE2s-256 hash function (RFC 7693).
-///
-/// Produces a 32-byte (256-bit) digest. Optimized for 8- to 32-bit platforms.
-/// Infallible — always succeeds for any input.
-///
-/// # Example
-///
-/// ```
-/// use latticearc::primitives::hash::blake2s_256;
-///
-/// let digest = blake2s_256(b"hello");
-/// assert_eq!(digest.len(), 32);
-/// ```
-#[must_use]
-pub fn blake2s_256(data: &[u8]) -> [u8; 32] {
-    let mut hasher = Blake2s256::new();
     hasher.update(data);
     hasher.finalize().into()
 }

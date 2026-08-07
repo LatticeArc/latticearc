@@ -7,12 +7,12 @@
 //! and that signatures produced from valid keys always verify correctly.
 //! Uses Level512 for speed (FN-DSA-512, ~128-bit security).
 
-use latticearc::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
+use latticearc::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Generate a fresh keypair at Level512 for speed
-    let mut keypair = match KeyPair::generate(FnDsaSecurityLevel::Level512) {
+    let mut keypair = match FnDsaKeyPair::generate(FnDsaSecurityLevel::Level512) {
         Ok(kp) => kp,
         Err(_) => return,
     };

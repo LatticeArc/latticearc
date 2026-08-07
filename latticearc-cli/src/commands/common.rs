@@ -479,3 +479,119 @@ pub(crate) fn build_signing_config<'a>(
 
     config
 }
+
+/// Refuse to write sensitive output (decrypted plaintext, derived KDF key
+/// material, …) to an interactive terminal unless the caller explicitly
+/// opted in via `allow_tty`. TTY output leaks secrets into shell
+/// scrollback, session recorders, screen sharing, and CI log aggregators —
+/// piping stdout to a file or downstream tool is unaffected.
+///
+/// `operation` names the value being withheld and is interpolated into the
+/// leading sentence only; the remainder of the message — including the
+/// `--output <file>` / `--print-to-tty` guidance and the "the plaintext
+/// will then appear…" callout — is fixed text, matching the wording
+/// `decrypt.rs` used before this helper existed (so `decrypt`'s call site
+/// produces byte-identical output). Callers whose command has no
+/// `--output` flag (e.g. `kdf`) still see that guidance, since the wording
+/// was centralised rather than made per-command-accurate — see the `kdf`
+/// call site for the resulting text delta.
+///
+/// # Errors
+///
+/// Returns an error when stdout is a terminal and `allow_tty` is `false`.
+/// Refuse to write secret material to an interactive terminal unless the
+/// caller opted in via `--print-to-tty`.
+///
+/// The caller supplies its complete refusal message — the two commands that
+/// guard (decrypt, kdf) have different payload nouns and different remediation
+/// options (kdf has no `--output` flag), so a shared template would misstate
+/// one of them. What's shared is the guard mechanics, not the prose.
+pub(crate) fn require_non_tty_output(refusal_message: &str, allow_tty: bool) -> anyhow::Result<()> {
+    use std::io::IsTerminal;
+    if std::io::stdout().is_terminal() && !allow_tty {
+        anyhow::bail!("{refusal_message}");
+    }
+    Ok(())
+}
+
+/// Decrypt's TTY refusal message — kept verbatim from its original inline
+/// guard so scripts matching on it keep working.
+pub(crate) const DECRYPT_TTY_REFUSAL: &str = "Refusing to write decrypted plaintext to a TTY. Pass --output <file> to write \
+     to disk with 0600 permissions, pipe stdout to a downstream tool, or pass \
+     --print-to-tty to explicitly opt in (the plaintext will then appear in shell \
+     scrollback / session recorders / log aggregators).";
+
+/// Write `data` to `path`, or print it to stdout when `path` is `None`.
+///
+/// Centralises the three near-identical "write atomically, or print to
+/// stdout; honor `--force`; `tracing::debug!` the path" implementations
+/// previously duplicated across `encrypt::write_output`,
+/// `decrypt::write_output`, and `sign::write_signature`:
+///
+/// - File writes go through `AtomicWrite`, refusing to clobber an existing
+///   file unless `force` is set. The `Failed to write {path} (use --force
+///   to overwrite)` context message is shared verbatim across all three
+///   callers.
+/// - `secret_file_mode` selects `.secret_mode()` (0600 perms) for file
+///   writes of sensitive material (decrypt's plaintext); encrypt's
+///   ciphertext and sign's signature output are not secret and use the
+///   default atomic-write permissions.
+/// - `tty_guard`, when `Some((refusal_message, allow_tty))`, routes stdout
+///   output through [`require_non_tty_output`] first. `None` skips the
+///   guard entirely — encrypt's ciphertext isn't secret, and sign always
+///   resolves an output path so it never reaches the stdout branch.
+/// - Stdout output tries UTF-8 first, falling back to hex — matching
+///   decrypt's pre-existing fallback behaviour. Encrypt/sign output is
+///   always valid UTF-8 JSON, so those callers only ever exercise the
+///   UTF-8 branch (unchanged from their prior bare `print!("{data}")`).
+/// - `debug_label` names the value in the `tracing::debug!` breadcrumb
+///   emitted after a successful file write (e.g. `"encrypted data"` →
+///   the event message `"encrypted data written"`).
+///
+/// # Errors
+///
+/// Returns an error if the TTY guard rejects stdout output, or if the
+/// atomic file write fails (including refusing to overwrite an existing
+/// file without `--force`).
+pub(crate) fn write_output_or_stdout(
+    path: Option<&std::path::Path>,
+    data: &[u8],
+    force: bool,
+    secret_file_mode: bool,
+    tty_guard: Option<(&str, bool)>,
+    debug_label: &str,
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+
+    if let Some(p) = path {
+        // Atomic write — closes the partial-file-at-rest window. Only
+        // overwrite when `force` is set, matching keygen's default-safe
+        // behavior.
+        let mut writer = latticearc::unified_api::atomic_write::AtomicWrite::new(data);
+        if secret_file_mode {
+            writer = writer.secret_mode();
+        }
+        writer.overwrite_existing(force).write(p).with_context(|| {
+            format!("Failed to write {} (use --force to overwrite)", p.display())
+        })?;
+        // Path on stderr would leak through process accounting and log
+        // aggregation; route to tracing::debug! instead.
+        tracing::debug!(path = %p.display(), "{debug_label} written");
+        return Ok(());
+    }
+
+    if let Some((refusal_message, allow_tty)) = tty_guard {
+        require_non_tty_output(refusal_message, allow_tty)?;
+    }
+
+    // Try to print as UTF-8, fall back to hex. The hex encoding is wrapped
+    // in `Zeroizing<String>` so a derived plaintext copy doesn't outlive
+    // the source bytes on the heap until allocator reclaim.
+    if let Ok(s) = std::str::from_utf8(data) {
+        print!("{s}");
+    } else {
+        let encoded = zeroize::Zeroizing::new(hex::encode(data));
+        print!("{}", encoded.as_str());
+    }
+    Ok(())
+}

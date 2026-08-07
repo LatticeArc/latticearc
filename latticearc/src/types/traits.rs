@@ -178,63 +178,6 @@ mod kani_proofs {
     }
 }
 
-/// Type of hardware accelerator.
-#[non_exhaustive]
-#[derive(Debug, Clone, PartialEq)]
-pub enum HardwareType {
-    /// CPU with SIMD extensions.
-    Cpu,
-    /// GPU acceleration.
-    Gpu,
-    /// FPGA acceleration.
-    Fpga,
-    /// TPM hardware security module.
-    Tpu,
-    /// Intel SGX enclave.
-    Sgx,
-}
-
-/// Information about available hardware.
-#[derive(Debug, Clone)]
-pub struct HardwareInfo {
-    /// List of available hardware accelerators.
-    pub available_accelerators: Vec<HardwareType>,
-    /// Preferred accelerator based on capabilities.
-    pub preferred_accelerator: Option<HardwareType>,
-    /// Hardware capabilities.
-    pub capabilities: HardwareCapabilities,
-}
-
-/// Hardware capability information.
-#[derive(Debug, Clone)]
-pub struct HardwareCapabilities {
-    /// Whether SIMD instructions are supported.
-    pub simd_support: bool,
-    /// Whether AES-NI instructions are available.
-    pub aes_ni: bool,
-    /// Number of available threads.
-    pub threads: usize,
-    /// Available memory in bytes.
-    pub memory: usize,
-}
-
-impl HardwareInfo {
-    /// Returns the best available accelerator, preferring the configured preference.
-    #[must_use]
-    pub fn best_accelerator(&self) -> Option<&HardwareType> {
-        self.preferred_accelerator.as_ref().or_else(|| self.available_accelerators.first())
-    }
-
-    /// Returns a human-readable summary of the hardware info.
-    #[must_use]
-    pub fn summary(&self) -> String {
-        format!(
-            "Available: {:?}, Preferred: {:?}, Capabilities: {:?}",
-            self.available_accelerators, self.preferred_accelerator, self.capabilities
-        )
-    }
-}
-
 /// Trait for cryptographic scheme selection.
 ///
 /// Sealed (Pattern 4): only types in this crate can implement it. A

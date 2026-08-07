@@ -439,23 +439,6 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_constant_time_tag_verification_is_correct() {
-        let tag1 = [1u8; 16];
-        let tag2 = [1u8; 16];
-        let tag3 = [2u8; 16];
-
-        assert!(super::super::verify_tag_constant_time(&tag1, &tag2));
-        assert!(!super::super::verify_tag_constant_time(&tag1, &tag3));
-    }
-
-    #[test]
-    fn test_aes_gcm_zeroize_data_clears_bytes_succeeds() {
-        let mut data = vec![0xFF; 100];
-        super::super::zeroize_data(&mut data);
-        assert_eq!(data, vec![0u8; 100]);
-    }
-
-    #[test]
     fn test_aes_gcm_128_empty_plaintext_roundtrip() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();

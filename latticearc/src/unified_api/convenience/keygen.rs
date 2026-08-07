@@ -12,7 +12,7 @@ use crate::primitives::{
     sig::{
         fndsa::FnDsaSecurityLevel,
         ml_dsa::{MlDsaParameterSet, generate_keypair as ml_dsa_generate_keypair},
-        slh_dsa::{SigningKey as SlhDsaSigningKey, SlhDsaSecurityLevel},
+        slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey},
     },
 };
 
@@ -312,28 +312,28 @@ pub fn generate_fn_dsa_keypair_with_level(
 
     debug!("Generating FN-DSA keypair ({:?})", level);
 
-    let handle = std::thread::Builder::new()
-        .name(format!("latticearc-fn-dsa-keygen-{level_name}"))
-        .stack_size(FN_DSA_KEYGEN_STACK)
-        .spawn(move || -> Result<(Vec<u8>, Vec<u8>)> {
-            let keypair = crate::primitives::sig::fndsa::KeyPair::generate(level).map_err(|e| {
-                CoreError::KeyGenerationFailed {
-                    reason: format!("FN-DSA key generation failed: {e}"),
-                    recovery: "Check RNG availability".to_string(),
-                }
+    let handle =
+        std::thread::Builder::new()
+            .name(format!("latticearc-fn-dsa-keygen-{level_name}"))
+            .stack_size(FN_DSA_KEYGEN_STACK)
+            .spawn(move || -> Result<(Vec<u8>, Vec<u8>)> {
+                let keypair = crate::primitives::sig::fndsa::FnDsaKeyPair::generate(level)
+                    .map_err(|e| CoreError::KeyGenerationFailed {
+                        reason: format!("FN-DSA key generation failed: {e}"),
+                        recovery: "Check RNG availability".to_string(),
+                    })?;
+                let pk_bytes = keypair.verifying_key().to_bytes();
+                let mut sk_zeroizing = keypair.signing_key().to_bytes();
+                // mem::take the signing-key bytes out of the Zeroizing wrapper so
+                // the final PrivateKey owns them without a transient unzeroized
+                // clone on the heap (matches the Ed25519 path above).
+                let sk_bytes = std::mem::take(&mut *sk_zeroizing);
+                Ok((pk_bytes, sk_bytes))
+            })
+            .map_err(|e| CoreError::KeyGenerationFailed {
+                reason: format!("Failed to spawn FN-DSA keygen worker thread: {e}"),
+                recovery: "Investigate OS thread limits".to_string(),
             })?;
-            let pk_bytes = keypair.verifying_key().to_bytes();
-            let mut sk_zeroizing = keypair.signing_key().to_bytes();
-            // mem::take the signing-key bytes out of the Zeroizing wrapper so
-            // the final PrivateKey owns them without a transient unzeroized
-            // clone on the heap (matches the Ed25519 path above).
-            let sk_bytes = std::mem::take(&mut *sk_zeroizing);
-            Ok((pk_bytes, sk_bytes))
-        })
-        .map_err(|e| CoreError::KeyGenerationFailed {
-            reason: format!("Failed to spawn FN-DSA keygen worker thread: {e}"),
-            recovery: "Investigate OS thread limits".to_string(),
-        })?;
 
     let (pk_bytes, sk_bytes) =
         handle.join().map_err(|_panic| CoreError::KeyGenerationFailed {

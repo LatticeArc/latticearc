@@ -27,8 +27,8 @@ pub type Result<T> = std::result::Result<T, LatticeArcError>;
 /// received over the wire from an untrusted source. Allowing arbitrary
 /// `LatticeArcError` values to be deserialized would let an attacker who
 /// controls a deserialization input inject sensitive variants
-/// (`SecurityViolation`, `PinLocked`, `ComplianceViolation`, etc.) into
-/// local error-handling logic.
+/// (`SecurityViolation`, `ComplianceViolation`, etc.) into local
+/// error-handling logic.
 #[derive(Debug, Error, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub enum LatticeArcError {
@@ -101,15 +101,6 @@ pub enum LatticeArcError {
     /// Random number generation failed
     #[error("Random number generation failed")]
     RandomError,
-    /// Unsupported protocol version
-    #[error("Unsupported version: {0}")]
-    UnsupportedVersion(u8),
-    /// Invalid envelope format
-    #[error("Invalid envelope: {0}")]
-    InvalidEnvelope(String),
-    /// Invalid format
-    #[error("Invalid format: {0}")]
-    InvalidFormat(String),
     /// Invalid configuration
     #[error("Invalid configuration: {0}")]
     InvalidConfiguration(String),
@@ -119,15 +110,9 @@ pub enum LatticeArcError {
     /// Invalid input
     #[error("Invalid input: {0}")]
     InvalidInput(String),
-    /// Service unavailable
-    #[error("Service unavailable: {0}")]
-    ServiceUnavailable(String),
     /// Security violation
     #[error("Security violation: {0}")]
     SecurityViolation(String),
-    /// Policy violation
-    #[error("Policy violation: {0}")]
-    PolicyViolation(String),
     /// Compliance violation
     #[error("Compliance violation: {0}")]
     ComplianceViolation(String),
@@ -137,39 +122,18 @@ pub enum LatticeArcError {
     /// Not implemented
     #[error("Not implemented: {0}")]
     NotImplemented(String),
-    /// CPU feature not available
-    #[error("CPU feature not available: {0}")]
-    CpuFeatureNotAvailable(String),
     /// Memory allocation failed
     #[error("Memory error: {0}")]
     MemoryError(String),
-    /// Circuit breaker is open
-    #[error("Circuit breaker is open")]
-    CircuitBreakerOpen,
     /// System resources exhausted
     #[error("System resources exhausted")]
     ResourceExhausted,
     /// Required feature not enabled
     #[error("Feature not enabled: {0}")]
     FeatureNotEnabled(String),
-    /// Audit logging failed
-    #[error("Audit error: {0}")]
-    AuditError(String),
     /// HSM operation failed
     #[error("HSM error: {0}")]
     HsmError(String),
-    /// PIN verification failed
-    #[error("PIN verification failed")]
-    PinIncorrect,
-    /// PIN account locked due to too many failed attempts
-    #[error("PIN account locked due to too many failed attempts")]
-    PinLocked,
-    /// Cloud KMS operation failed
-    #[error("Cloud KMS error: {0}")]
-    CloudKmsError(String),
-    /// Database operation failed
-    #[error("Database error: {0}")]
-    DatabaseError(String),
     /// Network operation failed
     #[error("Network error: {0}")]
     NetworkError(String),
@@ -179,39 +143,9 @@ pub enum LatticeArcError {
     /// Formal verification failed
     #[error("Formal verification failed: {0}")]
     VerificationFailed(String),
-    /// Fuzzing test failed
-    #[error("Fuzzing error: {0}")]
-    FuzzingError(String),
-    /// Development tool error
-    #[error("Development tool error: {0}")]
-    DevToolError(String),
-    /// Migration operation failed
-    #[error("Migration error: {0}")]
-    MigrationError(String),
-    /// Performance profiling error
-    #[error("Profiling error: {0}")]
-    ProfilingError(String),
-    /// Side channel mitigation failed
-    #[error("Side channel error: {0}")]
-    SideChannelError(String),
-    /// Async operation failed
-    #[error("Async error: {0}")]
-    AsyncError(String),
-    /// WASM-specific error
-    #[error("WASM error: {0}")]
-    WasmError(String),
     /// Access denied due to insufficient permissions
     #[error("Access denied: {0}")]
     AccessDenied(String),
-    /// Unauthorized access
-    #[error("Unauthorized: {0}")]
-    Unauthorized(String),
-    /// Invalid elliptic curve point
-    #[error("Invalid elliptic curve point")]
-    InvalidPoint,
-    /// Resource or permission expired
-    #[error("Expired: {0}")]
-    Expired(String),
     /// Hardware acceleration error
     #[error("Hardware error: {0}")]
     HardwareError(String),
@@ -221,22 +155,12 @@ pub enum LatticeArcError {
     /// Concurrency-related error
     #[error("Concurrency error: {0}")]
     ConcurrencyError(String),
-    /// Timeout error
-    #[error("Timeout: {0}")]
-    TimeoutError(String),
     /// CAVP validation error
     #[error("Validation error: {message}")]
     ValidationError {
         /// Validation error message
         message: String,
     },
-
-    // ============================================================================
-    // Zero-Knowledge Proof Errors
-    // ============================================================================
-    /// Zero-knowledge proof error
-    #[error("ZKP error: {0}")]
-    ZkpError(String),
 }
 
 #[cfg(test)]
@@ -265,12 +189,7 @@ mod tests {
             (LatticeArcError::SerializationError("json".to_string()), "Serialization error: json"),
             (LatticeArcError::IoError("disk".to_string()), "I/O error: disk"),
             (LatticeArcError::RandomError, "Random number generation failed"),
-            (LatticeArcError::CircuitBreakerOpen, "Circuit breaker is open"),
             (LatticeArcError::ResourceExhausted, "System resources exhausted"),
-            (LatticeArcError::PinIncorrect, "PIN verification failed"),
-            (LatticeArcError::PinLocked, "PIN account locked due to too many failed attempts"),
-            (LatticeArcError::InvalidPoint, "Invalid elliptic curve point"),
-            (LatticeArcError::ZkpError("proof".to_string()), "ZKP error: proof"),
         ];
 
         for (error, expected) in cases {
@@ -324,14 +243,7 @@ mod tests {
 
     #[test]
     fn test_lattice_arc_error_serializes_unit_variants() {
-        for err in [
-            LatticeArcError::RandomError,
-            LatticeArcError::CircuitBreakerOpen,
-            LatticeArcError::ResourceExhausted,
-            LatticeArcError::PinIncorrect,
-            LatticeArcError::PinLocked,
-            LatticeArcError::InvalidPoint,
-        ] {
+        for err in [LatticeArcError::RandomError, LatticeArcError::ResourceExhausted] {
             let json = serde_json::to_string(&err).unwrap();
             assert!(!json.is_empty());
         }
@@ -351,57 +263,27 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_unsupported_version_displays_and_serializes_correctly() {
-        let err = LatticeArcError::UnsupportedVersion(42);
-        assert_eq!(format!("{err}"), "Unsupported version: 42");
-
-        let json = serde_json::to_string(&err).unwrap();
-        assert!(json.contains("42"));
-    }
-
-    #[test]
     fn test_lattice_arc_error_remaining_display_messages_match_expected_fails() {
         // Cover remaining variants for Display completeness
         let remaining: Vec<(LatticeArcError, &str)> = vec![
             (LatticeArcError::DeserializationError("x".to_string()), "Deserialization error: x"),
-            (LatticeArcError::InvalidEnvelope("x".to_string()), "Invalid envelope: x"),
-            (LatticeArcError::InvalidFormat("x".to_string()), "Invalid format: x"),
             (LatticeArcError::InvalidConfiguration("x".to_string()), "Invalid configuration: x"),
             (LatticeArcError::InvalidData("x".to_string()), "Invalid data: x"),
             (LatticeArcError::InvalidInput("x".to_string()), "Invalid input: x"),
-            (LatticeArcError::ServiceUnavailable("x".to_string()), "Service unavailable: x"),
             (LatticeArcError::SecurityViolation("x".to_string()), "Security violation: x"),
-            (LatticeArcError::PolicyViolation("x".to_string()), "Policy violation: x"),
             (LatticeArcError::ComplianceViolation("x".to_string()), "Compliance violation: x"),
             (LatticeArcError::InvalidParameter("x".to_string()), "Invalid parameter: x"),
             (LatticeArcError::NotImplemented("x".to_string()), "Not implemented: x"),
-            (
-                LatticeArcError::CpuFeatureNotAvailable("x".to_string()),
-                "CPU feature not available: x",
-            ),
             (LatticeArcError::MemoryError("x".to_string()), "Memory error: x"),
             (LatticeArcError::FeatureNotEnabled("x".to_string()), "Feature not enabled: x"),
-            (LatticeArcError::AuditError("x".to_string()), "Audit error: x"),
             (LatticeArcError::HsmError("x".to_string()), "HSM error: x"),
-            (LatticeArcError::CloudKmsError("x".to_string()), "Cloud KMS error: x"),
-            (LatticeArcError::DatabaseError("x".to_string()), "Database error: x"),
             (LatticeArcError::NetworkError("x".to_string()), "Network error: x"),
             (LatticeArcError::KeyDerivationError("x".to_string()), "Key derivation error: x"),
             (LatticeArcError::VerificationFailed("x".to_string()), "Formal verification failed: x"),
-            (LatticeArcError::FuzzingError("x".to_string()), "Fuzzing error: x"),
-            (LatticeArcError::DevToolError("x".to_string()), "Development tool error: x"),
-            (LatticeArcError::MigrationError("x".to_string()), "Migration error: x"),
-            (LatticeArcError::ProfilingError("x".to_string()), "Profiling error: x"),
-            (LatticeArcError::SideChannelError("x".to_string()), "Side channel error: x"),
-            (LatticeArcError::AsyncError("x".to_string()), "Async error: x"),
-            (LatticeArcError::WasmError("x".to_string()), "WASM error: x"),
             (LatticeArcError::AccessDenied("x".to_string()), "Access denied: x"),
-            (LatticeArcError::Unauthorized("x".to_string()), "Unauthorized: x"),
-            (LatticeArcError::Expired("x".to_string()), "Expired: x"),
             (LatticeArcError::HardwareError("x".to_string()), "Hardware error: x"),
             (LatticeArcError::InvalidOperation("x".to_string()), "Invalid operation: x"),
             (LatticeArcError::ConcurrencyError("x".to_string()), "Concurrency error: x"),
-            (LatticeArcError::TimeoutError("x".to_string()), "Timeout: x"),
             (
                 LatticeArcError::SignatureVerificationError("x".to_string()),
                 "Signature verification error: x",

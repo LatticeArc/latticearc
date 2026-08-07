@@ -264,17 +264,17 @@ pub fn pct_ml_kem(
 /// # Example
 ///
 /// ```no_run
-/// use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+/// use latticearc::primitives::sig::slh_dsa::{SlhDsaSigningKey, SlhDsaSecurityLevel};
 /// use latticearc::primitives::pct::pct_slh_dsa;
 ///
-/// let (sk, vk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
+/// let (sk, vk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
 /// pct_slh_dsa(&vk, &sk)?;
 /// // Keys are now validated and safe to use
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn pct_slh_dsa(
-    verifying_key: &crate::primitives::sig::slh_dsa::VerifyingKey,
-    signing_key: &crate::primitives::sig::slh_dsa::SigningKey,
+    verifying_key: &crate::primitives::sig::slh_dsa::SlhDsaVerifyingKey,
+    signing_key: &crate::primitives::sig::slh_dsa::SlhDsaSigningKey,
 ) -> PctResult<()> {
     // Verify security levels match
     if verifying_key.security_level() != signing_key.security_level() {
@@ -324,18 +324,18 @@ pub fn pct_slh_dsa(
 /// # Example
 ///
 /// ```no_run
-/// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
+/// use latticearc::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel};
 /// use latticearc::primitives::pct::pct_fn_dsa;
 /// use rand_core_0_6::OsRng;
 ///
 /// let mut rng = OsRng;
-/// let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
+/// let keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
 /// // Note: For FN-DSA, signing requires mutable access, so we use the keypair's sign method
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn pct_fn_dsa(
-    verifying_key: &crate::primitives::sig::fndsa::VerifyingKey,
-    signing_key: &mut crate::primitives::sig::fndsa::SigningKey,
+    verifying_key: &crate::primitives::sig::fndsa::FnDsaVerifyingKey,
+    signing_key: &mut crate::primitives::sig::fndsa::FnDsaSigningKey,
 ) -> PctResult<()> {
     use rand_core_0_6::OsRng;
 
@@ -358,9 +358,9 @@ pub fn pct_fn_dsa(
     pct_finalize(is_valid)
 }
 
-/// Performs a Pairwise Consistency Test for an FN-DSA KeyPair
+/// Performs a Pairwise Consistency Test for an FN-DSA [`FnDsaKeyPair`](crate::primitives::sig::fndsa::FnDsaKeyPair)
 ///
-/// This is a convenience function that performs PCT on a complete FN-DSA KeyPair
+/// This is a convenience function that performs PCT on a complete FN-DSA keypair
 /// structure. It internally calls `pct_fn_dsa` with the keypair's components.
 ///
 /// # Arguments
@@ -379,17 +379,19 @@ pub fn pct_fn_dsa(
 /// # Example
 ///
 /// ```no_run
-/// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
+/// use latticearc::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel};
 /// use latticearc::primitives::pct::pct_fn_dsa_keypair;
 /// use rand_core_0_6::OsRng;
 ///
 /// let mut rng = OsRng;
-/// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
+/// let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
 /// pct_fn_dsa_keypair(&mut keypair)?;
 /// // Keypair is now validated and safe to use
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-pub fn pct_fn_dsa_keypair(keypair: &mut crate::primitives::sig::fndsa::KeyPair) -> PctResult<()> {
+pub fn pct_fn_dsa_keypair(
+    keypair: &mut crate::primitives::sig::fndsa::FnDsaKeyPair,
+) -> PctResult<()> {
     use rand_core_0_6::OsRng;
 
     // Sign the test message
@@ -612,42 +614,42 @@ mod tests {
 
     #[test]
     fn test_pct_slh_dsa_shake128s_passes() {
-        use crate::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+        use crate::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 
-        let (sk, vk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, vk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let result = pct_slh_dsa(&vk, &sk);
         assert!(result.is_ok(), "PCT should pass for valid SLH-DSA-SHAKE-128s keypair");
     }
 
     #[test]
     fn test_pct_slh_dsa_shake192s_passes() {
-        use crate::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+        use crate::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 
-        let (sk, vk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake192s).expect("Key generation failed");
+        let (sk, vk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake192s)
+            .expect("Key generation failed");
         let result = pct_slh_dsa(&vk, &sk);
         assert!(result.is_ok(), "PCT should pass for valid SLH-DSA-SHAKE-192s keypair");
     }
 
     #[test]
     fn test_pct_slh_dsa_shake256s_passes() {
-        use crate::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+        use crate::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 
-        let (sk, vk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake256s).expect("Key generation failed");
+        let (sk, vk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake256s)
+            .expect("Key generation failed");
         let result = pct_slh_dsa(&vk, &sk);
         assert!(result.is_ok(), "PCT should pass for valid SLH-DSA-SHAKE-256s keypair");
     }
 
     #[test]
     fn test_pct_slh_dsa_mismatched_keys_fails() {
-        use crate::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+        use crate::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 
-        let (sk1, _vk1) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
-        let (_sk2, vk2) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk1, _vk1) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
+        let (_sk2, vk2) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
 
         // Use verifying key from one keypair with signing key from another
         let result = pct_slh_dsa(&vk2, &sk1);
@@ -663,12 +665,12 @@ mod tests {
 
     #[test]
     fn test_pct_slh_dsa_parameter_mismatch_fails() {
-        use crate::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+        use crate::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 
-        let (sk128, _) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
-        let (_, vk256) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake256s).expect("Key generation failed");
+        let (sk128, _) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
+        let (_, vk256) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake256s)
+            .expect("Key generation failed");
 
         // Different security levels should fail
         let result = pct_slh_dsa(&vk256, &sk128);
@@ -683,11 +685,11 @@ mod tests {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
-                use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
+                use crate::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel};
                 use rand_core_0_6::OsRng;
                 let mut rng = OsRng;
                 let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+                    FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
                         .expect("Key generation failed");
                 let result = pct_fn_dsa_keypair(&mut keypair);
                 assert!(result.is_ok(), "PCT should pass for valid FN-DSA-512 keypair");
@@ -702,11 +704,11 @@ mod tests {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
-                use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
+                use crate::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel};
                 use rand_core_0_6::OsRng;
                 let mut rng = OsRng;
                 let mut keypair =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+                    FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
                         .expect("Key generation failed");
                 let result = pct_fn_dsa_keypair(&mut keypair);
                 assert!(result.is_ok(), "PCT should pass for valid FN-DSA-1024 keypair");
@@ -721,22 +723,23 @@ mod tests {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
-                use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
+                use crate::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel};
                 use rand_core_0_6::OsRng;
                 let mut rng = OsRng;
-                let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
-                    .expect("Key generation failed");
+                let keypair =
+                    FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+                        .expect("Key generation failed");
 
                 // Get verifying key from the keypair
                 let vk = keypair.verifying_key().clone();
 
                 // Recreate signing key from bytes
                 let sk_bytes = keypair.signing_key().to_bytes();
-                let mut sk = crate::primitives::sig::fndsa::SigningKey::from_bytes(
+                let mut sk = crate::primitives::sig::fndsa::FnDsaSigningKey::from_bytes(
                     &sk_bytes,
                     FnDsaSecurityLevel::Level512,
                 )
-                .expect("SigningKey reconstruction failed");
+                .expect("FnDsaSigningKey reconstruction failed");
 
                 let result = pct_fn_dsa(&vk, &mut sk);
                 assert!(result.is_ok(), "PCT should pass for valid FN-DSA keypair components");
@@ -751,23 +754,24 @@ mod tests {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
-                use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
+                use crate::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel};
                 use rand_core_0_6::OsRng;
                 let mut rng = OsRng;
-                let keypair512 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
-                    .expect("Key generation failed");
+                let keypair512 =
+                    FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+                        .expect("Key generation failed");
                 let keypair1024 =
-                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+                    FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
                         .expect("Key generation failed");
 
                 // Get verifying key from 1024 and signing key from 512
                 let vk1024 = keypair1024.verifying_key().clone();
                 let sk_bytes = keypair512.signing_key().to_bytes();
-                let mut sk512 = crate::primitives::sig::fndsa::SigningKey::from_bytes(
+                let mut sk512 = crate::primitives::sig::fndsa::FnDsaSigningKey::from_bytes(
                     &sk_bytes,
                     FnDsaSecurityLevel::Level512,
                 )
-                .expect("SigningKey reconstruction failed");
+                .expect("FnDsaSigningKey reconstruction failed");
 
                 let result = pct_fn_dsa(&vk1024, &mut sk512);
                 assert!(

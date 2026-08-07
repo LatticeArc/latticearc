@@ -34,7 +34,7 @@ use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaSignature, generate_keypair as ml_dsa_generate,
 };
 use latticearc::primitives::sig::slh_dsa::{
-    SigningKey, SlhDsaSecurityLevel as SlhDsaLevel, VerifyingKey,
+    SlhDsaSecurityLevel as SlhDsaLevel, SlhDsaSigningKey, SlhDsaVerifyingKey,
 };
 
 // ============================================================================
@@ -216,7 +216,7 @@ mod slh_dsa_regression {
     /// Test SLH-DSA context string handling
     #[test]
     fn test_slh_dsa_context_variations_succeeds() {
-        let (sk, pk) = SigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
         let message = b"Context test message";
 
         // Empty context
@@ -236,7 +236,7 @@ mod slh_dsa_regression {
     /// Regression: Context too long (>255 bytes)
     #[test]
     fn test_slh_dsa_context_too_long_succeeds() {
-        let (sk, _pk) = SigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
+        let (sk, _pk) = SlhDsaSigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
         let message = b"Long context test";
         let long_ctx = vec![0xCD; 256];
 
@@ -247,11 +247,12 @@ mod slh_dsa_regression {
     /// Test verifying key reconstruction from bytes
     #[test]
     fn test_slh_dsa_key_serialization_succeeds() {
-        let (sk, pk) = SigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
 
         // Serialize and deserialize public key
         let pk_bytes = pk.to_bytes();
-        let pk_restored = VerifyingKey::from_bytes(&pk_bytes, SlhDsaLevel::Shake128s).unwrap();
+        let pk_restored =
+            SlhDsaVerifyingKey::from_bytes(&pk_bytes, SlhDsaLevel::Shake128s).unwrap();
 
         // Sign and verify with restored key
         let message = b"Key serialization test";

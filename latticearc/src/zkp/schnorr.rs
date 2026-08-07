@@ -43,7 +43,7 @@
 //! CSPRNG (`OsRng`) on every proof. **Never modify `prove()` to accept an
 //! external nonce or to cache/reuse nonces.**
 
-use crate::primitives::hash::sha2::sha256;
+use crate::zkp::ec_utils;
 use crate::zkp::error::{Result, ZkpError};
 use k256::{
     FieldBytes, ProjectivePoint, Scalar, SecretKey,
@@ -57,7 +57,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// with rejection sampling on `counter` until the SHA-256 output is
 /// `< q` (the secp256k1 scalar field order). Both prover and verifier
 /// run identical loops on identical inputs and converge on the same
-/// scalar.
+/// scalar. The hash/reject/retry loop itself lives in
+/// [`ec_utils::derive_challenge_bytes`] (shared with
+/// `sigma::DlogEqualityProof::compute_challenge`); this function owns
+/// only the Schnorr-specific transcript layout.
 ///
 /// # Errors
 /// Returns an error if the SHA-256 primitive fails (input exceeds 1
@@ -73,15 +76,10 @@ fn fiat_shamir_challenge(
     r_bytes: &[u8; 33],
     context: &[u8],
 ) -> Result<Scalar> {
-    // Rejection-sample the challenge for uniform distribution in
-    // [0, q). Plain `Reduce::reduce_bytes` has ~2^-128 modular bias,
-    // and the matching nonce path in `Schnorr::prove` already follows
-    // this discipline. Expected iterations: 1 + ε.
     let label = b"arc-zkp/schnorr-v2";
     let curve = b"secp256k1";
-    let mut counter: u32 = 0;
-    loop {
-        let mut buf = Vec::with_capacity(
+    let hash = ec_utils::derive_challenge_bytes(|counter, buf| {
+        buf.reserve(
             label
                 .len()
                 .saturating_add(curve.len())
@@ -95,28 +93,14 @@ fn fiat_shamir_challenge(
         buf.extend_from_slice(r_bytes);
         buf.extend_from_slice(context);
         buf.extend_from_slice(&counter.to_be_bytes());
-
-        // ~104 bytes — well below the 1 GiB SHA-256 DoS cap.
-        let hash = sha256(&buf)
-            .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?;
-        // Reject `c == 0` symmetrically with the nonce path
-        // (`Schnorr::prove` lines ~290): if the challenge were zero,
-        // the response would collapse to `s = k + 0·x = k`, exposing
-        // the nonce. Probability is ~2^-256 — defense-in-depth, not
-        // an exploitable attack.
-        let cand: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
-        if let Some(s) = cand
-            && !bool::from(s.ct_eq(&Scalar::ZERO))
-        {
-            return Ok(s);
-        }
-        counter = counter.checked_add(1).ok_or_else(|| {
-            ZkpError::SerializationError(
-                "schnorr challenge derivation: counter overflow (statistically impossible)"
-                    .to_string(),
-            )
-        })?;
-    }
+    })?;
+    // `derive_challenge_bytes` only ever returns hash bytes that already
+    // parsed as a nonzero scalar `< q` inside its own rejection loop, so
+    // `from_repr` below cannot observe `None` in practice. We still
+    // thread the (unreachable) failure through `Result` rather than
+    // assume infallibility — lints deny `.expect()`/`.unwrap()`.
+    let scalar: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
+    scalar.ok_or(ZkpError::InvalidScalar)
 }
 
 /// Schnorr proof structure
@@ -291,32 +275,12 @@ impl SchnorrProver {
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.secret)).into();
         let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
-        // rejection sampling for the nonce. The previous
-        // `Reduce<U256>::reduce_bytes(32 bytes)` had a modular bias of
-        // ~2^-128 on secp256k1 (q is close to but less than 2^256, so
-        // values `[q, 2^256)` map disproportionately to `[0, 2^256-q)`).
-        // The bias is currently non-exploitable but consumes the
-        // safety margin against future Bleichenbacher-class lattice
-        // attacks. `Scalar::from_repr` returns `None` for byte
-        // representations `>= q`, giving us textbook rejection
-        // sampling: each retry succeeds with probability q/2^256 ≈
-        // 1 - 2^-128, so the loop terminates in expectation in 1 + ε
-        // iterations and is bounded above by ~256 with overwhelming
-        // probability. Also rejects k = 0 (otherwise R = O is invalid).
-        let k_scalar: Scalar = loop {
-            let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
-            let candidate: Option<Scalar> =
-                Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
-            // Compare via `ct_eq`, not `!=`. `Scalar::PartialEq` is not
-            // documented constant-time, and the challenge-side already
-            // uses ct_eq — this keeps the comparison symmetric.
-            if let Some(s) = candidate
-                && !bool::from(s.ct_eq(&Scalar::ZERO))
-            {
-                break s;
-            }
-        };
-        let k = Zeroizing::new(k_scalar);
+        // Nonce sampling (rejection sampling, rejects k = 0) lives in
+        // `ec_utils::sample_nonzero_scalar` — shared with
+        // `sigma::DlogEqualityProof::prove`. See that function's doc
+        // comment for why rejection sampling beats modular reduction
+        // and why zero is rejected.
+        let k = Zeroizing::new(ec_utils::sample_nonzero_scalar());
 
         // Compute commitment R = k*G
         let r_point = ProjectivePoint::GENERATOR * *k;
@@ -374,10 +338,10 @@ impl SchnorrVerifier {
     #[expect(clippy::arithmetic_side_effects, reason = "EC math is modular, cannot overflow")]
     pub fn verify(&self, proof: &SchnorrProof, context: &[u8]) -> Result<bool> {
         // Parse public key P
-        let p_point = Self::parse_point(&self.public_key)?;
+        let p_point = ec_utils::parse_compressed_point(&self.public_key)?;
 
         // Parse commitment R
-        let r_point = Self::parse_point(proof.commitment())?;
+        let r_point = ec_utils::parse_compressed_point(proof.commitment())?;
 
         // Parse response s
         let s: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(proof.response())).into();
@@ -391,26 +355,6 @@ impl SchnorrVerifier {
         let rhs = r_point + p_point * c;
 
         Ok(bool::from(lhs.ct_eq(&rhs)))
-    }
-
-    /// Parse a compressed point. Rejects the identity:
-    /// `secp256k1` has cofactor 1 so small-subgroup attacks aren't
-    /// possible, but if `P = identity` then `R + c·P = R` for every
-    /// `c`, collapsing soundness. Reject identity explicitly so the
-    /// proof's algebraic invariants hold.
-    fn parse_point(bytes: &[u8; 33]) -> Result<ProjectivePoint> {
-        use k256::EncodedPoint;
-        use k256::elliptic_curve::Group;
-        use k256::elliptic_curve::sec1::FromEncodedPoint;
-
-        let encoded = EncodedPoint::from_bytes(bytes)
-            .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {e}")))?;
-        let point: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded).into();
-        let p = point.ok_or(ZkpError::InvalidPublicKey)?;
-        if bool::from(p.is_identity()) {
-            return Err(ZkpError::InvalidPublicKey);
-        }
-        Ok(p)
     }
 }
 

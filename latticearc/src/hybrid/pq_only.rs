@@ -32,8 +32,7 @@
 //! | CNSA 2.0 compliant | No (contains classical) | Yes |
 
 use crate::log_crypto_operation_error;
-use crate::primitives::aead::aes_gcm::AesGcm256;
-use crate::primitives::aead::{AeadCipher, TAG_LEN};
+use crate::primitives::aead::TAG_LEN;
 use crate::primitives::kdf::hkdf::hkdf;
 use crate::primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
@@ -291,7 +290,7 @@ impl PqOnlySecretKey {
 ///
 /// M3 fix: routes through [`hkdf_kem_info_with_pk_and_aad`] so the AAD is
 /// length-prefixed into the HKDF info — matching
-/// `encrypt_hybrid::derive_encryption_key`'s segment layout. Pre-M3 the
+/// `encrypt_hybrid::derive_hybrid_encryption_key`'s segment layout. Pre-M3 the
 /// AAD was only bound at the AEAD tag and had no key-separation role on
 /// the PQ-only path. Empty AAD is permitted and is distinguishable on the
 /// wire from "AAD field absent" (the `aad_len = 0` prefix consumes 4
@@ -483,18 +482,12 @@ pub fn encrypt_pq_only_with_aad(
         PqOnlyError::KdfError("KDF failed".to_string())
     })?;
 
-    let cipher = AesGcm256::new(hkdf_result.expose_secret()).map_err(|_e| {
-        log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "AES-256 init failed");
-        PqOnlyError::EncryptionError("encryption failed".to_string())
-    })?;
-    let nonce = AesGcm256::generate_nonce();
-    // `Some(&[])` and `None` produce byte-identical AES-GCM output —
-    // empty AAD just means a zero-byte GHASH input. Pass through
-    // unconditionally rather than branching on `aad.is_empty()`.
-    let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).map_err(|_e| {
-        log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "AES-GCM seal failed");
-        PqOnlyError::EncryptionError("encryption failed".to_string())
-    })?;
+    let (ciphertext, nonce, tag) =
+        crate::hybrid::envelope::seal_aes256_gcm(hkdf_result.expose_secret(), plaintext, aad)
+            .map_err(|stage| {
+                log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, stage.msg());
+                PqOnlyError::EncryptionError("encryption failed".to_string())
+            })?;
 
     Ok(PqOnlyCiphertext {
         ml_kem_ciphertext: kem_ct.into_bytes(),
@@ -588,12 +581,15 @@ pub fn decrypt_pq_only_with_aad(
         opaque()
     })?;
 
-    let cipher = AesGcm256::new(hkdf_result.expose_secret()).map_err(|_e| {
-        log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "AES-256 init failed");
-        opaque()
-    })?;
-    cipher.decrypt(nonce, symmetric_ciphertext, tag, Some(aad)).map_err(|_aead_err| {
-        log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "AEAD authentication failed");
+    crate::hybrid::envelope::open_aes256_gcm(
+        hkdf_result.expose_secret(),
+        nonce,
+        symmetric_ciphertext,
+        tag,
+        aad,
+    )
+    .map_err(|stage| {
+        log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, stage.msg());
         opaque()
     })
 }

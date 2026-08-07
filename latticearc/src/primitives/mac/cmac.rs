@@ -61,15 +61,6 @@ impl CmacTag {
     }
 }
 
-/// CMAC-128 result (using AES-128). Alias for [`CmacTag`].
-pub type Cmac128 = CmacTag;
-
-/// CMAC-192 result (using AES-192). Alias for [`CmacTag`].
-pub type Cmac192 = CmacTag;
-
-/// CMAC-256 result (using AES-256). Alias for [`CmacTag`].
-pub type Cmac256 = CmacTag;
-
 /// CMAC subkeys K1 and K2 for padding operations.
 ///
 /// Pattern 5 / Anti-Pattern 2 ("no derived `Clone` on secret types"):
@@ -333,10 +324,13 @@ enum CipherType {
     Aes256(Aes256),
 }
 
-/// Compute AES-128-CMAC for given data
+/// Compute AES-CMAC for given data.
+///
+/// Accepts any of the three NIST SP 800-38B key sizes; the AES variant
+/// (AES-128/192/256) is selected by key length.
 ///
 /// # NIST SP 800-38B Specification
-/// - Key length: 128 bits (16 bytes)
+/// - Key length: 128, 192, or 256 bits (16, 24, or 32 bytes)
 /// - Tag length: 128 bits (16 bytes)
 /// - Block size: 128 bits (16 bytes)
 ///
@@ -347,107 +341,38 @@ enum CipherType {
 ///
 /// # Example
 /// ```no_run
-/// use latticearc::primitives::mac::cmac::{cmac_128, CmacError};
+/// use latticearc::primitives::mac::cmac::{cmac, CmacError};
 ///
 /// let key = [0u8; 16]; // 128-bit key
 /// let data = b"message to authenticate";
 ///
-/// let result = cmac_128(&key, data);
+/// let result = cmac(&key, data);
 /// assert!(result.is_ok());
 /// ```
 ///
 /// # Errors
-/// Returns an error if the key length is not exactly 16 bytes.
-pub fn cmac_128(key: &[u8], data: &[u8]) -> Result<Cmac128, CmacError> {
-    // Input validation - key must be exactly 16 bytes
-    if key.len() != 16 {
-        return Err(CmacError::InvalidKeyLength { actual: key.len() });
+/// Returns [`CmacError::InvalidKeyLength`] if the key is not 16, 24, or 32 bytes.
+pub fn cmac(key: &[u8], data: &[u8]) -> Result<CmacTag, CmacError> {
+    // Input validation - key must be 16, 24, or 32 bytes (AES-128/192/256).
+    // `compute_cmac_internal` re-validates this same set internally (it
+    // dispatches the AES variant by length), so this pre-check exists to
+    // return the error before any subkey-derivation work runs.
+    match key.len() {
+        16 | 24 | 32 => {}
+        _ => return Err(CmacError::InvalidKeyLength { actual: key.len() }),
     }
 
-    // Compute CMAC tag using AES-128
     let tag = compute_cmac_internal(key, data)?;
 
-    Ok(Cmac128 { tag })
+    Ok(CmacTag { tag })
 }
 
-/// Compute AES-192-CMAC for given data
-///
-/// # NIST SP 800-38B Specification
-/// - Key length: 192 bits (24 bytes)
-/// - Tag length: 128 bits (16 bytes)
-/// - Block size: 128 bits (16 bytes)
-///
-/// # Security Requirements
-/// - The key must be cryptographically secure
-/// - Use fresh keys for each context (never reuse keys across applications)
-/// - This implementation uses constant-time operations to prevent timing attacks
-///
-/// # Example
-/// ```no_run
-/// use latticearc::primitives::mac::cmac::{cmac_192, CmacError};
-///
-/// let key = [0u8; 24]; // 192-bit key
-/// let data = b"message to authenticate";
-///
-/// let result = cmac_192(&key, data);
-/// assert!(result.is_ok());
-/// ```
-///
-/// # Errors
-/// Returns an error if the key length is not exactly 24 bytes.
-pub fn cmac_192(key: &[u8], data: &[u8]) -> Result<Cmac192, CmacError> {
-    // Input validation - key must be exactly 24 bytes
-    if key.len() != 24 {
-        return Err(CmacError::InvalidKeyLength { actual: key.len() });
-    }
-
-    // Compute CMAC tag using AES-192
-    let tag = compute_cmac_internal(key, data)?;
-
-    Ok(Cmac192 { tag })
-}
-
-/// Compute AES-256-CMAC for given data
-///
-/// # NIST SP 800-38B Specification
-/// - Key length: 256 bits (32 bytes)
-/// - Tag length: 128 bits (16 bytes)
-/// - Block size: 128 bits (16 bytes)
-///
-/// # Security Requirements
-/// - The key must be cryptographically secure
-/// - Use fresh keys for each context (never reuse keys across applications)
-/// - This implementation uses constant-time operations to prevent timing attacks
-///
-/// # Example
-/// ```no_run
-/// use latticearc::primitives::mac::cmac::{cmac_256, CmacError};
-///
-/// let key = [0u8; 32]; // 256-bit key
-/// let data = b"message to authenticate";
-///
-/// let result = cmac_256(&key, data);
-/// assert!(result.is_ok());
-/// ```
-///
-/// # Errors
-/// Returns an error if the key length is not exactly 32 bytes.
-pub fn cmac_256(key: &[u8], data: &[u8]) -> Result<Cmac256, CmacError> {
-    // Input validation - key must be exactly 32 bytes
-    if key.len() != 32 {
-        return Err(CmacError::InvalidKeyLength { actual: key.len() });
-    }
-
-    // Compute CMAC tag using AES-256
-    let tag = compute_cmac_internal(key, data)?;
-
-    Ok(Cmac256 { tag })
-}
-
-/// Verify CMAC-128 tag using constant-time comparison
+/// Verify a CMAC tag using constant-time comparison.
 ///
 /// This function computes the CMAC tag for the given data and compares it
 /// with the provided tag in constant-time to prevent timing attacks.
+/// Accepts any of the three NIST SP 800-38B key sizes; the AES variant is
+/// selected by key length, matching [`cmac`].
 ///
 /// # Security Notice
 /// Tag-vs-tag comparison is constant-time via `subtle::ConstantTimeEq`.
@@ -457,7 +382,7 @@ pub fn cmac_256(key: &[u8], data: &[u8]) -> Result<Cmac256, CmacError> {
 /// the rejection cost contains no information about the key contents.
 ///
 /// # Arguments
-/// * `key` - The AES-128 key (16 bytes)
+/// * `key` - The AES key (16, 24, or 32 bytes)
 /// * `data` - The message to verify
 /// * `tag` - The CMAC tag to verify against (16 bytes)
 ///
@@ -467,34 +392,34 @@ pub fn cmac_256(key: &[u8], data: &[u8]) -> Result<Cmac256, CmacError> {
 /// # Example
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::primitives::mac::cmac::{cmac_128, verify_cmac_128};
+/// use latticearc::primitives::mac::cmac::{cmac, verify_cmac};
 ///
 /// let key = [0u8; 16];
 /// let data = b"message to authenticate";
 ///
-/// let cmac = cmac_128(&key, data)?;
-/// let is_valid = verify_cmac_128(&key, data, cmac.tag());
+/// let tag = cmac(&key, data)?;
+/// let is_valid = verify_cmac(&key, data, tag.tag());
 /// assert!(is_valid);
 /// # Ok(())
 /// # }
 /// ```
 #[must_use]
-pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
+pub fn verify_cmac(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
 
     // Always compute CMAC to prevent timing side-channels
     let tag_valid: bool = tag.len().ct_eq(&16).into();
 
     // Compute CMAC regardless of tag length validation (timing-safe)
-    let expected_tag_result = cmac_128(key, data);
+    let expected_tag_result = cmac(key, data);
 
     // maintain constant-time-comparison work
     // even on the Err path so the function signature is uniform across
     // all inputs. The discriminator (key length) is public/structural,
     // so this is hardening rather than a confidentiality fix — but it
     // matches what the function's CT claim implies.
-    if let Ok(cmac) = expected_tag_result {
-        let tags_match: bool = cmac.tag.ct_eq(tag).into();
+    if let Ok(computed) = expected_tag_result {
+        let tags_match: bool = computed.tag.ct_eq(tag).into();
         tag_valid & tags_match
     } else {
         // the previous "dummy CT work" two
@@ -510,113 +435,6 @@ pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     }
 }
 
-/// Verify CMAC-192 tag using constant-time comparison
-///
-/// This function computes the CMAC tag for the given data and compares it
-/// with the provided tag in constant-time to prevent timing attacks.
-///
-/// # Security Notice
-/// Tag-vs-tag comparison is constant-time via `subtle::ConstantTimeEq`.
-/// Key length is structural (public input) and is rejected fast on
-/// mismatch; this is a deliberate design choice, not a timing leak —
-/// the key length is supplied by the caller, not the adversary, and
-/// the rejection cost contains no information about the key contents.
-///
-/// # Arguments
-/// * `key` - The AES-192 key (24 bytes)
-/// * `data` - The message to verify
-/// * `tag` - The CMAC tag to verify against (16 bytes)
-///
-/// # Returns
-/// `true` if the tag is valid, `false` otherwise
-///
-/// # Example
-/// ```no_run
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::primitives::mac::cmac::{cmac_192, verify_cmac_192};
-///
-/// let key = [0u8; 24];
-/// let data = b"message to authenticate";
-///
-/// let cmac = cmac_192(&key, data)?;
-/// let is_valid = verify_cmac_192(&key, data, cmac.tag());
-/// assert!(is_valid);
-/// # Ok(())
-/// # }
-/// ```
-#[must_use]
-pub fn verify_cmac_192(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
-    use subtle::ConstantTimeEq;
-
-    // Always compute CMAC to prevent timing side-channels
-    let tag_valid: bool = tag.len().ct_eq(&16).into();
-
-    // Compute CMAC regardless of tag length validation (timing-safe)
-    let expected_tag_result = cmac_192(key, data);
-
-    if let Ok(cmac) = expected_tag_result {
-        let tags_match: bool = cmac.tag.ct_eq(tag).into();
-        tag_valid & tags_match
-    } else {
-        // Key length is structural / public input — fast rejection
-        // is intentional, not a timing leak. Mirrors `verify_cmac_128`.
-        false
-    }
-}
-
-/// Verify CMAC-256 tag using constant-time comparison
-///
-/// This function computes the CMAC tag for the given data and compares it
-/// with the provided tag in constant-time to prevent timing attacks.
-///
-/// # Security Notice
-/// Tag-vs-tag comparison is constant-time via `subtle::ConstantTimeEq`.
-/// Key length is structural (public input) and is rejected fast on
-/// mismatch; this is a deliberate design choice, not a timing leak —
-/// the key length is supplied by the caller, not the adversary, and
-/// the rejection cost contains no information about the key contents.
-///
-/// # Arguments
-/// * `key` - The AES-256 key (32 bytes)
-/// * `data` - The message to verify
-/// * `tag` - The CMAC tag to verify against (16 bytes)
-///
-/// # Returns
-/// `true` if the tag is valid, `false` otherwise
-///
-/// # Example
-/// ```no_run
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::primitives::mac::cmac::{cmac_256, verify_cmac_256};
-///
-/// let key = [0u8; 32];
-/// let data = b"message to authenticate";
-///
-/// let cmac = cmac_256(&key, data)?;
-/// let is_valid = verify_cmac_256(&key, data, cmac.tag());
-/// assert!(is_valid);
-/// # Ok(())
-/// # }
-/// ```
-#[must_use]
-pub fn verify_cmac_256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
-    use subtle::ConstantTimeEq;
-
-    // Always compute CMAC to prevent timing side-channels
-    let tag_valid: bool = tag.len().ct_eq(&16).into();
-
-    // Compute CMAC regardless of tag length validation (timing-safe)
-    let expected_tag_result = cmac_256(key, data);
-
-    if let Ok(cmac) = expected_tag_result {
-        let tags_match: bool = cmac.tag.ct_eq(tag).into();
-        tag_valid & tags_match
-    } else {
-        // See `verify_cmac_128` / `verify_cmac_192` — same rationale.
-        false
-    }
-}
-
 #[cfg(test)]
 #[expect(clippy::panic, reason = "Tests use panic for error verification")]
 #[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
@@ -628,20 +446,22 @@ mod tests {
         let key = vec![0u8; 16];
         let data = b"test data";
 
-        let result = cmac_128(&key, data);
+        let result = cmac(&key, data);
         assert!(result.is_ok(), "CMAC-128 should succeed with 16-byte key");
     }
 
     #[test]
-    fn test_cmac_128_invalid_key_fails() {
-        let key = vec![0u8; 32]; // Wrong length
+    fn test_cmac_invalid_key_length_below_minimum_fails() {
+        // The unified `cmac()` dispatches on key length; 16/24/32 are the
+        // only valid lengths. Anything else must be rejected.
+        let key = vec![0u8; 15];
         let data = b"test data";
 
-        let result = cmac_128(&key, data);
-        assert!(result.is_err(), "CMAC-128 should fail with 32-byte key");
+        let result = cmac(&key, data);
+        assert!(result.is_err(), "cmac() should fail with a 15-byte key");
 
         match result {
-            Err(CmacError::InvalidKeyLength { actual: 32 }) => {}
+            Err(CmacError::InvalidKeyLength { actual: 15 }) => {}
             _ => panic!("Expected InvalidKeyLength error"),
         }
     }
@@ -651,20 +471,21 @@ mod tests {
         let key = vec![0u8; 24];
         let data = b"test data";
 
-        let result = cmac_192(&key, data);
+        let result = cmac(&key, data);
         assert!(result.is_ok(), "CMAC-192 should succeed with 24-byte key");
     }
 
     #[test]
-    fn test_cmac_192_invalid_key_fails() {
-        let key = vec![0u8; 32]; // Wrong length
+    fn test_cmac_invalid_key_length_between_variants_fails() {
+        // 20 bytes falls between the 16- and 24-byte valid lengths.
+        let key = vec![0u8; 20];
         let data = b"test data";
 
-        let result = cmac_192(&key, data);
-        assert!(result.is_err(), "CMAC-192 should fail with 32-byte key");
+        let result = cmac(&key, data);
+        assert!(result.is_err(), "cmac() should fail with a 20-byte key");
 
         match result {
-            Err(CmacError::InvalidKeyLength { actual: 32 }) => {}
+            Err(CmacError::InvalidKeyLength { actual: 20 }) => {}
             Err(e) => panic!("Unexpected CMAC error: {:?}", e),
             Ok(_) => panic!("Expected error but got success"),
         }
@@ -675,20 +496,20 @@ mod tests {
         let key = vec![0u8; 32];
         let data = b"test data";
 
-        let result = cmac_256(&key, data);
+        let result = cmac(&key, data);
         assert!(result.is_ok(), "CMAC-256 should succeed with 32-byte key");
     }
 
     #[test]
-    fn test_cmac_256_invalid_key_fails() {
-        let key = vec![0u8; 16]; // Wrong length
+    fn test_cmac_invalid_key_length_above_maximum_fails() {
+        let key = vec![0u8; 33];
         let data = b"test data";
 
-        let result = cmac_256(&key, data);
-        assert!(result.is_err(), "CMAC-256 should fail with 16-byte key");
+        let result = cmac(&key, data);
+        assert!(result.is_err(), "cmac() should fail with a 33-byte key");
 
         match result {
-            Err(CmacError::InvalidKeyLength { actual: 16 }) => {}
+            Err(CmacError::InvalidKeyLength { actual: 33 }) => {}
             Err(e) => panic!("Unexpected CMAC error: {:?}", e),
             Ok(_) => panic!("Expected error but got success"),
         }
@@ -700,8 +521,8 @@ mod tests {
         let data1 = b"data one";
         let data2 = b"data two";
 
-        let tag1 = cmac_256(&key, data1).unwrap().tag;
-        let tag2 = cmac_256(&key, data2).unwrap().tag;
+        let tag1 = cmac(&key, data1).unwrap().tag;
+        let tag2 = cmac(&key, data2).unwrap().tag;
 
         // Different data should produce different tags (with high probability)
         assert_ne!(tag1, tag2, "Different data should produce different tags");
@@ -712,7 +533,7 @@ mod tests {
         let key = vec![0u8; 32];
         let data = b"test data";
 
-        let result = cmac_256(&key, data);
+        let result = cmac(&key, data);
         assert!(result.is_ok(), "CMAC-256 should succeed");
 
         let tag = result.unwrap().tag;
@@ -726,9 +547,9 @@ mod tests {
         let key256 = [0u8; 32];
         let data = b"test data";
 
-        let tag128 = cmac_128(&key128, data).unwrap().tag;
-        let tag192 = cmac_192(&key192, data).unwrap().tag;
-        let tag256 = cmac_256(&key256, data).unwrap().tag;
+        let tag128 = cmac(&key128, data).unwrap().tag;
+        let tag192 = cmac(&key192, data).unwrap().tag;
+        let tag256 = cmac(&key256, data).unwrap().tag;
 
         // Each key size produces different tags
         assert_ne!(tag128, tag192, "Different key sizes should produce different tags");
@@ -740,18 +561,18 @@ mod tests {
         let key = vec![0u8; 16];
         let data = b"test data";
 
-        let cmac = cmac_128(&key, data).unwrap();
+        let mac = cmac(&key, data).unwrap();
 
         // Valid tag should verify
-        assert!(verify_cmac_128(&key, data, &cmac.tag));
+        assert!(verify_cmac(&key, data, &mac.tag));
 
         // Invalid tag should not verify
-        let mut invalid_tag = cmac.tag;
+        let mut invalid_tag = mac.tag;
         invalid_tag[0] ^= 0xFF;
-        assert!(!verify_cmac_128(&key, data, &invalid_tag));
+        assert!(!verify_cmac(&key, data, &invalid_tag));
 
         // Different data should not verify
-        assert!(!verify_cmac_128(&key, b"different data", &cmac.tag));
+        assert!(!verify_cmac(&key, b"different data", &mac.tag));
     }
 
     #[test]
@@ -759,18 +580,18 @@ mod tests {
         let key = vec![0u8; 24];
         let data = b"test data";
 
-        let cmac = cmac_192(&key, data).unwrap();
+        let mac = cmac(&key, data).unwrap();
 
         // Valid tag should verify
-        assert!(verify_cmac_192(&key, data, &cmac.tag));
+        assert!(verify_cmac(&key, data, &mac.tag));
 
         // Invalid tag should not verify
-        let mut invalid_tag = cmac.tag;
+        let mut invalid_tag = mac.tag;
         invalid_tag[0] ^= 0xFF;
-        assert!(!verify_cmac_192(&key, data, &invalid_tag));
+        assert!(!verify_cmac(&key, data, &invalid_tag));
 
         // Different data should not verify
-        assert!(!verify_cmac_192(&key, b"different data", &cmac.tag));
+        assert!(!verify_cmac(&key, b"different data", &mac.tag));
     }
 
     #[test]
@@ -778,18 +599,18 @@ mod tests {
         let key = vec![0u8; 32];
         let data = b"test data";
 
-        let cmac = cmac_256(&key, data).unwrap();
+        let mac = cmac(&key, data).unwrap();
 
         // Valid tag should verify
-        assert!(verify_cmac_256(&key, data, &cmac.tag));
+        assert!(verify_cmac(&key, data, &mac.tag));
 
         // Invalid tag should not verify
-        let mut invalid_tag = cmac.tag;
+        let mut invalid_tag = mac.tag;
         invalid_tag[0] ^= 0xFF;
-        assert!(!verify_cmac_256(&key, data, &invalid_tag));
+        assert!(!verify_cmac(&key, data, &invalid_tag));
 
         // Different data should not verify
-        assert!(!verify_cmac_256(&key, b"different data", &cmac.tag));
+        assert!(!verify_cmac(&key, b"different data", &mac.tag));
     }
 
     #[test]
@@ -801,9 +622,9 @@ mod tests {
         let data = b"";
 
         // Empty data should still produce a valid tag
-        assert!(cmac_128(&key128, data).is_ok());
-        assert!(cmac_192(&key192, data).is_ok());
-        assert!(cmac_256(&key256, data).is_ok());
+        assert!(cmac(&key128, data).is_ok());
+        assert!(cmac(&key192, data).is_ok());
+        assert!(cmac(&key256, data).is_ok());
     }
 
     #[test]
@@ -812,13 +633,13 @@ mod tests {
         // Exactly 16 bytes (one block)
         let data = [1u8; 16];
 
-        let result = cmac_128(&key, &data);
+        let result = cmac(&key, &data);
         assert!(result.is_ok());
 
         // Exactly 32 bytes (two blocks)
         let data2 = [2u8; 32];
 
-        let result2 = cmac_128(&key, &data2);
+        let result2 = cmac(&key, &data2);
         assert!(result2.is_ok());
     }
 
@@ -828,13 +649,13 @@ mod tests {
         // 15 bytes (one incomplete block)
         let data = [1u8; 15];
 
-        let result = cmac_128(&key, &data);
+        let result = cmac(&key, &data);
         assert!(result.is_ok());
 
         // 17 bytes (one complete block + one incomplete block)
         let data2 = [2u8; 17];
 
-        let result2 = cmac_128(&key, &data2);
+        let result2 = cmac(&key, &data2);
         assert!(result2.is_ok());
     }
 
@@ -849,13 +670,13 @@ mod tests {
         ];
         let data = b"";
 
-        let cmac = cmac_128(&key, data).unwrap();
+        let mac = cmac(&key, data).unwrap();
         let expected = [
             0xbb, 0x1d, 0x69, 0x29, 0xe9, 0x59, 0x37, 0x28, 0x7f, 0xa3, 0x7d, 0x12, 0x9b, 0x75,
             0x67, 0x46,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-128 test vector 1 failed");
-        assert!(verify_cmac_128(&key, data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-128 test vector 1 failed");
+        assert!(verify_cmac(&key, data, &expected));
 
         // Test case 2: AES-128, single block (16 bytes)
         let key = [
@@ -867,13 +688,13 @@ mod tests {
             0x17, 0x2a,
         ];
 
-        let cmac = cmac_128(&key, &data).unwrap();
+        let mac = cmac(&key, &data).unwrap();
         let expected = [
             0x07, 0x0a, 0x16, 0xb4, 0x6b, 0x4d, 0x41, 0x44, 0xf7, 0x9b, 0xdd, 0x9d, 0xd0, 0x4a,
             0x28, 0x7c,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-128 test vector 2 failed");
-        assert!(verify_cmac_128(&key, &data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-128 test vector 2 failed");
+        assert!(verify_cmac(&key, &data, &expected));
 
         // Test case 3: AES-128, two blocks (32 bytes)
         let key = [
@@ -886,14 +707,14 @@ mod tests {
             0x45, 0xaf, 0x8e, 0x51,
         ];
 
-        let cmac = cmac_128(&key, &data).unwrap();
+        let mac = cmac(&key, &data).unwrap();
         // Verified with OpenSSL: openssl dgst -mac cmac -macopt cipher:aes-128-cbc
         let expected = [
             0xce, 0x0c, 0xbf, 0x17, 0x38, 0xf4, 0xdf, 0x64, 0x28, 0xb1, 0xd9, 0x3b, 0xf1, 0x20,
             0x81, 0xc9,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-128 test vector 3 failed");
-        assert!(verify_cmac_128(&key, &data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-128 test vector 3 failed");
+        assert!(verify_cmac(&key, &data, &expected));
 
         // Test case 4: AES-128, incomplete block (20 bytes)
         let key = [
@@ -905,14 +726,14 @@ mod tests {
             0x17, 0x2a, 0xae, 0x2d, 0x8a, 0x57,
         ];
 
-        let cmac = cmac_128(&key, &data).unwrap();
+        let mac = cmac(&key, &data).unwrap();
         // Verified with OpenSSL: openssl dgst -mac cmac -macopt cipher:aes-128-cbc
         let expected = [
             0x7d, 0x85, 0x44, 0x9e, 0xa6, 0xea, 0x19, 0xc8, 0x23, 0xa7, 0xbf, 0x78, 0x83, 0x7d,
             0xfa, 0xde,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-128 test vector 4 failed");
-        assert!(verify_cmac_128(&key, &data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-128 test vector 4 failed");
+        assert!(verify_cmac(&key, &data, &expected));
     }
 
     #[test]
@@ -924,13 +745,13 @@ mod tests {
         ];
         let data = b"";
 
-        let cmac = cmac_192(&key, data).unwrap();
+        let mac = cmac(&key, data).unwrap();
         let expected = [
             0xd1, 0x7d, 0xdf, 0x46, 0xad, 0xaa, 0xcd, 0xe5, 0x31, 0xca, 0xc4, 0x83, 0xde, 0x7a,
             0x93, 0x67,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-192 test vector 1 failed");
-        assert!(verify_cmac_192(&key, data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-192 test vector 1 failed");
+        assert!(verify_cmac(&key, data, &expected));
 
         // Test case 2: AES-192, single block (16 bytes)
         let key = [
@@ -942,14 +763,14 @@ mod tests {
             0x17, 0x2a,
         ];
 
-        let cmac = cmac_192(&key, &data).unwrap();
+        let mac = cmac(&key, &data).unwrap();
         // Verified with OpenSSL: openssl dgst -mac cmac -macopt cipher:aes-192-cbc
         let expected = [
             0x9e, 0x99, 0xa7, 0xbf, 0x31, 0xe7, 0x10, 0x90, 0x06, 0x62, 0xf6, 0x5e, 0x61, 0x7c,
             0x51, 0x84,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-192 test vector 2 failed");
-        assert!(verify_cmac_192(&key, &data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-192 test vector 2 failed");
+        assert!(verify_cmac(&key, &data, &expected));
 
         // Test case 3: AES-192, two blocks (32 bytes)
         let key = [
@@ -962,14 +783,14 @@ mod tests {
             0x45, 0xaf, 0x8e, 0x51,
         ];
 
-        let cmac = cmac_192(&key, &data).unwrap();
+        let mac = cmac(&key, &data).unwrap();
         // Verified with OpenSSL: openssl dgst -mac cmac -macopt cipher:aes-192-cbc
         let expected = [
             0x9f, 0x1d, 0x26, 0xd1, 0x76, 0x38, 0x31, 0xa5, 0x8c, 0x40, 0x16, 0xc6, 0xa9, 0x7b,
             0x0d, 0x4e,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-192 test vector 3 failed");
-        assert!(verify_cmac_192(&key, &data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-192 test vector 3 failed");
+        assert!(verify_cmac(&key, &data, &expected));
     }
 
     #[test]
@@ -982,13 +803,13 @@ mod tests {
         ];
         let data = b"";
 
-        let cmac = cmac_256(&key, data).unwrap();
+        let mac = cmac(&key, data).unwrap();
         let expected = [
             0x02, 0x89, 0x62, 0xf6, 0x1b, 0x7b, 0xf8, 0x9e, 0xfc, 0x6b, 0x55, 0x1f, 0x46, 0x67,
             0xd9, 0x83,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-256 test vector 1 failed");
-        assert!(verify_cmac_256(&key, data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-256 test vector 1 failed");
+        assert!(verify_cmac(&key, data, &expected));
 
         // Test case 2: AES-256, single block (16 bytes)
         let key = [
@@ -1001,13 +822,13 @@ mod tests {
             0x17, 0x2a,
         ];
 
-        let cmac = cmac_256(&key, &data).unwrap();
+        let mac = cmac(&key, &data).unwrap();
         let expected = [
             0x28, 0xa7, 0x02, 0x3f, 0x45, 0x2e, 0x8f, 0x82, 0xbd, 0x4b, 0xf2, 0x8d, 0x8c, 0x37,
             0xc3, 0x5c,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-256 test vector 2 failed");
-        assert!(verify_cmac_256(&key, &data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-256 test vector 2 failed");
+        assert!(verify_cmac(&key, &data, &expected));
 
         // Test case 3: AES-256, two blocks (32 bytes)
         let key = [
@@ -1021,14 +842,14 @@ mod tests {
             0x45, 0xaf, 0x8e, 0x51,
         ];
 
-        let cmac = cmac_256(&key, &data).unwrap();
+        let mac = cmac(&key, &data).unwrap();
         // Verified with OpenSSL: openssl dgst -mac cmac -macopt cipher:aes-256-cbc
         let expected = [
             0x5a, 0x72, 0x2d, 0x2d, 0x85, 0x16, 0xf8, 0x54, 0xb8, 0x67, 0x7a, 0x53, 0x7b, 0x1b,
             0x66, 0x9a,
         ];
-        assert_eq!(cmac.tag, expected, "CMAC-256 test vector 3 failed");
-        assert!(verify_cmac_256(&key, &data, &expected));
+        assert_eq!(mac.tag, expected, "CMAC-256 test vector 3 failed");
+        assert!(verify_cmac(&key, &data, &expected));
     }
 
     #[test]

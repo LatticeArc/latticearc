@@ -57,9 +57,15 @@ fips-strict-integrity = []
 # (the standard library convention) don't fight ours for the global
 # default. The `latticearc-cli` binary enables this feature.
 tracing-init = ["dep:tracing-subscriber", "dep:tracing-appender"]
+# Benchmarking/metrics support (`latticearc::perf`: Timer, Histogram,
+# MetricsCollector). Off by default: no production code path instruments
+# itself with these types — they back `benches/benchmarks.rs` and the
+# perf integration tests, and downstream perf tooling opts in explicitly.
+perf = []
 # ZKP serialization support (enables serde_with for ZKP types)
 zkp-serde = ["dep:serde_with"]
-# TLS formal verification features
+# Compilation marker: enables formal-verification harness code (Kani
+# proofs). Does not run proofs — use `cargo kani` separately.
 formal-verification = []
 kani = []
 saw = []
@@ -305,6 +311,18 @@ required-features = ["test-utils"]
 name = "primitives_self_test_conditional_kats"
 required-features = ["fips-self-test", "test-utils"]
 
+# The perf module (and therefore its test suites) only exists behind the
+# non-default `perf` feature; declare it here so cargo skips these targets
+# with a visible message instead of a file-level cfg compiling them to an
+# empty (and missing_docs-failing) crate.
+[[test]]
+name = "perf_performance"
+required-features = ["perf"]
+
+[[test]]
+name = "perf_integration_test"
+required-features = ["perf"]
+
 # =============================================================================
 # Benchmarks
 # =============================================================================
@@ -312,6 +330,7 @@ required-features = ["fips-self-test", "test-utils"]
 [[bench]]
 name = "benchmarks"
 harness = false
+required-features = ["perf"]
 
 [[bench]]
 name = "constant_time"

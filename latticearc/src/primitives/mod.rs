@@ -17,7 +17,8 @@
 //! points (`encrypt`, `decrypt`, `sign_with_key`, `verify`, keygen,
 //! hybrid, …). Callers that drop down to `primitives::*` directly in
 //! a FIPS deployment MUST invoke
-//! [`self_test::verify_operational`] themselves before each session
+//! `self_test::verify_operational` (feature `fips-self-test` — a doc
+//! link cannot resolve across the feature gate) themselves before each session
 //! of cryptographic operations to confirm the module is still in the
 //! operational state. Skipping the gate produces functionally-correct
 //! but uncertified output — sufficient for non-FIPS use,
@@ -90,7 +91,6 @@ pub mod sig;
 
 // Supporting modules
 pub mod ec;
-pub mod error;
 pub mod fips_error;
 /// Resource limits for cryptographic operations (DoS prevention).
 pub mod resource_limits;
@@ -105,9 +105,6 @@ pub mod pct;
 #[cfg(test)]
 mod zeroization_tests;
 
-#[cfg(test)]
-mod simple_zeroization_tests;
-
 pub use aead::*;
 pub use hash::*;
 pub use kdf::*;
@@ -116,12 +113,12 @@ pub use mac::*;
 pub use rand::*;
 pub use sig::*;
 
-// Explicit PQ type exports for unified API
+// Explicit PQ type exports for unified API. Algorithm-prefixed names are
+// now the types' own names (see `sig::mod` — the former `SigningKey` /
+// `VerifyingKey` collision was resolved by renaming at the source), so
+// this is a plain re-export rather than an aliasing one.
 pub use sig::{
-    fndsa::{
-        KeyPair as FnDsaKeyPair, Signature as FnDsaSignature, SigningKey as FnDsaSigningKey,
-        VerifyingKey as FnDsaVerifyingKey,
-    },
+    fndsa::{FnDsaKeyPair, FnDsaSignature, FnDsaSigningKey, FnDsaVerifyingKey},
     ml_dsa::{MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature},
-    slh_dsa::{SigningKey as SlhDsaSigningKey, VerifyingKey as SlhDsaVerifyingKey},
+    slh_dsa::{SlhDsaSignature, SlhDsaSigningKey, SlhDsaVerifyingKey},
 };

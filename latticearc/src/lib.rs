@@ -315,6 +315,10 @@ pub mod unified_api;
 pub mod zkp;
 
 /// Performance monitoring and benchmarking utilities.
+///
+/// Gated behind the non-default `perf` feature: nothing in the production
+/// crypto paths consumes these types, so default builds don't carry them.
+#[cfg(feature = "perf")]
 pub mod perf;
 
 // ============================================================================

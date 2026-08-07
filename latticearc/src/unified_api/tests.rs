@@ -224,24 +224,6 @@ fn test_use_case_config_returns_expected_succeeds() {
 }
 
 #[test]
-fn test_hardware_types_exist_returns_expected_succeeds() {
-    // Hardware trait definitions and types are available
-    let info = HardwareInfo {
-        available_accelerators: vec![HardwareType::Cpu],
-        preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: HardwareCapabilities {
-            simd_support: true,
-            aes_ni: true,
-            threads: 1,
-            memory: 0,
-        },
-    };
-
-    assert!(!info.available_accelerators.is_empty());
-    assert!(info.best_accelerator().is_some());
-}
-
-#[test]
 fn test_context_aware_selection_returns_expected_succeeds() {
     let config = CoreConfig::default();
     let data = b"test data for context-aware selection";
@@ -1004,7 +986,7 @@ fn test_crypto_config_overrides_returns_expected_succeeds() {
 }
 
 // ============================================================================
-// Phase 4: traits.rs coverage (VerificationStatus, HardwareInfo)
+// traits.rs coverage (VerificationStatus, DataCharacteristics)
 // ============================================================================
 
 #[test]
@@ -1013,87 +995,6 @@ fn test_verification_status_is_verified_returns_expected_succeeds() {
     assert!(!VerificationStatus::Expired.is_verified());
     assert!(!VerificationStatus::Failed.is_verified());
     assert!(!VerificationStatus::Pending.is_verified());
-}
-
-#[test]
-fn test_hardware_info_best_accelerator_preferred_returns_expected_succeeds() {
-    let info = HardwareInfo {
-        available_accelerators: vec![HardwareType::Cpu, HardwareType::Gpu],
-        preferred_accelerator: Some(HardwareType::Gpu),
-        capabilities: HardwareCapabilities {
-            simd_support: true,
-            aes_ni: true,
-            threads: 4,
-            memory: 1024,
-        },
-    };
-    assert_eq!(info.best_accelerator(), Some(&HardwareType::Gpu));
-}
-
-#[test]
-fn test_hardware_info_best_accelerator_fallback_to_first_returns_expected_succeeds() {
-    let info = HardwareInfo {
-        available_accelerators: vec![HardwareType::Fpga, HardwareType::Cpu],
-        preferred_accelerator: None,
-        capabilities: HardwareCapabilities {
-            simd_support: false,
-            aes_ni: false,
-            threads: 1,
-            memory: 512,
-        },
-    };
-    assert_eq!(info.best_accelerator(), Some(&HardwareType::Fpga));
-}
-
-#[test]
-fn test_hardware_info_best_accelerator_none_returns_expected_succeeds() {
-    let info = HardwareInfo {
-        available_accelerators: vec![],
-        preferred_accelerator: None,
-        capabilities: HardwareCapabilities {
-            simd_support: false,
-            aes_ni: false,
-            threads: 1,
-            memory: 256,
-        },
-    };
-    assert_eq!(info.best_accelerator(), None);
-}
-
-#[test]
-fn test_hardware_info_summary_returns_expected_succeeds() {
-    let info = HardwareInfo {
-        available_accelerators: vec![HardwareType::Cpu],
-        preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: HardwareCapabilities {
-            simd_support: true,
-            aes_ni: true,
-            threads: 8,
-            memory: 4096,
-        },
-    };
-    let summary = info.summary();
-    assert!(summary.contains("Cpu"), "Summary should mention Cpu");
-    assert!(summary.contains("Available"), "Summary should mention Available");
-    assert!(summary.contains("Preferred"), "Summary should mention Preferred");
-}
-
-#[test]
-fn test_hardware_type_variants_returns_expected_succeeds() {
-    let types = vec![
-        HardwareType::Cpu,
-        HardwareType::Gpu,
-        HardwareType::Fpga,
-        HardwareType::Tpu,
-        HardwareType::Sgx,
-    ];
-    // All should be clonable and debug-formattable
-    for t in &types {
-        let cloned = t.clone();
-        assert_eq!(t, &cloned);
-        let debug = format!("{:?}", t);
-        assert!(!debug.is_empty());
-    }
 }
 
 #[test]

@@ -7,6 +7,199 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Removed (breaking — pre-1.0 dead-surface cleanup)
+
+Removed public API with zero consumers in this repository and zero consumers
+in the downstream enterprise codebase (each symbol verified against both
+before removal):
+
+- **P-256/P-384/P-521 ECDH surface** (`primitives::kem::ecdh`):
+  `EcdhP256/P384/P521{PublicKey,KeyPair}`, `agree_ephemeral_p256/p384/p521`,
+  `validate_p256/p384/p521_public_key`, `EcdhCurve`, and the per-curve size
+  constants. X25519 — the classical leg of the hybrid KEM — is unchanged and
+  remains the only exposed ECDH curve. No production code path (here or
+  downstream) ever constructed a P-curve key.
+- **`primitives::hash::blake2s_256`** — never referenced; `blake2b_256` stays.
+- **`primitives::aead::{verify_tag_constant_time, zeroize_data}`** — test-only
+  helpers on the production surface; real tag verification happens inside
+  `aws-lc-rs` `open_in_place`, and zeroization goes through the `zeroize`
+  crate directly.
+- **`ResourceLimits::max_key_derivations_per_call`** and
+  `validate_key_derivation_count` — a no-op limiter: no KDF ever consulted it.
+- **`types::traits::{HardwareType, HardwareInfo, HardwareCapabilities}`** —
+  abandoned hardware-dispatch concept; constructed only by tests.
+  (`CoreConfig::hardware_acceleration` is NOT dead and stays — it selects the
+  software-only AEAD path; its stale doc tag was corrected.)
+- **`UseCaseConfig` slimmed to `{use_case, signature}`** — the `encryption`
+  and `zero_trust` fields were built and never read; signature-scheme
+  dispatch (`select_signature_scheme`) reads only `signature`. The stale
+  "not yet wired to the unified API" doc note was corrected — the type IS the
+  use-case signature-routing carrier.
+- **`LatticeArcError`: 24 never-constructed variants removed** (e.g.
+  `PinLocked`, `CloudKmsError`, `WasmError`, `CircuitBreakerOpen`,
+  `MigrationError`, `ZkpError`). Variants constructed downstream
+  (`InvalidOperation`, `ResourceExhausted`, `HsmError`, `FeatureNotEnabled`,
+  `HardwareError`, `NotImplemented`, `SigningError`, …) are all retained.
+- **`CoreError`: 9 never-constructed variants removed** (`InvalidNonce`,
+  `HardwareError`, `HardwareUnavailable`, `Recoverable`, `NotImplemented`,
+  `HsmError`, `MemoryError`, `UnsupportedOperation`, `SchemeSelectionFailed`).
+
+### Changed
+
+- `hybrid::encrypt_hybrid::derive_encryption_key` renamed to
+  `derive_hybrid_encryption_key` — it collided by name with the unrelated
+  SP 800-108 convenience function `kdf::sp800_108_counter_kdf::derive_encryption_key`.
+- Duplicate zeroization test scaffolding consolidated
+  (`simple_zeroization_tests.rs` removed; `zeroization_tests.rs` already
+  covered its cases).
+
+### Error architecture (breaking)
+
+- **FN-DSA verify: operational rejection is now `Err`, not a forgery verdict.**
+  `fndsa::VerifyingKey::verify` returned `Ok(false)` when the message exceeded
+  the signature resource limit — indistinguishable from "checked and invalid".
+  It now returns the new opaque `FnDsaError::VerificationFailed`, matching
+  ML-DSA and SLH-DSA: `Err` = could not verify, `Ok(false)` = verified as
+  invalid. (The unified-API `verify_pq_*` entry points are unaffected — they
+  guard size before reaching the primitive.)
+- **`CoreError` gains typed `#[from]` conversions** for `FnDsaError`,
+  `HybridKemError`, `HybridEncryptionError`, `HybridSignatureError`, and
+  `PqOnlyError`, replacing per-call-site stringification on keygen/sign/encrypt
+  paths (e.g. hybrid keypair-generation failures no longer masquerade as
+  `EncryptionFailed`). Decrypt paths still collapse to the opaque
+  `DecryptionFailed` — the new variants are never constructed there.
+- **FIPS 140-3 §7.10.2 error indicators now cover the real error surface.**
+  `FipsError` was implemented only for `MlKemError`, `AeadError`, and the
+  otherwise-unused `PrimitivesError`; the per-algorithm errors that make up the
+  crate's actual fallible surface never reached the FIPS error-code machinery.
+  Added `FipsError` impls for `MlDsaError`, `SlhDsaError`, `FnDsaError`,
+  `EcdhError`, and `CmacError` (SLH-DSA `PctFailed` routes to the critical
+  `ConditionalTestFailed` code; RFC 7748 low-order-point rejection routes to
+  `WeakKeyDetected`).
+- **`PrimitivesError` removed.** An abandoned unifying-error experiment used by
+  one module; `hash/sha2.rs` now returns its own `Sha2Error` (also wired to
+  `FipsError`).
+
+### Hybrid internals (non-breaking)
+
+- **Single AES-256-GCM envelope implementation.** The hybrid and PQ-only
+  encrypt/decrypt paths each hand-rolled the same cipher-init / seal / open
+  sequence; it now lives once in a crate-private `hybrid::envelope` module so
+  a future change cannot silently drift between the two paths. Each path's
+  deliberately domain-separated KDF binding is untouched — wire output is
+  byte-identical, and every Pattern-6 opaque error string and per-operation
+  trace label is preserved.
+- **`sig_hybrid::verify` split into per-leg helpers.** The 245-line function
+  now delegates to `verify_ml_dsa_leg` / `verify_ed25519_leg` (private, each
+  returning a bit), keeping the constant-time bitwise-AND composition and the
+  timing-equalizer behavior exactly as before while making each leg
+  independently reviewable.
+
+### API surface (breaking)
+
+- **Generic-named hybrid re-exports removed.** `hybrid::{sign, verify,
+  encapsulate, decapsulate, kem_generate_keypair, sig_generate_keypair}` no
+  longer exist at the `hybrid` module root — call them through their owning
+  modules (`hybrid::sig_hybrid::verify`, `hybrid::kem_hybrid::encapsulate`,
+  …). The bare names invited confusion against the crate-root unified
+  `sign_with_key`/`verify` API. Types and descriptively-named functions are
+  unaffected.
+- **`latticearc::perf` is now behind the non-default `perf` feature.** The
+  module is benchmark scaffolding with no production consumers inside the
+  crate; default (and FIPS) builds no longer compile it. Downstream perf
+  tooling opts in with `features = ["perf"]`.
+
+### Primitives consistency (breaking)
+
+- **Signature key types renamed for collision-free, uniform naming**:
+  `slh_dsa::{SigningKey→SlhDsaSigningKey, VerifyingKey→SlhDsaVerifyingKey}`;
+  `fndsa::{SigningKey→FnDsaSigningKey, VerifyingKey→FnDsaVerifyingKey,
+  Signature→FnDsaSignature, KeyPair→FnDsaKeyPair}`. The bare names collided
+  across the two modules, blocking uniform re-exports; `sig::` now re-exports
+  every algorithm's types explicitly.
+- **SLH-DSA gets a typed, length-validated `SlhDsaSignature`** — `sign`
+  returns it and `verify` takes it, matching `MlDsaSignature`/`FnDsaSignature`
+  instead of raw `Vec<u8>`/`&[u8]`.
+- **CMAC surface collapsed 6 → 2**: `cmac()` / `verify_cmac()` dispatch on key
+  length internally (16/24/32 bytes), replacing the per-length
+  `cmac_128/192/256` + `verify_cmac_*` sextet. No consumers existed for the
+  removed names in either repository.
+- FN-DSA `sign` keeps its `&mut self` receiver (upstream `fn-dsa 0.3` requires
+  mutable signing state); the asymmetry vs ML-DSA/SLH-DSA is now documented on
+  the method.
+
+### CLI internals (no behavior change)
+
+- keygen's four identical per-algorithm generate-and-write functions collapsed
+  into one parameterized helper; algorithm-name strings now come from the
+  library's `KeyAlgorithm::canonical_name`/`from_canonical_name` single source
+  of truth instead of two hand-rolled CLI tables; the write-to-file-or-stdout
+  path (atomic write, `--force`, secret file mode, TTY guard) is centralized in
+  `common::write_output_or_stdout`. All user-visible strings verified
+  byte-identical (decrypt/kdf TTY refusals keep their exact original wording).
+
+### Module structure (non-breaking — every public path preserved)
+
+Three god-files became cohesive directory modules with re-export facades; the
+public surface was inventoried before/after and is provably unchanged:
+
+- `unified_api/zero_trust.rs` (3,211 lines, 8+ types) → `zero_trust/{security_mode,
+  verified_session, auth, protocol_types, proof_data, session, tests}.rs`
+- `unified_api/key_format.rs` (4,992 lines) → `key_format/{key_type, algorithm,
+  key_data, portable_key_core, conversions, validation, encryption,
+  serialization, tests_a, tests_b}.rs`
+- `primitives/self_test.rs` (3,293 lines, four concerns) → `self_test/{kat,
+  integrity, error_state, post}.rs` — per-algorithm KAT vectors, the FIPS §9.2.2
+  integrity test, the §9.6 error-state machine, and power-up orchestration are
+  now independently reviewable.
+
+### Test-suite restructure
+
+- `latticearc/tests/audit_regression_*.rs` renamed to `regression_*.rs` and
+  audit-process phrasing scrubbed from test doc comments (project rule: no
+  audit-round markers; stable CVE-style finding IDs are kept).
+- New shared fixture module `latticearc/tests/support/` (Ed25519 keypair
+  fixture replacing ~22 inline keygen repetitions); the `latticearc-tests`
+  crate's three duplicate `create_test_keypair` helpers consolidated into its
+  existing `utils` module.
+- `latticearc-cli/tests/cli_integration.rs` (5,409 lines) split into five
+  topic files (`cli_keygen`, `cli_sign_verify`, `cli_encrypt_decrypt`,
+  `cli_hash_kdf`, `cli_workflows`, plus conformance) sharing one support
+  module — all 113 tests preserved verbatim.
+- **Concatenation-era mega test files un-concatenated.** A prior
+  consolidation pass had reduced file *count* by pasting whole files into
+  `mod {}` blocks with `// Originally:` markers. Those markers are gone and
+  the five largest carriers are now topic-named files: `fips_compliance.rs`
+  (6.2k lines) → 4 files, `fips_validation_misc.rs` → 4, `fips_kat_hash_kdf_ec.rs`
+  → 4, `fips_kat_loaders.rs` → 3, `primitives_concurrency.rs` → 2 — 1,219
+  tests moved with byte-for-byte reverse-transform verification; nine more
+  files were marker-cleaned in place. `fips_cavp.rs` (16.9k lines, 474
+  `#[test]` fns) is split likewise into six topic files, verified lossless by
+  complement-of-ranges analysis.
+- The perf test suites moved from a file-level `cfg` gate to Cargo-level
+  `[[test]] required-features = ["perf"]`, so cargo reports them as skipped
+  instead of compiling empty crates.
+- *Deferred follow-up:* the `tests` crate still contains four parallel
+  KAT/CAVP framework implementations (`validation/{kat_tests,nist_kat,cavp}`,
+  `tests/nist_kat/`), and the split CAVP files still carry duplicated
+  `create_*_vector` fixture builders. Consolidating frameworks and fixtures
+  onto one loader/runner layer is a dedicated future effort — it rewrites
+  compliance-critical validation infrastructure and deserves its own review
+  cycle.
+
+### ZKP internals (non-breaking)
+
+- **Shared EC utilities extracted** (`zkp::ec_utils`, module-private): the
+  nonce-sampling loop, SEC1 compressed-point parse with identity rejection,
+  and the Fiat-Shamir rejection-sampling loop were duplicated verbatim
+  between `schnorr.rs` and `sigma.rs`. The challenge loop is parameterized by
+  a caller-owned transcript closure so each protocol's exact byte layout —
+  and therefore every challenge value — is unchanged.
+
+---
+
 ## [0.9.2] — 2026-08-04
 
 Patch release, no public API change (`cargo-semver-checks`: 196 checks pass,

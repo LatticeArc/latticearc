@@ -50,21 +50,9 @@ pub enum CoreError {
     #[error("Key derivation failed: {0}")]
     KeyDerivationFailed(String),
 
-    /// Invalid nonce provided.
-    #[error("Invalid nonce: {0}")]
-    InvalidNonce(String),
-
-    /// Hardware-related error occurred.
-    #[error("Hardware error: {0}")]
-    HardwareError(String),
-
     /// Configuration validation error.
     #[error("Configuration error: {0}")]
     ConfigurationError(String),
-
-    /// Cryptographic scheme selection failed.
-    #[error("Scheme selection failed: {0}")]
-    SchemeSelectionFailed(String),
 
     /// Authentication operation failed.
     #[error("Authentication failed: {0}")]
@@ -88,14 +76,6 @@ pub enum CoreError {
     #[error("Session expired")]
     SessionExpired,
 
-    /// Requested operation is not supported.
-    #[error("Unsupported operation: {0}")]
-    UnsupportedOperation(String),
-
-    /// Memory allocation or management error.
-    #[error("Memory allocation failed: {0}")]
-    MemoryError(String),
-
     /// Standard I/O error.
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
@@ -112,27 +92,38 @@ pub enum CoreError {
     #[error("SLH-DSA error: {0}")]
     SlhDsaError(#[from] crate::primitives::sig::slh_dsa::SlhDsaError),
 
+    /// FN-DSA signature operation error.
+    #[error("FN-DSA error: {0}")]
+    FnDsaError(#[from] crate::primitives::sig::fndsa::FnDsaError),
+
+    /// Hybrid KEM operation error (keygen, encapsulation, wire format).
+    ///
+    /// Never constructed on decrypt paths — those collapse to the opaque
+    /// [`CoreError::DecryptionFailed`] per Pattern 6.
+    #[error("Hybrid KEM error: {0}")]
+    HybridKemError(#[from] crate::hybrid::kem_hybrid::HybridKemError),
+
+    /// Hybrid encryption operation error (encrypt-side only).
+    ///
+    /// Never constructed on decrypt paths — those collapse to the opaque
+    /// [`CoreError::DecryptionFailed`] per Pattern 6.
+    #[error("Hybrid encryption error: {0}")]
+    HybridEncryptionError(#[from] crate::hybrid::encrypt_hybrid::HybridEncryptionError),
+
+    /// Hybrid signature operation error.
+    #[error("Hybrid signature error: {0}")]
+    HybridSignatureError(#[from] crate::hybrid::sig_hybrid::HybridSignatureError),
+
+    /// PQ-only encryption operation error (encrypt-side only).
+    ///
+    /// Never constructed on decrypt paths — those collapse to the opaque
+    /// [`CoreError::DecryptionFailed`] per Pattern 6.
+    #[error("PQ-only encryption error: {0}")]
+    PqOnlyError(#[from] crate::hybrid::pq_only::PqOnlyError),
+
     /// Serialization or deserialization error.
     #[error("Serialization error: {0}")]
     SerializationError(String),
-
-    /// Recoverable error with suggested action.
-    #[error("Recoverable error: {message}. Suggestion: {suggestion}")]
-    Recoverable {
-        /// Error message describing what went wrong.
-        message: String,
-        /// Suggested action to recover from this error.
-        suggestion: String,
-    },
-
-    /// Hardware acceleration is unavailable.
-    #[error("Hardware acceleration unavailable: {reason}. Fallback: {fallback}")]
-    HardwareUnavailable {
-        /// Reason why hardware acceleration is unavailable.
-        reason: String,
-        /// Fallback strategy to use.
-        fallback: String,
-    },
 
     /// Entropy source has been depleted.
     #[error("Entropy source depleted: {message}. Action: {action}")]
@@ -173,17 +164,9 @@ pub enum CoreError {
     #[error("Invalid key: {0}")]
     InvalidKey(String),
 
-    /// Feature is not yet implemented.
-    #[error("Not implemented: {0}")]
-    NotImplemented(String),
-
     /// Signature creation failed.
     #[error("Signature failed: {0}")]
     SignatureFailed(String),
-
-    /// Hardware Security Module error.
-    #[error("HSM error: {0}")]
-    HsmError(String),
 
     /// Resource limit has been exceeded.
     #[error("Resource limit exceeded: {0}")]
@@ -353,28 +336,6 @@ mod tests {
     }
 
     #[test]
-    fn test_core_error_display_recoverable_includes_message_and_suggestion_fails() {
-        let err = CoreError::Recoverable {
-            message: "temporary failure".to_string(),
-            suggestion: "retry after 5s".to_string(),
-        };
-        let msg = format!("{err}");
-        assert!(msg.contains("temporary failure"));
-        assert!(msg.contains("retry after 5s"));
-    }
-
-    #[test]
-    fn test_core_error_display_hardware_unavailable_includes_reason_and_fallback_fails() {
-        let err = CoreError::HardwareUnavailable {
-            reason: "no AES-NI".to_string(),
-            fallback: "software AES".to_string(),
-        };
-        let msg = format!("{err}");
-        assert!(msg.contains("no AES-NI"));
-        assert!(msg.contains("software AES"));
-    }
-
-    #[test]
     fn test_core_error_display_entropy_depleted_includes_message_and_action_fails() {
         let err = CoreError::EntropyDepleted {
             message: "pool empty".to_string(),
@@ -420,18 +381,6 @@ mod tests {
     }
 
     #[test]
-    fn test_core_error_display_not_implemented_has_correct_format() {
-        let err = CoreError::NotImplemented("FN-DSA Level 5".to_string());
-        assert_eq!(format!("{err}"), "Not implemented: FN-DSA Level 5");
-    }
-
-    #[test]
-    fn test_core_error_display_hsm_error_has_correct_format() {
-        let err = CoreError::HsmError("connection lost".to_string());
-        assert_eq!(format!("{err}"), "HSM error: connection lost");
-    }
-
-    #[test]
     fn test_core_error_display_resource_exceeded_has_correct_format() {
         let err = CoreError::ResourceExceeded("max connections".to_string());
         assert_eq!(format!("{err}"), "Resource limit exceeded: max connections");
@@ -463,18 +412,13 @@ mod tests {
         // Ensure all simple string variants produce correct output
         let cases: Vec<(CoreError, &str)> = vec![
             (CoreError::KeyDerivationFailed("kdf".to_string()), "Key derivation failed: kdf"),
-            (CoreError::InvalidNonce("nonce".to_string()), "Invalid nonce: nonce"),
-            (CoreError::HardwareError("hw".to_string()), "Hardware error: hw"),
             (CoreError::ConfigurationError("cfg".to_string()), "Configuration error: cfg"),
-            (CoreError::SchemeSelectionFailed("sel".to_string()), "Scheme selection failed: sel"),
             (CoreError::AuthenticationFailed("auth".to_string()), "Authentication failed: auth"),
             (
                 CoreError::ZeroTrustVerificationFailed("zt".to_string()),
                 "Zero-trust verification failed: zt",
             ),
             (CoreError::AuthenticationRequired("req".to_string()), "Authentication required: req"),
-            (CoreError::UnsupportedOperation("op".to_string()), "Unsupported operation: op"),
-            (CoreError::MemoryError("mem".to_string()), "Memory allocation failed: mem"),
             (CoreError::InvalidSignature("sig".to_string()), "Invalid signature: sig"),
             (CoreError::InvalidKey("key".to_string()), "Invalid key: key"),
             (CoreError::SignatureFailed("sf".to_string()), "Signature failed: sf"),

@@ -59,8 +59,8 @@ pub use key_lifecycle::{
 };
 pub use secrets::{SecretBytes, SecretVec};
 pub use traits::{
-    ContinuousVerifiable, DataCharacteristics, HardwareCapabilities, HardwareInfo, HardwareType,
-    PatternType, ProofOfPossession, SchemeSelector, VerificationStatus, ZeroTrustAuthenticable,
+    ContinuousVerifiable, DataCharacteristics, PatternType, ProofOfPossession, SchemeSelector,
+    VerificationStatus, ZeroTrustAuthenticable,
 };
 pub use types::{
     AlgorithmSelection, ComplianceMode, CryptoContext, CryptoPayload, CryptoScheme, EncryptedData,

@@ -67,6 +67,7 @@
 
 pub mod compose;
 pub mod encrypt_hybrid;
+pub(crate) mod envelope;
 pub mod kem_hybrid;
 pub mod pq_only;
 pub mod sig_hybrid;
@@ -82,12 +83,16 @@ pub(crate) mod verify_equalizer;
 // were removed as they duplicated this surface.
 pub use encrypt_hybrid::{
     HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt_hybrid,
-    derive_encryption_key, encrypt_hybrid,
+    derive_hybrid_encryption_key, encrypt_hybrid,
 };
+// Generic-named operation fns (`sign`, `verify`, `encapsulate`, `decapsulate`,
+// `generate_keypair`) are NOT re-exported at this level — the bare names
+// shadow/confuse against the crate-root `sign_with_key`/`verify` unified API.
+// Call them through their owning module (`kem_hybrid::encapsulate`,
+// `sig_hybrid::verify`, ...). Types and descriptively-named fns stay here.
 pub use kem_hybrid::{
     EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
-    HybridSharedSecretInputs, decapsulate, derive_hybrid_shared_secret, encapsulate,
-    generate_keypair as kem_generate_keypair,
+    HybridSharedSecretInputs, derive_hybrid_shared_secret,
 };
 pub use pq_only::{
     PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
@@ -96,5 +101,4 @@ pub use pq_only::{
 };
 pub use sig_hybrid::{
     HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
-    generate_keypair as sig_generate_keypair, sign, verify,
 };

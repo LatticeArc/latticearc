@@ -13,7 +13,7 @@
 //! - `public` — rejected with a clear error message
 //! - `secret` — for hybrid or PQ-only decryption (auto-detected from scheme)
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use clap::Args;
 use std::path::PathBuf;
 
@@ -168,51 +168,19 @@ fn write_output(
     force: bool,
     print_to_tty: bool,
 ) -> Result<()> {
-    if let Some(p) = path {
-        // Atomic write with 0o600. `tempfile::NamedTempFile` already
-        // creates files with mode 0o600 and `persist()` preserves that;
-        // `.secret_mode()` is retained as defense-in-depth in case
-        // tempfile's default ever changes.
-        // only overwrite when --force is
-        // passed.
-        latticearc::unified_api::atomic_write::AtomicWrite::new(data)
-            .secret_mode()
-            .overwrite_existing(force)
-            .write(p)
-            .with_context(|| {
-                format!("Failed to write {} (use --force to overwrite)", p.display())
-            })?;
-        // Path on stderr would leak through process accounting and log
-        // aggregation; route to tracing::debug! instead.
-        tracing::debug!(path = %p.display(), "decrypted data written");
-    } else {
-        // L9 fix: writing decrypted plaintext to a TTY exposes it to
-        // recorded shell sessions, screen sharing, scrollback, and any
-        // logging proxy. The pre-fix warning was a soft gate; an
-        // operator who didn't read stderr (CI logs, fast shell, less |
-        // tail) would still leak. Hard-fail unless `--print-to-tty` is
-        // explicit; pipelines and file redirects (stdout not a TTY) are
-        // unaffected.
-        use std::io::IsTerminal;
-        if std::io::stdout().is_terminal() && !print_to_tty {
-            bail!(
-                "Refusing to write decrypted plaintext to a TTY. Pass --output <file> to write \
-                 to disk with 0600 permissions, pipe stdout to a downstream tool, or pass \
-                 --print-to-tty to explicitly opt in (the plaintext will then appear in shell \
-                 scrollback / session recorders / log aggregators)."
-            );
-        }
-        // Try to print as UTF-8, fall back to hex. The hex encoding is
-        // wrapped in `Zeroizing<String>` so a derived plaintext copy
-        // doesn't outlive the source `Zeroizing<Vec<u8>>` — otherwise
-        // the encoded string would linger on the heap until allocator
-        // reclaim.
-        if let Ok(s) = std::str::from_utf8(data) {
-            print!("{s}");
-        } else {
-            let encoded = zeroize::Zeroizing::new(hex::encode(data));
-            print!("{}", encoded.as_str());
-        }
-    }
-    Ok(())
+    // Decrypted plaintext is secret: `secret_file_mode=true` selects
+    // `.secret_mode()` (0600 perms; `tempfile::NamedTempFile` already
+    // creates files at 0600 and `persist()` preserves that, so this is
+    // defense-in-depth in case tempfile's default ever changes). The TTY
+    // guard (L9 fix) hard-fails writing plaintext to an interactive
+    // terminal unless `--print-to-tty` is explicit — pipelines and file
+    // redirects (stdout not a TTY) are unaffected.
+    super::common::write_output_or_stdout(
+        path.as_deref(),
+        data,
+        force,
+        true,
+        Some((super::common::DECRYPT_TTY_REFUSAL, print_to_tty)),
+        "decrypted data",
+    )
 }

@@ -126,9 +126,9 @@
 //! ### SLH-DSA with Context
 //!
 //! ```no_run
-//! use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SigningKey, VerifyingKey};
+//! use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey, SlhDsaVerifyingKey};
 //!
-//! let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
+//! let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
 //!
 //! let message = b"Important document";
 //! let context = b"my-application-v1"; // Domain separation
@@ -183,12 +183,11 @@ pub mod fndsa;
 pub mod ml_dsa;
 pub mod slh_dsa;
 
-// Each algorithm submodule owns the canonical path for its types. We do NOT
-// glob-re-export their contents here because `SigningKey` / `VerifyingKey`
-// collide across fndsa, ml_dsa, and slh_dsa. Downstream consumers should
-// import the specific algorithm they want:
-//   use latticearc::primitives::sig::fndsa::{SigningKey, VerifyingKey};
-//
-// Parameter-set and security-level enums are re-exported from
-// `crate::primitives` with algorithm-prefixed names (`FnDsaSecurityLevel`,
-// `SlhDsaSecurityLevel`, `MlDsaParameterSet`).
+// Every algorithm-specific type is now uniquely named
+// (`FnDsa*`/`MlDsa*`/`SlhDsa*` prefixes), so re-exporting the full public
+// surface here is unambiguous. Enumerated explicitly (no globs) so this
+// list stays a deliberate, reviewable API surface rather than silently
+// picking up whatever each submodule happens to make `pub`.
+pub use fndsa::{FnDsaKeyPair, FnDsaSignature, FnDsaSigningKey, FnDsaVerifyingKey};
+pub use ml_dsa::{MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature};
+pub use slh_dsa::{SlhDsaSignature, SlhDsaSigningKey, SlhDsaVerifyingKey};

@@ -47,8 +47,7 @@
 
 use crate::hybrid::kem_hybrid::{self, HybridKemPublicKey, HybridKemSecretKey};
 use crate::log_crypto_operation_error;
-use crate::primitives::aead::aes_gcm::AesGcm256;
-use crate::primitives::aead::{AeadCipher, NONCE_LEN, TAG_LEN};
+use crate::primitives::aead::{NONCE_LEN, TAG_LEN};
 use crate::primitives::kdf::hkdf::hkdf;
 use crate::unified_api::logging::op;
 use thiserror::Error;
@@ -368,7 +367,7 @@ pub struct DerivationBinding<'a> {
 
 impl<'a> DerivationBinding<'a> {
     /// Empty binding (no PK / `enc` mixing). Reserved for tests that
-    /// exercise `derive_encryption_key` in isolation without a real
+    /// exercise `derive_hybrid_encryption_key` in isolation without a real
     /// KEM round-trip. Production code must use a fully-populated
     /// binding constructed by `encrypt_hybrid` / `decrypt_hybrid`.
     #[must_use]
@@ -405,7 +404,7 @@ impl<'a> DerivationBinding<'a> {
 ///
 /// Returns an error if the shared secret is not exactly 32 or 64 bytes,
 /// or if HKDF expansion fails.
-pub fn derive_encryption_key(
+pub fn derive_hybrid_encryption_key(
     shared_secret: &[u8],
     context: &HybridEncryptionContext,
     binding: &DerivationBinding<'_>,
@@ -568,21 +567,16 @@ pub fn encrypt_hybrid(
         ephemeral_pk: encapsulated.ecdh_pk(),
         kem_ciphertext: encapsulated.ml_kem_ct(),
     };
-    let encryption_key = derive_encryption_key(encapsulated.expose_secret(), ctx, &binding)?;
+    let encryption_key = derive_hybrid_encryption_key(encapsulated.expose_secret(), ctx, &binding)?;
 
-    // Generate random nonce for AES-GCM via the primitives layer.
-    let nonce_bytes = AesGcm256::generate_nonce();
-
-    // AES-256-GCM via primitives wrapper.
-    let cipher = AesGcm256::new(&*encryption_key).map_err(|_e| {
-        log_crypto_operation_error!(op::HYBRID_ENCRYPT, "AES-256 init failed");
-        opaque_enc()
-    })?;
-    let (ciphertext, tag) =
-        cipher.encrypt(&nonce_bytes, plaintext, Some(&ctx.aad)).map_err(|_e| {
-            log_crypto_operation_error!(op::HYBRID_ENCRYPT, "AES-GCM seal failed");
-            opaque_enc()
-        })?;
+    // AES-256-GCM seal via the shared envelope (fresh CSPRNG nonce inside).
+    let (ciphertext, nonce_bytes, tag) =
+        crate::hybrid::envelope::seal_aes256_gcm(&*encryption_key, plaintext, &ctx.aad).map_err(
+            |stage| {
+                log_crypto_operation_error!(op::HYBRID_ENCRYPT, stage.msg());
+                opaque_enc()
+            },
+        )?;
 
     Ok(HybridCiphertext::new(
         encapsulated.ml_kem_ct().to_vec(),
@@ -683,7 +677,7 @@ pub fn decrypt_hybrid(
         ephemeral_pk: ciphertext.ecdh_ephemeral_pk(),
         kem_ciphertext: ciphertext.kem_ciphertext(),
     };
-    let encryption_key = derive_encryption_key(shared_secret.expose_secret(), ctx, &binding)
+    let encryption_key = derive_hybrid_encryption_key(shared_secret.expose_secret(), ctx, &binding)
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_DECRYPT, "HKDF key derivation failed");
             opaque()
@@ -698,18 +692,19 @@ pub fn decrypt_hybrid(
         opaque()
     })?;
 
-    // AES-256-GCM via primitives wrapper.
-    let cipher = AesGcm256::new(&*encryption_key).map_err(|_e| {
-        log_crypto_operation_error!(op::HYBRID_DECRYPT, "AES-256 init failed");
+    // AES-256-GCM open via the shared envelope; plaintext arrives in
+    // `Zeroizing<Vec<u8>>` — propagate directly.
+    let plaintext = crate::hybrid::envelope::open_aes256_gcm(
+        &*encryption_key,
+        &nonce_bytes,
+        ciphertext.symmetric_ciphertext(),
+        &tag_bytes,
+        &ctx.aad,
+    )
+    .map_err(|stage| {
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, stage.msg());
         opaque()
     })?;
-    // `cipher.decrypt` already returns `Zeroizing<Vec<u8>>` — propagate directly.
-    let plaintext = cipher
-        .decrypt(&nonce_bytes, ciphertext.symmetric_ciphertext(), &tag_bytes, Some(&ctx.aad))
-        .map_err(|_aead_err| {
-            log_crypto_operation_error!(op::HYBRID_DECRYPT, "AEAD authentication failed");
-            opaque()
-        })?;
 
     Ok(plaintext)
 }
@@ -728,26 +723,31 @@ mod tests {
             HybridEncryptionContext { info: b"Context2".to_vec(), aad: b"AAD2".to_vec() };
 
         let key1 =
-            derive_encryption_key(&shared_secret, &context1, &DerivationBinding::empty()).unwrap();
+            derive_hybrid_encryption_key(&shared_secret, &context1, &DerivationBinding::empty())
+                .unwrap();
         let key2 =
-            derive_encryption_key(&shared_secret, &context2, &DerivationBinding::empty()).unwrap();
+            derive_hybrid_encryption_key(&shared_secret, &context2, &DerivationBinding::empty())
+                .unwrap();
 
         // Different contexts should produce different keys
         assert_ne!(key1, key2, "Different contexts should produce different keys");
 
         // Same context should produce same key (deterministic)
         let key1_again =
-            derive_encryption_key(&shared_secret, &context1, &DerivationBinding::empty()).unwrap();
+            derive_hybrid_encryption_key(&shared_secret, &context1, &DerivationBinding::empty())
+                .unwrap();
         assert_eq!(key1, key1_again, "Key derivation should be deterministic");
 
         // Test invalid shared secret length
         let invalid_secret = vec![1u8; 31]; // Wrong length
-        let result = derive_encryption_key(&invalid_secret, &context1, &DerivationBinding::empty());
+        let result =
+            derive_hybrid_encryption_key(&invalid_secret, &context1, &DerivationBinding::empty());
         assert!(result.is_err(), "Should reject invalid shared secret length");
 
         // Test 64-byte hybrid shared secret is accepted
         let hybrid_secret = vec![1u8; 64];
-        let result = derive_encryption_key(&hybrid_secret, &context1, &DerivationBinding::empty());
+        let result =
+            derive_hybrid_encryption_key(&hybrid_secret, &context1, &DerivationBinding::empty());
         assert!(result.is_ok(), "Should accept 64-byte hybrid shared secret");
     }
 
@@ -903,19 +903,27 @@ mod tests {
         let ctx = HybridEncryptionContext::default();
 
         // Too short (31 bytes)
-        assert!(derive_encryption_key(&[0u8; 31], &ctx, &DerivationBinding::empty()).is_err());
+        assert!(
+            derive_hybrid_encryption_key(&[0u8; 31], &ctx, &DerivationBinding::empty()).is_err()
+        );
 
         // Too long (65 bytes)
-        assert!(derive_encryption_key(&[0u8; 65], &ctx, &DerivationBinding::empty()).is_err());
+        assert!(
+            derive_hybrid_encryption_key(&[0u8; 65], &ctx, &DerivationBinding::empty()).is_err()
+        );
 
         // 1 byte
-        assert!(derive_encryption_key(&[0u8; 1], &ctx, &DerivationBinding::empty()).is_err());
+        assert!(
+            derive_hybrid_encryption_key(&[0u8; 1], &ctx, &DerivationBinding::empty()).is_err()
+        );
 
         // Empty
-        assert!(derive_encryption_key(&[], &ctx, &DerivationBinding::empty()).is_err());
+        assert!(derive_hybrid_encryption_key(&[], &ctx, &DerivationBinding::empty()).is_err());
 
         // 33 bytes (between valid sizes)
-        assert!(derive_encryption_key(&[0u8; 33], &ctx, &DerivationBinding::empty()).is_err());
+        assert!(
+            derive_hybrid_encryption_key(&[0u8; 33], &ctx, &DerivationBinding::empty()).is_err()
+        );
     }
 
     #[test]
@@ -924,8 +932,10 @@ mod tests {
         let secret_a = [1u8; 32];
         let secret_b = [2u8; 32];
 
-        let key_a = derive_encryption_key(&secret_a, &ctx, &DerivationBinding::empty()).unwrap();
-        let key_b = derive_encryption_key(&secret_b, &ctx, &DerivationBinding::empty()).unwrap();
+        let key_a =
+            derive_hybrid_encryption_key(&secret_a, &ctx, &DerivationBinding::empty()).unwrap();
+        let key_b =
+            derive_hybrid_encryption_key(&secret_b, &ctx, &DerivationBinding::empty()).unwrap();
 
         assert_ne!(key_a, key_b);
     }
@@ -934,11 +944,12 @@ mod tests {
     fn test_derive_key_64_byte_hybrid_secret_succeeds() {
         let ctx = HybridEncryptionContext::default();
         let secret = [42u8; 64];
-        let key = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
+        let key = derive_hybrid_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(key.len(), 32);
 
         // Deterministic
-        let key2 = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
+        let key2 =
+            derive_hybrid_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(key, key2);
     }
 
@@ -1079,56 +1090,57 @@ mod tests {
     }
 
     // ========================================================================
-    // Additional coverage: derive_encryption_key and error paths
+    // Additional coverage: derive_hybrid_encryption_key and error paths
     // ========================================================================
 
     #[test]
-    fn test_derive_encryption_key_with_64_byte_secret_succeeds() {
+    fn test_derive_hybrid_encryption_key_with_64_byte_secret_succeeds() {
         let secret = [0xAA; 64]; // Hybrid 64-byte shared secret
         let ctx = HybridEncryptionContext::default();
-        let key = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
+        let key = derive_hybrid_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(key.len(), 32);
     }
 
     #[test]
-    fn test_derive_encryption_key_invalid_length_fails() {
+    fn test_derive_hybrid_encryption_key_invalid_length_fails() {
         let ctx = HybridEncryptionContext::default();
         // 16 bytes is neither 32 nor 64
-        let result = derive_encryption_key(&[0u8; 16], &ctx, &DerivationBinding::empty());
+        let result = derive_hybrid_encryption_key(&[0u8; 16], &ctx, &DerivationBinding::empty());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("32 bytes"));
     }
 
     #[test]
-    fn test_derive_encryption_key_is_deterministic() {
+    fn test_derive_hybrid_encryption_key_is_deterministic() {
         let secret = [0xBB; 32];
         let ctx = HybridEncryptionContext::default();
-        let k1 = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
-        let k2 = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
+        let k1 = derive_hybrid_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
+        let k2 = derive_hybrid_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(k1, k2, "Same inputs must produce same key");
     }
 
     #[test]
-    fn test_derive_encryption_key_different_contexts_produce_different_keys_succeeds() {
+    fn test_derive_hybrid_encryption_key_different_contexts_produce_different_keys_succeeds() {
         let secret = [0xCC; 32];
         let ctx1 = HybridEncryptionContext { info: b"ctx1".to_vec(), aad: vec![] };
         let ctx2 = HybridEncryptionContext { info: b"ctx2".to_vec(), aad: vec![] };
-        let k1 = derive_encryption_key(&secret, &ctx1, &DerivationBinding::empty()).unwrap();
-        let k2 = derive_encryption_key(&secret, &ctx2, &DerivationBinding::empty()).unwrap();
+        let k1 = derive_hybrid_encryption_key(&secret, &ctx1, &DerivationBinding::empty()).unwrap();
+        let k2 = derive_hybrid_encryption_key(&secret, &ctx2, &DerivationBinding::empty()).unwrap();
         assert_ne!(k1, k2, "Different contexts must produce different keys");
     }
 
     #[test]
-    fn test_derive_encryption_key_with_aad_succeeds() {
+    fn test_derive_hybrid_encryption_key_with_aad_succeeds() {
         let secret = [0xDD; 32];
         let ctx_no_aad = HybridEncryptionContext::default();
         let ctx_with_aad = HybridEncryptionContext {
             info: crate::types::domains::HYBRID_ENCRYPTION_INFO.to_vec(),
             aad: b"extra-data".to_vec(),
         };
-        let k1 = derive_encryption_key(&secret, &ctx_no_aad, &DerivationBinding::empty()).unwrap();
-        let k2 =
-            derive_encryption_key(&secret, &ctx_with_aad, &DerivationBinding::empty()).unwrap();
+        let k1 = derive_hybrid_encryption_key(&secret, &ctx_no_aad, &DerivationBinding::empty())
+            .unwrap();
+        let k2 = derive_hybrid_encryption_key(&secret, &ctx_with_aad, &DerivationBinding::empty())
+            .unwrap();
         assert_ne!(k1, k2, "Different AAD must produce different keys");
     }
 

@@ -64,7 +64,6 @@ jobs:
           - fuzz_pbkdf2
           # Key exchange
           - fuzz_x25519
-          - fuzz_ecdh_p256
           # Hybrid (moved `hybrid_encrypt_fuzz` up
           # to the KEM section as the canonical replacement for the
           # fictional `fuzz_hybrid_encrypt` / `fuzz_hybrid_decrypt`;

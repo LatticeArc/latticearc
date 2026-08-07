@@ -7,22 +7,32 @@
 //!
 //! This module provides SHA-2 implementations (SHA-256, SHA-384, SHA-512).
 
-use crate::primitives::error::PrimitivesError;
 use sha2::{Digest, Sha256, Sha384, Sha512};
+use thiserror::Error;
 use tracing::instrument;
 
 /// Maximum input size for hash functions (1 GB)
 /// This prevents DoS attacks via excessive memory usage
 const MAX_HASH_INPUT_SIZE: usize = 1_000_000_000;
 
+/// Errors from the SHA-2 hash functions.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum Sha2Error {
+    /// Input length exceeds the 1 GB DoS bound. The length is caller-known,
+    /// non-secret diagnostic detail.
+    #[error("Resource limit exceeded: {0}")]
+    ResourceExceeded(String),
+}
+
 /// SHA-256 hash function with input size validation
 ///
 /// # Errors
 /// Returns `Error::ResourceExceeded` if input exceeds 1 GB
 #[instrument(level = "debug", skip(data), fields(data_len = data.len()))]
-pub fn sha256(data: &[u8]) -> Result<[u8; 32], PrimitivesError> {
+pub fn sha256(data: &[u8]) -> Result<[u8; 32], Sha2Error> {
     if data.len() > MAX_HASH_INPUT_SIZE {
-        return Err(PrimitivesError::ResourceExceeded(format!(
+        return Err(Sha2Error::ResourceExceeded(format!(
             "Hash input too large: {} bytes (max {} bytes)",
             data.len(),
             MAX_HASH_INPUT_SIZE
@@ -39,9 +49,9 @@ pub fn sha256(data: &[u8]) -> Result<[u8; 32], PrimitivesError> {
 /// # Errors
 /// Returns `Error::ResourceExceeded` if input exceeds 1 GB
 #[instrument(level = "debug", skip(data), fields(data_len = data.len()))]
-pub fn sha384(data: &[u8]) -> Result<[u8; 48], PrimitivesError> {
+pub fn sha384(data: &[u8]) -> Result<[u8; 48], Sha2Error> {
     if data.len() > MAX_HASH_INPUT_SIZE {
-        return Err(PrimitivesError::ResourceExceeded(format!(
+        return Err(Sha2Error::ResourceExceeded(format!(
             "Hash input too large: {} bytes (max {} bytes)",
             data.len(),
             MAX_HASH_INPUT_SIZE
@@ -58,9 +68,9 @@ pub fn sha384(data: &[u8]) -> Result<[u8; 48], PrimitivesError> {
 /// # Errors
 /// Returns `Error::ResourceExceeded` if input exceeds 1 GB
 #[instrument(level = "debug", skip(data), fields(data_len = data.len()))]
-pub fn sha512(data: &[u8]) -> Result<[u8; 64], PrimitivesError> {
+pub fn sha512(data: &[u8]) -> Result<[u8; 64], Sha2Error> {
     if data.len() > MAX_HASH_INPUT_SIZE {
-        return Err(PrimitivesError::ResourceExceeded(format!(
+        return Err(Sha2Error::ResourceExceeded(format!(
             "Hash input too large: {} bytes (max {} bytes)",
             data.len(),
             MAX_HASH_INPUT_SIZE
@@ -101,7 +111,7 @@ mod tests {
         let large_input = vec![0u8; MAX_HASH_INPUT_SIZE + 1];
         let result = sha256(&large_input);
         assert!(result.is_err());
-        assert!(matches!(result, Err(PrimitivesError::ResourceExceeded(_))));
+        assert!(matches!(result, Err(Sha2Error::ResourceExceeded(_))));
     }
 
     #[test]
@@ -109,7 +119,7 @@ mod tests {
         let large_input = vec![0u8; MAX_HASH_INPUT_SIZE + 1];
         let result = sha384(&large_input);
         assert!(result.is_err());
-        assert!(matches!(result, Err(PrimitivesError::ResourceExceeded(_))));
+        assert!(matches!(result, Err(Sha2Error::ResourceExceeded(_))));
     }
 
     #[test]
@@ -117,7 +127,7 @@ mod tests {
         let large_input = vec![0u8; MAX_HASH_INPUT_SIZE + 1];
         let result = sha512(&large_input);
         assert!(result.is_err());
-        assert!(matches!(result, Err(PrimitivesError::ResourceExceeded(_))));
+        assert!(matches!(result, Err(Sha2Error::ResourceExceeded(_))));
     }
 
     // Empty input tests

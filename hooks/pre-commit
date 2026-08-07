@@ -292,7 +292,7 @@ if [ "$CARGO_TEST_EXIT" -eq 0 ]; then
         || CARGO_TEST_EXIT=$?
 fi
 # Stack-pressure smoke pass: a focused debug-mode test on the FN-DSA
-# call surface and the audit_regression_primitives suite. Release-mode
+# call surface and the regression_primitives suite. Release-mode
 # optimisation shrinks stack frames enough to hide debug-only stack
 # overflows in the fn-dsa backend (~118 KB `SigningKeyStandard` inline
 # struct + lattice-FFT intermediates) — the FN-DSA stack overflow that
@@ -302,7 +302,7 @@ fi
 # bounded: roughly 90 s vs the hour-long release matrix above.
 if [ "$CARGO_TEST_EXIT" -eq 0 ]; then
     echo "Running debug-mode stack-pressure smoke pass..."
-    cargo test --test audit_regression_primitives \
+    cargo test --test regression_primitives \
         >> "$TEST_LOG" 2>&1 \
         && cargo test -p latticearc --lib --no-fail-fast \
             primitives::sig::fndsa \

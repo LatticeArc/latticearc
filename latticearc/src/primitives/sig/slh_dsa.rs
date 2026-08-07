@@ -21,10 +21,10 @@
 //! # Example
 //!
 //! ```rust
-//! use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SigningKey, VerifyingKey};
+//! use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey, SlhDsaVerifyingKey};
 //!
 //! // Generate a key pair
-//! let (signing_key, verifying_key) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
+//! let (signing_key, verifying_key) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
 //!
 //! // Sign a message (None = no context string)
 //! let message = b"Hello, SLH-DSA!";
@@ -74,6 +74,16 @@ pub enum SlhDsaError {
     /// Invalid secret key (malformed or corrupted)
     #[error("Invalid secret key")]
     InvalidSecretKey,
+
+    /// Invalid signature (wrong length for the security level).
+    ///
+    /// Returned by [`SlhDsaSignature::new`] at construction time — mirrors
+    /// `InvalidPublicKey` / `InvalidSecretKey`, which also validate length
+    /// synchronously on caller-supplied bytes rather than folding into the
+    /// opaque `VerificationFailed` Pattern-6 variant. See `VerifyingKey::new`'s
+    /// doc comment for why constructors are exempt from that collapse.
+    #[error("Invalid signature")]
+    InvalidSignature,
 
     /// Signature verification failed
     #[error("Signature verification failed")]
@@ -184,6 +194,93 @@ impl SlhDsaSecurityLevel {
 }
 
 // ============================================================================
+// Signature
+// ============================================================================
+
+/// SLH-DSA signature.
+///
+/// Wraps the raw signature bytes together with the security level they were
+/// produced under, mirroring
+/// [`MlDsaSignature`](crate::primitives::sig::ml_dsa::MlDsaSignature)'s API
+/// surface so all three PQ signature schemes carry the same typed-signature
+/// shape. Length is validated once at construction — either here or inside
+/// [`SlhDsaSigningKey::sign`] — instead of on every `try_into()` inside
+/// `verify()`, which is where the per-parameter-set length checks
+/// previously lived.
+#[derive(Debug, Clone)]
+pub struct SlhDsaSignature {
+    /// The security level this signature was produced under.
+    security_level: SlhDsaSecurityLevel,
+
+    /// Raw signature bytes. Length-validated against `security_level` at
+    /// construction (`Self::new`) — every accessor can therefore assume
+    /// `bytes.len() == security_level.signature_size()`.
+    bytes: Vec<u8>,
+}
+
+impl SlhDsaSignature {
+    /// Creates a new signature from raw bytes.
+    ///
+    /// # Errors
+    /// Returns [`SlhDsaError::InvalidSignature`] if `bytes.len()` does not
+    /// match `security_level.signature_size()`.
+    pub fn new(security_level: SlhDsaSecurityLevel, bytes: Vec<u8>) -> Result<Self, SlhDsaError> {
+        let expected_len = security_level.signature_size();
+        if bytes.len() != expected_len {
+            return Err(SlhDsaError::InvalidSignature);
+        }
+        Ok(Self { security_level, bytes })
+    }
+
+    /// Creates a signature from a borrowed byte slice.
+    ///
+    /// Convenience wrapper around [`Self::new`] for callers that hold a
+    /// `&[u8]` and do not want to call `.to_vec()` at the call site.
+    ///
+    /// # Errors
+    /// Returns [`SlhDsaError::InvalidSignature`] if the length does not
+    /// match the security level's fixed signature size.
+    pub fn from_bytes(
+        bytes: &[u8],
+        security_level: SlhDsaSecurityLevel,
+    ) -> Result<Self, SlhDsaError> {
+        Self::new(security_level, bytes.to_vec())
+    }
+
+    /// Returns the security level this signature was produced under.
+    #[must_use]
+    pub fn security_level(&self) -> SlhDsaSecurityLevel {
+        self.security_level
+    }
+
+    /// Returns the size of the signature in bytes.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    /// Returns true if the signature is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
+    /// Serializes the signature to bytes.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Clones the signature bytes into an owned `Vec<u8>`.
+    ///
+    /// Prefer [`Self::as_bytes`] when a borrowed view is sufficient.
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.bytes.clone()
+    }
+}
+
+// ============================================================================
 // Verifying Key (Public Key)
 // ============================================================================
 
@@ -215,7 +312,7 @@ impl SlhDsaSecurityLevel {
 /// variant per security level still uses `max(variant sizes)` of stack
 /// (Rust's enum sizing) so it does not actually save bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerifyingKey {
+pub struct SlhDsaVerifyingKey {
     /// The security level used
     security_level: SlhDsaSecurityLevel,
 
@@ -233,7 +330,7 @@ pub struct VerifyingKey {
     len: usize,
 }
 
-impl VerifyingKey {
+impl SlhDsaVerifyingKey {
     /// Creates a new verifying key from bytes
     ///
     /// # Errors
@@ -246,7 +343,7 @@ impl VerifyingKey {
     /// `InvalidPublicKey`. Constructors run synchronously on caller-
     /// supplied bytes (key load, deserialize, CLI parse) — the
     /// adversary in the verify-side threat model can't reach
-    /// `VerifyingKey::new`. Returning a structured error here helps
+    /// `SlhDsaVerifyingKey::new`. Returning a structured error here helps
     /// CLI error messages and KAT-replay scripts distinguish "wrong
     /// length" from "valid key, bad signature." Symmetric with
     /// `MlDsaPublicKey::new`.
@@ -269,11 +366,11 @@ impl VerifyingKey {
         // still validated above (`expected_len` check), and content
         // validity is detected on first verify with the same opaque
         // `InvalidPublicKey` error. PCT-based keygen flows
-        // (`SigningKey::generate` → `pct_slh_dsa`) still exercise
+        // (`SlhDsaSigningKey::generate` → `pct_slh_dsa`) still exercise
         // both sign and verify on a fresh keypair so correctness
         // regressions are caught at construction time.
 
-        Ok(VerifyingKey { security_level, bytes: key_bytes, len: expected_len })
+        Ok(SlhDsaVerifyingKey { security_level, bytes: key_bytes, len: expected_len })
     }
 
     /// Returns the security level
@@ -327,7 +424,7 @@ impl VerifyingKey {
     pub fn verify(
         &self,
         message: &[u8],
-        signature: &[u8],
+        signature: &SlhDsaSignature,
         context: &[u8],
     ) -> Result<bool, SlhDsaError> {
         // SLH-DSA verify hashes the entire message before traversing the
@@ -357,14 +454,25 @@ impl VerifyingKey {
             return Err(SlhDsaError::VerificationFailed);
         }
 
+        // `SlhDsaSignature::new` already validated `signature.as_bytes().len()`
+        // against `signature.security_level()` at construction. The
+        // `try_into()` below still does useful work: it catches a signature
+        // constructed for a *different* security level than this verifying
+        // key (the array length required by `self.security_level`'s variant
+        // differs from every other level's `SIG_LEN`, so a mismatch fails
+        // here rather than silently misinterpreting the bytes) — folded into
+        // the opaque `VerificationFailed` per Pattern 6, same as the PK
+        // conversion below.
         let is_valid = match self.security_level {
             SlhDsaSecurityLevel::Shake128s => {
                 let pk_bytes: [u8; shake_128s::PK_LEN] =
                     self.as_bytes().try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let pk = shake_128s::PublicKey::try_from_bytes(&pk_bytes)
                     .map_err(|_e| SlhDsaError::VerificationFailed)?;
-                let sig_bytes: [u8; shake_128s::SIG_LEN] =
-                    signature.try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
+                let sig_bytes: [u8; shake_128s::SIG_LEN] = signature
+                    .as_bytes()
+                    .try_into()
+                    .map_err(|_e| SlhDsaError::VerificationFailed)?;
                 pk.verify(message, &sig_bytes, ctx)
             }
             SlhDsaSecurityLevel::Shake192s => {
@@ -372,8 +480,10 @@ impl VerifyingKey {
                     self.as_bytes().try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let pk = shake_192s::PublicKey::try_from_bytes(&pk_bytes)
                     .map_err(|_e| SlhDsaError::VerificationFailed)?;
-                let sig_bytes: [u8; shake_192s::SIG_LEN] =
-                    signature.try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
+                let sig_bytes: [u8; shake_192s::SIG_LEN] = signature
+                    .as_bytes()
+                    .try_into()
+                    .map_err(|_e| SlhDsaError::VerificationFailed)?;
                 pk.verify(message, &sig_bytes, ctx)
             }
             SlhDsaSecurityLevel::Shake256s => {
@@ -381,8 +491,10 @@ impl VerifyingKey {
                     self.as_bytes().try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
                 let pk = shake_256s::PublicKey::try_from_bytes(&pk_bytes)
                     .map_err(|_e| SlhDsaError::VerificationFailed)?;
-                let sig_bytes: [u8; shake_256s::SIG_LEN] =
-                    signature.try_into().map_err(|_e| SlhDsaError::VerificationFailed)?;
+                let sig_bytes: [u8; shake_256s::SIG_LEN] = signature
+                    .as_bytes()
+                    .try_into()
+                    .map_err(|_e| SlhDsaError::VerificationFailed)?;
                 pk.verify(message, &sig_bytes, ctx)
             }
         };
@@ -405,13 +517,13 @@ impl VerifyingKey {
 /// - Does not implement `Clone` to prevent unzeroized copies
 /// - Implements `ConstantTimeEq` for timing-safe comparisons
 /// - Zeroized on drop via custom `Drop` implementation
-pub struct SigningKey {
+pub struct SlhDsaSigningKey {
     /// The security level used
     security_level: SlhDsaSecurityLevel,
 
     /// The underlying secret key bytes (zeroized on drop). Sized to the
     /// largest variant (Shake256s = 128 bytes); trailing `SK_LEN - len`
-    /// bytes are always zero. See [`VerifyingKey`]'s "Memory layout" docs
+    /// bytes are always zero. See [`SlhDsaVerifyingKey`]'s "Memory layout" docs
     /// for the rationale (same trade-off applies here).
     bytes: [u8; shake_256s::SK_LEN],
 
@@ -419,10 +531,10 @@ pub struct SigningKey {
     len: usize,
 
     /// The verifying key (public key)
-    verifying_key: VerifyingKey,
+    verifying_key: SlhDsaVerifyingKey,
 }
 
-impl ConstantTimeEq for SigningKey {
+impl ConstantTimeEq for SlhDsaSigningKey {
     fn ct_eq(&self, other: &Self) -> Choice {
         // Compare security level in constant time
         let level_eq = (self.security_level as u8).ct_eq(&(other.security_level as u8));
@@ -434,11 +546,11 @@ impl ConstantTimeEq for SigningKey {
     }
 }
 
-// `PartialEq`/`Eq` are intentionally NOT implemented on SLH-DSA `SigningKey`.
+// `PartialEq`/`Eq` are intentionally NOT implemented on SLH-DSA `SlhDsaSigningKey`.
 // See invariants I-5/I-6 in `docs/SECRET_TYPE_INVARIANTS.md`. Use
 // `ConstantTimeEq::ct_eq` for comparisons.
 
-impl SigningKey {
+impl SlhDsaSigningKey {
     /// Generates a new signing key with the specified security level
     ///
     /// Uses the audited fips205 crate's `try_keygen()` function.
@@ -459,11 +571,11 @@ impl SigningKey {
     #[instrument(level = "debug", fields(security_level = ?security_level, nist_level = security_level.nist_level()))]
     pub fn generate(
         security_level: SlhDsaSecurityLevel,
-    ) -> Result<(Self, VerifyingKey), SlhDsaError> {
+    ) -> Result<(Self, SlhDsaVerifyingKey), SlhDsaError> {
         let (signing_key, verifying_key) = match security_level {
             SlhDsaSecurityLevel::Shake128s => {
                 let (pk, sk) = shake_128s::try_keygen().map_err(|_e| SlhDsaError::RngError)?;
-                let verifying_key = VerifyingKey {
+                let verifying_key = SlhDsaVerifyingKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::PK_LEN];
@@ -473,7 +585,7 @@ impl SigningKey {
                     },
                     len: shake_128s::PK_LEN,
                 };
-                let signing_key = SigningKey {
+                let signing_key = SlhDsaSigningKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::SK_LEN];
@@ -488,7 +600,7 @@ impl SigningKey {
             }
             SlhDsaSecurityLevel::Shake192s => {
                 let (pk, sk) = shake_192s::try_keygen().map_err(|_e| SlhDsaError::RngError)?;
-                let verifying_key = VerifyingKey {
+                let verifying_key = SlhDsaVerifyingKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::PK_LEN];
@@ -498,7 +610,7 @@ impl SigningKey {
                     },
                     len: shake_192s::PK_LEN,
                 };
-                let signing_key = SigningKey {
+                let signing_key = SlhDsaSigningKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::SK_LEN];
@@ -513,7 +625,7 @@ impl SigningKey {
             }
             SlhDsaSecurityLevel::Shake256s => {
                 let (pk, sk) = shake_256s::try_keygen().map_err(|_e| SlhDsaError::RngError)?;
-                let verifying_key = VerifyingKey {
+                let verifying_key = SlhDsaVerifyingKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::PK_LEN];
@@ -523,7 +635,7 @@ impl SigningKey {
                     },
                     len: shake_256s::PK_LEN,
                 };
-                let signing_key = SigningKey {
+                let signing_key = SlhDsaSigningKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::SK_LEN];
@@ -575,7 +687,7 @@ impl SigningKey {
                 let sk = shake_128s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let pk_bytes = sk.get_public_key().into_bytes();
-                let verifying_key = VerifyingKey {
+                let verifying_key = SlhDsaVerifyingKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::PK_LEN];
@@ -584,7 +696,7 @@ impl SigningKey {
                     },
                     len: shake_128s::PK_LEN,
                 };
-                Ok(SigningKey {
+                Ok(SlhDsaSigningKey {
                     security_level,
                     bytes: *key_bytes,
                     len: expected_len,
@@ -601,7 +713,7 @@ impl SigningKey {
                 let sk = shake_192s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let pk_bytes = sk.get_public_key().into_bytes();
-                let verifying_key = VerifyingKey {
+                let verifying_key = SlhDsaVerifyingKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::PK_LEN];
@@ -610,7 +722,7 @@ impl SigningKey {
                     },
                     len: shake_192s::PK_LEN,
                 };
-                Ok(SigningKey {
+                Ok(SlhDsaSigningKey {
                     security_level,
                     bytes: *key_bytes,
                     len: expected_len,
@@ -627,7 +739,7 @@ impl SigningKey {
                 let sk = shake_256s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let pk_bytes = sk.get_public_key().into_bytes();
-                let verifying_key = VerifyingKey {
+                let verifying_key = SlhDsaVerifyingKey {
                     security_level,
                     bytes: {
                         let mut b = [0u8; shake_256s::PK_LEN];
@@ -636,7 +748,7 @@ impl SigningKey {
                     },
                     len: shake_256s::PK_LEN,
                 };
-                Ok(SigningKey {
+                Ok(SlhDsaSigningKey {
                     security_level,
                     bytes: *key_bytes,
                     len: expected_len,
@@ -682,7 +794,7 @@ impl SigningKey {
 
     /// Returns the verifying key (public key) associated with this signing key
     #[must_use]
-    pub fn verifying_key(&self) -> &VerifyingKey {
+    pub fn verifying_key(&self) -> &SlhDsaVerifyingKey {
         &self.verifying_key
     }
 
@@ -698,7 +810,10 @@ impl SigningKey {
     ///
     /// # Returns
     ///
-    /// Returns the signature as a byte vector
+    /// Returns the typed [`SlhDsaSignature`] — length-validated against
+    /// this key's security level at construction, matching the shape of
+    /// [`MlDsaSecretKey::sign`](crate::primitives::sig::ml_dsa::MlDsaSecretKey::sign)
+    /// and [`FnDsaSigningKey::sign`](crate::primitives::sig::fndsa::FnDsaSigningKey::sign).
     ///
     /// `context` is the FIPS 205 context string; pass `&[]` for domain-neutral
     /// signatures. Matches the signature-API shape of ML-DSA and FN-DSA.
@@ -713,7 +828,7 @@ impl SigningKey {
     ///   from the previous `ContextTooLong` variant),
     /// - signing fails at the upstream `fips205` crate.
     #[instrument(level = "debug", skip(self, message, context), fields(security_level = ?self.security_level, message_len = message.len(), context_len = context.len()))]
-    pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<Vec<u8>, SlhDsaError> {
+    pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<SlhDsaSignature, SlhDsaError> {
         // DoS bound: SLH-DSA signing cost scales with message length.
         // collapse the resource-cap rejection
         // to the new `SigningFailed` variant. Cap probing was the same
@@ -741,7 +856,7 @@ impl SigningKey {
             return Err(SlhDsaError::SigningFailed);
         }
 
-        match self.security_level {
+        let signature = match self.security_level {
             SlhDsaSecurityLevel::Shake128s => {
                 if self.expose_secret().len() != shake_128s::SK_LEN {
                     return Err(SlhDsaError::InvalidSecretKey);
@@ -752,7 +867,7 @@ impl SigningKey {
                 let sk = shake_128s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let sig = sk.try_sign(message, ctx, true).map_err(|_e| SlhDsaError::RngError)?;
-                Ok(sig.as_ref().to_vec())
+                SlhDsaSignature::new(self.security_level, sig.as_ref().to_vec())?
             }
             SlhDsaSecurityLevel::Shake192s => {
                 if self.expose_secret().len() != shake_192s::SK_LEN {
@@ -764,7 +879,7 @@ impl SigningKey {
                 let sk = shake_192s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let sig = sk.try_sign(message, ctx, true).map_err(|_e| SlhDsaError::RngError)?;
-                Ok(sig.as_ref().to_vec())
+                SlhDsaSignature::new(self.security_level, sig.as_ref().to_vec())?
             }
             SlhDsaSecurityLevel::Shake256s => {
                 if self.expose_secret().len() != shake_256s::SK_LEN {
@@ -776,9 +891,11 @@ impl SigningKey {
                 let sk = shake_256s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let sig = sk.try_sign(message, ctx, true).map_err(|_e| SlhDsaError::RngError)?;
-                Ok(sig.as_ref().to_vec())
+                SlhDsaSignature::new(self.security_level, sig.as_ref().to_vec())?
             }
-        }
+        };
+
+        Ok(signature)
     }
 
     /// Signs a message and returns the verifying key for convenience
@@ -789,29 +906,29 @@ impl SigningKey {
         &self,
         message: &[u8],
         context: &[u8],
-    ) -> Result<(Vec<u8>, &VerifyingKey), SlhDsaError> {
+    ) -> Result<(SlhDsaSignature, &SlhDsaVerifyingKey), SlhDsaError> {
         let signature = self.sign(message, context)?;
         Ok((signature, &self.verifying_key))
     }
 }
 
 // Zeroize the signing key on drop to prevent memory leaks
-impl Drop for SigningKey {
+impl Drop for SlhDsaSigningKey {
     fn drop(&mut self) {
         self.bytes.zeroize();
     }
 }
 
-// Implement Zeroize for SigningKey to allow explicit zeroization
-impl Zeroize for SigningKey {
+// Implement Zeroize for SlhDsaSigningKey to allow explicit zeroization
+impl Zeroize for SlhDsaSigningKey {
     fn zeroize(&mut self) {
         self.bytes.zeroize();
     }
 }
 
-impl std::fmt::Debug for SigningKey {
+impl std::fmt::Debug for SlhDsaSigningKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SigningKey")
+        f.debug_struct("SlhDsaSigningKey")
             .field("security_level", &self.security_level)
             .field("bytes", &"[REDACTED]")
             .field("verifying_key", &"[PUBLIC KEY]")
@@ -842,7 +959,7 @@ mod tests {
             SlhDsaSecurityLevel::Shake192s,
             SlhDsaSecurityLevel::Shake256s,
         ] {
-            let (sk, pk) = SigningKey::generate(level).expect("Key generation failed");
+            let (sk, pk) = SlhDsaSigningKey::generate(level).expect("Key generation failed");
             assert_eq!(sk.security_level(), level);
             assert_eq!(pk.security_level(), level);
             assert_eq!(
@@ -868,7 +985,7 @@ mod tests {
             SlhDsaSecurityLevel::Shake192s,
             SlhDsaSecurityLevel::Shake256s,
         ] {
-            let (sk, pk) = SigningKey::generate(level).expect("Key generation failed");
+            let (sk, pk) = SlhDsaSigningKey::generate(level).expect("Key generation failed");
             let message = b"Test message for SLH-DSA";
             let signature = sk.sign(message, &[]).expect("Signing failed");
 
@@ -887,13 +1004,15 @@ mod tests {
     // Test 3: Verify rejects invalid signatures
     #[test]
     fn test_verify_invalid_signature_fails() {
-        let (sk, pk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let message = b"Test message";
         let mut signature = sk.sign(message, &[]).expect("Signing failed");
 
-        // Corrupt the signature
-        signature[0] ^= 0xFF;
+        // Corrupt the signature (same-module access to the private `bytes`
+        // field — external callers corrupt via `as_bytes().to_vec()` +
+        // `SlhDsaSignature::new`, see e.g. `tests/nist_kat/slh_dsa_vectors.rs`).
+        signature.bytes[0] ^= 0xFF;
 
         let is_valid = pk.verify(message, &signature, &[]).expect("Verification failed");
         assert!(!is_valid, "Verification should fail for corrupted signature");
@@ -902,8 +1021,8 @@ mod tests {
     // Test 4: Verify rejects wrong message
     #[test]
     fn test_verify_wrong_message_fails() {
-        let (sk, pk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let message = b"Test message";
         let wrong_message = b"Wrong message";
         let signature = sk.sign(message, &[]).expect("Signing failed");
@@ -920,17 +1039,17 @@ mod tests {
             SlhDsaSecurityLevel::Shake192s,
             SlhDsaSecurityLevel::Shake256s,
         ] {
-            let (sk, pk) = SigningKey::generate(level).expect("Key generation failed");
+            let (sk, pk) = SlhDsaSigningKey::generate(level).expect("Key generation failed");
 
             // Serialize and deserialize public key
             let pk_bytes = pk.to_bytes();
-            let pk_restored = VerifyingKey::from_bytes(&pk_bytes, level)
+            let pk_restored = SlhDsaVerifyingKey::from_bytes(&pk_bytes, level)
                 .expect("Public key deserialization failed");
             assert_eq!(pk, pk_restored);
 
             // Serialize and deserialize secret key
             let sk_bytes = sk.to_bytes();
-            let sk_restored = SigningKey::from_bytes(&sk_bytes, level)
+            let sk_restored = SlhDsaSigningKey::from_bytes(&sk_bytes, level)
                 .expect("Secret key deserialization failed");
             assert_eq!(sk.security_level(), sk_restored.security_level());
             assert_eq!(sk.expose_secret(), sk_restored.expose_secret());
@@ -948,19 +1067,19 @@ mod tests {
     #[test]
     fn test_invalid_key_handling_returns_error() {
         // Invalid public key (wrong size)
-        let result = VerifyingKey::new(SlhDsaSecurityLevel::Shake128s, &[0u8; 16]);
+        let result = SlhDsaVerifyingKey::new(SlhDsaSecurityLevel::Shake128s, &[0u8; 16]);
         assert!(matches!(result, Err(SlhDsaError::InvalidPublicKey)));
 
         // Invalid secret key (wrong size)
-        let result = SigningKey::new(SlhDsaSecurityLevel::Shake128s, &[0u8; 16]);
+        let result = SlhDsaSigningKey::new(SlhDsaSecurityLevel::Shake128s, &[0u8; 16]);
         assert!(matches!(result, Err(SlhDsaError::InvalidSecretKey)));
     }
 
     // Test 7: Context string handling
     #[test]
     fn test_slh_dsa_context_string_sign_verify_roundtrip() {
-        let (sk, pk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let message = b"Test message";
         let context = b"Test context";
 
@@ -982,8 +1101,8 @@ mod tests {
     // probed via the variant.
     #[test]
     fn test_context_too_long_returns_error() {
-        let (sk, _) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, _) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let message = b"Test message";
         let long_context = vec![0u8; 256]; // 256 bytes, max is 255
 
@@ -994,8 +1113,8 @@ mod tests {
     // Test 9: Empty message signing
     #[test]
     fn test_slh_dsa_empty_message_sign_verify_roundtrip() {
-        let (sk, pk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let message = b"";
 
         let signature = sk.sign(message, &[]).expect("Signing empty message failed");
@@ -1006,8 +1125,8 @@ mod tests {
     // Test 10: Large message signing
     #[test]
     fn test_slh_dsa_large_message_sign_verify_roundtrip() {
-        let (sk, pk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let message = vec![0u8; 65536]; // 64 KB message
 
         let signature = sk.sign(&message, &[]).expect("Signing large message failed");
@@ -1018,8 +1137,8 @@ mod tests {
     // Test 11: Multiple signatures with same key
     #[test]
     fn test_slh_dsa_multiple_signatures_all_verify_succeeds() {
-        let (sk, pk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
 
         for i in 0..10 {
             let message = format!("Test message {i}").as_bytes().to_vec();
@@ -1053,7 +1172,7 @@ mod tests {
 
     #[test]
     fn test_slh_dsa_secret_key_zeroization_succeeds() {
-        let (mut sk, _pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        let (mut sk, _pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
             .expect("Key generation should succeed");
 
         let sk_bytes_before = sk.expose_secret().to_vec();
@@ -1078,7 +1197,7 @@ mod tests {
 
         for level in levels.iter() {
             let (mut sk, _pk) =
-                SigningKey::generate(*level).expect("Key generation should succeed");
+                SlhDsaSigningKey::generate(*level).expect("Key generation should succeed");
 
             let sk_bytes_before = sk.expose_secret().to_vec();
             assert!(
@@ -1100,7 +1219,7 @@ mod tests {
 
     #[test]
     fn test_slh_dsa_signing_after_zeroization_succeeds() {
-        let (mut sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        let (mut sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
             .expect("Key generation should succeed");
         let message = b"Test message";
 
@@ -1115,11 +1234,11 @@ mod tests {
         assert!(result.is_err(), "Signing should fail after zeroization");
     }
 
-    // Test 13: VerifyingKey::verify returns Result
+    // Test 13: SlhDsaVerifyingKey::verify returns Result
     #[test]
     fn test_slh_dsa_verify_returns_ok_result_succeeds() {
-        let (sk, pk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let message = b"Test message";
         let signature = sk.sign(message, &[]).expect("Signing failed");
 
@@ -1129,7 +1248,7 @@ mod tests {
 
         // Invalid signature should return Ok(false), not Err
         let mut invalid_sig = signature.clone();
-        invalid_sig[0] ^= 0xFF;
+        invalid_sig.bytes[0] ^= 0xFF;
         let result = pk.verify(message, &invalid_sig, &[]);
         assert!(matches!(result, Ok(false)));
     }
@@ -1140,8 +1259,8 @@ mod tests {
     /// distinguishable `MessageTooLong`).
     #[test]
     fn test_slh_dsa_sign_oversized_message_rejects_opaquely() {
-        let (sk, _pk) =
-            SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
+        let (sk, _pk) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+            .expect("Key generation failed");
         let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
         let err = sk.sign(&oversize, &[]).expect_err("oversized message must be rejected");
         assert!(matches!(err, SlhDsaError::SigningFailed), "expected SigningFailed, got {err:?}");

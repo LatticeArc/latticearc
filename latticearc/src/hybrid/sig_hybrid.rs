@@ -662,27 +662,20 @@ pub fn verify(
     //
     // Rules:
     // 1. No early return on a single component failure.
-    // 2. No `&&` (short-circuit) — use `&` (bitwise) so both calls always execute.
+    // 2. No `&&` (short-circuit) — use `&` (bitwise) so both leg verifies always execute.
     // 3. A SINGLE opaque error string regardless of which component failed.
     // 4. Structural parse failures collapse to bit=0 (same as verify-fail),
-    //    matching FIPS 204 §5.3 Verify-returns-bool shape and the Ed25519
-    //    sibling below. This removes the early-exit timing / variant oracle
-    //    that would otherwise distinguish "malformed ML-DSA" from "Ed25519
-    //    failed".
+    //    matching FIPS 204 §5.3 Verify-returns-bool shape. This removes the
+    //    early-exit timing / variant oracle that would otherwise distinguish
+    //    "malformed ML-DSA" from "Ed25519 failed".
     //
     // No length pre-checks are performed here. Earlier revisions had four
     // distinguishable `InvalidKeyMaterial` returns for the four buffer
     // lengths; that surface let an adversary varying wire-supplied PK/sig
-    // bytes enumerate which length got rejected. The match arms below
-    // already collapse parse failures (which include length mismatches) to
-    // bit = 0, which is indistinguishable from a verify failure — exactly
-    // what Pattern 6 §"adversary-reachable paths" requires.
-
-    // Timing equalizer — see `crate::hybrid::verify_equalizer` for the
-    // full rationale. Briefly: select shape-correct bytes (real or
-    // zero-byte dummy) and run `from_bytes` + `verify` once on the
-    // selection so the wall-clock cost is identical for shape-fail
-    // and verify-fail.
+    // bytes enumerate which length got rejected. The legs collapse parse
+    // failures (which include length mismatches) to bit = 0, which is
+    // indistinguishable from a verify failure — exactly what Pattern 6
+    // §"adversary-reachable paths" requires.
     //
     // Per-stage `tracing` was previously emitted under four distinct
     // sub-stage tags; that made the Pattern 6 returned-error opacity
@@ -690,6 +683,59 @@ pub fn verify(
     // single "verify failure occurred" event for alerting; the
     // granular sub-stage detail is intentionally dropped (see
     // `docs/DESIGN_PATTERNS.md` Pattern 6).
+
+    // H1 / M1 fix: bind the verified transcript to this scheme. Must mirror
+    // the sign-side context exactly — any mismatch produces a verify-false
+    // for legitimate signatures.
+    let scheme_label = hybrid_scheme_label(pk.parameter_set);
+    let scheme_ctx = sig_context(scheme_label);
+
+    let ml_dsa_valid = verify_ml_dsa_leg(pk, sig, message, scheme_ctx);
+    let ed25519_valid = verify_ed25519_leg(pk, sig, message, scheme_ctx);
+
+    // One generic event on aggregate failure — preserves the "something
+    // went wrong with hybrid verify" alerting signal without leaking
+    // which component(s) failed.
+    if (ml_dsa_valid & ed25519_valid) != 1 {
+        log_crypto_operation_error!(op::HYBRID_VERIFY, "hybrid signature verification failed");
+    }
+
+    // The two component bits are combined via bitwise AND (not short-circuit
+    // `&&`) so verification work is identical regardless of which component
+    // failed first. The branch below on `both_valid` does not leak anything
+    // the return value doesn't already carry — pass/fail is observable from
+    // the caller either way.
+    let both_valid: u8 = ml_dsa_valid & ed25519_valid;
+    if both_valid != 1 {
+        return Err(HybridSignatureError::VerificationFailed(
+            "hybrid signature verification failed".to_string(),
+        ));
+    }
+
+    // Both signatures verified successfully
+    Ok(true)
+}
+
+/// ML-DSA leg of hybrid verify. Returns `1` iff the caller's bytes passed
+/// shape-check AND both `from_bytes` parses AND the real verify.
+///
+/// Timing equalizer — see `crate::hybrid::verify_equalizer` for the full
+/// rationale. Briefly: select shape-correct bytes (real or zero-byte dummy)
+/// and run `from_bytes` + `verify` once on the selection so the wall-clock
+/// cost is identical for shape-fail and verify-fail.
+///
+/// The dummy equalizer paths intentionally verify with `&[]` context because
+/// they verify pre-generated material against fixed internal messages — that
+/// material was produced with empty ctx, and its sole purpose is wall-clock
+/// parity (results are discarded). The FIPS 204 §5.2 ctx parsing cost is
+/// negligible relative to the polynomial arithmetic that dominates verify,
+/// so equal cost holds.
+fn verify_ml_dsa_leg(
+    pk: &HybridSigPublicKey,
+    sig: &HybridSignature,
+    message: &[u8],
+    scheme_ctx: &[u8],
+) -> u8 {
     let dummy = crate::hybrid::verify_equalizer::hybrid_verify_dummy_material(pk.parameter_set);
 
     let pq_pk_len = pk.parameter_set.public_key_size();
@@ -708,12 +754,12 @@ pub fn verify(
     //
     // When parse fails on the substituted bytes, we DO still run a
     // real verify against the equalizer's pre-parsed valid material
-    // (`dummy.parsed`, post-85e2bd79e M1). This guarantees
-    // verify-pipeline execution regardless of whether `from_bytes`
-    // adds content validation downstream. The pre-parsed PK + sig
-    // verify against an internal test message — content-dependent
-    // verify timing is content-independent of the caller, which is
-    // exactly the property we want from the equalizer.
+    // (`dummy.parsed`). This guarantees verify-pipeline execution
+    // regardless of whether `from_bytes` adds content validation
+    // downstream. The pre-parsed PK + sig verify against an internal
+    // test message — content-dependent verify timing is
+    // content-independent of the caller, which is exactly the property
+    // we want from the equalizer.
     //
     // If `dummy.parsed` is `None` (init keygen+sign failed at module
     // load — extremely rare RNG/PCT path), we fall back to the
@@ -726,33 +772,20 @@ pub fn verify(
             MlDsaSignature::from_bytes(pq_sig_bytes, pk.parameter_set)
                 .map(|parsed_sig| (parsed_pk, parsed_sig))
         });
-    // the previous shape was
-    //   `Ok(parsed) => parsed.verify(..)`,
-    //   `Err(_) => dummy.verify(..)`.
-    // But `MlDsaPublicKey::verify` internally calls
+    // `MlDsaPublicKey::verify` internally calls
     // `ml_dsa_NN::PublicKey::try_from_bytes`, which short-circuits with
     // `Err(VerificationError)` on structurally-invalid PKs (e.g.
     // all-zero) before any actual ML-DSA verify runs. So a shape-pass-
-    // but-inner-parse-fail input paid only the cheap parse-fail cost
-    // while a shape-pass-and-inner-parse-pass input paid the full
+    // but-inner-parse-fail input would pay only the cheap parse-fail cost
+    // while a shape-pass-and-inner-parse-pass input pays the full
     // ML-DSA verify cost — a measurable timing oracle on the difference.
-    // Now: ANY path that doesn't reach a successful real verify falls
+    // ANY path that doesn't reach a successful real verify falls
     // through to the dummy verify so the wall-clock cost is equal
     // across all reject reasons.
-    // pre-parsed material now goes through `parsed_or_init()`
-    // which retries init when prior attempts produced None. The result is
-    // a clone (cheap — public bytes only); we own it locally.
-    // H1 / M1 fix: bind the verified transcript to this scheme. Must mirror
-    // the sign-side context exactly — any mismatch produces a verify-false
-    // for legitimate signatures. The dummy equalizer paths intentionally
-    // keep `&[]` because they verify pre-generated material against fixed
-    // internal messages — that material was produced with empty ctx, and
-    // its sole purpose is wall-clock parity (results are discarded). The
-    // FIPS 204 §5.2 ctx parsing cost is negligible relative to the
-    // polynomial arithmetic that dominates verify, so equal cost holds.
-    let scheme_label = hybrid_scheme_label(pk.parameter_set);
-    let scheme_ctx = sig_context(scheme_label);
-
+    //
+    // Pre-parsed material goes through `parsed_or_init()`, which retries
+    // init when prior attempts produced None. The result is a clone
+    // (cheap — public bytes only); we own it locally.
     let dummy_parsed = dummy.parsed_or_init();
     let ml_dsa_verify_result = match &parse_ok {
         Ok((parsed_pk, parsed_sig)) => {
@@ -805,18 +838,26 @@ pub fn verify(
     let shape_bit: u8 = u8::from(pq_shape_ok);
     let parse_bit: u8 = u8::from(parse_ok.is_ok());
     let verify_bit: u8 = u8::from(matches!(ml_dsa_verify_result, Ok(true)));
-    let ml_dsa_valid: u8 = shape_bit & parse_bit & verify_bit;
+    shape_bit & parse_bit & verify_bit
+}
 
-    // the Ed25519 leg now has a real verify-time
-    // equalizer. The previous shape claimed parse cost was "in the
-    // same order of magnitude as verify" — empirically wrong (parse
-    // is a 64-byte length check, verify is one EC scalar mul; ~3
-    // orders of magnitude apart). On parse-fail, run verify against
-    // pre-parsed cached material so the wall-clock cost matches a
-    // real verify, mirroring the ML-DSA equalizer above.
+/// Ed25519 leg of hybrid verify. Returns `1` iff the caller's signature
+/// parsed AND the real verify passed.
+///
+/// The Ed25519 leg has a real verify-time equalizer: parse is a 64-byte
+/// length check while verify is one EC scalar mul (~3 orders of magnitude
+/// apart), so on parse-fail we run verify against pre-parsed cached material
+/// so the wall-clock cost matches a real verify, mirroring the ML-DSA
+/// equalizer.
+fn verify_ed25519_leg(
+    pk: &HybridSigPublicKey,
+    sig: &HybridSignature,
+    message: &[u8],
+    scheme_ctx: &[u8],
+) -> u8 {
     let ed_dummy = crate::hybrid::verify_equalizer::ed25519_verify_dummy_material();
     let ed_dummy_parsed = ed_dummy.parsed_or_init();
-    let ed25519_valid: u8 = if let Ok(ed25519_signature) =
+    if let Ok(ed25519_signature) =
         Ed25519SignatureOps::signature_from_bytes(sig.ed25519_sig.as_slice())
     {
         // Wrong-length PK short-circuits inside
@@ -868,33 +909,11 @@ pub fn verify(
         }
         // If `ed_dummy_parsed` is None (RNG/PCT init failure —
         // retries on every call), fall through to the
-        // legacy fast-fail. Bit is computed below via AND with
-        // `pq_shape_ok` and `parse_ok.is_ok()`, so a degraded
-        // equalizer cannot affect correctness.
+        // legacy fast-fail. Bit is computed by the caller via AND with
+        // the ML-DSA leg, so a degraded equalizer cannot affect
+        // correctness.
         0u8
-    };
-
-    // One generic event on aggregate failure — preserves the "something
-    // went wrong with hybrid verify" alerting signal without leaking
-    // which component(s) failed.
-    if (ml_dsa_valid & ed25519_valid) != 1 {
-        log_crypto_operation_error!(op::HYBRID_VERIFY, "hybrid signature verification failed");
     }
-
-    // The two component bits are combined via bitwise AND (not short-circuit
-    // `&&`) so verification work is identical regardless of which component
-    // failed first. The branch below on `both_valid` does not leak anything
-    // the return value doesn't already carry — pass/fail is observable from
-    // the caller either way.
-    let both_valid: u8 = ml_dsa_valid & ed25519_valid;
-    if both_valid != 1 {
-        return Err(HybridSignatureError::VerificationFailed(
-            "hybrid signature verification failed".to_string(),
-        ));
-    }
-
-    // Both signatures verified successfully
-    Ok(true)
 }
 
 #[cfg(test)]

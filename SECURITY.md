@@ -34,8 +34,9 @@ You can also report via [GitHub Security Advisory](https://github.com/latticearc
 
 | Version | Status | Security Updates Until |
 |---------|--------|------------------------|
-| 0.8.x | Supported | Current |
-| 0.7.x | Supported | Security fixes only |
+| 0.9.x | Supported | Current |
+| 0.8.x | Supported | Security fixes only |
+| 0.7.x | End of life | Superseded by 0.8.0 |
 | 0.6.x | End of life | Superseded by 0.7.0 |
 | 0.5.x | End of life | Superseded by 0.6.0 |
 | 0.4.x | End of life | Superseded by 0.5.0 |
@@ -296,7 +297,7 @@ Property-based tests verify our Rust wrappers correctly compose the verified pri
 - FIPS 203 key/ciphertext size compliance across all ML-KEM parameter sets
 - 256 random cases per property, release mode
 
-#### Layer 3: Kani — Type Invariants (30 proofs)
+#### Layer 3: Kani — Type Invariants (29 proofs)
 
 Kani model checking verifies the pure-Rust policy and state management layer plus a small set of input-bound checks. These proofs do **not** cover cryptographic operations (which require FFI). They verify:
 - Key lifecycle state machine enforces SP 800-57 transitions (5 proofs)
@@ -474,8 +475,8 @@ above (SAW for primitives, proptest for API, Kani for type invariants).
 
 ### aws-lc-rs-Wrapped Secret Types
 
-The ECDH key types (`X25519KeyPair`, `X25519StaticKeyPair`, `EcdhP256KeyPair`,
-`EcdhP384KeyPair`, `EcdhP521KeyPair`) and `MlKemDecapsulationKeyPair` wrap
+The ECDH key types (`X25519KeyPair`, `X25519StaticKeyPair`) and
+`MlKemDecapsulationKeyPair` wrap
 private-key types from [aws-lc-rs](https://github.com/aws/aws-lc-rs) whose
 upstream Rust bindings do not expose raw key bytes. This affects two
 Rust-level guarantees:

@@ -224,17 +224,17 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
         }
     };
 
-    // L9 fix: mirror decrypt's hard-fail. Derived key bytes shouldn't
-    // land in interactive scrollback by default. Pipelines (stdout not a
-    // TTY) are unaffected; `--print-to-tty` is the explicit opt-in.
-    use std::io::IsTerminal;
-    if std::io::stdout().is_terminal() && !args.print_to_tty {
-        bail!(
-            "Refusing to write derived KDF output to a TTY. Pipe stdout to a file or downstream \
-             tool, or pass --print-to-tty to explicitly opt in (key material will then appear \
-             in shell scrollback / session recorders / log aggregators)."
-        );
-    }
+    // L9 fix: mirror decrypt's hard-fail via the shared TTY guard. Derived
+    // key bytes shouldn't land in interactive scrollback by default.
+    // Pipelines (stdout not a TTY) are unaffected; `--print-to-tty` is the
+    // explicit opt-in. Message is kdf-specific (no `--output` flag exists
+    // here, and the payload is key material, not plaintext).
+    super::common::require_non_tty_output(
+        "Refusing to write derived KDF output to a TTY. Pipe stdout to a file or downstream \
+         tool, or pass --print-to-tty to explicitly opt in (key material will then appear \
+         in shell scrollback / session recorders / log aggregators).",
+        args.print_to_tty,
+    )?;
     print!("{}", encoded.as_str());
     Ok(())
 }

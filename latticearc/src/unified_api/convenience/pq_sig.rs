@@ -20,14 +20,9 @@ use crate::{
 use tracing::{debug, warn};
 
 use crate::primitives::sig::{
-    fndsa::{
-        FnDsaSecurityLevel, Signature as FnDsaSignature, SigningKey as FnDsaSigningKey,
-        VerifyingKey as FnDsaVerifyingKey,
-    },
+    fndsa::{FnDsaSecurityLevel, FnDsaSignature, FnDsaSigningKey, FnDsaVerifyingKey},
     ml_dsa::{MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature},
-    slh_dsa::{
-        SigningKey as SlhDsaSigningKey, SlhDsaSecurityLevel, VerifyingKey as SlhDsaVerifyingKey,
-    },
+    slh_dsa::{SlhDsaSecurityLevel, SlhDsaSignature, SlhDsaSigningKey, SlhDsaVerifyingKey},
 };
 
 use crate::types::domains::{SigSchemeLabel, hash_with_context, sig_context};
@@ -389,10 +384,14 @@ fn sign_pq_slh_dsa_internal(
         CoreError::SignatureFailed(format!("SLH-DSA signing failed: {e}"))
     })?;
 
-    log_crypto_operation_complete!(op::SLH_DSA_SIGN, algorithm = ?security_level, signature_len = signature.len());
+    // `sign()` returns the typed `SlhDsaSignature`; this convenience layer's
+    // wire format is still raw bytes, so unwrap at the boundary (mirrors
+    // FN-DSA's `signature.to_bytes()` below).
+    let sig_bytes = signature.to_bytes();
+    log_crypto_operation_complete!(op::SLH_DSA_SIGN, algorithm = ?security_level, signature_len = sig_bytes.len());
     debug!(algorithm = ?security_level, "Created SLH-DSA signature");
 
-    Ok(signature)
+    Ok(sig_bytes)
 }
 
 /// Internal implementation of SLH-DSA verification.
@@ -415,9 +414,16 @@ fn verify_pq_slh_dsa_internal(
         CoreError::InvalidInput("Invalid SLH-DSA public key format".to_string())
     })?;
 
+    let sig = SlhDsaSignature::new(security_level, signature.to_vec()).map_err(|e| {
+        // Pattern-6: see ML-DSA verify above for rationale — same opaque
+        // string shape as the FN-DSA construction-error path below.
+        log_crypto_operation_error!(op::SLH_DSA_VERIFY, e);
+        CoreError::InvalidInput("Invalid SLH-DSA signature format".to_string())
+    })?;
+
     // H1 / M1 fix: must match sign-side context exactly.
     let scheme_ctx = sig_context(pure_slh_dsa_scheme_label(security_level));
-    let result = map_verify_result(pk.verify(message, signature, scheme_ctx), "SLH-DSA");
+    let result = map_verify_result(pk.verify(message, &sig, scheme_ctx), "SLH-DSA");
 
     match &result {
         Ok(valid) => {

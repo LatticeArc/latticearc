@@ -20,13 +20,10 @@ use subtle::ConstantTimeEq;
 use crate::log_crypto_operation_error;
 use crate::primitives::hash::sha3::sha3_256 as hash_sha3_256;
 use crate::primitives::mac::hmac::hmac_sha256;
-// the previous `validate_key_derivation_count(1)`
-// no-op was removed (passing `1` to a per-call cap is structurally
-// useless — it always succeeds whenever the global limit is ≥1). The
-// real DoS bound on this path is enforced by `validate_signature_size`
-// at the AEAD/KDF entrypoints upstream. The import is no longer needed
-// at this site; a future per-process derivation counter would re-import
-// it from `resource_limits`.
+// Each derive_* function below performs exactly one derivation per call,
+// so there is no meaningful "count per call" to cap here. Batch-size DoS
+// protection for this path is enforced by `validate_signature_size` at
+// the AEAD/KDF entrypoints upstream instead.
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::logging::op;
@@ -91,8 +88,9 @@ fn derive_key_with_info_internal(
         info_len = info.len()
     );
 
-    // per-call no-op `validate_key_derivation_count(1)`
-    // removed. See module-level comment.
+    // No per-call derivation-count check here: this function performs a
+    // single HKDF derivation per invocation, so a "count per call" limit
+    // would always trivially pass.
 
     if salt.is_empty() {
         let err = CoreError::InvalidInput("Salt cannot be empty".to_string());

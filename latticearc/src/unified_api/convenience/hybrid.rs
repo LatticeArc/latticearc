@@ -17,7 +17,7 @@
 use crate::hybrid::kem_hybrid::{self as kem, HybridKemPublicKey, HybridKemSecretKey};
 use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
 
-use crate::unified_api::error::{CoreError, Result};
+use crate::unified_api::error::Result;
 
 /// Generate a hybrid keypair at ML-KEM-768 (default security level).
 ///
@@ -51,8 +51,7 @@ pub fn generate_hybrid_keypair_with_level(
     level: MlKemSecurityLevel,
 ) -> Result<(HybridKemPublicKey, HybridKemSecretKey)> {
     super::api::fips_verify_operational()?;
-    kem::generate_keypair_with_level(level)
-        .map_err(|e| CoreError::EncryptionFailed(format!("Hybrid keypair generation failed: {e}")))
+    Ok(kem::generate_keypair_with_level(level)?)
 }
 
 #[cfg(test)]

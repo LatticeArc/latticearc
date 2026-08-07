@@ -25,7 +25,6 @@ graph TB
 
     subgraph "High-Level APIs (Layer 3)"
         CORE[unified_api<br/>Unified API + Zero-Trust]
-        TLS[tls<br/>PQ TLS 1.3]
     end
 
     subgraph "Hybrid Constructions (Layer 2)"
@@ -54,15 +53,12 @@ graph TB
     APP --> MAIN
     MAIN --> CORE
     MAIN --> HYBRID
-    MAIN --> TLS
     MAIN --> ZKP
     MAIN --> PERF
     CORE --> TYPES
     CORE --> PRIM
     CORE --> HYBRID
     HYBRID --> PRIM
-    TLS --> PRIM
-    TLS --> PRELUDE
     ZKP --> PRIM
     PRIM --> TYPES
     PRIM --> PRELUDE
@@ -79,7 +75,7 @@ graph TB
     classDef testing fill:#95a5a6,stroke:#333,color:#fff
 
     class MAIN facade
-    class CORE,TLS highlevel
+    class CORE highlevel
     class HYBRID highlevel
     class TYPES types
     class PRIM,ZKP core
@@ -88,7 +84,7 @@ graph TB
 ```
 
 **Key architectural properties (v0.2.0):**
-- **`latticearc::types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (30 proofs)
+- **`latticearc::types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (29 proofs)
 - All modules consolidated into single `latticearc` crate (was 8 separate crates)
 - **`latticearc-tests`** consolidates all integration tests, CAVP validation, and NIST KAT vectors
 
@@ -277,7 +273,15 @@ flowchart LR
 
 ## Hardware Acceleration
 
-LatticeArc provides trait definitions for hardware-aware operations (`HardwareAccelerator`, `HardwareAware`, `HardwareCapabilities`, `HardwareInfo`, `HardwareType`). *Implementation:* "hardware-aware" means an implementor of `HardwareAware::available_accelerators()` returns the set of present accelerators (CPU SIMD / GPU / TPM / SGX) and `best_accelerator()` selects from that set, allowing scheme dispatch to vary per-host. The trait contracts are defined in `latticearc::types::traits`; concrete enterprise implementations live in `proprietary_repo/arc-enterprise-perf/`.
+The `latticearc` crate carries no hardware-detection types: the former
+`HardwareAware`/`HardwareAccelerator` traits and the
+`HardwareInfo`/`HardwareCapabilities`/`HardwareType` structs were removed as
+dead surface (no production constructor ever existed). Runtime hardware
+detection is an enterprise-only concern (`proprietary_repo/latticearc-enterprise-perf/`).
+The one hardware-related knob that remains here is
+`CoreConfig::hardware_acceleration`, which the scheme selector consumes:
+`false` opts into the software-only AEAD path at Standard level and refuses a
+silent PQ-strip at High/Maximum.
 
 The underlying cryptography library (`aws-lc-rs`) handles AES-NI, SHA extensions, and SIMD acceleration automatically at the C level — no application-level hardware detection is needed for optimal performance.
 
@@ -428,18 +432,22 @@ Zero-knowledge proof systems:
 
 ## Error Handling
 
+`CoreError` (unified API) is the convergence point: per-algorithm error
+enums and the legacy `LatticeArcError` all convert *into* it.
+
 ```mermaid
 flowchart LR
-    CORE[CoreError] -->|From| LA[LatticeArcError]
-    PRIM[PrimitivesError] -->|From| LA
-    TLS[TlsError] -->|From| LA
+    LA[LatticeArcError] -->|From| CORE[CoreError]
+    TE[TypeError] -->|From| CORE
+    ALG["MlKemError · MlDsaError · SlhDsaError · FnDsaError"] -->|"#[from]"| CORE
+    HYB["HybridKemError · HybridEncryptionError\nHybridSignatureError · PqOnlyError"] -->|"#[from]"| CORE
 
-    LA --> V["InvalidKey · InvalidInput\nEncryptionError · AuthenticationFailed\nConfigurationError · EntropyDepleted"]
+    CORE --> V["InvalidKey · InvalidInput\nEncryptionFailed · AuthenticationFailed\nConfigurationError · Replay"]
 
     classDef base fill:#4a90d9,stroke:#333,color:#fff
     classDef src fill:#f5a623,stroke:#333,color:#fff
-    class LA base
-    class CORE,PRIM,TLS src
+    class CORE base
+    class LA,TE,ALG,HYB src
 ```
 
 ## Feature Flags
@@ -449,9 +457,10 @@ flowchart LR
 | `fips` | FIPS 140-3 validated aws-lc-rs backend (requires CMake + Go) | No |
 | `fips-self-test` | Power-up KAT self-tests for FIPS-boundary algorithms | No |
 | `zkp-serde` | ZKP serialization support (enables `serde_with`) | No |
-| `formal-verification` | TLS formal verification features | No |
+| `formal-verification` | Compilation marker for formal-verification harness code (Kani proofs; run via `cargo kani` separately) | No |
 | `kani` | Kani bounded model checking proofs | No |
 | `saw` | SAW formal verification integration | No |
+| `perf` | Benchmarking/metrics module (`latticearc::perf`) — bench scaffolding, no production consumer | No |
 
 ## Testing Strategy
 
@@ -460,7 +469,7 @@ flowchart LR
     subgraph "Correctness"
         UNIT[Unit + Integration]
         PROP[Proptest\n40+ properties]
-        KANI[Kani\n30 proofs]
+        KANI[Kani\n29 proofs]
     end
 
     subgraph "Robustness"
@@ -509,11 +518,10 @@ Primitive dispatch (hybrid::encrypt, primitives::aead::encrypt, etc.)
 
 ### TLS Config Pipeline
 
-> `latticearc` does not own a TLS layer; the `TlsConfig` user-facing
-> builder referenced in some early drafts was never shipped. Production
-> TLS use should configure `rustls` directly (the README points to it
-> explicitly). The internal `Tls13Config` type used by the experimental
-> `latticearc::tls` module is configured through `rustls`'s own builder.
+> `latticearc` does not own a TLS layer — there is no `tls` module in the
+> crate. The `TlsConfig` user-facing builder referenced in some early
+> drafts was never shipped. Production TLS use should configure `rustls`
+> directly (the README points to it explicitly).
 
 ### Policy Engine Config
 

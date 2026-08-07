@@ -7,9 +7,11 @@
 //! The `--algorithm` flag is an expert override for backward compatibility.
 //! When `--public-key` is provided, the unified API is used regardless.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;
+
+use latticearc::unified_api::key_format::KeyAlgorithm;
 
 use crate::keyfile::{KeyFile, KeyType};
 
@@ -219,17 +221,31 @@ fn sign_hybrid_legacy(data: &[u8], key_file: &KeyFile, args: &SignArgs) -> Resul
     write_signature(args, &serde_json::to_string_pretty(&output)?)
 }
 
-/// Map algorithm enum to canonical key file algorithm name.
-fn algorithm_name(alg: &SignAlgorithm) -> &'static str {
-    match alg {
-        SignAlgorithm::MlDsa65 => "ml-dsa-65",
-        SignAlgorithm::MlDsa44 => "ml-dsa-44",
-        SignAlgorithm::MlDsa87 => "ml-dsa-87",
-        SignAlgorithm::SlhDsa => "slh-dsa-shake-128s",
-        SignAlgorithm::FnDsa => "fn-dsa-512",
-        SignAlgorithm::Ed25519 => "ed25519",
-        SignAlgorithm::Hybrid => "hybrid-ml-dsa-65-ed25519",
+impl SignAlgorithm {
+    /// Map to the library's canonical `KeyAlgorithm`. The two enums are
+    /// 1:1 for every variant (`Hybrid` maps to the fixed
+    /// hybrid-ml-dsa-65-ed25519 scheme, matching the legacy hybrid signing
+    /// path's hardcoded scheme name below).
+    fn to_key_algorithm(&self) -> KeyAlgorithm {
+        match self {
+            SignAlgorithm::MlDsa65 => KeyAlgorithm::MlDsa65,
+            SignAlgorithm::MlDsa44 => KeyAlgorithm::MlDsa44,
+            SignAlgorithm::MlDsa87 => KeyAlgorithm::MlDsa87,
+            SignAlgorithm::SlhDsa => KeyAlgorithm::SlhDsaShake128s,
+            SignAlgorithm::FnDsa => KeyAlgorithm::FnDsa512,
+            SignAlgorithm::Ed25519 => KeyAlgorithm::Ed25519,
+            SignAlgorithm::Hybrid => KeyAlgorithm::HybridMlDsa65Ed25519,
+        }
     }
+}
+
+/// Map algorithm enum to canonical key file algorithm name.
+///
+/// Delegates to `KeyAlgorithm::canonical_name()` via `to_key_algorithm`
+/// rather than hand-rolling a second string table — `verify.rs` has an
+/// identical function derived the same way.
+fn algorithm_name(alg: &SignAlgorithm) -> &'static str {
+    alg.to_key_algorithm().canonical_name()
 }
 
 fn write_signature(args: &SignArgs, json: &str) -> Result<()> {
@@ -252,22 +268,16 @@ fn write_signature(args: &SignArgs, json: &str) -> Result<()> {
         p
     };
 
-    // Atomic write — sig files aren't secret but partial-file-at-rest
-    // is still a script-corruption hazard.
-    // only overwrite when --force is passed.
-    // LINT-OK: public-write-signature (signatures are not secret)
-    latticearc::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())
-        .overwrite_existing(args.force)
-        .write(&output_path)
-        .with_context(|| {
-            format!("Failed to write {} (use --force to overwrite)", output_path.display())
-        })?;
-
-    // path on stderr leaked to process accounting
-    // (auditd, strace) and log aggregators reading the FD. Path names
-    // can be sensitive (project codenames, classified directories).
-    // Demote to tracing::debug! — operators who want operational
-    // confirmation can re-enable it via RUST_LOG.
-    tracing::debug!(path = %output_path.display(), "signature written");
-    Ok(())
+    // Atomic write — sig files aren't secret but partial-file-at-rest is
+    // still a script-corruption hazard. `write_signature` always resolves
+    // an `output_path` (never stdout), so `secret_file_mode=false` and
+    // `tty_guard=None`.
+    super::common::write_output_or_stdout(
+        Some(&output_path),
+        json.as_bytes(),
+        args.force,
+        false,
+        None,
+        "signature",
+    )
 }

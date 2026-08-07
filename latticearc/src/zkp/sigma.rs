@@ -16,6 +16,7 @@
 //! - Honest-verifier zero-knowledge: Simulator can produce indistinguishable transcripts
 
 use crate::primitives::hash::sha2::sha256;
+use crate::zkp::ec_utils;
 use crate::zkp::error::{Result, ZkpError};
 use k256::elliptic_curve::PrimeField;
 use subtle::ConstantTimeEq;
@@ -602,8 +603,8 @@ impl DlogEqualityProof {
         }
 
         // Parse generators
-        let g = Self::parse_point(&statement.g)?;
-        let h = Self::parse_point(&statement.h)?;
+        let g = ec_utils::parse_compressed_point(&statement.g)?;
+        let h = ec_utils::parse_compressed_point(&statement.h)?;
 
         // wrap scalars in `Zeroizing` so
         // stack-resident copies of `k`, `x`, and `s` (computed below)
@@ -615,27 +616,12 @@ impl DlogEqualityProof {
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(secret)).into();
         let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
-        // rejection sampling for the nonce — see matching
-        // comment in `zkp/schnorr.rs::Schnorr::prove`. `Scalar::from_repr`
-        // returns `None` for byte representations `>= q`, eliminating the
-        // ~2^-128 modular bias of the previous `Reduce<U256>::reduce_bytes`
-        // path. Loop terminates in 1 + ε iterations on average. Also
-        // rejects k = 0.
-        let k_scalar: Scalar = loop {
-            let nonce_bytes = Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
-            let candidate: Option<Scalar> =
-                Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
-            // Use `ct_eq` instead of `!=`: `Scalar::PartialEq` is not
-            // documented constant-time, and the challenge-side check
-            // already uses `ct_eq` — symmetry on the secret-bearing
-            // nonce path matters more than the verify side.
-            if let Some(s) = candidate
-                && !bool::from(s.ct_eq(&Scalar::ZERO))
-            {
-                break s;
-            }
-        };
-        let k = Zeroizing::new(k_scalar);
+        // Nonce sampling (rejection sampling, rejects k = 0) lives in
+        // `ec_utils::sample_nonzero_scalar` — shared with
+        // `schnorr::SchnorrProver::prove`. See that function's doc
+        // comment for why rejection sampling beats modular reduction
+        // and why zero is rejected.
+        let k = Zeroizing::new(ec_utils::sample_nonzero_scalar());
 
         // Commitments
         let a_point = g * *k;
@@ -709,12 +695,12 @@ impl DlogEqualityProof {
                 ZkpError::VerificationFailed
             })
         };
-        let g = parse_or_fail(Self::parse_point(&statement.g))?;
-        let h = parse_or_fail(Self::parse_point(&statement.h))?;
-        let p = parse_or_fail(Self::parse_point(&statement.p))?;
-        let q = parse_or_fail(Self::parse_point(&statement.q))?;
-        let a = parse_or_fail(Self::parse_point(&self.a))?;
-        let b = parse_or_fail(Self::parse_point(&self.b))?;
+        let g = parse_or_fail(ec_utils::parse_compressed_point(&statement.g))?;
+        let h = parse_or_fail(ec_utils::parse_compressed_point(&statement.h))?;
+        let p = parse_or_fail(ec_utils::parse_compressed_point(&statement.p))?;
+        let q = parse_or_fail(ec_utils::parse_compressed_point(&statement.q))?;
+        let a = parse_or_fail(ec_utils::parse_compressed_point(&self.a))?;
+        let b = parse_or_fail(ec_utils::parse_compressed_point(&self.b))?;
 
         // Constant-time challenge comparison to prevent timing side-channels
         let expected_challenge = Self::compute_challenge(statement, &self.a, &self.b, context)
@@ -752,25 +738,6 @@ impl DlogEqualityProof {
         Ok(bool::from(lhs1.ct_eq(&rhs1)) & bool::from(lhs2.ct_eq(&rhs2)))
     }
 
-    fn parse_point(bytes: &[u8; 33]) -> Result<k256::ProjectivePoint> {
-        use k256::EncodedPoint;
-        use k256::elliptic_curve::Group;
-        use k256::elliptic_curve::sec1::FromEncodedPoint;
-
-        let encoded = EncodedPoint::from_bytes(bytes)
-            .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {e}")))?;
-        let point: Option<k256::ProjectivePoint> =
-            k256::ProjectivePoint::from_encoded_point(&encoded).into();
-        let p = point.ok_or(ZkpError::InvalidPublicKey)?;
-        // reject identity. With `P = identity`,
-        // `s·G == A + c·P` reduces to `s·G == A` for all `c`,
-        // collapsing soundness on the dlog-equality verifier.
-        if bool::from(p.is_identity()) {
-            return Err(ZkpError::InvalidPublicKey);
-        }
-        Ok(p)
-    }
-
     /// # Errors
     /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GB guard),
     /// or — astronomically rarely — if the rejection-sampling counter
@@ -780,23 +747,20 @@ impl DlogEqualityProof {
     /// Label is `arc-zkp/dlog-equality-v2` because the hash input now
     /// includes a 4-byte big-endian counter suffix. v1 proofs are not
     /// wire-compatible with v2 verifiers.
+    ///
+    /// The hash/reject/retry loop itself lives in
+    /// [`ec_utils::derive_challenge_bytes`] (shared with
+    /// `schnorr::fiat_shamir_challenge`); this function owns only the
+    /// dlog-equality-specific transcript layout.
     fn compute_challenge(
         statement: &DlogEqualityStatement,
         a: &[u8; 33],
         b: &[u8; 33],
         context: &[u8],
     ) -> Result<[u8; 32]> {
-        use k256::{FieldBytes, Scalar, elliptic_curve::PrimeField};
-
-        // Rejection-sample with a counter suffix so the challenge is
-        // uniformly distributed in [0, q). Plain `Reduce::reduce_bytes`
-        // has ~2^-128 modular bias; the nonce path uses the same
-        // discipline. Expected iterations: 1 + ε. Prover and verifier
-        // run identical loops, converging on identical bytes.
         let label = b"arc-zkp/dlog-equality-v2";
-        let mut counter: u32 = 0;
-        loop {
-            let mut buf = Vec::with_capacity(
+        ec_utils::derive_challenge_bytes(|counter, buf| {
+            buf.reserve(
                 label
                     .len()
                     .saturating_add(33 * 4)
@@ -813,26 +777,7 @@ impl DlogEqualityProof {
             buf.extend_from_slice(b);
             buf.extend_from_slice(context);
             buf.extend_from_slice(&counter.to_be_bytes());
-
-            // ~210 bytes — well below the 1 GB SHA-256 DoS cap.
-            let hash = sha256(&buf)
-                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?;
-            // Reject both `>= q` and `== 0`: with `c == 0`, the
-            // dlog-equality response collapses to `s = k + 0·x = k`,
-            // exposing the nonce. Symmetric with the nonce-side
-            // `s != Scalar::ZERO` guard in `prove`.
-            let cand: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
-            if let Some(s) = cand
-                && !bool::from(s.ct_eq(&Scalar::ZERO))
-            {
-                return Ok(hash);
-            }
-            counter = counter.checked_add(1).ok_or_else(|| {
-                ZkpError::SerializationError(
-                    "challenge derivation: counter overflow (statistically impossible)".to_string(),
-                )
-            })?;
-        }
+        })
     }
 }
 

@@ -51,6 +51,10 @@
 
 /// Commitment schemes (Pedersen, hash-based).
 pub mod commitment;
+/// Shared secp256k1 helpers (nonce sampling, point parsing, Fiat-Shamir
+/// rejection sampling) used internally by `schnorr` and `sigma`.
+/// Deliberately private — not part of the public API.
+mod ec_utils;
 /// Error types for zero-knowledge proof operations.
 pub mod error;
 /// Schnorr proof system for discrete-log knowledge proofs.

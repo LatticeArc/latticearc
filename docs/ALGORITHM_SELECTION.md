@@ -172,7 +172,7 @@ Payment processing at 10,000 tx/sec:
 | RSA-2048/3072/4096 | 50x slower than Ed25519, huge keys |
 | P-256/P-384/P-521 ECDSA | 5x slower, timing vulnerability history, NSA curve concerns |
 | DSA | Deprecated in FIPS 186-5 |
-| secp256k1 | Bitcoin-specific, not FIPS-approved. v0.8.4 added a `KeyAlgorithm::Secp256k1` enum tag for downstream key-format interop (Bitcoin / Ethereum / ZKP prover key pairs) — but the apache library does **not** provide a `secp256k1` sign/verify primitive. `k256` is used only as an internal building block inside `latticearc::zkp` (Schnorr, Sigma, Pedersen). |
+| secp256k1 | Bitcoin-specific, not FIPS-approved. v0.8.4 added a `KeyAlgorithm::Secp256k1` enum tag for downstream key-format interop (Bitcoin / Ethereum / ZKP prover key pairs) — but LatticeArc does **not** provide a `secp256k1` sign/verify primitive. `k256` is used only as an internal building block inside `latticearc::zkp` (Schnorr, Sigma, Pedersen). |
 | Ed448 | Ed25519 covers 99% of EdDSA usage; ML-DSA covers Level 5 |
 
 ---
@@ -359,7 +359,7 @@ flowchart TB
 - Pre-standard algorithms (use ML-KEM/ML-DSA/SLH-DSA instead)
 - Broken algorithms (SIKE, Rainbow)
 - Legacy algorithms (RSA, DSA — modern alternatives are faster and safer)
-- Exotic sign/verify primitives (secp256k1, Ed448, Argon2/bcrypt). Note: v0.8.4 introduced a `KeyAlgorithm::Secp256k1` enum tag for downstream PortableKey interop, but no sign/verify operation is exposed at the apache layer — see the Legacy table entry above.
+- Exotic sign/verify primitives (secp256k1, Ed448, Argon2/bcrypt). Note: v0.8.4 introduced a `KeyAlgorithm::Secp256k1` enum tag for downstream PortableKey interop, but no sign/verify operation is exposed by the `latticearc` crate — see the Legacy table entry above.
 
 ---
 

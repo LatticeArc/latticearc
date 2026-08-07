@@ -7,7 +7,7 @@ LatticeArc verifies correctness at three layers, each with the right tool for th
 ```mermaid
 flowchart TB
     subgraph "Layer 3 — Type Invariants"
-        KANI["Kani (30 proofs)\nAll possible inputs"]
+        KANI["Kani (29 proofs)\nAll possible inputs"]
         TYPES["latticearc::types\nPure Rust · Zero FFI"]
     end
 
@@ -37,7 +37,7 @@ flowchart TB
 |-------|------|-------|----------------|
 | **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, HMAC, HKDF, SHA-2, ECDSA, ECDH (see [aws-lc-verification](https://github.com/awslabs/aws-lc-verification) for the up-to-date inventory) | Mathematical correctness of C implementations |
 | **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
-| **Type invariants** | [Kani](https://github.com/model-checking/kani) (30 proofs) | `latticearc::types` + `primitives::resource_limits` (pure Rust) | State machine rules, config validation, domain separation, enum exhaustiveness, ordering, defaults, resource bounds |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (29 proofs) | `latticearc::types` + `primitives::resource_limits` (pure Rust) | State machine rules, config validation, domain separation, enum exhaustiveness, ordering, defaults, resource bounds |
 
 ### Why three layers?
 
@@ -70,7 +70,7 @@ These are the tests that verify **actual cryptographic correctness** — encrypt
 
 ## Layer 3: Kani — Type Invariants
 
-30 bounded model checking proofs across 8 files (7 in `latticearc::types` + 3 proofs in `latticearc::primitives::resource_limits`) (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
+29 bounded model checking proofs across 8 files (including 2 in `latticearc::primitives::resource_limits`) (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
 
 ### What Kani does NOT verify
 
@@ -152,7 +152,6 @@ This is a critical security property — if any two domain constants collide, di
 |-------|-------------------|
 | `validate_encryption_size_biconditional` | Encryption-size cap passes IFF the input length is at or below the configured limit (closes the DoS path; no oversized input slips through) |
 | `validate_decryption_size_biconditional` | Decryption-size cap passes IFF the ciphertext length is at or below the configured limit (mirror of the encryption invariant) |
-| `validate_key_derivation_count_accepts_zero` | Key-derivation counter validation accepts zero regardless of how the configured limit is set |
 
 #### Security Defaults — `types/types.rs` (4 proofs)
 

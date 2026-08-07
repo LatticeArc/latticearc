@@ -1,8 +1,8 @@
 //! Resource limits for cryptographic operations.
 //!
-//! Provides configurable limits on encryption size, signature size, decryption
-//! size, and key-derivation count to prevent denial-of-service via oversized
-//! inputs. The limits are enforced by `aead::aes_gcm`, `aead::chacha20poly1305`,
+//! Provides configurable limits on encryption size, signature size, and
+//! decryption size to prevent denial-of-service via oversized inputs. The
+//! limits are enforced by `aead::aes_gcm`, `aead::chacha20poly1305`,
 //! `hybrid::encrypt_hybrid`, and the signature primitives before any
 //! cryptographic work is performed.
 //!
@@ -10,7 +10,6 @@
 //!
 //! | Field | Default | Rationale |
 //! |---|---|---|
-//! | `max_key_derivations_per_call` | `1000` | Bounds CPU per HKDF/PBKDF2 batch |
 //! | `max_encryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | One-shot AEAD path; stream beyond this size |
 //! | `max_signature_size_bytes` | `64 KiB` (`64 * 1024`) | Pre-hash signature input cap |
 //! | `max_decryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | Symmetric to encryption cap |
@@ -29,8 +28,6 @@ use std::sync::{Arc, LazyLock, RwLock};
 /// modules that enforce them.
 #[derive(Debug, Clone)]
 pub struct ResourceLimits {
-    /// Maximum number of key derivations per single call. Default: `1000`.
-    pub max_key_derivations_per_call: usize,
     /// Maximum encryption input size in bytes. Default: `100 * 1024 * 1024`
     /// (100 MiB).
     pub max_encryption_size_bytes: usize,
@@ -56,7 +53,6 @@ impl Default for ResourceLimits {
     /// [`ResourceLimits`] and at the [module level](self).
     fn default() -> Self {
         Self {
-            max_key_derivations_per_call: 1000,
             max_encryption_size_bytes: 100 * 1024 * 1024,
             max_signature_size_bytes: 64 * 1024,
             max_decryption_size_bytes: 100 * 1024 * 1024,
@@ -69,13 +65,11 @@ impl ResourceLimits {
     /// Creates a new `ResourceLimits` with the specified values.
     #[must_use]
     pub fn new(
-        max_key_derivations: usize,
         max_encryption_size: usize,
         max_signature_size: usize,
         max_decryption_size: usize,
     ) -> Self {
         Self {
-            max_key_derivations_per_call: max_key_derivations,
             max_encryption_size_bytes: max_encryption_size,
             max_signature_size_bytes: max_signature_size,
             max_decryption_size_bytes: max_decryption_size,
@@ -83,19 +77,17 @@ impl ResourceLimits {
         }
     }
 
-    /// Creates a new `ResourceLimits` with all five fields specified
+    /// Creates a new `ResourceLimits` with all four fields specified
     /// explicitly. Use this when the caller cares about the AAD cap;
     /// use [`Self::new`] when the default 1 MiB AAD cap is acceptable.
     #[must_use]
     pub fn with_aad_limit(
-        max_key_derivations: usize,
         max_encryption_size: usize,
         max_signature_size: usize,
         max_decryption_size: usize,
         max_aad_size: usize,
     ) -> Self {
         Self {
-            max_key_derivations_per_call: max_key_derivations,
             max_encryption_size_bytes: max_encryption_size,
             max_signature_size_bytes: max_signature_size,
             max_decryption_size_bytes: max_decryption_size,
@@ -137,21 +129,6 @@ impl ResourceLimitsManager {
     pub fn update_limits(&self, limits: ResourceLimits) -> Result<()> {
         let mut guard = self.limits.write().map_err(|_poison| ResourceError::LockPoisoned)?;
         *guard = limits;
-        Ok(())
-    }
-
-    /// Validates that the key derivation count does not exceed the configured limit.
-    ///
-    /// # Errors
-    /// Returns an error if the count exceeds the maximum allowed key derivations per call.
-    pub fn validate_key_derivation_count(&self, count: usize) -> Result<()> {
-        let limits = self.get_limits()?;
-        if count > limits.max_key_derivations_per_call {
-            return Err(ResourceError::KeyDerivationLimitExceeded {
-                requested: count,
-                limit: limits.max_key_derivations_per_call,
-            });
-        }
         Ok(())
     }
 
@@ -294,14 +271,6 @@ pub fn get_global_resource_limits() -> &'static ResourceLimitsManager {
     &GLOBAL_RESOURCE_LIMITS
 }
 
-/// Validates key derivation count against global resource limits.
-///
-/// # Errors
-/// Returns an error if the count exceeds the maximum allowed key derivations per call.
-pub fn validate_key_derivation_count(count: usize) -> Result<()> {
-    get_global_resource_limits().validate_key_derivation_count(count)
-}
-
 /// Validates encryption size against global resource limits.
 ///
 /// # Errors
@@ -386,20 +355,6 @@ mod kani_proofs {
             kani::assert(result.is_ok(), "decryption size ≤ limit must Ok");
         }
     }
-
-    /// Proves `validate_key_derivation_count(0)` always succeeds — the
-    /// identity case (no-op callers) must not trip a DoS guard regardless
-    /// of how the limit is configured.
-    #[kani::proof]
-    fn validate_key_derivation_count_accepts_zero() {
-        let limit: usize = kani::any();
-        kani::assume(limit > 0);
-        let limits =
-            ResourceLimits { max_key_derivations_per_call: limit, ..ResourceLimits::default() };
-        let manager = ResourceLimitsManager::with_limits(limits);
-        let result = manager.validate_key_derivation_count(0);
-        kani::assert(result.is_ok(), "count=0 must not trip the KDF limit (any limit > 0)");
-    }
 }
 
 #[cfg(test)]
@@ -415,7 +370,6 @@ mod tests {
     #[test]
     fn test_resource_limits_default_succeeds() {
         let limits = ResourceLimits::default();
-        assert_eq!(limits.max_key_derivations_per_call, 1000);
         assert_eq!(limits.max_encryption_size_bytes, 100 * 1024 * 1024);
         assert_eq!(limits.max_signature_size_bytes, 64 * 1024);
         assert_eq!(limits.max_decryption_size_bytes, 100 * 1024 * 1024);
@@ -423,8 +377,7 @@ mod tests {
 
     #[test]
     fn test_resource_limits_new_succeeds() {
-        let limits = ResourceLimits::new(500, 50 * 1024 * 1024, 32 * 1024, 50 * 1024 * 1024);
-        assert_eq!(limits.max_key_derivations_per_call, 500);
+        let limits = ResourceLimits::new(50 * 1024 * 1024, 32 * 1024, 50 * 1024 * 1024);
         assert_eq!(limits.max_encryption_size_bytes, 50 * 1024 * 1024);
         assert_eq!(limits.max_signature_size_bytes, 32 * 1024);
         assert_eq!(limits.max_decryption_size_bytes, 50 * 1024 * 1024);
@@ -432,29 +385,26 @@ mod tests {
 
     #[test]
     fn test_manager_with_custom_limits_succeeds() {
-        let custom = ResourceLimits::new(200, 1024, 512, 2048);
+        let custom = ResourceLimits::new(1024, 512, 2048);
         let manager = ResourceLimitsManager::with_limits(custom);
         let limits = manager.get_limits().unwrap();
-        assert_eq!(limits.max_key_derivations_per_call, 200);
         assert_eq!(limits.max_encryption_size_bytes, 1024);
     }
 
     #[test]
     fn test_manager_update_limits_succeeds() {
         let manager = ResourceLimitsManager::new();
-        assert_eq!(manager.get_limits().unwrap().max_key_derivations_per_call, 1000);
+        assert_eq!(manager.get_limits().unwrap().max_encryption_size_bytes, 100 * 1024 * 1024);
 
-        let new_limits = ResourceLimits::new(50, 1024, 512, 2048);
+        let new_limits = ResourceLimits::new(1024, 512, 2048);
         manager.update_limits(new_limits).unwrap();
-        assert_eq!(manager.get_limits().unwrap().max_key_derivations_per_call, 50);
+        assert_eq!(manager.get_limits().unwrap().max_encryption_size_bytes, 1024);
     }
 
     #[test]
     fn test_manager_validate_methods_succeeds() {
-        let custom = ResourceLimits::new(10, 1024, 512, 2048);
+        let custom = ResourceLimits::new(1024, 512, 2048);
         let manager = ResourceLimitsManager::with_limits(custom);
-        assert!(manager.validate_key_derivation_count(10).is_ok());
-        assert!(manager.validate_key_derivation_count(11).is_err());
         assert!(manager.validate_encryption_size(1024).is_ok());
         assert!(manager.validate_encryption_size(1025).is_err());
         assert!(manager.validate_signature_size(512).is_ok());
@@ -465,8 +415,6 @@ mod tests {
 
     #[test]
     fn test_global_validate_functions_succeeds() {
-        assert!(validate_key_derivation_count(500).is_ok());
-        assert!(validate_key_derivation_count(1001).is_err());
         assert!(validate_encryption_size(1024).is_ok());
         assert!(validate_signature_size(1024).is_ok());
         assert!(validate_decryption_size(1024).is_ok());
@@ -477,7 +425,7 @@ mod tests {
     /// 1 MiB; passing 1 MiB + 1 bytes exceeds it.
     #[test]
     fn test_validate_aad_size_oversized_returns_aad_limit_exceeded() {
-        let custom = ResourceLimits::new(10, 1024, 512, 2048);
+        let custom = ResourceLimits::new(1024, 512, 2048);
         let manager = ResourceLimitsManager::with_limits(ResourceLimits {
             max_aad_size_bytes: 1024,
             ..custom
@@ -536,10 +484,6 @@ mod tests {
         match manager.update_limits(ResourceLimits::default()) {
             Err(ResourceError::LockPoisoned) => {}
             other => panic!("update_limits() expected LockPoisoned, got {other:?}"),
-        }
-        match manager.validate_key_derivation_count(1) {
-            Err(ResourceError::LockPoisoned) => {}
-            other => panic!("validate_key_derivation_count expected LockPoisoned, got {other:?}"),
         }
         match manager.validate_encryption_size(1) {
             Err(ResourceError::LockPoisoned) => {}

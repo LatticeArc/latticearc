@@ -610,21 +610,11 @@ impl FipsError for FipsCompliantError {
 // Implementations of FipsError for primitives error types
 // ============================================================================
 
-impl FipsError for crate::primitives::error::PrimitivesError {
+impl FipsError for crate::primitives::hash::sha2::Sha2Error {
     fn fips_code(&self) -> FipsErrorCode {
+        use crate::primitives::hash::sha2::Sha2Error;
         match self {
-            Self::FeatureNotAvailable(_) => FipsErrorCode::FeatureNotAvailable,
-            Self::InvalidInput(_) => FipsErrorCode::InvalidParameter,
-            Self::EncryptionFailed(_) => FipsErrorCode::EncryptionFailed,
-            Self::DecryptionFailed(_) => FipsErrorCode::DecryptionFailed,
-            Self::SerializationError(_) => FipsErrorCode::SerializationFailed,
-            Self::DeserializationError(_) => FipsErrorCode::DeserializationFailed,
-            Self::Other(_) => FipsErrorCode::InternalError,
-            Self::MlKem(e) => e.fips_code(),
-            Self::ResourceExceeded(_) => FipsErrorCode::ResourceExhausted,
-            Self::KeyValidationFailed => FipsErrorCode::KeyValidationFailed,
-            Self::WeakKey => FipsErrorCode::WeakKeyDetected,
-            Self::InvalidKeyFormat => FipsErrorCode::InvalidParameter,
+            Sha2Error::ResourceExceeded(_) => FipsErrorCode::ResourceExhausted,
         }
     }
 }
@@ -663,6 +653,104 @@ impl FipsError for crate::primitives::aead::AeadError {
     }
 }
 
+impl FipsError for crate::primitives::sig::ml_dsa::MlDsaError {
+    fn fips_code(&self) -> FipsErrorCode {
+        use crate::primitives::sig::ml_dsa::MlDsaError;
+        #[expect(
+            deprecated,
+            reason = "MlDsaError::MessageTooLong is deprecated but still constructible by external callers; the arm keeps the FIPS mapping total"
+        )]
+        match self {
+            MlDsaError::KeyGenerationError(_) => FipsErrorCode::KeyGenerationFailed,
+            MlDsaError::SigningError(_) => FipsErrorCode::SigningFailed,
+            MlDsaError::VerificationError(_) => FipsErrorCode::SignatureInvalid,
+            MlDsaError::InvalidKeyLength { .. } => FipsErrorCode::InvalidKeyLength,
+            // A wrong-length signature is a malformed signature, not a
+            // parameter error — route to the signature category.
+            MlDsaError::InvalidSignatureLength { .. } => FipsErrorCode::SignatureInvalid,
+            MlDsaError::InvalidParameterSet(_) => FipsErrorCode::UnsupportedAlgorithm,
+            MlDsaError::ParameterSetMismatch { .. } => FipsErrorCode::InvalidParameter,
+            MlDsaError::MessageTooLong => FipsErrorCode::ResourceExhausted,
+            MlDsaError::CryptoError(_) => FipsErrorCode::CryptoFailure,
+        }
+    }
+}
+
+impl FipsError for crate::primitives::sig::slh_dsa::SlhDsaError {
+    fn fips_code(&self) -> FipsErrorCode {
+        use crate::primitives::sig::slh_dsa::SlhDsaError;
+        #[expect(
+            deprecated,
+            reason = "SlhDsaError::MessageTooLong is deprecated but still constructible by external callers; the arm keeps the FIPS mapping total"
+        )]
+        match self {
+            SlhDsaError::RngError => FipsErrorCode::RngFailure,
+            // The pairwise-consistency test is a FIPS 140-3 §10.3.4
+            // conditional self-test — route to the self-test category so
+            // `is_fips_critical()` reflects the required severity.
+            SlhDsaError::PctFailed => FipsErrorCode::ConditionalTestFailed,
+            SlhDsaError::InvalidPublicKey => FipsErrorCode::InvalidPublicKey,
+            SlhDsaError::InvalidSecretKey => FipsErrorCode::InvalidSecretKey,
+            SlhDsaError::InvalidSignature => FipsErrorCode::SignatureInvalid,
+            SlhDsaError::VerificationFailed => FipsErrorCode::SignatureInvalid,
+            SlhDsaError::ContextTooLong => FipsErrorCode::InvalidParameter,
+            SlhDsaError::MessageTooLong => FipsErrorCode::ResourceExhausted,
+            SlhDsaError::SigningFailed => FipsErrorCode::SigningFailed,
+        }
+    }
+}
+
+impl FipsError for crate::primitives::sig::fndsa::FnDsaError {
+    fn fips_code(&self) -> FipsErrorCode {
+        use crate::primitives::sig::fndsa::FnDsaError;
+        #[expect(
+            deprecated,
+            reason = "FnDsaError::MessageTooLong is deprecated but still constructible by external callers; the arm keeps the FIPS mapping total"
+        )]
+        match self {
+            FnDsaError::KeyGenerationError(_) => FipsErrorCode::KeyGenerationFailed,
+            FnDsaError::InvalidKeyLength { .. } => FipsErrorCode::InvalidKeyLength,
+            FnDsaError::InvalidKey(_) => FipsErrorCode::KeyValidationFailed,
+            FnDsaError::InvalidSignature(_) => FipsErrorCode::SignatureInvalid,
+            FnDsaError::MessageTooLong => FipsErrorCode::ResourceExhausted,
+            FnDsaError::SigningFailed => FipsErrorCode::SigningFailed,
+            FnDsaError::VerificationFailed => FipsErrorCode::SignatureInvalid,
+            FnDsaError::WorkerSpawnFailed(_) => FipsErrorCode::InternalError,
+        }
+    }
+}
+
+impl FipsError for crate::primitives::kem::ecdh::EcdhError {
+    fn fips_code(&self) -> FipsErrorCode {
+        use crate::primitives::kem::ecdh::EcdhError;
+        match self {
+            EcdhError::KeyGenerationFailed => FipsErrorCode::KeyGenerationFailed,
+            EcdhError::SharedSecretDerivationFailed | EcdhError::AgreementFailed => {
+                FipsErrorCode::KeyDerivationFailed
+            }
+            EcdhError::InvalidKeySize { .. } => FipsErrorCode::InvalidKeyLength,
+            EcdhError::InvalidPublicKey { .. } => FipsErrorCode::InvalidPublicKey,
+            EcdhError::InvalidPointFormat { .. } | EcdhError::CurveMismatch { .. } => {
+                FipsErrorCode::InvalidParameter
+            }
+            EcdhError::InvalidKeyData => FipsErrorCode::KeyValidationFailed,
+            // Low-order / small-subgroup points are rejected as weak key
+            // material (RFC 7748 §6.1 blacklist).
+            EcdhError::InvalidKeyMaterial(_) => FipsErrorCode::WeakKeyDetected,
+        }
+    }
+}
+
+impl FipsError for crate::primitives::mac::cmac::CmacError {
+    fn fips_code(&self) -> FipsErrorCode {
+        use crate::primitives::mac::cmac::CmacError;
+        match self {
+            CmacError::InvalidKeyLength { .. } => FipsErrorCode::InvalidKeyLength,
+            CmacError::ComputationError(_) => FipsErrorCode::MacFailed,
+        }
+    }
+}
+
 // ============================================================================
 // Conversion utilities
 // ============================================================================
@@ -670,12 +758,6 @@ impl FipsError for crate::primitives::aead::AeadError {
 impl From<FipsErrorCode> for FipsCompliantError {
     fn from(code: FipsErrorCode) -> Self {
         Self::new(code)
-    }
-}
-
-impl From<&crate::primitives::error::PrimitivesError> for FipsErrorCode {
-    fn from(error: &crate::primitives::error::PrimitivesError) -> Self {
-        error.fips_code()
     }
 }
 
@@ -797,8 +879,8 @@ mod tests {
 
     #[test]
     fn test_fips_error_trait_maps_codes_correctly_fails() {
-        let error = crate::primitives::error::PrimitivesError::InvalidInput("test".to_string());
-        assert_eq!(error.fips_code(), FipsErrorCode::InvalidParameter);
+        let error = crate::primitives::hash::sha2::Sha2Error::ResourceExceeded("test".to_string());
+        assert_eq!(error.fips_code(), FipsErrorCode::ResourceExhausted);
         assert!(!error.is_fips_critical());
 
         let ml_kem_error =
@@ -820,10 +902,11 @@ mod tests {
 
     #[test]
     fn test_error_from_conversions_map_correctly_fails() {
-        let error =
-            crate::primitives::error::PrimitivesError::DecryptionFailed("auth failed".to_string());
+        let error = crate::primitives::kem::ml_kem::MlKemError::DecapsulationError(
+            "auth failed".to_string(),
+        );
         let fips_code: FipsErrorCode = (&error).into();
-        assert_eq!(fips_code, FipsErrorCode::DecryptionFailed);
+        assert_eq!(fips_code, FipsErrorCode::DecapsulationFailed);
     }
 
     #[test]
@@ -906,55 +989,52 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_error_trait_all_error_variants_map_correctly_fails() {
-        // Test all crate::primitives::error::PrimitivesError variants for fips_code coverage
-        let cases: Vec<(crate::primitives::error::PrimitivesError, FipsErrorCode)> = vec![
-            (
-                crate::primitives::error::PrimitivesError::FeatureNotAvailable("test".into()),
-                FipsErrorCode::FeatureNotAvailable,
-            ),
-            (
-                crate::primitives::error::PrimitivesError::InvalidInput("test".into()),
-                FipsErrorCode::InvalidParameter,
-            ),
-            (
-                crate::primitives::error::PrimitivesError::EncryptionFailed("test".into()),
-                FipsErrorCode::EncryptionFailed,
-            ),
-            (
-                crate::primitives::error::PrimitivesError::DecryptionFailed("test".into()),
-                FipsErrorCode::DecryptionFailed,
-            ),
-            (
-                crate::primitives::error::PrimitivesError::SerializationError("test".into()),
-                FipsErrorCode::SerializationFailed,
-            ),
-            (
-                crate::primitives::error::PrimitivesError::DeserializationError("test".into()),
-                FipsErrorCode::DeserializationFailed,
-            ),
-            (
-                crate::primitives::error::PrimitivesError::Other("test".into()),
-                FipsErrorCode::InternalError,
-            ),
-            (
-                crate::primitives::error::PrimitivesError::ResourceExceeded("test".into()),
-                FipsErrorCode::ResourceExhausted,
-            ),
-            (
-                crate::primitives::error::PrimitivesError::KeyValidationFailed,
-                FipsErrorCode::KeyValidationFailed,
-            ),
-            (crate::primitives::error::PrimitivesError::WeakKey, FipsErrorCode::WeakKeyDetected),
-            (
-                crate::primitives::error::PrimitivesError::InvalidKeyFormat,
-                FipsErrorCode::InvalidParameter,
-            ),
-        ];
+    fn test_fips_error_trait_sig_error_variants_map_correctly_fails() {
+        use crate::primitives::sig::fndsa::FnDsaError;
+        use crate::primitives::sig::ml_dsa::MlDsaError;
+        use crate::primitives::sig::slh_dsa::SlhDsaError;
 
-        for (error, expected_code) in &cases {
-            assert_eq!(error.fips_code(), *expected_code, "Wrong FIPS code for {:?}", error);
-        }
+        // ML-DSA
+        assert_eq!(MlDsaError::SigningError("t".into()).fips_code(), FipsErrorCode::SigningFailed);
+        assert_eq!(
+            MlDsaError::VerificationError("t".into()).fips_code(),
+            FipsErrorCode::SignatureInvalid
+        );
+        assert_eq!(
+            MlDsaError::SigningError("cap".into()).fips_code(),
+            FipsErrorCode::SigningFailed
+        );
+
+        // SLH-DSA — the pairwise-consistency test is a §10.3.4 conditional
+        // self-test and must surface as critical.
+        assert_eq!(SlhDsaError::PctFailed.fips_code(), FipsErrorCode::ConditionalTestFailed);
+        assert!(SlhDsaError::PctFailed.is_fips_critical());
+        assert_eq!(SlhDsaError::RngError.fips_code(), FipsErrorCode::RngFailure);
+        assert_eq!(SlhDsaError::VerificationFailed.fips_code(), FipsErrorCode::SignatureInvalid);
+
+        // FN-DSA
+        assert_eq!(FnDsaError::SigningFailed.fips_code(), FipsErrorCode::SigningFailed);
+        assert_eq!(FnDsaError::VerificationFailed.fips_code(), FipsErrorCode::SignatureInvalid);
+        assert_eq!(
+            FnDsaError::WorkerSpawnFailed("t".into()).fips_code(),
+            FipsErrorCode::InternalError
+        );
+    }
+
+    #[test]
+    fn test_fips_error_trait_ecdh_cmac_variants_map_correctly_fails() {
+        use crate::primitives::kem::ecdh::EcdhError;
+        use crate::primitives::mac::cmac::CmacError;
+
+        assert_eq!(EcdhError::KeyGenerationFailed.fips_code(), FipsErrorCode::KeyGenerationFailed);
+        assert_eq!(EcdhError::AgreementFailed.fips_code(), FipsErrorCode::KeyDerivationFailed);
+        // RFC 7748 low-order point rejection routes to the weak-key code.
+        assert_eq!(
+            EcdhError::InvalidKeyMaterial("low-order".into()).fips_code(),
+            FipsErrorCode::WeakKeyDetected
+        );
+
+        assert_eq!(CmacError::ComputationError("t".into()).fips_code(), FipsErrorCode::MacFailed);
     }
 
     #[test]
@@ -1040,11 +1120,9 @@ mod tests {
 
     #[test]
     fn test_fips_error_ml_kem_from_error_maps_correctly_fails() {
-        // Test FipsError for Error wrapping MlKemError
         use crate::primitives::kem::ml_kem::MlKemError;
         let ml_kem_err = MlKemError::KeyGenerationError("test".into());
-        let error = crate::primitives::error::PrimitivesError::MlKem(ml_kem_err);
-        assert_eq!(error.fips_code(), FipsErrorCode::KeyGenerationFailed);
+        assert_eq!(ml_kem_err.fips_code(), FipsErrorCode::KeyGenerationFailed);
     }
 
     #[test]

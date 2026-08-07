@@ -13,6 +13,8 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;
 
+use latticearc::unified_api::key_format::KeyAlgorithm;
+
 use crate::keyfile::{KeyFile, KeyType};
 
 /// Verification algorithm (legacy mode only).
@@ -706,17 +708,31 @@ fn detect_algorithm(sig_json: &str) -> Option<VerifyAlgorithm> {
     }
 }
 
-/// Map verify algorithm enum to canonical key file algorithm name.
-fn algorithm_name(alg: VerifyAlgorithm) -> &'static str {
-    match alg {
-        VerifyAlgorithm::MlDsa65 => "ml-dsa-65",
-        VerifyAlgorithm::MlDsa44 => "ml-dsa-44",
-        VerifyAlgorithm::MlDsa87 => "ml-dsa-87",
-        VerifyAlgorithm::SlhDsa => "slh-dsa-shake-128s",
-        VerifyAlgorithm::FnDsa => "fn-dsa-512",
-        VerifyAlgorithm::Ed25519 => "ed25519",
-        VerifyAlgorithm::Hybrid => "hybrid-ml-dsa-65-ed25519",
+impl VerifyAlgorithm {
+    /// Map to the library's canonical `KeyAlgorithm`. The two enums are
+    /// 1:1 for every variant (`Hybrid` maps to the fixed
+    /// hybrid-ml-dsa-65-ed25519 scheme, matching `sign.rs`'s identical
+    /// conversion).
+    fn to_key_algorithm(self) -> KeyAlgorithm {
+        match self {
+            VerifyAlgorithm::MlDsa65 => KeyAlgorithm::MlDsa65,
+            VerifyAlgorithm::MlDsa44 => KeyAlgorithm::MlDsa44,
+            VerifyAlgorithm::MlDsa87 => KeyAlgorithm::MlDsa87,
+            VerifyAlgorithm::SlhDsa => KeyAlgorithm::SlhDsaShake128s,
+            VerifyAlgorithm::FnDsa => KeyAlgorithm::FnDsa512,
+            VerifyAlgorithm::Ed25519 => KeyAlgorithm::Ed25519,
+            VerifyAlgorithm::Hybrid => KeyAlgorithm::HybridMlDsa65Ed25519,
+        }
     }
+}
+
+/// Map verify algorithm enum to canonical key file algorithm name.
+///
+/// Delegates to `KeyAlgorithm::canonical_name()` via `to_key_algorithm`
+/// rather than hand-rolling a second string table — `sign.rs` has an
+/// identical function derived the same way.
+fn algorithm_name(alg: VerifyAlgorithm) -> &'static str {
+    alg.to_key_algorithm().canonical_name()
 }
 
 /// Verify a non-hybrid legacy signature.
