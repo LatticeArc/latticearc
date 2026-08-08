@@ -19,7 +19,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel, VerifyingKey};
+use latticearc::primitives::sig::slh_dsa::{
+    SlhDsaSecurityLevel, SlhDsaSignature, SlhDsaSigningKey, SlhDsaVerifyingKey,
+};
 use pqcrypto_traits::sign::{DetachedSignature as _, PublicKey as _};
 
 // =============================================================================
@@ -73,15 +75,22 @@ fn slh_dsa_shake_128s_pqcrypto_sign_fips205_rejects_due_to_ctx_header() {
     let message = b"cross-impl SLH-DSA-SHAKE-128s: pqcrypto signs, fips205 verifies";
     let sig_pqc = pqc::detached_sign(message, &sk_pqc);
 
-    let pk_fips = VerifyingKey::new(SlhDsaSecurityLevel::Shake128s, pk_pqc.as_bytes())
+    let pk_fips = SlhDsaVerifyingKey::new(SlhDsaSecurityLevel::Shake128s, pk_pqc.as_bytes())
         .expect("fips205 must accept pqcrypto public key bytes");
+
+    // `sig_pqc` is a foreign (PQClean) signature, not one `fips205`
+    // produced — construct the typed wrapper from its raw bytes rather
+    // than assuming it round-tripped through `SlhDsaSigningKey::sign`.
+    let sig_wire =
+        SlhDsaSignature::new(SlhDsaSecurityLevel::Shake128s, sig_pqc.as_bytes().to_vec())
+            .expect("pqcrypto signature must match the FIPS 205 wire length");
 
     // With `context=Some(b"")` fips205 prepends the FIPS 205 header, which
     // pqcrypto did not apply when signing. The verification MUST NOT accept
     // the signature — if it starts accepting, the divergence has closed and
     // this test should be replaced with a full cross-verify assertion.
     let verified = pk_fips
-        .verify(message, sig_pqc.as_bytes(), b"")
+        .verify(message, &sig_wire, b"")
         .expect("fips205 verify must complete without error");
     assert!(
         !verified,
@@ -94,12 +103,12 @@ fn slh_dsa_shake_128s_pqcrypto_sign_fips205_rejects_due_to_ctx_header() {
 fn slh_dsa_shake_128s_fips205_sign_pqcrypto_rejects_due_to_ctx_header() {
     use pqcrypto_sphincsplus::sphincsshake128ssimple as pqc;
     let (sk_fips, pk_fips) =
-        SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("fips205 keygen");
+        SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("fips205 keygen");
     let message = b"cross-impl SLH-DSA-SHAKE-128s: fips205 signs, pqcrypto verifies";
     let sig_fips = sk_fips.sign(message, b"").expect("fips205 sign");
 
     let pk_pqc = pqc::PublicKey::from_bytes(pk_fips.as_bytes()).unwrap();
-    let sig_pqc = pqc::DetachedSignature::from_bytes(&sig_fips).unwrap();
+    let sig_pqc = pqc::DetachedSignature::from_bytes(sig_fips.as_bytes()).unwrap();
 
     // fips205's signature embeds the FIPS 205 context header in the signed
     // data; pqcrypto verifies against the bare message and MUST reject.

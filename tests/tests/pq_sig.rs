@@ -1,7 +1,6 @@
 //! Standalone PQ signature tests (ML-DSA, SLH-DSA, FN-DSA convenience APIs).
 #![deny(unsafe_code)]
 
-// Originally: pq_sig_convenience_tests.rs
 mod convenience {
     //! Comprehensive tests for PQ-Signature convenience API (ML-DSA, SLH-DSA, FN-DSA)
     //!
@@ -1675,7 +1674,6 @@ mod convenience {
     }
 }
 
-// Originally: pq_sig_error_paths.rs
 mod error_paths {
     //! Coverage tests for pq_sig.rs error paths — invalid key formats,
     //! wrong-length keys, and invalid signatures for ML-DSA, SLH-DSA, FN-DSA.
@@ -1782,10 +1780,9 @@ mod error_paths {
             &bad_pk,
             SlhDsaSecurityLevel::Shake128s,
         );
-        // verify path collapses Err to Ok(false) (Pattern 6).
-        // SLH-DSA has no pre-map_verify_result sig parse; wrong-length bytes reach
-        // pk.verify() and are collapsed by map_verify_result to Ok(false).
-        assert_eq!(result.ok(), Some(false));
+        // Wrong-length signature bytes now fail typed `SlhDsaSignature`
+        // construction with an opaque InvalidInput, matching ML-DSA / FN-DSA.
+        assert!(result.is_err());
     }
 
     #[test]
@@ -1866,7 +1863,6 @@ mod error_paths {
     }
 }
 
-// Originally: pq_sig_with_config_coverage.rs
 mod with_config {
     //! Coverage tests for pq_sig.rs _with_config and SecurityMode variants.
     //! Targets the `sign_pq_*_with_config`, `verify_pq_*_with_config`,

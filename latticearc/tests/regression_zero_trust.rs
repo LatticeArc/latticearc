@@ -12,6 +12,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+mod support;
+
 use latticearc::types::config::{ProofComplexity, ZeroTrustConfig};
 use latticearc::types::traits::ZeroTrustAuthenticable;
 use latticearc::unified_api::zero_trust::ZeroTrustAuth;
@@ -19,11 +21,10 @@ use latticearc::unified_api::zero_trust::ZeroTrustAuth;
 /// Helper: spin up a `ZeroTrustAuth` at the given complexity from a
 /// fresh Ed25519 keypair.
 fn auth_at(complexity: ProofComplexity) -> ZeroTrustAuth {
-    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
     use latticearc::primitives::ec::traits::EcKeyPair;
     use latticearc::types::{PrivateKey, PublicKey};
 
-    let kp = Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let kp = support::ed25519_keypair();
     let pk = PublicKey::new(kp.public_key_bytes());
     // `secret_key_bytes()` is `Zeroizing<Vec<u8>>` on Ed25519KeyPair.
     let sk_bytes = kp.secret_key_bytes().to_vec();
@@ -33,14 +34,13 @@ fn auth_at(complexity: ProofComplexity) -> ZeroTrustAuth {
 }
 
 /// Same key, but a fresh `ZeroTrustAuth` built around different config.
-/// Pre-an earlier audit, signed-message bytes for Low and Medium were
+/// Previously, signed-message bytes for Low and Medium were
 /// byte-identical, so a Low proof verified as Medium and vice versa.
 fn paired_auths(low: ProofComplexity, hi: ProofComplexity) -> (ZeroTrustAuth, ZeroTrustAuth) {
-    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
     use latticearc::primitives::ec::traits::EcKeyPair;
     use latticearc::types::{PrivateKey, PublicKey};
 
-    let kp = Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let kp = support::ed25519_keypair();
     let pk_bytes = kp.public_key_bytes();
     let sk_bytes = kp.secret_key_bytes().to_vec();
     // PrivateKey doesn't impl Clone; build two independent copies of the
@@ -58,9 +58,9 @@ fn paired_auths(low: ProofComplexity, hi: ProofComplexity) -> (ZeroTrustAuth, Ze
 
 /// a Low proof must NOT verify as Medium.
 ///
-/// This test fails on pre-an earlier audit code because Low and Medium produced
+/// This test fails on pre-fix code because Low and Medium produced
 /// byte-identical signed messages (`challenge || timestamp`). With the
-/// an earlier audit domain tag, Low signs `challenge || timestamp` while Medium
+/// domain tag, Low signs `challenge || timestamp` while Medium
 /// signs `0x02 || challenge || timestamp`, so the Ed25519 signature does
 /// not validate when the verifier reconstructs the Medium message.
 #[test]
@@ -382,7 +382,7 @@ fn key_algorithm_canonical_name_round_trips_through_from_canonical_name() {
     }
 }
 
-/// Pre-an earlier audit callers may still tag keys with `"fn-dsa"` (no level
+/// Legacy callers may still tag keys with `"fn-dsa"` (no level
 /// suffix). Confirm that `from_canonical_name` accepts the bare alias
 /// and maps it to `FnDsa512` so legacy keyfiles continue to load.
 #[test]

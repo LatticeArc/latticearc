@@ -29,10 +29,7 @@ use latticearc::types::{SecretBytes, SecretVec};
 use latticearc::{PrivateKey, SymmetricKey};
 
 // KEM primitives
-use latticearc::primitives::kem::ecdh::{
-    EcdhP256KeyPair, EcdhP384KeyPair, EcdhP521KeyPair, X25519KeyPair, X25519SecretKey,
-    X25519StaticKeyPair,
-};
+use latticearc::primitives::kem::ecdh::{X25519KeyPair, X25519SecretKey, X25519StaticKeyPair};
 use latticearc::primitives::kem::ml_kem::{
     MlKemDecapsulationKeyPair, MlKemSecretKey, MlKemSharedSecret,
 };
@@ -50,9 +47,9 @@ use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
 // Secp256k1 is gated off under `--features fips` (not a NIST-approved curve).
 #[cfg(not(feature = "fips"))]
 use latticearc::primitives::ec::secp256k1::Secp256k1KeyPair;
-use latticearc::primitives::sig::fndsa::{KeyPair as FnDsaKeyPair, SigningKey as FnDsaSigningKey};
+use latticearc::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSigningKey};
 use latticearc::primitives::sig::ml_dsa::MlDsaSecretKey;
-use latticearc::primitives::sig::slh_dsa::SigningKey as SlhDsaSigningKey;
+use latticearc::primitives::sig::slh_dsa::SlhDsaSigningKey;
 
 // Hybrid compositions
 use latticearc::hybrid::kem_hybrid::{EncapsulatedKey, HybridKemSecretKey};
@@ -95,9 +92,6 @@ assert_not_impl_any!(SymmetricKey: PartialEq, Eq);
 assert_not_impl_any!(X25519SecretKey: PartialEq, Eq);
 assert_not_impl_any!(X25519KeyPair: PartialEq, Eq);
 assert_not_impl_any!(X25519StaticKeyPair: PartialEq, Eq);
-assert_not_impl_any!(EcdhP256KeyPair: PartialEq, Eq);
-assert_not_impl_any!(EcdhP384KeyPair: PartialEq, Eq);
-assert_not_impl_any!(EcdhP521KeyPair: PartialEq, Eq);
 assert_not_impl_any!(MlKemSecretKey: PartialEq, Eq);
 assert_not_impl_any!(MlKemSharedSecret: PartialEq, Eq);
 assert_not_impl_any!(MlKemDecapsulationKeyPair: PartialEq, Eq);

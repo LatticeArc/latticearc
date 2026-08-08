@@ -1073,7 +1073,7 @@ fn error_ml_kem_empty_ciphertext() {
 /// Guards against: DoS via memory exhaustion
 #[test]
 fn error_hash_size_limit() {
-    use latticearc::primitives::error::PrimitivesError;
+    use latticearc::primitives::hash::sha2::Sha2Error;
     use latticearc::primitives::hash::sha256;
 
     // This test documents the size limit behavior
@@ -1083,12 +1083,10 @@ fn error_hash_size_limit() {
     let result = sha256(&large_input);
     assert!(result.is_err(), "Excessively large input should return error");
 
-    if let Err(e) = result {
-        match e {
-            PrimitivesError::ResourceExceeded(_) => {}
-            _ => assert!(false, "Expected ResourceExceeded, got {:?}", e),
-        }
-    }
+    assert!(
+        matches!(result, Err(Sha2Error::ResourceExceeded(_))),
+        "Expected ResourceExceeded, got {result:?}"
+    );
 }
 
 /// Error propagation: Errors from inner operations propagate correctly

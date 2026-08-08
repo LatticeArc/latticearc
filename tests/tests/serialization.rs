@@ -8,6 +8,7 @@ use latticearc::unified_api::serialization::{
     deserialize_signed_data, serialize_keypair, serialize_signed_data,
 };
 use latticearc::unified_api::types::{KeyPair, PrivateKey, SignedData, SignedMetadata};
+use latticearc_tests::utils::test_keypair_default;
 
 // ============================================================================
 // Helper Functions
@@ -43,10 +44,6 @@ fn create_test_signed_data_no_key_id() -> SignedData {
         "ml-dsa-65".to_string(),
         1706745603,
     )
-}
-
-fn create_test_keypair() -> KeyPair {
-    KeyPair::new(latticearc::PublicKey::new(vec![0x01; 32]), PrivateKey::new(vec![0x10; 32]))
 }
 
 // ============================================================================
@@ -150,7 +147,7 @@ fn test_deserialize_signed_data_invalid_base64_public_key_returns_error() {
 
 #[test]
 fn test_serialize_keypair_roundtrip() -> Result<()> {
-    let original = create_test_keypair();
+    let original = test_keypair_default();
     let json = serialize_keypair(&original)?;
     let deserialized = deserialize_keypair(&json)?;
 
@@ -262,7 +259,7 @@ fn test_serializable_to_signed_data_conversion_succeeds() -> Result<()> {
 
 #[test]
 fn test_keypair_to_serializable_conversion_succeeds() {
-    let original = create_test_keypair();
+    let original = test_keypair_default();
     let serializable = SerializableKeyPair::from(&original);
 
     assert!(!serializable.public_key().is_empty());
@@ -306,7 +303,7 @@ fn test_signed_data_json_structure_has_correct_format() -> Result<()> {
 
 #[test]
 fn test_keypair_json_structure_has_correct_format() -> Result<()> {
-    let original = create_test_keypair();
+    let original = test_keypair_default();
     let json = serialize_keypair(&original)?;
 
     let parsed: serde_json::Value =
@@ -343,7 +340,7 @@ fn test_multiple_signed_roundtrips_roundtrip() -> Result<()> {
 
 #[test]
 fn test_multiple_keypair_roundtrips_roundtrip() -> Result<()> {
-    let original = create_test_keypair();
+    let original = test_keypair_default();
 
     let json1 = serialize_keypair(&original)?;
     let keypair1 = deserialize_keypair(&json1)?;

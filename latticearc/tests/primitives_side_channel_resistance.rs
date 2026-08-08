@@ -242,34 +242,6 @@ fn test_aes_gcm_decrypt_timing_consistency_succeeds() {
 // Section 4: No Secret-Dependent Branching Validation
 // ============================================================================
 
-#[test]
-fn test_aes_gcm_tag_verification_constant_time_succeeds() {
-    use latticearc::primitives::aead::verify_tag_constant_time;
-
-    // Matching tags
-    let tag_a = [0x11u8; 16];
-    let tag_b = [0x11u8; 16];
-    assert!(verify_tag_constant_time(&tag_a, &tag_b), "Equal tags must verify");
-
-    // Non-matching tags
-    let tag_c = [0x22u8; 16];
-    assert!(!verify_tag_constant_time(&tag_a, &tag_c), "Different tags must not verify");
-
-    // Differ in last byte only
-    let mut tag_d = [0x11u8; 16];
-    tag_d[15] = 0x12;
-    assert!(!verify_tag_constant_time(&tag_a, &tag_d), "Last-byte-different must not verify");
-}
-
-#[test]
-fn test_zeroize_data_function_succeeds() {
-    use latticearc::primitives::aead::zeroize_data;
-
-    let mut data = vec![0xFFu8; 128];
-    zeroize_data(&mut data);
-    assert!(data.iter().all(|&b| b == 0), "zeroize_data must clear all bytes");
-}
-
 // ============================================================================
 // Section 5: ML-KEM Encap/Decap Timing Smoke Test
 // ============================================================================

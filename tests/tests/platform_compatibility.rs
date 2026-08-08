@@ -36,7 +36,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use latticearc::unified_api::{
-    CoreConfig, EncryptionConfig, HardwareType, ProofComplexity, UseCaseConfig, ZeroTrustConfig,
+    CoreConfig, EncryptionConfig, ProofComplexity, UseCaseConfig, ZeroTrustConfig,
     error::CoreError,
     selector::{CryptoPolicyEngine, PerformanceMetrics},
     types::{
@@ -358,22 +358,6 @@ fn test_all_use_cases_available_is_compatible_succeeds() {
         let scheme = CryptoPolicyEngine::recommend_scheme(&use_case, &config);
         assert!(scheme.is_ok(), "UseCase {:?} should return valid scheme", use_case);
     }
-}
-
-#[test]
-fn test_feature_hardware_types_is_compatible_succeeds() {
-    // Hardware type definitions should be usable
-    let info = latticearc::types::traits::HardwareInfo {
-        available_accelerators: vec![HardwareType::Cpu],
-        preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: latticearc::types::traits::HardwareCapabilities {
-            simd_support: true,
-            aes_ni: true,
-            threads: 1,
-            memory: 0,
-        },
-    };
-    assert!(info.available_accelerators.contains(&HardwareType::Cpu));
 }
 
 #[test]
@@ -711,7 +695,7 @@ fn test_config_encryption_validates_is_compatible_succeeds() {
 
 #[test]
 fn test_config_use_case_nested_validation_is_compatible_succeeds() {
-    // Test that all nested configs in UseCaseConfig validate together
+    // Every use case's signature config must pass validation
     let use_cases = vec![
         UseCase::SecureMessaging,
         UseCase::FinancialTransactions,
@@ -721,15 +705,7 @@ fn test_config_use_case_nested_validation_is_compatible_succeeds() {
 
     for use_case in use_cases {
         let config = UseCaseConfig::new(use_case);
-
-        // Should validate encryption, signature, zero_trust, and hardware
         assert!(config.validate().is_ok(), "UseCaseConfig for {:?} should validate", use_case);
-
-        // Nested configs should be consistent
-        assert_eq!(
-            config.encryption.security_level, config.signature.security_level,
-            "Encryption and signature should have same security level"
-        );
     }
 }
 
@@ -817,36 +793,6 @@ fn test_concurrent_policy_engine_access_succeeds() {
     for handle in handles {
         let result = handle.join().expect("Thread should complete");
         assert!(result.is_ok());
-    }
-}
-
-#[test]
-fn test_hardware_types_thread_safe_is_compatible_succeeds() {
-    // Hardware types should be usable across threads
-    use std::sync::Arc;
-
-    let info = Arc::new(latticearc::types::traits::HardwareInfo {
-        available_accelerators: vec![HardwareType::Cpu],
-        preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: latticearc::types::traits::HardwareCapabilities {
-            simd_support: true,
-            aes_ni: true,
-            threads: 1,
-            memory: 0,
-        },
-    });
-    let mut handles = vec![];
-
-    for _ in 0..4 {
-        let info_clone = Arc::clone(&info);
-        let handle = thread::spawn(move || {
-            assert!(info_clone.available_accelerators.contains(&HardwareType::Cpu));
-        });
-        handles.push(handle);
-    }
-
-    for handle in handles {
-        handle.join().expect("Thread should complete");
     }
 }
 

@@ -1,7 +1,6 @@
 //! Hybrid convenience-API tests (encrypt/sign integrations).
 #![deny(unsafe_code)]
 
-// Originally: hybrid_convenience_tests.rs
 mod encrypt {
     //! Hybrid Encryption Tests via Unified API
     //!
@@ -555,7 +554,6 @@ mod encrypt {
     }
 }
 
-// Originally: hybrid_sig_convenience_tests.rs
 mod sig {
     //! Comprehensive tests for Hybrid Signature Convenience API
     //!
@@ -952,7 +950,6 @@ mod sig {
     }
 }
 
-// Originally: hybrid_integration.rs
 mod integration {
     //! Integration tests for hybrid encryption APIs
     //!

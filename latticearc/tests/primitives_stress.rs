@@ -39,7 +39,7 @@ use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
 use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use latticearc::primitives::hash::sha2::{sha256, sha384, sha512};
 use latticearc::primitives::hash::sha3::{sha3_256, sha3_512};
-use latticearc::primitives::kem::ecdh::{EcdhP256KeyPair, EcdhP384KeyPair, X25519KeyPair};
+use latticearc::primitives::kem::ecdh::X25519KeyPair;
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use latticearc::primitives::rand::{random_bytes, random_u32, random_u64};
 use latticearc::primitives::sig::ml_dsa::{self, MlDsaParameterSet};
@@ -354,37 +354,6 @@ fn test_high_volume_x25519_key_agreement_succeeds() {
     assert_eq!(
         success_count, HIGH_VOLUME_ITERATIONS,
         "All {} X25519 key agreements should succeed",
-        HIGH_VOLUME_ITERATIONS
-    );
-}
-
-/// Test 1000 sequential P-256 key agreements
-#[test]
-fn test_high_volume_p256_key_agreement_succeeds() {
-    let mut success_count = 0;
-
-    for _ in 0..HIGH_VOLUME_ITERATIONS {
-        let alice_result = EcdhP256KeyPair::generate();
-        let bob_result = EcdhP256KeyPair::generate();
-
-        if let (Ok(alice), Ok(bob)) = (alice_result, bob_result) {
-            let alice_pk = alice.public_key_bytes().to_vec();
-            let bob_pk = bob.public_key_bytes().to_vec();
-
-            let alice_ss = alice.agree(&bob_pk);
-            let bob_ss = bob.agree(&alice_pk);
-
-            if let (Ok(a_ss), Ok(b_ss)) = (alice_ss, bob_ss) {
-                if a_ss == b_ss {
-                    success_count += 1;
-                }
-            }
-        }
-    }
-
-    assert_eq!(
-        success_count, HIGH_VOLUME_ITERATIONS,
-        "All {} P-256 key agreements should succeed",
         HIGH_VOLUME_ITERATIONS
     );
 }
@@ -854,34 +823,6 @@ fn test_extended_ecdh_operations_succeeds() {
         success_count, ECDH_ITERATIONS,
         "All {} ECDH operations should succeed",
         ECDH_ITERATIONS
-    );
-}
-
-/// Test P-384 extended operations
-#[test]
-fn test_extended_p384_operations_succeeds() {
-    let mut success_count = 0;
-    const P384_ITERATIONS: usize = 200;
-
-    for _ in 0..P384_ITERATIONS {
-        let alice = EcdhP384KeyPair::generate().expect("alice keygen should succeed");
-        let bob = EcdhP384KeyPair::generate().expect("bob keygen should succeed");
-
-        let alice_pk = alice.public_key_bytes().to_vec();
-        let bob_pk = bob.public_key_bytes().to_vec();
-
-        let alice_ss = alice.agree(&bob_pk).expect("alice agree should succeed");
-        let bob_ss = bob.agree(&alice_pk).expect("bob agree should succeed");
-
-        if alice_ss == bob_ss {
-            success_count += 1;
-        }
-    }
-
-    assert_eq!(
-        success_count, P384_ITERATIONS,
-        "All {} P-384 operations should succeed",
-        P384_ITERATIONS
     );
 }
 

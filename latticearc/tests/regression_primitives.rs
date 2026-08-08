@@ -8,6 +8,8 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+mod support;
+
 // ============================================================================
 // HkdfResult.key field is private, accessed only via key() accessor
 // ============================================================================
@@ -99,7 +101,7 @@ mod h2_ikm_zeroization {
 }
 
 // ============================================================================
-// derive_encryption_key returns Zeroizing<[u8; 32]>
+// derive_hybrid_encryption_key returns Zeroizing<[u8; 32]>
 // ============================================================================
 
 mod h3_encryption_key_zeroization {
@@ -282,31 +284,32 @@ mod m2_zkp_constant_time {
 // ============================================================================
 
 mod m4_secret_key_to_bytes_zeroizing {
-    use latticearc::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair, SigningKey};
+    use latticearc::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel, FnDsaSigningKey};
     use rand_core_0_6::OsRng;
 
     #[test]
     fn m4_fndsa_to_bytes_roundtrip() {
         let mut rng = OsRng;
-        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
+        let keypair =
+            FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
         let sk_bytes = keypair.signing_key().to_bytes(); // returns Zeroizing<Vec<u8>>
         assert_eq!(sk_bytes.len(), FnDsaSecurityLevel::Level512.signing_key_size());
 
         // Reconstruct from bytes (must clone out of Zeroizing)
-        let sk2 = SigningKey::from_bytes(&sk_bytes, FnDsaSecurityLevel::Level512).unwrap();
+        let sk2 = FnDsaSigningKey::from_bytes(&sk_bytes, FnDsaSecurityLevel::Level512).unwrap();
         assert_eq!(keypair.signing_key().to_bytes().as_slice(), sk2.to_bytes().as_slice());
     }
 
     #[test]
     fn m4_slh_dsa_to_bytes_roundtrip() {
-        use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+        use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 
         let level = SlhDsaSecurityLevel::Shake128s;
-        let (sk, _vk) = SigningKey::generate(level).unwrap();
+        let (sk, _vk) = SlhDsaSigningKey::generate(level).unwrap();
         let sk_bytes = sk.to_bytes(); // returns Zeroizing<Vec<u8>>
         assert_eq!(sk_bytes.len(), level.secret_key_size());
 
-        let sk2 = SigningKey::from_bytes(&sk_bytes, level).unwrap();
+        let sk2 = SlhDsaSigningKey::from_bytes(&sk_bytes, level).unwrap();
         assert_eq!(sk.expose_secret(), sk2.expose_secret());
     }
 }
@@ -367,7 +370,7 @@ mod m5_all_zero_key_rejection {
 // NOTE: The M6 block (PublicKey::from_bytes ML-KEM length validation) used to
 // test `primitives::keys::KemEccPublicKey`, which was a duplicate of
 // `hybrid::kem_hybrid::HybridKemPublicKey`. The `primitives::keys` module was
-// removed in the P4.2 dead-code cleanup. The equivalent validation on the
+// removed as dead code. The equivalent validation on the
 // hybrid KEM public key is covered by `hybrid_kem_hybrid_coverage.rs`.
 
 // ============================================================================
@@ -411,7 +414,7 @@ mod m7_x25519_zero_key_rejection {
 
 #[cfg(not(feature = "fips"))]
 mod m9_ec_keypair_drop {
-    use latticearc::primitives::ec::{EcKeyPair, Ed25519KeyPair, Secp256k1KeyPair};
+    use latticearc::primitives::ec::{EcKeyPair, Secp256k1KeyPair};
 
     #[test]
     fn m9_secp256k1_create_and_drop() {
@@ -424,7 +427,7 @@ mod m9_ec_keypair_drop {
 
     #[test]
     fn m9_ed25519_create_and_drop() {
-        let keypair = Ed25519KeyPair::generate().unwrap();
+        let keypair = crate::support::ed25519_keypair();
         let _pk = keypair.public_key_bytes();
         drop(keypair);
     }
@@ -440,7 +443,7 @@ mod m9_ec_keypair_drop {
 
     #[test]
     fn m9_ed25519_secret_key_accessible_before_drop() {
-        let keypair = Ed25519KeyPair::generate().unwrap();
+        let keypair = crate::support::ed25519_keypair();
         let sk_bytes = keypair.secret_key_bytes();
         assert_eq!(sk_bytes.len(), 32);
         assert!(sk_bytes.iter().any(|&b| b != 0));

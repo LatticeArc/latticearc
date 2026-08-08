@@ -426,7 +426,7 @@ fn test_output_is_nontrivial_succeeds() {
 /// encapsulate/decapsulate flow (even though keygen is random each time).
 #[test]
 fn test_full_roundtrip_shared_secret_agreement_roundtrip() {
-    use latticearc::hybrid::{decapsulate, encapsulate, kem_generate_keypair as generate_keypair};
+    use latticearc::hybrid::kem_hybrid::{decapsulate, encapsulate, generate_keypair};
 
     for _ in 0..10 {
         let (pk, sk) = generate_keypair().unwrap();

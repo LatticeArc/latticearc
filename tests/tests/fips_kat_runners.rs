@@ -1,7 +1,6 @@
 //! KAT runner test infrastructure (runner, runners, extended).
 #![deny(unsafe_code)]
 
-// Originally: fips_kat_runner_coverage.rs
 mod runner_coverage {
     #![allow(clippy::indexing_slicing)]
 
@@ -212,7 +211,6 @@ mod runner_coverage {
     }
 }
 
-// Originally: fips_kat_runners_tests.rs
 mod runners {
     #![allow(
         clippy::panic,
@@ -1153,7 +1151,6 @@ mod runners {
     }
 }
 
-// Originally: fips_kat_runners_extended_tests.rs
 mod runners_extended {
     #![allow(
         clippy::panic,

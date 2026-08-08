@@ -65,6 +65,8 @@
 //!    - RFC 5869 HKDF compatibility
 //!    - RFC 8439 ChaCha20-Poly1305 compatibility
 
+mod support;
+
 use latticearc::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
 use latticearc::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
 use latticearc::primitives::ec::traits::{EcKeyPair, EcSignature};
@@ -76,7 +78,7 @@ use latticearc::primitives::kem::ml_kem::{
 use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaSignature, generate_keypair as ml_dsa_generate_keypair,
 };
-use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
@@ -212,7 +214,7 @@ fn test_slh_dsa_fips205_key_sizes_has_correct_size() {
     ];
 
     for (level, pk_size, sk_size, sig_size) in specs {
-        let (sk, pk) = SigningKey::generate(level).expect("keygen should succeed");
+        let (sk, pk) = SlhDsaSigningKey::generate(level).expect("keygen should succeed");
 
         assert_eq!(pk.as_bytes().len(), pk_size, "FIPS 205 {:?} public key size mismatch", level);
         assert_eq!(
@@ -236,12 +238,12 @@ fn test_slh_dsa_signature_format_compatibility_has_correct_size() {
         SlhDsaSecurityLevel::Shake192s,
         SlhDsaSecurityLevel::Shake256s,
     ] {
-        let (sk, pk) = SigningKey::generate(level).expect("keygen should succeed");
+        let (sk, pk) = SlhDsaSigningKey::generate(level).expect("keygen should succeed");
         let message = b"Test message for signature format";
         let signature = sk.sign(message, &[]).expect("signing should succeed");
 
         // Signature should not be trivial
-        assert!(!signature.iter().all(|&b| b == 0), "Signature should not be all zeros");
+        assert!(!signature.as_bytes().iter().all(|&b| b == 0), "Signature should not be all zeros");
 
         // Verify signature is valid
         let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
@@ -284,7 +286,7 @@ fn test_x25519_rfc7748_public_key_format_has_correct_size() {
 /// Test Ed25519 key sizes match RFC 8032
 #[test]
 fn test_ed25519_rfc8032_key_sizes_has_correct_size() {
-    let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
+    let keypair = support::ed25519_keypair();
 
     // RFC 8032: Ed25519 public key is 32 bytes
     assert_eq!(keypair.public_key_bytes().len(), 32, "Ed25519 public key should be 32 bytes");
@@ -296,7 +298,7 @@ fn test_ed25519_rfc8032_key_sizes_has_correct_size() {
 /// Test Ed25519 signature size matches RFC 8032
 #[test]
 fn test_ed25519_rfc8032_signature_size_has_correct_size() {
-    let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
+    let keypair = support::ed25519_keypair();
     let message = b"Test message for Ed25519";
     let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
@@ -312,7 +314,7 @@ fn test_ed25519_rfc8032_signature_size_has_correct_size() {
 /// Test Ed25519 signature format compatibility
 #[test]
 fn test_ed25519_signature_format_compatibility_has_correct_size() {
-    let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
+    let keypair = support::ed25519_keypair();
     let message = b"Test message for Ed25519 format";
     let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
@@ -448,7 +450,7 @@ fn test_ml_kem_ciphertext_format_nist_structure_has_correct_size() {
 /// Test Ed25519 key format matches RFC 8032 specification
 #[test]
 fn test_ed25519_key_format_rfc8032_has_correct_size() {
-    let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
+    let keypair = support::ed25519_keypair();
 
     // RFC 8032: Public key is the encoding of a point on Ed25519 curve
     let pk_bytes = keypair.public_key_bytes();
@@ -545,7 +547,7 @@ fn test_zeroization_completeness_succeeds() {
 /// Test signature bytes can be round-tripped through byte representation
 #[test]
 fn test_signature_byte_roundtrip() {
-    let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
+    let keypair = support::ed25519_keypair();
     let message = b"Test message for roundtrip";
     let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
@@ -609,7 +611,7 @@ fn test_arc_primitives_ml_dsa_interface_compatibility_succeeds() {
 #[test]
 fn test_arc_primitives_slh_dsa_interface_compatibility_succeeds() {
     let (sk, pk) =
-        SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen should succeed");
+        SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen should succeed");
     let message = b"Test message for SLH-DSA interface";
 
     // Sign with optional context
@@ -627,7 +629,7 @@ fn test_arc_primitives_slh_dsa_interface_compatibility_succeeds() {
 /// Test arc-primitives Ed25519 matches expected interface for arc-core
 #[test]
 fn test_arc_primitives_ed25519_interface_compatibility_succeeds() {
-    let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
+    let keypair = support::ed25519_keypair();
     let message = b"Test message for Ed25519 interface";
 
     // Sign produces signature
@@ -1065,14 +1067,14 @@ fn test_all_signatures_reject_modified_messages_fails() {
 
     // SLH-DSA
     let (sk, pk) =
-        SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen should succeed");
+        SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen should succeed");
     let signature = sk.sign(message, &[]).expect("signing should succeed");
 
     let is_valid = pk.verify(wrong_message, &signature, &[]).expect("verification should succeed");
     assert!(!is_valid, "SLH-DSA should reject modified message");
 
     // Ed25519
-    let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
+    let keypair = support::ed25519_keypair();
     let signature = keypair.sign(message).expect("Ed25519 sign should succeed in test");
 
     let result = Ed25519Signature::verify(&keypair.public_key_bytes(), wrong_message, &signature);
@@ -1095,18 +1097,18 @@ fn test_all_signatures_reject_wrong_public_key_fails() {
     assert!(!is_valid, "ML-DSA should reject wrong public key");
 
     // SLH-DSA
-    let (sk1, _pk1) =
-        SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen 1 should succeed");
-    let (_sk2, pk2) =
-        SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen 2 should succeed");
+    let (sk1, _pk1) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("keygen 1 should succeed");
+    let (_sk2, pk2) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("keygen 2 should succeed");
     let signature = sk1.sign(message, &[]).expect("signing should succeed");
 
     let is_valid = pk2.verify(message, &signature, &[]).expect("verification should succeed");
     assert!(!is_valid, "SLH-DSA should reject wrong public key");
 
     // Ed25519
-    let keypair1 = Ed25519KeyPair::generate().expect("keygen 1 should succeed");
-    let keypair2 = Ed25519KeyPair::generate().expect("keygen 2 should succeed");
+    let keypair1 = support::ed25519_keypair();
+    let keypair2 = support::ed25519_keypair();
     let signature = keypair1.sign(message).expect("Ed25519 sign should succeed");
 
     let result = Ed25519Signature::verify(&keypair2.public_key_bytes(), message, &signature);

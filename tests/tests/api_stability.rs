@@ -53,9 +53,6 @@ use latticearc::unified_api::{
     CustodianRole,
     // Traits (re-exported at unified_api root)
     DataCharacteristics,
-    HardwareCapabilities,
-    HardwareInfo,
-    HardwareType,
     KeyLifecycleRecord,
     KeyLifecycleState,
     KeyStateMachine,
@@ -333,23 +330,6 @@ fn test_audit_types_accessible_are_stable() {
     let _failure = AuditOutcome::Failure;
 }
 
-/// Test 1.15: Hardware accelerator types are accessible
-#[test]
-fn test_hardware_types_accessible_are_stable() {
-    // Hardware type definitions are accessible (stubs removed — real detection in enterprise)
-    let _info = HardwareInfo {
-        available_accelerators: vec![HardwareType::Cpu],
-        preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: HardwareCapabilities {
-            simd_support: true,
-            aes_ni: true,
-            threads: 4,
-            memory: 1024,
-        },
-    };
-    assert!(_info.best_accelerator().is_some());
-}
-
 /// Test 1.16: Zero trust types are accessible
 #[test]
 fn test_zero_trust_types_accessible_are_stable() {
@@ -486,16 +466,6 @@ fn test_proof_complexity_variants_are_stable() {
     let _high = ProofComplexity::High;
 }
 
-/// Test 2.8: HardwareType enum variants are stable
-#[test]
-fn test_hardware_type_variants_are_stable() {
-    let _cpu = HardwareType::Cpu;
-    let _gpu = HardwareType::Gpu;
-    let _fpga = HardwareType::Fpga;
-    let _tpu = HardwareType::Tpu;
-    let _sgx = HardwareType::Sgx;
-}
-
 /// Test 2.9: PatternType enum variants are stable
 #[test]
 fn test_pattern_type_variants_are_stable() {
@@ -582,22 +552,15 @@ fn test_core_error_variants_are_stable() {
     check_variant(CoreError::EncryptionFailed("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::DecryptionFailed("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::KeyDerivationFailed("probe-msg".to_string()), "probe-msg");
-    check_variant(CoreError::InvalidNonce("probe-msg".to_string()), "probe-msg");
-    check_variant(CoreError::HardwareError("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::ConfigurationError("probe-msg".to_string()), "probe-msg");
-    check_variant(CoreError::SchemeSelectionFailed("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::AuthenticationFailed("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::ZeroTrustVerificationFailed("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::AuthenticationRequired("probe-msg".to_string()), "probe-msg");
-    check_variant(CoreError::UnsupportedOperation("probe-msg".to_string()), "probe-msg");
-    check_variant(CoreError::MemoryError("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::SerializationError("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::FeatureNotAvailable("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::InvalidSignature("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::InvalidKey("probe-msg".to_string()), "probe-msg");
-    check_variant(CoreError::NotImplemented("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::SignatureFailed("probe-msg".to_string()), "probe-msg");
-    check_variant(CoreError::HsmError("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::ResourceExceeded("probe-msg".to_string()), "probe-msg");
     check_variant(CoreError::AuditError("probe-msg".to_string()), "probe-msg");
 
@@ -613,20 +576,6 @@ fn test_core_error_variants_are_stable() {
     // so log/audit consumers can attribute the failure.
     check_variant(CoreError::InvalidKeyLength { expected: 32, actual: 16 }, "32");
     check_variant(CoreError::InvalidKeyLength { expected: 32, actual: 16 }, "16");
-    check_variant(
-        CoreError::Recoverable {
-            message: "probe-rec".to_string(),
-            suggestion: "try again".to_string(),
-        },
-        "probe-rec",
-    );
-    check_variant(
-        CoreError::HardwareUnavailable {
-            reason: "probe-hw".to_string(),
-            fallback: "software".to_string(),
-        },
-        "probe-hw",
-    );
     check_variant(
         CoreError::EntropyDepleted { message: "probe-ent".to_string(), action: "wait".to_string() },
         "probe-ent",
@@ -900,25 +849,6 @@ fn test_zero_trust_session_method_return_types_are_stable() {
     let _: Result<u64> = session.session_age_ms();
 }
 
-/// Test 3.11: HardwareInfo methods return expected types
-#[test]
-fn test_hardware_info_method_return_types_are_stable() {
-    let info = HardwareInfo {
-        available_accelerators: vec![HardwareType::Cpu],
-        preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: HardwareCapabilities {
-            simd_support: true,
-            aes_ni: true,
-            threads: 1,
-            memory: 0,
-        },
-    };
-
-    // Method return types
-    let _: Option<&HardwareType> = info.best_accelerator();
-    let _: String = info.summary();
-}
-
 /// Test 3.12: KeyStateMachine methods return expected types
 #[test]
 fn test_key_state_machine_method_return_types_are_stable() {
@@ -941,7 +871,6 @@ fn test_trait_implementations_are_stable() {
     assert_debug_clone_eq::<CryptoScheme>();
     assert_debug_clone_eq::<UseCase>();
     assert_debug_clone_eq::<PatternType>();
-    assert_debug_clone_eq::<HardwareType>();
     assert_debug_clone_eq::<VerificationStatus>();
     assert_debug_clone_eq::<ProofComplexity>();
 }
@@ -1211,47 +1140,6 @@ fn test_data_characteristics_api_is_stable() {
     let _size: usize = characteristics.size;
     let _entropy: f64 = characteristics.entropy;
     let _pattern: PatternType = characteristics.pattern_type;
-}
-
-/// Test 5.5: HardwareInfo structure is stable
-#[test]
-fn test_hardware_info_api_is_stable() {
-    let info = HardwareInfo {
-        available_accelerators: vec![HardwareType::Cpu],
-        preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: HardwareCapabilities {
-            simd_support: true,
-            aes_ni: true,
-            threads: 8,
-            memory: 0,
-        },
-    };
-
-    // Methods should work (call before moving fields)
-    let _best: Option<&HardwareType> = info.best_accelerator();
-    let _summary: String = info.summary();
-
-    // Fields should be accessible (clone to avoid move)
-    let _accelerators: Vec<HardwareType> = info.available_accelerators.clone();
-    let _preferred: Option<HardwareType> = info.preferred_accelerator.clone();
-    let _capabilities: HardwareCapabilities = info.capabilities.clone();
-}
-
-/// Test 5.6: HardwareCapabilities structure is stable
-#[test]
-fn test_hardware_capabilities_api_is_stable() {
-    let capabilities = HardwareCapabilities {
-        simd_support: true,
-        aes_ni: true,
-        threads: 8,
-        memory: 16 * 1024 * 1024 * 1024, // 16GB
-    };
-
-    // Fields should be accessible
-    assert!(capabilities.simd_support);
-    assert!(capabilities.aes_ni);
-    assert_eq!(capabilities.threads, 8);
-    assert!(capabilities.memory > 0);
 }
 
 /// Test 5.7: PerformanceMetrics default values are stable

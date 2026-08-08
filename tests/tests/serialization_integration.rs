@@ -13,8 +13,9 @@ use latticearc::unified_api::{
         SerializableKeyPair, SerializableSignedData, SerializableSignedMetadata,
         deserialize_keypair, deserialize_signed_data, serialize_keypair, serialize_signed_data,
     },
-    types::{KeyPair, PrivateKey, SignedData, SignedMetadata},
+    types::{KeyPair, SignedData, SignedMetadata},
 };
+use latticearc_tests::utils::test_keypair;
 
 // ============================================================================
 // Helper Functions
@@ -35,11 +36,6 @@ fn create_test_signed_data(
         "ml-dsa-65".to_string(),
         1706745600,
     )
-}
-
-/// Creates a test KeyPair instance
-fn create_test_keypair(public_key: Vec<u8>, private_key: Vec<u8>) -> KeyPair {
-    KeyPair::new(latticearc::PublicKey::new(public_key), PrivateKey::new(private_key))
 }
 
 // ============================================================================
@@ -193,7 +189,7 @@ fn test_signed_data_invalid_base64_public_key_returns_error() {
 
 #[test]
 fn test_keypair_roundtrip_basic_roundtrip() {
-    let keypair = create_test_keypair(
+    let keypair = test_keypair(
         b"public key bytes here".to_vec(),
         b"private key bytes here - sensitive!".to_vec(),
     );
@@ -211,7 +207,7 @@ fn test_keypair_roundtrip_basic_roundtrip() {
 
 #[test]
 fn test_keypair_small_keys_roundtrip_succeeds() {
-    let keypair = create_test_keypair(b"pk".to_vec(), b"sk".to_vec());
+    let keypair = test_keypair(b"pk".to_vec(), b"sk".to_vec());
 
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
@@ -224,7 +220,7 @@ fn test_keypair_small_keys_roundtrip_succeeds() {
 fn test_keypair_large_keys_roundtrip_succeeds() {
     let large_pk = vec![0xAA; 2000]; // 2KB public key
     let large_sk = vec![0xBB; 3000]; // 3KB private key
-    let keypair = create_test_keypair(large_pk.clone(), large_sk.clone());
+    let keypair = test_keypair(large_pk.clone(), large_sk.clone());
 
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
@@ -235,7 +231,7 @@ fn test_keypair_large_keys_roundtrip_succeeds() {
 
 #[test]
 fn test_keypair_json_structure_has_correct_format() {
-    let keypair = create_test_keypair(b"pk".to_vec(), b"sk".to_vec());
+    let keypair = test_keypair(b"pk".to_vec(), b"sk".to_vec());
 
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
 
@@ -347,7 +343,7 @@ fn test_signed_data_from_serializable_succeeds() {
 
 #[test]
 fn test_serializable_keypair_from_keypair_succeeds() {
-    let keypair = create_test_keypair(b"public".to_vec(), b"private".to_vec());
+    let keypair = test_keypair(b"public".to_vec(), b"private".to_vec());
 
     let serializable = SerializableKeyPair::from(&keypair);
 
@@ -426,7 +422,7 @@ fn test_signed_data_utf8_message_roundtrip_succeeds() {
 fn test_keypair_all_zero_keys_roundtrip_succeeds() {
     let zero_pk = vec![0x00; 100];
     let zero_sk = vec![0x00; 200];
-    let keypair = create_test_keypair(zero_pk.clone(), zero_sk.clone());
+    let keypair = test_keypair(zero_pk.clone(), zero_sk.clone());
 
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
@@ -439,7 +435,7 @@ fn test_keypair_all_zero_keys_roundtrip_succeeds() {
 fn test_keypair_all_ff_keys_roundtrip_succeeds() {
     let ff_pk = vec![0xFF; 100];
     let ff_sk = vec![0xFF; 200];
-    let keypair = create_test_keypair(ff_pk.clone(), ff_sk.clone());
+    let keypair = test_keypair(ff_pk.clone(), ff_sk.clone());
 
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");

@@ -1,7 +1,6 @@
 //! Cross-library validation: aws-lc-rs vs fips204/205, and Wycheproof vectors.
 #![deny(unsafe_code)]
 
-// Originally: fips_cross_library_validation.rs
 mod cross_library {
     //! Cross-Library Validation Tests
     //!
@@ -163,7 +162,6 @@ mod cross_library {
     }
 }
 
-// Originally: fips_wycheproof_tests.rs
 mod wycheproof {
     //! Comprehensive tests for arc-validation wycheproof module
     //!

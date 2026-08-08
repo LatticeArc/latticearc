@@ -1,5 +1,8 @@
 //! Performance benchmark / timing-bound suite.
 //!
+//! Requires the non-default `perf` feature (the module under test is
+//! feature-gated out of production builds).
+//!
 //! the throughput-floor assertions
 //! (`throughput_mbps > 10.0`, `rate > 10.0/s`) are tuned for an
 //! unloaded release build. They flake on debug builds and on loaded

@@ -715,10 +715,10 @@ fn test_nist_security_level_5_shake_succeeds() {
 
 #[test]
 fn test_arc_primitives_slh_dsa_integration_succeeds() {
-    use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+    use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 
     // Test with SHAKE-128s (smallest, fastest for testing)
-    let (signing_key, verifying_key) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+    let (signing_key, verifying_key) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)
         .expect("Key generation should succeed");
 
     let message = b"Integration test message";
@@ -732,7 +732,7 @@ fn test_arc_primitives_slh_dsa_integration_succeeds() {
 
 #[test]
 fn test_arc_primitives_all_security_levels_succeeds() {
-    use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
+    use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
 
     for level in [
         SlhDsaSecurityLevel::Shake128s,
@@ -740,7 +740,7 @@ fn test_arc_primitives_all_security_levels_succeeds() {
         SlhDsaSecurityLevel::Shake256s,
     ] {
         let (signing_key, verifying_key) =
-            SigningKey::generate(level).expect("Key generation should succeed");
+            SlhDsaSigningKey::generate(level).expect("Key generation should succeed");
 
         let message = format!("Test for {:?}", level);
         let signature = signing_key.sign(message.as_bytes(), &[]).expect("Signing should succeed");

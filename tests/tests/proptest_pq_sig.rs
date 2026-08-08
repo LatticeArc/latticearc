@@ -25,14 +25,12 @@
 
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use latticearc::primitives::sig::fndsa::{
-    FnDsaSecurityLevel, KeyPair as FnDsaKeyPair, VerifyingKey as FnDsaVerifyingKey,
-};
+use latticearc::primitives::sig::fndsa::{FnDsaKeyPair, FnDsaSecurityLevel, FnDsaVerifyingKey};
 use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, generate_keypair,
 };
 use latticearc::primitives::sig::slh_dsa::{
-    SigningKey as SlhSigningKey, SlhDsaSecurityLevel, VerifyingKey as SlhVerifyingKey,
+    SlhDsaSecurityLevel, SlhDsaSigningKey as SlhSigningKey, SlhDsaVerifyingKey as SlhVerifyingKey,
 };
 use proptest::prelude::*;
 use std::sync::{Mutex, OnceLock};

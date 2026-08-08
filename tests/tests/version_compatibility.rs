@@ -21,6 +21,7 @@ use latticearc::unified_api::serialization::{
 use latticearc::unified_api::types::{
     EncryptedData, KeyPair, PrivateKey, SignedData, SignedMetadata,
 };
+use latticearc_tests::utils::test_keypair;
 
 // ============================================================================
 // Test Helper Functions
@@ -41,11 +42,6 @@ fn create_signed_data(
         scheme.to_string(),
         timestamp,
     )
-}
-
-/// Creates a test keypair with specified key sizes.
-fn create_keypair(public_key: Vec<u8>, private_key: Vec<u8>) -> KeyPair {
-    KeyPair::new(latticearc::PublicKey::new(public_key), PrivateKey::new(private_key))
 }
 
 /// Represents a versioned format for testing migrations.
@@ -89,7 +85,7 @@ fn test_serialized_key_roundtrip_preserves_exact_bytes_succeeds() -> Result<()> 
     // Test that key bytes are preserved exactly through serialization
     let original_pk = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
     let original_sk = vec![0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80];
-    let keypair = create_keypair(original_pk.clone(), original_sk.clone());
+    let keypair = test_keypair(original_pk.clone(), original_sk.clone());
 
     let json = serialize_keypair(&keypair)?;
     let deserialized = deserialize_keypair(&json)?;
@@ -141,7 +137,7 @@ fn test_base64_encoding_stability_is_compatible_succeeds() -> Result<()> {
     let data = vec![0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0, 0xB0];
     let expected_base64 = BASE64_ENGINE.encode(&data);
 
-    let keypair = create_keypair(data.clone(), vec![0xFF; 32]);
+    let keypair = test_keypair(data.clone(), vec![0xFF; 32]);
     let json = serialize_keypair(&keypair)?;
 
     assert!(json.contains(&expected_base64), "Base64 encoding must produce consistent output");
@@ -152,7 +148,7 @@ fn test_base64_encoding_stability_is_compatible_succeeds() -> Result<()> {
 fn test_ml_kem_public_key_format_stability_is_compatible_has_correct_size() -> Result<()> {
     // ML-KEM-768 public key is 1184 bytes
     let ml_kem_768_pk = vec![0x42u8; 1184];
-    let keypair = create_keypair(ml_kem_768_pk.clone(), vec![0; 2400]);
+    let keypair = test_keypair(ml_kem_768_pk.clone(), vec![0; 2400]);
 
     let json = serialize_keypair(&keypair)?;
     let deserialized = deserialize_keypair(&json)?;
@@ -301,7 +297,7 @@ fn test_ml_kem_512_key_upgrade_path_is_compatible_succeeds() -> Result<()> {
     let ml_kem_512_pk = vec![0x42u8; 800]; // ML-KEM-512 public key size
     let ml_kem_512_sk = vec![0x24u8; 1632]; // ML-KEM-512 private key size
 
-    let keypair = create_keypair(ml_kem_512_pk.clone(), ml_kem_512_sk.clone());
+    let keypair = test_keypair(ml_kem_512_pk.clone(), ml_kem_512_sk.clone());
     let json = serialize_keypair(&keypair)?;
     let deserialized = deserialize_keypair(&json)?;
 
@@ -427,7 +423,7 @@ fn test_ml_kem_1024_to_768_data_structure_compatibility_is_compatible_succeeds()
     let ml_kem_768_pk = vec![0x24u8; 1184]; // ML-KEM-768 public key
 
     for (pk, name) in [(ml_kem_1024_pk, "ML-KEM-1024"), (ml_kem_768_pk, "ML-KEM-768")] {
-        let keypair = create_keypair(pk.clone(), vec![0; 32]);
+        let keypair = test_keypair(pk.clone(), vec![0; 32]);
         let json = serialize_keypair(&keypair)?;
         let deser = deserialize_keypair(&json)?;
 
@@ -582,7 +578,7 @@ fn test_version_format_follows_semver_is_compatible_has_correct_size() {
 #[test]
 fn test_patch_version_serialization_compatibility_is_compatible_succeeds() -> Result<()> {
     // Patch version changes should not break serialization
-    let keypair = create_keypair(vec![0x42; 32], vec![0x24; 64]);
+    let keypair = test_keypair(vec![0x42; 32], vec![0x24; 64]);
     let json = serialize_keypair(&keypair)?;
 
     // Serialize/deserialize should work regardless of patch version
@@ -687,7 +683,7 @@ fn test_concurrent_serialization_safety_succeeds() -> Result<()> {
     let handles: Vec<_> = (0..4)
         .map(|i| {
             thread::spawn(move || {
-                let keypair = create_keypair(vec![i as u8; 32], vec![i as u8; 64]);
+                let keypair = test_keypair(vec![i as u8; 32], vec![i as u8; 64]);
                 for _ in 0..100 {
                     if let Ok(json) = serialize_keypair(&keypair) {
                         let _ = deserialize_keypair(&json);

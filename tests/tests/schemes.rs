@@ -1,7 +1,6 @@
 //! Cryptographic scheme tests (direct selection + contract behavior).
 #![deny(unsafe_code)]
 
-// Originally: scheme_contract_tests.rs
 mod contract {
     //! Scheme Contract Tests — Standards-Grade UseCase × Scheme × Key Level Matrix
     //!
@@ -495,7 +494,6 @@ mod contract {
     }
 }
 
-// Originally: direct_scheme_coverage.rs
 mod direct {
     //! Direct scheme dispatch tests for api.rs verify() branches.
     //! These bypass the CryptoConfig selector by manually constructing

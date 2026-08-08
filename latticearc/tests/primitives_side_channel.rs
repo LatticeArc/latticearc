@@ -10,7 +10,7 @@
     clippy::print_stdout,
     clippy::unused_unit
 )]
-//! Comprehensive Side-Channel Resistance Tests - Phase 4 Security Audit
+//! Comprehensive Side-Channel Resistance Tests
 //!
 //! This test suite provides comprehensive coverage for side-channel resistance
 //! in the arc-primitives cryptographic implementations.
@@ -376,65 +376,6 @@ fn test_mldsa_secret_key_constant_time_comparison_succeeds() {
         ratio > 0.05 && ratio < 20.0,
         "ML-DSA secret key comparison timing ratio out of bounds: {:.2}",
         ratio
-    );
-}
-
-/// Test AES-GCM tag verification constant-time
-#[test]
-fn test_aes_gcm_tag_verification_constant_time_succeeds() {
-    use latticearc::primitives::aead::verify_tag_constant_time;
-
-    const ITERATIONS: usize = 2000;
-    const WARMUP: usize = 200;
-
-    let tag1 = [0x00u8; 16];
-    let tag2 = [0x00u8; 16]; // Equal
-    let tag3 = [0xFFu8; 16]; // Completely different
-    let mut tag4 = [0x00u8; 16];
-    tag4[15] = 0x01; // Differs only in last byte
-
-    // Measure equal tags
-    let equal_timing = measure_operation(
-        || {
-            let _ = verify_tag_constant_time(&tag1, &tag2);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    // Measure completely different tags
-    let different_timing = measure_operation(
-        || {
-            let _ = verify_tag_constant_time(&tag1, &tag3);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    // Measure almost equal tags
-    let almost_equal_timing = measure_operation(
-        || {
-            let _ = verify_tag_constant_time(&tag1, &tag4);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    let ratio1 = timing_ratio(&equal_timing, &different_timing);
-    let ratio2 = timing_ratio(&equal_timing, &almost_equal_timing);
-
-    // Use generous thresholds (0.05x to 20x) for sub-nanosecond operations where
-    // clock resolution noise dominates. Real timing leaks show >100x differences.
-    assert!(
-        ratio1 > 0.05 && ratio1 < 20.0,
-        "AES-GCM tag verification timing ratio (equal vs different) out of bounds: {:.2}",
-        ratio1
-    );
-
-    assert!(
-        ratio2 > 0.05 && ratio2 < 20.0,
-        "AES-GCM tag verification timing ratio (equal vs almost-equal) out of bounds: {:.2}",
-        ratio2
     );
 }
 
@@ -924,7 +865,7 @@ fn test_mldsa_zeroization_all_parameter_sets_succeeds() {
 /// Test AES-GCM key zeroization
 #[test]
 fn test_aes_gcm_key_zeroization_succeeds() {
-    use latticearc::primitives::aead::zeroize_data;
+    use zeroize::Zeroize;
 
     let mut key = AesGcm256::generate_key();
 
@@ -932,7 +873,7 @@ fn test_aes_gcm_key_zeroization_succeeds() {
     assert!(key.iter().any(|&b| b != 0), "Generated key should be non-zero");
 
     // Zeroize
-    zeroize_data(&mut *key);
+    key.zeroize();
 
     // Verify key is zeroed
     assert!(key.iter().all(|&b| b == 0), "Key should be zeroed after zeroization");
@@ -1777,72 +1718,6 @@ fn test_chacha20poly1305_encryption_timing_consistency_succeeds() {
             cv
         );
     }
-}
-
-/// Test ChaCha20-Poly1305 tag verification constant-time behavior
-#[test]
-#[cfg(not(feature = "fips"))]
-// Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_chacha20poly1305_tag_verification_constant_time_succeeds() {
-    use latticearc::primitives::aead::verify_tag_constant_time;
-
-    const ITERATIONS: usize = 2000;
-    const WARMUP: usize = 200;
-
-    let tag1 = [0x00u8; 16];
-    let tag2 = [0x00u8; 16]; // Equal
-    let tag3 = [0xFFu8; 16]; // Completely different
-    let mut tag4 = [0x00u8; 16];
-    tag4[15] = 0x01; // Differs only in last byte
-
-    // Measure equal tags
-    let equal_timing = measure_operation(
-        || {
-            let _ = verify_tag_constant_time(&tag1, &tag2);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    // Measure completely different tags
-    let different_timing = measure_operation(
-        || {
-            let _ = verify_tag_constant_time(&tag1, &tag3);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    // Measure almost equal tags
-    let almost_equal_timing = measure_operation(
-        || {
-            let _ = verify_tag_constant_time(&tag1, &tag4);
-        },
-        ITERATIONS,
-        WARMUP,
-    );
-
-    let ratio1 = timing_ratio(&equal_timing, &different_timing);
-    let ratio2 = timing_ratio(&equal_timing, &almost_equal_timing);
-
-    // 100 iterations + 10 warmup is below the noise floor on shared-
-    // CPU CI runners (an earlier audit follow-up after CI 25191633413 hit
-    // ratio 22.07). Same rationale as
-    // `test_chacha20poly1305_decryption_failure_timing_fails` below:
-    // a real timing leak in `aws-lc-rs` ChaCha20-Poly1305 (hardware-
-    // accelerated constant-time path) shows >100x; 50x stays well
-    // below that while clearing measurement jitter.
-    assert!(
-        ratio1 > 0.02 && ratio1 < 50.0,
-        "ChaCha20-Poly1305 tag verification timing ratio (equal vs different) out of bounds: {:.2}",
-        ratio1
-    );
-
-    assert!(
-        ratio2 > 0.02 && ratio2 < 50.0,
-        "ChaCha20-Poly1305 tag verification timing ratio (equal vs almost-equal) out of bounds: {:.2}",
-        ratio2
-    );
 }
 
 /// Test ChaCha20-Poly1305 decryption failure timing consistency

@@ -42,6 +42,8 @@ pub mod validation;
 
 /// Shared test utilities
 pub mod utils {
+    use latticearc::PublicKey;
+    use latticearc::unified_api::types::{KeyPair, PrivateKey};
     use rand::RngCore;
     use rand::rngs::OsRng;
     use rand_core::UnwrapErr;
@@ -54,6 +56,23 @@ pub mod utils {
     #[must_use]
     pub fn test_rng_succeeds() -> impl RngCore {
         UnwrapErr(OsRng)
+    }
+
+    /// Build a `KeyPair` from explicit public/private key bytes.
+    ///
+    /// For tests that only need a syntactically-valid `KeyPair` (wire-format
+    /// / serialization roundtrips), not a cryptographically-derived one.
+    #[must_use]
+    pub fn test_keypair(public_key: Vec<u8>, private_key: Vec<u8>) -> KeyPair {
+        KeyPair::new(PublicKey::new(public_key), PrivateKey::new(private_key))
+    }
+
+    /// Convenience `KeyPair` with fixed 32-byte public/private key content
+    /// (`0x01` / `0x10` repeated). For tests that don't care about the
+    /// specific key bytes at all.
+    #[must_use]
+    pub fn test_keypair_default() -> KeyPair {
+        test_keypair(vec![0x01; 32], vec![0x10; 32])
     }
 
     /// Assert two byte slices are equal with descriptive message

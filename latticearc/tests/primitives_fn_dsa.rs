@@ -9,7 +9,7 @@
 )]
 //! Comprehensive FN-DSA (FIPS 206) Primitives Tests - Phase 2
 //!
-//! This test suite provides thorough coverage of FN-DSA (Few-Time Digital Signature Algorithm)
+//! This test suite provides thorough coverage of FN-DSA (Few-Time Digital FnDsaSignature Algorithm)
 //! primitives including both security level variants, signing consistency, and edge cases.
 //!
 //! # Test Categories
@@ -35,7 +35,7 @@
 //! ```
 
 use latticearc::primitives::sig::fndsa::{
-    FnDsaSecurityLevel, KeyPair, Signature, SigningKey, VerifyingKey,
+    FnDsaKeyPair, FnDsaSecurityLevel, FnDsaSignature, FnDsaSigningKey, FnDsaVerifyingKey,
 };
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -90,7 +90,7 @@ where
 fn test_fndsa_512_key_generation_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         // Verify key sizes match FIPS 206 specification
@@ -112,7 +112,7 @@ fn test_fndsa_512_key_generation_succeeds() {
 fn test_fndsa_512_signature_size_has_correct_size() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         let message = b"Test message for FN-DSA-512 signature size verification";
@@ -132,7 +132,7 @@ fn test_fndsa_512_signature_size_has_correct_size() {
 fn test_fndsa_512_sign_verify_roundtrip() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         let message = b"Critical data requiring cryptographic signature";
@@ -148,13 +148,13 @@ fn test_fndsa_512_sign_verify_roundtrip() {
 fn test_fndsa_512_key_serialization_roundtrip() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         // Serialize and deserialize signing key
         let sk_bytes = keypair.signing_key().to_bytes();
         let mut restored_sk =
-            SigningKey::from_bytes(&sk_bytes.clone(), FnDsaSecurityLevel::Level512)
+            FnDsaSigningKey::from_bytes(&sk_bytes.clone(), FnDsaSecurityLevel::Level512)
                 .expect("Signing key deserialization should succeed");
 
         assert_eq!(
@@ -165,8 +165,9 @@ fn test_fndsa_512_key_serialization_roundtrip() {
 
         // Serialize and deserialize verifying key
         let vk_bytes = keypair.verifying_key().to_bytes();
-        let restored_vk = VerifyingKey::from_bytes(&vk_bytes.clone(), FnDsaSecurityLevel::Level512)
-            .expect("Verifying key deserialization should succeed");
+        let restored_vk =
+            FnDsaVerifyingKey::from_bytes(&vk_bytes.clone(), FnDsaSecurityLevel::Level512)
+                .expect("Verifying key deserialization should succeed");
 
         assert_eq!(
             keypair.verifying_key().to_bytes(),
@@ -187,17 +188,17 @@ fn test_fndsa_512_key_serialization_roundtrip() {
 fn test_fndsa_512_invalid_verifying_key_length_fails() {
     // Too short
     let short_bytes = vec![0u8; 100];
-    let result = VerifyingKey::from_bytes(&short_bytes, FnDsaSecurityLevel::Level512);
+    let result = FnDsaVerifyingKey::from_bytes(&short_bytes, FnDsaSecurityLevel::Level512);
     assert!(result.is_err(), "Should reject short verifying key");
 
     // Too long
     let long_bytes = vec![0u8; 1000];
-    let result = VerifyingKey::from_bytes(&long_bytes, FnDsaSecurityLevel::Level512);
+    let result = FnDsaVerifyingKey::from_bytes(&long_bytes, FnDsaSecurityLevel::Level512);
     assert!(result.is_err(), "Should reject long verifying key");
 
     // Wrong size (1024 key size for 512 level)
     let wrong_size = vec![0u8; FnDsaSecurityLevel::Level1024.verifying_key_size()];
-    let result = VerifyingKey::from_bytes(&wrong_size, FnDsaSecurityLevel::Level512);
+    let result = FnDsaVerifyingKey::from_bytes(&wrong_size, FnDsaSecurityLevel::Level512);
     assert!(result.is_err(), "Should reject Level1024 key for Level512");
 }
 
@@ -206,17 +207,17 @@ fn test_fndsa_512_invalid_verifying_key_length_fails() {
 fn test_fndsa_512_invalid_signing_key_length_fails() {
     // Empty
     let empty = vec![];
-    let result = SigningKey::from_bytes(&empty, FnDsaSecurityLevel::Level512);
+    let result = FnDsaSigningKey::from_bytes(&empty, FnDsaSecurityLevel::Level512);
     assert!(result.is_err(), "Should reject empty signing key");
 
     // Too short
     let short = vec![0u8; 500];
-    let result = SigningKey::from_bytes(&short, FnDsaSecurityLevel::Level512);
+    let result = FnDsaSigningKey::from_bytes(&short, FnDsaSecurityLevel::Level512);
     assert!(result.is_err(), "Should reject short signing key");
 
     // Too long
     let long = vec![0u8; 5000];
-    let result = SigningKey::from_bytes(&long, FnDsaSecurityLevel::Level512);
+    let result = FnDsaSigningKey::from_bytes(&long, FnDsaSecurityLevel::Level512);
     assert!(result.is_err(), "Should reject long signing key");
 }
 
@@ -229,7 +230,7 @@ fn test_fndsa_512_invalid_signing_key_length_fails() {
 fn test_fndsa_1024_key_generation_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+        let keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
             .expect("Key generation should succeed");
 
         // Verify key sizes match FIPS 206 specification
@@ -251,7 +252,7 @@ fn test_fndsa_1024_key_generation_succeeds() {
 fn test_fndsa_1024_signature_size_has_correct_size() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
             .expect("Key generation should succeed");
 
         let message = b"Test message for FN-DSA-1024 signature size verification";
@@ -271,7 +272,7 @@ fn test_fndsa_1024_signature_size_has_correct_size() {
 fn test_fndsa_1024_sign_verify_roundtrip() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
             .expect("Key generation should succeed");
 
         let message = b"High-security message requiring 256-bit quantum protection";
@@ -287,13 +288,14 @@ fn test_fndsa_1024_sign_verify_roundtrip() {
 fn test_fndsa_1024_key_serialization_roundtrip() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+        let keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
             .expect("Key generation should succeed");
 
         // Serialize and deserialize signing key
         let sk_bytes = keypair.signing_key().to_bytes();
-        let restored_sk = SigningKey::from_bytes(&sk_bytes.clone(), FnDsaSecurityLevel::Level1024)
-            .expect("Signing key deserialization should succeed");
+        let restored_sk =
+            FnDsaSigningKey::from_bytes(&sk_bytes.clone(), FnDsaSecurityLevel::Level1024)
+                .expect("Signing key deserialization should succeed");
 
         assert_eq!(
             keypair.signing_key().to_bytes(),
@@ -304,7 +306,7 @@ fn test_fndsa_1024_key_serialization_roundtrip() {
         // Serialize and deserialize verifying key
         let vk_bytes = keypair.verifying_key().to_bytes();
         let restored_vk =
-            VerifyingKey::from_bytes(&vk_bytes.clone(), FnDsaSecurityLevel::Level1024)
+            FnDsaVerifyingKey::from_bytes(&vk_bytes.clone(), FnDsaSecurityLevel::Level1024)
                 .expect("Verifying key deserialization should succeed");
 
         assert_eq!(
@@ -320,12 +322,12 @@ fn test_fndsa_1024_key_serialization_roundtrip() {
 fn test_fndsa_1024_invalid_key_lengths_fails() {
     // Wrong verifying key size (512 size for 1024 level)
     let wrong_vk = vec![0u8; FnDsaSecurityLevel::Level512.verifying_key_size()];
-    let result = VerifyingKey::from_bytes(&wrong_vk, FnDsaSecurityLevel::Level1024);
+    let result = FnDsaVerifyingKey::from_bytes(&wrong_vk, FnDsaSecurityLevel::Level1024);
     assert!(result.is_err(), "Should reject Level512 verifying key for Level1024");
 
     // Wrong signing key size (512 size for 1024 level)
     let wrong_sk = vec![0u8; FnDsaSecurityLevel::Level512.signing_key_size()];
-    let result = SigningKey::from_bytes(&wrong_sk, FnDsaSecurityLevel::Level1024);
+    let result = FnDsaSigningKey::from_bytes(&wrong_sk, FnDsaSecurityLevel::Level1024);
     assert!(result.is_err(), "Should reject Level512 signing key for Level1024");
 }
 
@@ -338,7 +340,7 @@ fn test_fndsa_1024_invalid_key_lengths_fails() {
 fn test_fndsa_multiple_messages_same_key_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         let messages = [
@@ -347,7 +349,7 @@ fn test_fndsa_multiple_messages_same_key_succeeds() {
             b"Third message for testing multiple signatures".as_slice(),
         ];
 
-        let signatures: Vec<Signature> = messages
+        let signatures: Vec<FnDsaSignature> = messages
             .iter()
             .map(|msg| keypair.sign_with_rng(&mut rng, msg).expect("Signing should succeed"))
             .collect();
@@ -355,7 +357,7 @@ fn test_fndsa_multiple_messages_same_key_succeeds() {
         // Verify each signature against its corresponding message
         for (msg, sig) in messages.iter().zip(signatures.iter()) {
             let valid = keypair.verify(msg, sig).expect("Verification should succeed");
-            assert!(valid, "Signature should verify for its message");
+            assert!(valid, "FnDsaSignature should verify for its message");
         }
 
         // Verify cross-verification fails
@@ -365,7 +367,11 @@ fn test_fndsa_multiple_messages_same_key_succeeds() {
                     let valid = keypair
                         .verify(messages[i], &signatures[j])
                         .expect("Verification should complete");
-                    assert!(!valid, "Signature for message {} should not verify message {}", j, i);
+                    assert!(
+                        !valid,
+                        "FnDsaSignature for message {} should not verify message {}",
+                        j, i
+                    );
                 }
             }
         }
@@ -377,9 +383,9 @@ fn test_fndsa_multiple_messages_same_key_succeeds() {
 fn test_fndsa_different_keys_different_signatures_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair1 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair1 = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
-        let mut keypair2 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair2 = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         let message = b"Common message signed by different keys";
@@ -419,7 +425,7 @@ fn test_fndsa_different_keys_different_signatures_succeeds() {
 fn test_fndsa_tampered_message_rejected_fails() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         let original_message = b"Original message content";
@@ -447,7 +453,7 @@ fn test_fndsa_tampered_message_rejected_fails() {
 fn test_fndsa_corrupted_signature_rejected_fails() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         let message = b"Message with signature to be corrupted";
@@ -462,7 +468,7 @@ fn test_fndsa_corrupted_signature_rejected_fails() {
                 corrupted_bytes[pos] ^= 0xFF; // Flip all bits at position
             }
 
-            let corrupted_sig = Signature::from_bytes(&corrupted_bytes)
+            let corrupted_sig = FnDsaSignature::from_bytes(&corrupted_bytes)
                 .expect("Corrupted signature construction should succeed");
 
             let valid =
@@ -477,7 +483,7 @@ fn test_fndsa_corrupted_signature_rejected_fails() {
 fn test_fndsa_empty_message_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         let empty_message = b"";
@@ -495,7 +501,7 @@ fn test_fndsa_empty_message_succeeds() {
 fn test_fndsa_large_message_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         // 50 KiB: below the default max_signature_size_bytes (64 KiB)
@@ -511,6 +517,32 @@ fn test_fndsa_large_message_succeeds() {
     });
 }
 
+/// Oversized message: verify must return `Err(VerificationFailed)`, not a
+/// forgery verdict (`Ok(false)`) — operational rejection and cryptographic
+/// rejection are distinct outcomes, matching ML-DSA / SLH-DSA.
+#[test]
+fn test_fndsa_verify_oversized_message_returns_err() {
+    run_with_large_stack(|| {
+        let mut rng = OsRng;
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+            .expect("Key generation should succeed");
+
+        let message = vec![0xABu8; 1024];
+        let signature = keypair.sign_with_rng(&mut rng, &message).expect("Signing should succeed");
+
+        // Over the default 64 KiB max_signature_size_bytes cap.
+        let oversized = vec![0xABu8; 65 * 1024];
+        let result = keypair.verify(&oversized, &signature);
+        assert!(
+            matches!(
+                result,
+                Err(latticearc::primitives::sig::fndsa::FnDsaError::VerificationFailed)
+            ),
+            "Oversized message must be an operational Err, got {result:?}"
+        );
+    });
+}
+
 /// Test deterministic key generation with seeded RNG
 #[test]
 fn test_fndsa_deterministic_keygen_is_deterministic() {
@@ -518,11 +550,11 @@ fn test_fndsa_deterministic_keygen_is_deterministic() {
         let seed = [42u8; 32];
 
         let mut rng1 = Rand06Adapter(ChaCha20Rng::from_seed(seed));
-        let keypair1 = KeyPair::generate_with_rng(&mut rng1, FnDsaSecurityLevel::Level512)
+        let keypair1 = FnDsaKeyPair::generate_with_rng(&mut rng1, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         let mut rng2 = Rand06Adapter(ChaCha20Rng::from_seed(seed));
-        let keypair2 = KeyPair::generate_with_rng(&mut rng2, FnDsaSecurityLevel::Level512)
+        let keypair2 = FnDsaKeyPair::generate_with_rng(&mut rng2, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         // Same seed should produce same keys
@@ -572,26 +604,27 @@ fn test_fndsa_default_security_level_succeeds() {
 #[test]
 fn test_fndsa_signature_construction_succeeds() {
     // Empty signature should fail
-    assert!(Signature::from_bytes(&[]).is_err(), "Empty signature bytes should fail");
+    assert!(FnDsaSignature::from_bytes(&[]).is_err(), "Empty signature bytes should fail");
 
     // A non-FN-DSA length should fail — `from_bytes` validates the length
     // against the supported parameter sets, consistent with ML-DSA.
     assert!(
-        Signature::from_bytes(&[0x42u8; 100]).is_err(),
+        FnDsaSignature::from_bytes(&[0x42u8; 100]).is_err(),
         "100-byte blob is not a valid FN-DSA signature size"
     );
 
     // A valid FN-DSA-512 signature size should succeed
     let valid_512 = vec![0x42u8; 666];
-    let sig = Signature::from_bytes(&valid_512).expect("FN-DSA-512 signature size should succeed");
-    assert_eq!(sig.len(), 666, "Signature length should match input");
-    assert!(!sig.is_empty(), "Signature should not be empty");
+    let sig =
+        FnDsaSignature::from_bytes(&valid_512).expect("FN-DSA-512 signature size should succeed");
+    assert_eq!(sig.len(), 666, "FnDsaSignature length should match input");
+    assert!(!sig.is_empty(), "FnDsaSignature should not be empty");
     assert_eq!(sig.to_bytes(), valid_512, "to_bytes should return original bytes");
     assert_eq!(sig.as_ref(), valid_512.as_slice(), "as_ref should return slice");
 
     // A valid FN-DSA-1024 signature size should also succeed
-    let sig_1024 =
-        Signature::from_bytes(&[0x11u8; 1280]).expect("FN-DSA-1024 signature size should succeed");
+    let sig_1024 = FnDsaSignature::from_bytes(&[0x11u8; 1280])
+        .expect("FN-DSA-1024 signature size should succeed");
     assert_eq!(sig_1024.len(), 1280, "FN-DSA-1024 signature length should be preserved");
 }
 
@@ -601,7 +634,7 @@ fn test_fndsa_verifying_key_security_level_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
 
-        let keypair512 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let keypair512 = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
         assert_eq!(
             keypair512.verifying_key().security_level(),
@@ -609,7 +642,7 @@ fn test_fndsa_verifying_key_security_level_succeeds() {
             "Verifying key should maintain Level512"
         );
 
-        let keypair1024 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+        let keypair1024 = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
             .expect("Key generation should succeed");
         assert_eq!(
             keypair1024.verifying_key().security_level(),
@@ -625,7 +658,7 @@ fn test_fndsa_signing_key_security_level_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
 
-        let keypair512 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let keypair512 = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
         assert_eq!(
             keypair512.signing_key().security_level(),
@@ -633,7 +666,7 @@ fn test_fndsa_signing_key_security_level_succeeds() {
             "Signing key should maintain Level512"
         );
 
-        let keypair1024 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+        let keypair1024 = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
             .expect("Key generation should succeed");
         assert_eq!(
             keypair1024.signing_key().security_level(),
@@ -652,7 +685,7 @@ fn test_fndsa_signing_key_security_level_succeeds() {
 fn test_fndsa_signing_key_provides_verifying_key_succeeds() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         // Get verifying key bytes from signing key and from keypair directly
@@ -672,8 +705,9 @@ fn test_fndsa_signing_key_provides_verifying_key_succeeds() {
         assert!(valid, "Keypair should verify its own signature");
 
         // Also verify using a restored verifying key
-        let restored_vk = VerifyingKey::from_bytes(&vk_bytes_direct, FnDsaSecurityLevel::Level512)
-            .expect("Verifying key restoration should succeed");
+        let restored_vk =
+            FnDsaVerifyingKey::from_bytes(&vk_bytes_direct, FnDsaSecurityLevel::Level512)
+                .expect("Verifying key restoration should succeed");
         let valid_restored =
             restored_vk.verify(message, &signature).expect("Verification should succeed");
         assert!(valid_restored, "Restored verifying key should verify");
@@ -687,7 +721,7 @@ fn test_fndsa_key_zeroization_succeeds() {
         use zeroize::Zeroize;
 
         let mut rng = OsRng;
-        let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+        let mut keypair = FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
         // Get original bytes before zeroization
@@ -713,12 +747,14 @@ fn test_fndsa_cross_level_rejection_fails() {
         let mut rng = OsRng;
 
         // Generate Level512 keypair
-        let mut keypair512 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
-            .expect("Key generation should succeed");
+        let mut keypair512 =
+            FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+                .expect("Key generation should succeed");
 
         // Generate Level1024 keypair
-        let mut keypair1024 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
-            .expect("Key generation should succeed");
+        let mut keypair1024 =
+            FnDsaKeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
+                .expect("Key generation should succeed");
 
         let message = b"Cross-level test message";
 

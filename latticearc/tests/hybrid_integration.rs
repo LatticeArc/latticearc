@@ -1,7 +1,6 @@
 //! Hybrid cross-cutting integration tests (roundtrip, zeroization).
 #![deny(unsafe_code)]
 
-// Originally: hybrid_roundtrip_integration.rs
 mod roundtrip {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::expect_used)]
@@ -370,7 +369,6 @@ mod roundtrip {
     }
 }
 
-// Originally: hybrid_zeroization_tests.rs
 mod zeroization {
     // Test files use unwrap() for simplicity - test failures will show clear panics
     #![allow(clippy::unwrap_used)]

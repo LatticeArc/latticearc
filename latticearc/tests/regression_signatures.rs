@@ -16,9 +16,9 @@
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
 
+mod support;
+
 use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
-use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
-use latticearc::primitives::ec::traits::EcKeyPair;
 use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair as ml_dsa_keygen};
 
 /// `Ed25519KeyPair::sign` is fallible — must reject
@@ -27,7 +27,7 @@ use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair as
 /// sign succeed.
 #[test]
 fn ed25519_sign_is_fallible_and_rejects_oversize_message() {
-    let kp = Ed25519KeyPair::generate().unwrap();
+    let kp = support::ed25519_keypair();
     let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
     let result = kp.sign(&oversize);
     assert!(result.is_err(), "Ed25519 sign must reject messages above the signature-size cap");
@@ -57,7 +57,7 @@ fn aes_gcm_encrypt_rejects_oversized_aad() {
 // module.
 
 /// convenience-layer verify must return `Ok(false)` on
-/// adversary-reachable failure (not `Err`). Reverting the an earlier audit
+/// adversary-reachable failure (not `Err`). Reverting the
 /// `Err → Ok(false)` mapping in `verify_with_key` would surface as an
 /// `Err(InvalidInput(...))` here.
 #[test]
@@ -77,9 +77,9 @@ fn pq_sig_verify_with_malformed_signature_returns_ok_false() {
     // `Err` (per FIPS 204 unforgeability). The previous mapper
     // returned a string-leaking InvalidInput variant on parse failure;
     // collapsed that. Either Err or Ok(false) is
-    // acceptable. an earlier audit C1: assert that the result actually falls
+    // acceptable — assert that the result actually falls
     // into one of those buckets — the previous `let _ = ...` form
-    // discarded the result, so reverting the an earlier audit fix wouldn't
+    // discarded the result, so reverting the fix wouldn't
     // have tripped this regression test.
     let result = pk.verify(msg, &corrupted, b"");
     assert!(
@@ -89,7 +89,7 @@ fn pq_sig_verify_with_malformed_signature_returns_ok_false() {
     );
 }
 
-// an earlier audit C2: deleted the empty `signing_keypair_debug_redaction_documented_in_inline_tests`
+// deleted the empty `signing_keypair_debug_redaction_documented_in_inline_tests`
 // `#[test]` marker. An empty `#[test]` body registers as a passing
 // test in CI but verifies nothing — the docstring's claim that the
 // inline test is the "regression blocker" is fine, but a marker
@@ -333,7 +333,7 @@ fn dlog_equality_rejects_non_canonical_bases() {
 // H1 / M1 / M5: signature transcript binding to scheme
 // ============================================================================
 //
-// The May-2026 security audit identified a downgrade attack on the hybrid
+// A downgrade attack was identified on the hybrid
 // signature path (`hybrid-ml-dsa-65-ed25519 → ml-dsa-65`). The fix binds the
 // signed transcript to the scheme identifier via a per-scheme
 // domain-separation context (`SigSchemeLabel`, `types::domains`), and adds
@@ -826,31 +826,6 @@ fn l2_pbkdf2_all_zero_salt_rejected() {
 }
 
 // ============================================================================
-// L3 / L4: P-curve all-zero coordinate + shared-secret defense-in-depth
-// ============================================================================
-
-/// L3 regression: P-256 public-key validate rejects an all-zero coordinate
-/// payload (uncompressed form with `0x04` prefix and 64 zero bytes). The
-/// CT path returns the same verdict the variable-time path used to; this
-/// test pins the rejection.
-#[test]
-fn l3_p256_all_zero_coordinate_rejected() {
-    use latticearc::primitives::kem::ecdh::EcdhP256PublicKey;
-
-    // SEC1 uncompressed: 0x04 || X (32) || Y (32). All zero coords below
-    // are NOT a valid curve point — validate must reject.
-    let mut zero_pk = vec![0u8; 65];
-    zero_pk[0] = 0x04;
-    let parsed = EcdhP256PublicKey::from_bytes(&zero_pk);
-    // `from_bytes` itself may or may not reject (depends on the upstream
-    // validator); the downstream `validate()` is the contract surface.
-    if let Ok(pk) = parsed {
-        let r = pk.validate();
-        assert!(r.is_err(), "P-256 validate() must reject all-zero coords; got {r:?}");
-    }
-}
-
-// ============================================================================
 // L5: ConstantTimeEq alongside derived PartialEq on public-key types
 // ============================================================================
 
@@ -862,33 +837,13 @@ fn l3_p256_all_zero_coordinate_rejected() {
 /// surface as a compile error here.
 #[test]
 fn l5_public_keys_impl_constant_time_eq() {
-    use latticearc::primitives::kem::ecdh::{
-        EcdhP256PublicKey, EcdhP384PublicKey, EcdhP521PublicKey, X25519PublicKey,
-    };
+    use latticearc::primitives::kem::ecdh::X25519PublicKey;
     use subtle::ConstantTimeEq;
 
     // Existence + correctness on equal pairs.
     let x25519_a = X25519PublicKey::from_bytes(&[7u8; 32]).expect("X25519 PK");
     let x25519_b = x25519_a.clone();
     assert!(bool::from(x25519_a.ct_eq(&x25519_b)));
-
-    // Length-prefix variant on the heap-backed types.
-    let p256_a = EcdhP256PublicKey::from_bytes(&{
-        let mut bytes = [0u8; 65];
-        bytes[0] = 0x04;
-        bytes[1] = 0xAB;
-        bytes
-    });
-    if let Ok(p256_a) = p256_a {
-        let p256_b = p256_a.clone();
-        assert!(bool::from(p256_a.ct_eq(&p256_b)));
-    }
-
-    // P-384 / P-521 just need the trait bound to be satisfied; we don't
-    // need to construct valid curve points here.
-    fn assert_ct_eq<T: ConstantTimeEq>() {}
-    assert_ct_eq::<EcdhP384PublicKey>();
-    assert_ct_eq::<EcdhP521PublicKey>();
 }
 
 // ============================================================================
@@ -994,13 +949,13 @@ fn m5_alias_canonicalization_passes_cross_check() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn m_a_pure_ed25519_round_trips_post_fix() {
-    use latticearc::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
+    use latticearc::primitives::ec::ed25519::Ed25519Signature;
     use latticearc::primitives::ec::traits::{EcKeyPair, EcSignature};
     use latticearc::unified_api::types::{SignedData, SignedMetadata};
     use latticearc::{CryptoConfig, verify};
     use sha2::{Digest, Sha512};
 
-    let kp = Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let kp = support::ed25519_keypair();
     let msg = b"M-A: pure Ed25519 self-verifies under SHA-512(scheme_ctx || 0x00 || msg)";
     // Mirror api.rs::sign_with_key's ed25519 arm.
     let mut hasher = Sha512::new();
@@ -1027,12 +982,12 @@ fn m_a_pure_ed25519_round_trips_post_fix() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn m_a_pure_ed25519_raw_message_signature_does_not_verify() {
-    use latticearc::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
+    use latticearc::primitives::ec::ed25519::Ed25519Signature;
     use latticearc::primitives::ec::traits::{EcKeyPair, EcSignature};
     use latticearc::unified_api::types::{SignedData, SignedMetadata};
     use latticearc::{CryptoConfig, verify};
 
-    let kp = Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let kp = support::ed25519_keypair();
     let msg = b"M-A: raw-message signature must NOT verify post-fix";
     // Pre-M-A behaviour: signing the raw message directly via the
     // primitive, bypassing the digest construction.
@@ -1061,7 +1016,6 @@ fn m_a_pure_ed25519_raw_message_signature_does_not_verify() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn m_a_pop_signature_not_a_valid_pure_ed25519_envelope() {
-    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
     use latticearc::primitives::ec::traits::EcKeyPair;
     use latticearc::types::traits::ProofOfPossession;
     use latticearc::types::types::{PrivateKey, PublicKey};
@@ -1069,7 +1023,7 @@ fn m_a_pop_signature_not_a_valid_pure_ed25519_envelope() {
     use latticearc::unified_api::zero_trust::ZeroTrustAuth;
     use latticearc::{CryptoConfig, verify};
 
-    let kp = Ed25519KeyPair::generate().expect("session keygen");
+    let kp = support::ed25519_keypair();
     let auth = ZeroTrustAuth::new(
         PublicKey::new(kp.public_key_bytes()),
         PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
@@ -1111,13 +1065,12 @@ fn m_a_pop_signature_not_a_valid_pure_ed25519_envelope() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn m_a_pop_round_trips_post_fix() {
-    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
     use latticearc::primitives::ec::traits::EcKeyPair;
     use latticearc::types::traits::ProofOfPossession;
     use latticearc::types::types::{PrivateKey, PublicKey};
     use latticearc::unified_api::zero_trust::ZeroTrustAuth;
 
-    let kp = Ed25519KeyPair::generate().expect("session keygen");
+    let kp = support::ed25519_keypair();
     let auth = ZeroTrustAuth::new(
         PublicKey::new(kp.public_key_bytes()),
         PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
@@ -1251,14 +1204,13 @@ fn l_a_fips_verify_with_anchor_rejects_pure_ed25519_at_allowlist() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn pop_h1_foreign_identity_pop_rejected() {
-    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
     use latticearc::primitives::ec::traits::EcKeyPair;
     use latticearc::types::traits::ProofOfPossession;
     use latticearc::types::types::{PrivateKey, PublicKey};
     use latticearc::unified_api::zero_trust::ZeroTrustAuth;
 
     // Verifier (Alice) — this is the identity any PoP must be bound to.
-    let alice_kp = Ed25519KeyPair::generate().expect("alice keygen");
+    let alice_kp = support::ed25519_keypair();
     let alice = ZeroTrustAuth::new(
         PublicKey::new(alice_kp.public_key_bytes()),
         PrivateKey::new(alice_kp.secret_key_bytes().as_slice().to_vec()),
@@ -1267,7 +1219,7 @@ fn pop_h1_foreign_identity_pop_rejected() {
 
     // Attacker (Eve) — generates a perfectly valid self-signed PoP
     // under their own keypair.
-    let eve_kp = Ed25519KeyPair::generate().expect("eve keygen");
+    let eve_kp = support::ed25519_keypair();
     let eve = ZeroTrustAuth::new(
         PublicKey::new(eve_kp.public_key_bytes()),
         PrivateKey::new(eve_kp.secret_key_bytes().as_slice().to_vec()),
@@ -1293,13 +1245,12 @@ fn pop_h1_foreign_identity_pop_rejected() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn pop_m1_challenge_swap_rejected() {
-    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
     use latticearc::primitives::ec::traits::EcKeyPair;
     use latticearc::types::traits::ProofOfPossession;
     use latticearc::types::types::{PrivateKey, PublicKey};
     use latticearc::unified_api::zero_trust::ZeroTrustAuth;
 
-    let kp = Ed25519KeyPair::generate().expect("keygen");
+    let kp = support::ed25519_keypair();
     let auth = ZeroTrustAuth::new(
         PublicKey::new(kp.public_key_bytes()),
         PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),
@@ -1330,13 +1281,12 @@ fn pop_m1_challenge_swap_rejected() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn pop_l1_replay_collapses_to_ok_false() {
-    use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
     use latticearc::primitives::ec::traits::EcKeyPair;
     use latticearc::types::traits::ProofOfPossession;
     use latticearc::types::types::{PrivateKey, PublicKey};
     use latticearc::unified_api::zero_trust::ZeroTrustAuth;
 
-    let kp = Ed25519KeyPair::generate().expect("keygen");
+    let kp = support::ed25519_keypair();
     let auth = ZeroTrustAuth::new(
         PublicKey::new(kp.public_key_bytes()),
         PrivateKey::new(kp.secret_key_bytes().as_slice().to_vec()),

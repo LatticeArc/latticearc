@@ -33,156 +33,156 @@ use latticearc::unified_api::{
 fn test_use_case_secure_messaging_is_accessible() {
     let config = UseCaseConfig::new(UseCase::SecureMessaging);
     assert_eq!(config.use_case, UseCase::SecureMessaging);
-    assert_eq!(config.encryption.performance_preference, PerformancePreference::Speed);
+    assert_eq!(config.signature.performance_preference, PerformancePreference::Speed);
 }
 
 #[test]
 fn test_use_case_email_encryption_is_accessible() {
     let config = UseCaseConfig::new(UseCase::EmailEncryption);
     assert_eq!(config.use_case, UseCase::EmailEncryption);
-    assert_eq!(config.encryption.security_level, SecurityLevel::High);
+    assert_eq!(config.signature.security_level, SecurityLevel::High);
 }
 
 #[test]
 fn test_use_case_vpn_tunnel_is_accessible() {
     let config = UseCaseConfig::new(UseCase::VpnTunnel);
     assert_eq!(config.use_case, UseCase::VpnTunnel);
-    assert_eq!(config.encryption.performance_preference, PerformancePreference::Speed);
-    assert!(config.encryption.hardware_acceleration);
+    assert_eq!(config.signature.performance_preference, PerformancePreference::Speed);
+    assert!(config.signature.hardware_acceleration);
 }
 
 #[test]
 fn test_use_case_api_security_is_accessible() {
     let config = UseCaseConfig::new(UseCase::ApiSecurity);
     assert_eq!(config.use_case, UseCase::ApiSecurity);
-    assert_eq!(config.encryption.performance_preference, PerformancePreference::Speed);
+    assert_eq!(config.signature.performance_preference, PerformancePreference::Speed);
 }
 
 #[test]
 fn test_use_case_file_storage_is_accessible() {
     let config = UseCaseConfig::new(UseCase::FileStorage);
     assert_eq!(config.use_case, UseCase::FileStorage);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_database_encryption_is_accessible() {
     let config = UseCaseConfig::new(UseCase::DatabaseEncryption);
     assert_eq!(config.use_case, UseCase::DatabaseEncryption);
-    assert_eq!(config.encryption.performance_preference, PerformancePreference::Memory);
+    assert_eq!(config.signature.performance_preference, PerformancePreference::Memory);
 }
 
 #[test]
 fn test_use_case_cloud_storage_is_accessible() {
     let config = UseCaseConfig::new(UseCase::CloudStorage);
     assert_eq!(config.use_case, UseCase::CloudStorage);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_backup_archive_is_accessible() {
     let config = UseCaseConfig::new(UseCase::BackupArchive);
     assert_eq!(config.use_case, UseCase::BackupArchive);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_config_secrets_is_accessible() {
     let config = UseCaseConfig::new(UseCase::ConfigSecrets);
     assert_eq!(config.use_case, UseCase::ConfigSecrets);
-    assert_eq!(config.encryption.performance_preference, PerformancePreference::Memory);
+    assert_eq!(config.signature.performance_preference, PerformancePreference::Memory);
 }
 
 #[test]
 fn test_use_case_authentication_is_accessible() {
     let config = UseCaseConfig::new(UseCase::Authentication);
     assert_eq!(config.use_case, UseCase::Authentication);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_session_token_is_accessible() {
     let config = UseCaseConfig::new(UseCase::SessionToken);
     assert_eq!(config.use_case, UseCase::SessionToken);
-    assert_eq!(config.encryption.performance_preference, PerformancePreference::Speed);
+    assert_eq!(config.signature.performance_preference, PerformancePreference::Speed);
 }
 
 #[test]
 fn test_use_case_digital_certificate_is_accessible() {
     let config = UseCaseConfig::new(UseCase::DigitalCertificate);
     assert_eq!(config.use_case, UseCase::DigitalCertificate);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_key_exchange_is_accessible() {
     let config = UseCaseConfig::new(UseCase::KeyExchange);
     assert_eq!(config.use_case, UseCase::KeyExchange);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_financial_transactions_is_accessible() {
     let config = UseCaseConfig::new(UseCase::FinancialTransactions);
     assert_eq!(config.use_case, UseCase::FinancialTransactions);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_legal_documents_is_accessible() {
     let config = UseCaseConfig::new(UseCase::LegalDocuments);
     assert_eq!(config.use_case, UseCase::LegalDocuments);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_blockchain_transaction_is_accessible() {
     let config = UseCaseConfig::new(UseCase::BlockchainTransaction);
     assert_eq!(config.use_case, UseCase::BlockchainTransaction);
-    assert_eq!(config.encryption.performance_preference, PerformancePreference::Balanced);
+    assert_eq!(config.signature.performance_preference, PerformancePreference::Balanced);
 }
 
 #[test]
 fn test_use_case_healthcare_records_is_accessible() {
     let config = UseCaseConfig::new(UseCase::HealthcareRecords);
     assert_eq!(config.use_case, UseCase::HealthcareRecords);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_government_classified_is_accessible() {
     let config = UseCaseConfig::new(UseCase::GovernmentClassified);
     assert_eq!(config.use_case, UseCase::GovernmentClassified);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_payment_card_is_accessible() {
     let config = UseCaseConfig::new(UseCase::PaymentCard);
     assert_eq!(config.use_case, UseCase::PaymentCard);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
 fn test_use_case_iot_device_is_accessible() {
     let config = UseCaseConfig::new(UseCase::IoTDevice);
     assert_eq!(config.use_case, UseCase::IoTDevice);
-    assert_eq!(config.encryption.security_level, SecurityLevel::Standard);
-    assert_eq!(config.encryption.performance_preference, PerformancePreference::Memory);
+    assert_eq!(config.signature.security_level, SecurityLevel::Standard);
+    assert_eq!(config.signature.performance_preference, PerformancePreference::Memory);
 }
 
 #[test]
 fn test_use_case_firmware_signing_is_accessible() {
     let config = UseCaseConfig::new(UseCase::FirmwareSigning);
     assert_eq!(config.use_case, UseCase::FirmwareSigning);
-    assert_eq!(config.encryption.security_level, SecurityLevel::High);
+    assert_eq!(config.signature.security_level, SecurityLevel::High);
 }
 
 #[test]
 fn test_use_case_audit_log_is_accessible() {
     let config = UseCaseConfig::new(UseCase::AuditLog);
     assert_eq!(config.use_case, UseCase::AuditLog);
-    assert_eq!(config.encryption.security_level, SecurityLevel::High);
+    assert_eq!(config.signature.security_level, SecurityLevel::High);
 }
 
 // ============================================================================
@@ -562,17 +562,17 @@ fn test_crypto_config_security_level_overrides_use_case_correctly_succeeds() {
 fn test_use_case_config_respects_security_constraints_correctly_succeeds() {
     // High-security use cases should have Maximum security level
     let financial = UseCaseConfig::new(UseCase::FinancialTransactions);
-    assert_eq!(financial.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(financial.signature.security_level, SecurityLevel::Maximum);
 
     let healthcare = UseCaseConfig::new(UseCase::HealthcareRecords);
-    assert_eq!(healthcare.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(healthcare.signature.security_level, SecurityLevel::Maximum);
 
     let government = UseCaseConfig::new(UseCase::GovernmentClassified);
-    assert_eq!(government.encryption.security_level, SecurityLevel::Maximum);
+    assert_eq!(government.signature.security_level, SecurityLevel::Maximum);
 
     // IoT should have Standard level for resource constraints
     let iot = UseCaseConfig::new(UseCase::IoTDevice);
-    assert_eq!(iot.encryption.security_level, SecurityLevel::Standard);
+    assert_eq!(iot.signature.security_level, SecurityLevel::Standard);
 }
 
 #[test]
@@ -720,13 +720,10 @@ fn test_config_with_maximum_values_is_accepted() {
 }
 
 #[test]
-fn test_use_case_config_all_nested_configs_consistent_is_valid() {
+fn test_use_case_config_government_classified_is_maximum_security() {
     let config = UseCaseConfig::new(UseCase::GovernmentClassified);
-
-    // All nested configs should have the same base security level
-    assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
     assert_eq!(config.signature.security_level, SecurityLevel::Maximum);
-    assert_eq!(config.zero_trust.base.security_level, SecurityLevel::Maximum);
+    assert!(config.validate().is_ok());
 }
 
 // ============================================================================

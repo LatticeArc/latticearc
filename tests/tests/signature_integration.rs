@@ -1143,8 +1143,9 @@ fn test_ml_dsa_signature_with_slh_dsa_key_fails() {
         SlhDsaSecurityLevel::Shake128s,
     );
 
-    // verify path collapses Err to Ok(false) (Pattern 6).
-    assert_eq!(result.ok(), Some(false), "ML-DSA signature should not verify with SLH-DSA key");
+    // Wrong-length bytes fail typed `SlhDsaSignature` construction with an
+    // opaque InvalidInput — same contract as ML-DSA / FN-DSA.
+    assert!(result.is_err(), "ML-DSA signature must be rejected as malformed for SLH-DSA");
 }
 
 #[test]
@@ -1261,8 +1262,9 @@ fn test_slh_dsa_empty_signature_returns_error() {
         SlhDsaSecurityLevel::Shake128s,
     );
 
-    // verify path collapses Err to Ok(false) (Pattern 6).
-    assert_eq!(result.ok(), Some(false), "Empty signature should fail verification");
+    // Empty bytes fail typed `SlhDsaSignature` construction with an opaque
+    // InvalidInput — same contract as ML-DSA / FN-DSA.
+    assert!(result.is_err(), "Empty signature must be rejected as malformed");
 }
 
 #[test]

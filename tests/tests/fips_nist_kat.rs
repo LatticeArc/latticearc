@@ -1,7 +1,6 @@
 //! NIST KAT module integration tests.
 #![deny(unsafe_code)]
 
-// Originally: fips_nist_kat_compliance.rs
 mod compliance {
     #![allow(clippy::expect_used, clippy::useless_vec, unused_imports)]
 
@@ -245,7 +244,6 @@ mod compliance {
     }
 }
 
-// Originally: fips_nist_kat_coverage.rs
 mod coverage {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::panic)]
@@ -679,7 +677,6 @@ mod coverage {
     }
 }
 
-// Originally: fips_nist_kat_integration.rs
 mod integration {
     #![allow(clippy::redundant_closure, clippy::print_stdout, clippy::useless_vec)]
 
@@ -885,7 +882,6 @@ mod integration {
     }
 }
 
-// Originally: fips_nist_kat_mod_coverage.rs
 mod mod_coverage {
     //! Coverage tests for arc-validation/src/nist_kat/mod.rs
     //! Targets: KatTestResult factory methods, NistKatError display, decode_hex
@@ -973,7 +969,6 @@ mod mod_coverage {
     }
 }
 
-// Originally: fips_nist_kat_mod_tests.rs
 mod mod_tests {
     //! Comprehensive tests for arc-validation/src/nist_kat/mod.rs
     //!

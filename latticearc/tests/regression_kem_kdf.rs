@@ -1,9 +1,8 @@
 //! KEM, KDF, and Hybrid-combiner regressions.
 //!
 //! Covers ML-KEM (FIPS PCT, embedded PK extraction), HKDF / PBKDF2 input
-//! validation, hybrid KEM combiner channel-binding, ECDH point validation,
-//! and AAD-redaction Debug impls. Reverting any fix must make the
-//! corresponding test fail.
+//! validation, hybrid KEM combiner channel-binding, and AAD-redaction Debug
+//! impls. Reverting any fix must make the corresponding test fail.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -14,19 +13,7 @@ use latticearc::hybrid::kem_hybrid::{
 };
 use latticearc::primitives::kdf::Pbkdf2Params;
 use latticearc::primitives::kdf::hkdf::{hkdf_extract, hkdf_simple};
-use latticearc::primitives::kem::ecdh::EcdhP256KeyPair;
 use latticearc::primitives::kem::{MlKem, MlKemSecurityLevel};
-
-/// ECDH agree() rejects an all-zero-coordinate P-256 PK
-/// (defense-in-depth on top of aws-lc-rs).
-#[test]
-fn ecdh_p256_agree_rejects_all_zero_coordinate_pk() {
-    let kp = EcdhP256KeyPair::generate().unwrap();
-    let mut bad_pk = vec![0x04u8]; // SEC1 uncompressed prefix
-    bad_pk.extend_from_slice(&[0u8; 64]); // all-zero coords
-    let result = kp.agree(&bad_pk);
-    assert!(result.is_err(), "All-zero P-256 pubkey must be rejected by agree()");
-}
 
 // ML-KEM PCT runs inside generate_decapsulation_keypair (hybrid keygen path)
 

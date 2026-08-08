@@ -3,7 +3,6 @@
 //! Sub-modules preserve original file structure.
 #![deny(unsafe_code)]
 
-// Originally: unified_api_comprehensive.rs
 mod comprehensive {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
@@ -502,7 +501,6 @@ mod comprehensive {
     }
 }
 
-// Originally: unified_api_coverage.rs
 mod coverage {
     //! Coverage tests for the unified encrypt/decrypt/sign_with_key/verify API
     //! in arc-core/src/convenience/api.rs. Exercises different CryptoConfig
@@ -1158,7 +1156,6 @@ mod coverage {
     }
 }
 
-// Originally: unified_api_integration.rs
 mod integration {
     //! Unified API integration tests for LatticeArc
     //!

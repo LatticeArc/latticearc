@@ -50,12 +50,9 @@ use zeroize::Zeroize;
 
 // Import primitives
 use latticearc::primitives::aead::AeadCipher;
+use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
 #[cfg(not(feature = "fips"))]
 use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
-use latticearc::primitives::aead::{
-    aes_gcm::{AesGcm128, AesGcm256},
-    verify_tag_constant_time,
-};
 use latticearc::primitives::kem::ecdh::{X25519KeyPair, X25519SecretKey};
 use latticearc::primitives::kem::ml_kem::{
     MlKem, MlKemSecretKey, MlKemSecurityLevel, MlKemSharedSecret,
@@ -156,35 +153,6 @@ fn test_secret_vec_constant_time_comparison_succeeds() {
 
     assert!(bool::from(sv1.ct_eq(&sv2)));
     assert!(!bool::from(sv1.ct_eq(&sv3)));
-}
-
-/// Test AES-GCM tag verification uses constant-time comparison
-#[test]
-fn test_aes_gcm_tag_verification_constant_time_succeeds() {
-    let tag1 = [0x00u8; 16];
-    let tag2 = [0x00u8; 16];
-    let tag3 = [0xFFu8; 16];
-    let mut tag4 = [0x00u8; 16];
-    tag4[15] = 0x01; // differs only in last byte
-
-    // verify_tag_constant_time uses subtle::ConstantTimeEq
-    assert!(verify_tag_constant_time(&tag1, &tag2));
-    assert!(!verify_tag_constant_time(&tag1, &tag3));
-    assert!(!verify_tag_constant_time(&tag1, &tag4));
-}
-
-/// Test ChaCha20-Poly1305 tag verification constant-time
-#[test]
-#[cfg(not(feature = "fips"))]
-fn test_chacha20poly1305_tag_verification_constant_time_succeeds() {
-    use latticearc::primitives::aead::verify_tag_constant_time as chacha_verify;
-
-    let tag1 = [0x00u8; 16];
-    let tag2 = [0x00u8; 16];
-    let tag3 = [0xFFu8; 16];
-
-    assert!(chacha_verify(&tag1, &tag2));
-    assert!(!chacha_verify(&tag1, &tag3));
 }
 
 /// Test that ct_eq returns Choice type, not bool
@@ -821,7 +789,11 @@ fn test_verification_count_succeeds() {
     // comments, the `.matches(..)` call below, and the assertion
     // message — none of which are test attributes.
     let test_count = SOURCE.lines().filter(|line| line.trim_start().starts_with("#[test]")).count();
-    const MIN_REQUIRED: usize = 40;
+    // Deliberately lowered 40 → 39: the two tests that exercised the removed
+    // dead helpers `aead::{verify_tag_constant_time, zeroize_data}` were
+    // deleted with those helpers (production tag comparison happens inside
+    // aws-lc-rs; zeroization goes through the `zeroize` crate directly).
+    const MIN_REQUIRED: usize = 39;
     assert!(
         test_count >= MIN_REQUIRED,
         "Verification test file must contain ≥ {MIN_REQUIRED} `#[test]` items \

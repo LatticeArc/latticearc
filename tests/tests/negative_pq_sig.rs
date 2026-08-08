@@ -273,8 +273,9 @@ fn test_slh_dsa_verify_empty_signature_fails() {
         public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    // verify path collapses Err to Ok(false) (Pattern 6).
-    assert_eq!(result.ok(), Some(false), "empty signature must yield Ok(false)");
+    // Wrong-length signature bytes fail typed `SlhDsaSignature` construction
+    // with an opaque InvalidInput — same contract as ML-DSA / FN-DSA.
+    assert!(result.is_err(), "empty signature must be rejected as malformed");
 }
 
 #[test]
@@ -327,8 +328,9 @@ fn test_slh_dsa_verify_truncated_signature_fails() {
         public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    // verify path collapses Err to Ok(false) (Pattern 6).
-    assert_eq!(result.ok(), Some(false), "truncated signature must yield Ok(false)");
+    // Wrong-length signature bytes fail typed construction (InvalidInput),
+    // matching ML-DSA / FN-DSA.
+    assert!(result.is_err(), "truncated signature must be rejected as malformed");
 }
 
 #[test]
@@ -498,18 +500,15 @@ fn test_ml_dsa_signature_with_slh_dsa_verify_fails() {
     )
     .expect("signing should succeed");
 
-    // verify path collapses Err to Ok(false) (Pattern 6).
+    // An ML-DSA signature has the wrong length for SLH-DSA-128s, so typed
+    // construction rejects it (InvalidInput) — matching ML-DSA / FN-DSA.
     let result = verify_pq_slh_dsa_unverified(
         message,
         &ml_signature,
         slh_public_key.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
     );
-    assert_eq!(
-        result.ok(),
-        Some(false),
-        "ML-DSA signature with SLH-DSA verify must yield Ok(false)"
-    );
+    assert!(result.is_err(), "ML-DSA signature must be rejected as malformed for SLH-DSA");
 }
 
 // ============================================================================
