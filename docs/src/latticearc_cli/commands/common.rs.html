@@ -479,4 +479,120 @@
 <a href=#479 id=479 data-nosnippet>479</a>
 <a href=#480 id=480 data-nosnippet>480</a>    config
 <a href=#481 id=481 data-nosnippet>481</a>}
+<a href=#482 id=482 data-nosnippet>482</a>
+<a href=#483 id=483 data-nosnippet>483</a><span class="doccomment">/// Refuse to write sensitive output (decrypted plaintext, derived KDF key
+<a href=#484 id=484 data-nosnippet>484</a>/// material, …) to an interactive terminal unless the caller explicitly
+<a href=#485 id=485 data-nosnippet>485</a>/// opted in via `allow_tty`. TTY output leaks secrets into shell
+<a href=#486 id=486 data-nosnippet>486</a>/// scrollback, session recorders, screen sharing, and CI log aggregators —
+<a href=#487 id=487 data-nosnippet>487</a>/// piping stdout to a file or downstream tool is unaffected.
+<a href=#488 id=488 data-nosnippet>488</a>///
+<a href=#489 id=489 data-nosnippet>489</a>/// `operation` names the value being withheld and is interpolated into the
+<a href=#490 id=490 data-nosnippet>490</a>/// leading sentence only; the remainder of the message — including the
+<a href=#491 id=491 data-nosnippet>491</a>/// `--output &lt;file&gt;` / `--print-to-tty` guidance and the "the plaintext
+<a href=#492 id=492 data-nosnippet>492</a>/// will then appear…" callout — is fixed text, matching the wording
+<a href=#493 id=493 data-nosnippet>493</a>/// `decrypt.rs` used before this helper existed (so `decrypt`'s call site
+<a href=#494 id=494 data-nosnippet>494</a>/// produces byte-identical output). Callers whose command has no
+<a href=#495 id=495 data-nosnippet>495</a>/// `--output` flag (e.g. `kdf`) still see that guidance, since the wording
+<a href=#496 id=496 data-nosnippet>496</a>/// was centralised rather than made per-command-accurate — see the `kdf`
+<a href=#497 id=497 data-nosnippet>497</a>/// call site for the resulting text delta.
+<a href=#498 id=498 data-nosnippet>498</a>///
+<a href=#499 id=499 data-nosnippet>499</a>/// # Errors
+<a href=#500 id=500 data-nosnippet>500</a>///
+<a href=#501 id=501 data-nosnippet>501</a>/// Returns an error when stdout is a terminal and `allow_tty` is `false`.
+<a href=#502 id=502 data-nosnippet>502</a>/// Refuse to write secret material to an interactive terminal unless the
+<a href=#503 id=503 data-nosnippet>503</a>/// caller opted in via `--print-to-tty`.
+<a href=#504 id=504 data-nosnippet>504</a>///
+<a href=#505 id=505 data-nosnippet>505</a>/// The caller supplies its complete refusal message — the two commands that
+<a href=#506 id=506 data-nosnippet>506</a>/// guard (decrypt, kdf) have different payload nouns and different remediation
+<a href=#507 id=507 data-nosnippet>507</a>/// options (kdf has no `--output` flag), so a shared template would misstate
+<a href=#508 id=508 data-nosnippet>508</a>/// one of them. What's shared is the guard mechanics, not the prose.
+<a href=#509 id=509 data-nosnippet>509</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>require_non_tty_output(refusal_message: <span class="kw-2">&amp;</span>str, allow_tty: bool) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#510 id=510 data-nosnippet>510</a>    <span class="kw">use </span>std::io::IsTerminal;
+<a href=#511 id=511 data-nosnippet>511</a>    <span class="kw">if </span>std::io::stdout().is_terminal() &amp;&amp; !allow_tty {
+<a href=#512 id=512 data-nosnippet>512</a>        <span class="macro">anyhow::bail!</span>(<span class="string">"{refusal_message}"</span>);
+<a href=#513 id=513 data-nosnippet>513</a>    }
+<a href=#514 id=514 data-nosnippet>514</a>    <span class="prelude-val">Ok</span>(())
+<a href=#515 id=515 data-nosnippet>515</a>}
+<a href=#516 id=516 data-nosnippet>516</a>
+<a href=#517 id=517 data-nosnippet>517</a><span class="doccomment">/// Decrypt's TTY refusal message — kept verbatim from its original inline
+<a href=#518 id=518 data-nosnippet>518</a>/// guard so scripts matching on it keep working.
+<a href=#519 id=519 data-nosnippet>519</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>DECRYPT_TTY_REFUSAL: <span class="kw-2">&amp;</span>str = <span class="string">"Refusing to write decrypted plaintext to a TTY. Pass --output &lt;file&gt; to write \
+<a href=#520 id=520 data-nosnippet>520</a>     to disk with 0600 permissions, pipe stdout to a downstream tool, or pass \
+<a href=#521 id=521 data-nosnippet>521</a>     --print-to-tty to explicitly opt in (the plaintext will then appear in shell \
+<a href=#522 id=522 data-nosnippet>522</a>     scrollback / session recorders / log aggregators)."</span>;
+<a href=#523 id=523 data-nosnippet>523</a>
+<a href=#524 id=524 data-nosnippet>524</a><span class="doccomment">/// Write `data` to `path`, or print it to stdout when `path` is `None`.
+<a href=#525 id=525 data-nosnippet>525</a>///
+<a href=#526 id=526 data-nosnippet>526</a>/// Centralises the three near-identical "write atomically, or print to
+<a href=#527 id=527 data-nosnippet>527</a>/// stdout; honor `--force`; `tracing::debug!` the path" implementations
+<a href=#528 id=528 data-nosnippet>528</a>/// previously duplicated across `encrypt::write_output`,
+<a href=#529 id=529 data-nosnippet>529</a>/// `decrypt::write_output`, and `sign::write_signature`:
+<a href=#530 id=530 data-nosnippet>530</a>///
+<a href=#531 id=531 data-nosnippet>531</a>/// - File writes go through `AtomicWrite`, refusing to clobber an existing
+<a href=#532 id=532 data-nosnippet>532</a>///   file unless `force` is set. The `Failed to write {path} (use --force
+<a href=#533 id=533 data-nosnippet>533</a>///   to overwrite)` context message is shared verbatim across all three
+<a href=#534 id=534 data-nosnippet>534</a>///   callers.
+<a href=#535 id=535 data-nosnippet>535</a>/// - `secret_file_mode` selects `.secret_mode()` (0600 perms) for file
+<a href=#536 id=536 data-nosnippet>536</a>///   writes of sensitive material (decrypt's plaintext); encrypt's
+<a href=#537 id=537 data-nosnippet>537</a>///   ciphertext and sign's signature output are not secret and use the
+<a href=#538 id=538 data-nosnippet>538</a>///   default atomic-write permissions.
+<a href=#539 id=539 data-nosnippet>539</a>/// - `tty_guard`, when `Some((refusal_message, allow_tty))`, routes stdout
+<a href=#540 id=540 data-nosnippet>540</a>///   output through [`require_non_tty_output`] first. `None` skips the
+<a href=#541 id=541 data-nosnippet>541</a>///   guard entirely — encrypt's ciphertext isn't secret, and sign always
+<a href=#542 id=542 data-nosnippet>542</a>///   resolves an output path so it never reaches the stdout branch.
+<a href=#543 id=543 data-nosnippet>543</a>/// - Stdout output tries UTF-8 first, falling back to hex — matching
+<a href=#544 id=544 data-nosnippet>544</a>///   decrypt's pre-existing fallback behaviour. Encrypt/sign output is
+<a href=#545 id=545 data-nosnippet>545</a>///   always valid UTF-8 JSON, so those callers only ever exercise the
+<a href=#546 id=546 data-nosnippet>546</a>///   UTF-8 branch (unchanged from their prior bare `print!("{data}")`).
+<a href=#547 id=547 data-nosnippet>547</a>/// - `debug_label` names the value in the `tracing::debug!` breadcrumb
+<a href=#548 id=548 data-nosnippet>548</a>///   emitted after a successful file write (e.g. `"encrypted data"` →
+<a href=#549 id=549 data-nosnippet>549</a>///   the event message `"encrypted data written"`).
+<a href=#550 id=550 data-nosnippet>550</a>///
+<a href=#551 id=551 data-nosnippet>551</a>/// # Errors
+<a href=#552 id=552 data-nosnippet>552</a>///
+<a href=#553 id=553 data-nosnippet>553</a>/// Returns an error if the TTY guard rejects stdout output, or if the
+<a href=#554 id=554 data-nosnippet>554</a>/// atomic file write fails (including refusing to overwrite an existing
+<a href=#555 id=555 data-nosnippet>555</a>/// file without `--force`).
+<a href=#556 id=556 data-nosnippet>556</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>write_output_or_stdout(
+<a href=#557 id=557 data-nosnippet>557</a>    path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>std::path::Path&gt;,
+<a href=#558 id=558 data-nosnippet>558</a>    data: <span class="kw-2">&amp;</span>[u8],
+<a href=#559 id=559 data-nosnippet>559</a>    force: bool,
+<a href=#560 id=560 data-nosnippet>560</a>    secret_file_mode: bool,
+<a href=#561 id=561 data-nosnippet>561</a>    tty_guard: <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>str, bool)&gt;,
+<a href=#562 id=562 data-nosnippet>562</a>    debug_label: <span class="kw-2">&amp;</span>str,
+<a href=#563 id=563 data-nosnippet>563</a>) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#564 id=564 data-nosnippet>564</a>    <span class="kw">use </span>anyhow::Context;
+<a href=#565 id=565 data-nosnippet>565</a>
+<a href=#566 id=566 data-nosnippet>566</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(p) = path {
+<a href=#567 id=567 data-nosnippet>567</a>        <span class="comment">// Atomic write — closes the partial-file-at-rest window. Only
+<a href=#568 id=568 data-nosnippet>568</a>        // overwrite when `force` is set, matching keygen's default-safe
+<a href=#569 id=569 data-nosnippet>569</a>        // behavior.
+<a href=#570 id=570 data-nosnippet>570</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>writer = latticearc::unified_api::atomic_write::AtomicWrite::new(data);
+<a href=#571 id=571 data-nosnippet>571</a>        <span class="kw">if </span>secret_file_mode {
+<a href=#572 id=572 data-nosnippet>572</a>            writer = writer.secret_mode();
+<a href=#573 id=573 data-nosnippet>573</a>        }
+<a href=#574 id=574 data-nosnippet>574</a>        writer.overwrite_existing(force).write(p).with_context(|| {
+<a href=#575 id=575 data-nosnippet>575</a>            <span class="macro">format!</span>(<span class="string">"Failed to write {} (use --force to overwrite)"</span>, p.display())
+<a href=#576 id=576 data-nosnippet>576</a>        })<span class="question-mark">?</span>;
+<a href=#577 id=577 data-nosnippet>577</a>        <span class="comment">// Path on stderr would leak through process accounting and log
+<a href=#578 id=578 data-nosnippet>578</a>        // aggregation; route to tracing::debug! instead.
+<a href=#579 id=579 data-nosnippet>579</a>        </span><span class="macro">tracing::debug!</span>(path = %p.display(), <span class="string">"{debug_label} written"</span>);
+<a href=#580 id=580 data-nosnippet>580</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+<a href=#581 id=581 data-nosnippet>581</a>    }
+<a href=#582 id=582 data-nosnippet>582</a>
+<a href=#583 id=583 data-nosnippet>583</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>((refusal_message, allow_tty)) = tty_guard {
+<a href=#584 id=584 data-nosnippet>584</a>        require_non_tty_output(refusal_message, allow_tty)<span class="question-mark">?</span>;
+<a href=#585 id=585 data-nosnippet>585</a>    }
+<a href=#586 id=586 data-nosnippet>586</a>
+<a href=#587 id=587 data-nosnippet>587</a>    <span class="comment">// Try to print as UTF-8, fall back to hex. The hex encoding is wrapped
+<a href=#588 id=588 data-nosnippet>588</a>    // in `Zeroizing&lt;String&gt;` so a derived plaintext copy doesn't outlive
+<a href=#589 id=589 data-nosnippet>589</a>    // the source bytes on the heap until allocator reclaim.
+<a href=#590 id=590 data-nosnippet>590</a>    </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(s) = std::str::from_utf8(data) {
+<a href=#591 id=591 data-nosnippet>591</a>        <span class="macro">print!</span>(<span class="string">"{s}"</span>);
+<a href=#592 id=592 data-nosnippet>592</a>    } <span class="kw">else </span>{
+<a href=#593 id=593 data-nosnippet>593</a>        <span class="kw">let </span>encoded = zeroize::Zeroizing::new(hex::encode(data));
+<a href=#594 id=594 data-nosnippet>594</a>        <span class="macro">print!</span>(<span class="string">"{}"</span>, encoded.as_str());
+<a href=#595 id=595 data-nosnippet>595</a>    }
+<a href=#596 id=596 data-nosnippet>596</a>    <span class="prelude-val">Ok</span>(())
+<a href=#597 id=597 data-nosnippet>597</a>}
 </code></pre></div></section></main></body></html>

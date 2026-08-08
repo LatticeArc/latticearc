@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["HardwareType","PatternType","VerificationStatus"],"struct":["DataCharacteristics","HardwareCapabilities","HardwareInfo"],"trait":["ContinuousVerifiable","ProofOfPossession","SchemeSelector","ZeroTrustAuthenticable"]};
+window.SIDEBAR_ITEMS = {"enum":["PatternType","VerificationStatus"],"struct":["DataCharacteristics"],"trait":["ContinuousVerifiable","ProofOfPossession","SchemeSelector","ZeroTrustAuthenticable"]};
