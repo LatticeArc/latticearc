@@ -24,22 +24,27 @@ use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
 static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
 
 // `stats_alloc` counters are process-global. When cargo runs test fns in
-// parallel, one test's `Region::change()` observes allocations from sibling
-// tests, producing flaky failures on tight budgets. Serialize all measured
-// regions through this mutex so each assertion sees only its own test's
-// allocations.
+// parallel, allocations from sibling tests land inside whichever `Region`
+// is open — and that includes their un-measured SETUP code (keygens,
+// buffer creation), which runs outside any measured region. Serializing
+// only the measured regions is therefore not enough: each test must hold
+// this mutex for its ENTIRE body, setup included. (Observed on Windows
+// CI: a sibling's setup allocation pushed hmac_sha256_1kib over budget.)
 static MEASURE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Assert that `f` stays below `budget_bytes` in newly allocated bytes and
 /// below `budget_allocations` in the number of distinct allocations.
 /// Prints the actual values on failure for easy re-calibration.
+///
+/// Callers must hold `MEASURE_LOCK` for their entire test body before
+/// calling this (the lock is deliberately NOT taken here — taking it only
+/// around the region leaves sibling setup allocations unserialized).
 fn assert_alloc_budget(
     label: &str,
     budget_bytes: usize,
     budget_allocations: usize,
     f: impl FnOnce(),
 ) {
-    let _guard = MEASURE_LOCK.lock();
     let reg = Region::new(GLOBAL);
     f();
     let stats = reg.change();
@@ -71,6 +76,8 @@ fn assert_alloc_budget(
 fn ml_kem_768_encapsulate_stays_under_budget() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 
+    let _guard = MEASURE_LOCK.lock();
+
     // Pre-generate keys outside the measured region.
     let (pk, _sk) =
         MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen must succeed");
@@ -86,6 +93,8 @@ fn ml_kem_768_encapsulate_stays_under_budget() {
 #[test]
 fn ml_kem_768_decapsulate_stays_under_budget() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+
+    let _guard = MEASURE_LOCK.lock();
 
     let (pk, sk) =
         MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen must succeed");
@@ -104,6 +113,8 @@ fn ml_kem_768_decapsulate_stays_under_budget() {
 fn aes_256_gcm_encrypt_1kib_stays_under_budget() {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 
+    let _guard = MEASURE_LOCK.lock();
+
     let key = [0x42u8; 32];
     let plaintext = vec![0xABu8; 1024];
     let cipher = AesGcm256::new(&key).expect("cipher init");
@@ -119,6 +130,8 @@ fn aes_256_gcm_encrypt_1kib_stays_under_budget() {
 #[test]
 fn aes_256_gcm_decrypt_1kib_stays_under_budget() {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
+
+    let _guard = MEASURE_LOCK.lock();
 
     let key = [0x42u8; 32];
     let plaintext = vec![0xABu8; 1024];
@@ -139,6 +152,8 @@ fn aes_256_gcm_decrypt_1kib_stays_under_budget() {
 fn hybrid_kem_768_encapsulate_stays_under_budget() {
     use latticearc::hybrid::kem_hybrid::{encapsulate, generate_keypair};
 
+    let _guard = MEASURE_LOCK.lock();
+
     let (pk, _sk) = generate_keypair().expect("hybrid keygen");
 
     // Hybrid encap allocates for: ML-KEM ct, X25519 ephemeral key, KDF output.
@@ -155,6 +170,8 @@ fn hybrid_kem_768_encapsulate_stays_under_budget() {
 #[test]
 fn hkdf_sha256_expand_32bytes_stays_under_budget() {
     use latticearc::primitives::kdf::hkdf::hkdf_expand;
+
+    let _guard = MEASURE_LOCK.lock();
 
     let prk = [0u8; 32];
     let info = b"latticearc allocation test";
@@ -183,6 +200,8 @@ fn hkdf_sha256_expand_32bytes_stays_under_budget() {
 fn hmac_sha256_1kib_stays_under_budget() {
     use latticearc::primitives::mac::hmac::hmac_sha256;
 
+    let _guard = MEASURE_LOCK.lock();
+
     let key = [0u8; 32];
     let data = vec![0xA5u8; 1024];
 
@@ -207,6 +226,8 @@ fn hmac_sha256_1kib_stays_under_budget() {
 #[test]
 fn hmac_sha256_verifier_verify_hot_path_stays_under_budget() {
     use latticearc::primitives::mac::hmac::{HmacSha256Verifier, hmac_sha256};
+
+    let _guard = MEASURE_LOCK.lock();
 
     let key = [0u8; 32];
     let data = vec![0xA5u8; 1024];

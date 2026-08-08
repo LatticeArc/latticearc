@@ -228,6 +228,16 @@ fixes a FIPS power-up abort triggered by cargo's new build-dir layout.
   Host-interpreter paths (the case the helper exists to catch) are still
   rejected, and module authenticity is still established by HMAC, not by path.
 
+- **Allocation-budget tests are now fully serialized, fixing a Windows CI
+  flake.** `tests/tests/allocation_budgets.rs` serialized only the *measured*
+  regions through its mutex, but `stats_alloc` counters are process-global —
+  a sibling test's un-measured setup (keygens, buffer creation) running on a
+  parallel thread could land inside an open region. Observed once on Windows
+  CI: `hmac_sha256_1kib` measured 19,360 B against its 16,384 B budget while
+  the same commit passed on Linux, macOS, and a rerun. Each test now holds
+  the lock for its entire body, so a region only ever sees its own test's
+  allocations. Budgets are unchanged.
+
 ### Changed
 
 - **Dependency refresh.** Workspace-wide update to current compatible
