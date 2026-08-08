@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["sha256","sha384","sha512"]};
+window.SIDEBAR_ITEMS = {"enum":["Sha2Error"],"fn":["sha256","sha384","sha512"]};

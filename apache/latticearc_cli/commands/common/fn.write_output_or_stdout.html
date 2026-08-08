@@ -1,0 +1,37 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Write `data` to `path`, or print it to stdout when `path` is `None`."><title>write_output_or_stdout in latticearc_cli::commands::common - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="latticearc_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">write_output_or_stdout</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../latticearc_cli/index.html">latticearc_<wbr>cli</a><span class="version">0.9.2</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">write_<wbr>output_<wbr>or_<wbr>stdout</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#errors" title="Errors">Errors</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="index.html">In latticearc_<wbr>cli::<wbr>commands::<wbr>common</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">latticearc_cli</a>::<wbr><a href="../index.html">commands</a>::<wbr><a href="index.html">common</a></div><h1>Function <span class="fn">write_<wbr>output_<wbr>or_<wbr>stdout</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/latticearc_cli/commands/common.rs.html#556-597">Source</a> </span></div><pre class="rust item-decl"><code>pub(crate) fn write_output_or_stdout(
+    path: <a class="enum" href="https://doc.rust-lang.org/1.93.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="struct" href="https://doc.rust-lang.org/1.93.1/std/path/struct.Path.html" title="struct std::path::Path">Path</a>&gt;,
+    data: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>],
+    force: <a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.bool.html">bool</a>,
+    secret_file_mode: <a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.bool.html">bool</a>,
+    tty_guard: <a class="enum" href="https://doc.rust-lang.org/1.93.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(&amp;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.str.html">str</a>, <a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.bool.html">bool</a>)&gt;,
+    debug_label: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.str.html">str</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.104/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.unit.html">()</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Write <code>data</code> to <code>path</code>, or print it to stdout when <code>path</code> is <code>None</code>.</p>
+<p>Centralises the three near-identical “write atomically, or print to
+stdout; honor <code>--force</code>; <code>tracing::debug!</code> the path” implementations
+previously duplicated across <code>encrypt::write_output</code>,
+<code>decrypt::write_output</code>, and <code>sign::write_signature</code>:</p>
+<ul>
+<li>File writes go through <code>AtomicWrite</code>, refusing to clobber an existing
+file unless <code>force</code> is set. The <code>Failed to write {path} (use --force to overwrite)</code> context message is shared verbatim across all three
+callers.</li>
+<li><code>secret_file_mode</code> selects <code>.secret_mode()</code> (0600 perms) for file
+writes of sensitive material (decrypt’s plaintext); encrypt’s
+ciphertext and sign’s signature output are not secret and use the
+default atomic-write permissions.</li>
+<li><code>tty_guard</code>, when <code>Some((refusal_message, allow_tty))</code>, routes stdout
+output through <a href="fn.require_non_tty_output.html" title="fn latticearc_cli::commands::common::require_non_tty_output"><code>require_non_tty_output</code></a> first. <code>None</code> skips the
+guard entirely — encrypt’s ciphertext isn’t secret, and sign always
+resolves an output path so it never reaches the stdout branch.</li>
+<li>Stdout output tries UTF-8 first, falling back to hex — matching
+decrypt’s pre-existing fallback behaviour. Encrypt/sign output is
+always valid UTF-8 JSON, so those callers only ever exercise the
+UTF-8 branch (unchanged from their prior bare <code>print!("{data}")</code>).</li>
+<li><code>debug_label</code> names the value in the <code>tracing::debug!</code> breadcrumb
+emitted after a successful file write (e.g. <code>"encrypted data"</code> →
+the event message <code>"encrypted data written"</code>).</li>
+</ul>
+<h2 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h2>
+<p>Returns an error if the TTY guard rejects stdout output, or if the
+atomic file write fails (including refusing to overwrite an existing
+file without <code>--force</code>).</p>
+</div></details></section></div></main></body></html>

@@ -12,7 +12,7 @@
 <a href=#12 id=12 data-nosnippet>12</a>    sig::{
 <a href=#13 id=13 data-nosnippet>13</a>        fndsa::FnDsaSecurityLevel,
 <a href=#14 id=14 data-nosnippet>14</a>        ml_dsa::{MlDsaParameterSet, generate_keypair <span class="kw">as </span>ml_dsa_generate_keypair},
-<a href=#15 id=15 data-nosnippet>15</a>        slh_dsa::{SigningKey <span class="kw">as </span>SlhDsaSigningKey, SlhDsaSecurityLevel},
+<a href=#15 id=15 data-nosnippet>15</a>        slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey},
 <a href=#16 id=16 data-nosnippet>16</a>    },
 <a href=#17 id=17 data-nosnippet>17</a>};
 <a href=#18 id=18 data-nosnippet>18</a>
@@ -312,28 +312,28 @@
 <a href=#312 id=312 data-nosnippet>312</a>
 <a href=#313 id=313 data-nosnippet>313</a>    <span class="macro">debug!</span>(<span class="string">"Generating FN-DSA keypair ({:?})"</span>, level);
 <a href=#314 id=314 data-nosnippet>314</a>
-<a href=#315 id=315 data-nosnippet>315</a>    <span class="kw">let </span>handle = std::thread::Builder::new()
-<a href=#316 id=316 data-nosnippet>316</a>        .name(<span class="macro">format!</span>(<span class="string">"latticearc-fn-dsa-keygen-{level_name}"</span>))
-<a href=#317 id=317 data-nosnippet>317</a>        .stack_size(FN_DSA_KEYGEN_STACK)
-<a href=#318 id=318 data-nosnippet>318</a>        .spawn(<span class="kw">move </span>|| -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;u8&gt;, Vec&lt;u8&gt;)&gt; {
-<a href=#319 id=319 data-nosnippet>319</a>            <span class="kw">let </span>keypair = <span class="kw">crate</span>::primitives::sig::fndsa::KeyPair::generate(level).map_err(|e| {
-<a href=#320 id=320 data-nosnippet>320</a>                CoreError::KeyGenerationFailed {
-<a href=#321 id=321 data-nosnippet>321</a>                    reason: <span class="macro">format!</span>(<span class="string">"FN-DSA key generation failed: {e}"</span>),
-<a href=#322 id=322 data-nosnippet>322</a>                    recovery: <span class="string">"Check RNG availability"</span>.to_string(),
-<a href=#323 id=323 data-nosnippet>323</a>                }
-<a href=#324 id=324 data-nosnippet>324</a>            })<span class="question-mark">?</span>;
-<a href=#325 id=325 data-nosnippet>325</a>            <span class="kw">let </span>pk_bytes = keypair.verifying_key().to_bytes();
-<a href=#326 id=326 data-nosnippet>326</a>            <span class="kw">let </span><span class="kw-2">mut </span>sk_zeroizing = keypair.signing_key().to_bytes();
-<a href=#327 id=327 data-nosnippet>327</a>            <span class="comment">// mem::take the signing-key bytes out of the Zeroizing wrapper so
-<a href=#328 id=328 data-nosnippet>328</a>            // the final PrivateKey owns them without a transient unzeroized
-<a href=#329 id=329 data-nosnippet>329</a>            // clone on the heap (matches the Ed25519 path above).
-<a href=#330 id=330 data-nosnippet>330</a>            </span><span class="kw">let </span>sk_bytes = std::mem::take(<span class="kw-2">&amp;mut *</span>sk_zeroizing);
-<a href=#331 id=331 data-nosnippet>331</a>            <span class="prelude-val">Ok</span>((pk_bytes, sk_bytes))
-<a href=#332 id=332 data-nosnippet>332</a>        })
-<a href=#333 id=333 data-nosnippet>333</a>        .map_err(|e| CoreError::KeyGenerationFailed {
-<a href=#334 id=334 data-nosnippet>334</a>            reason: <span class="macro">format!</span>(<span class="string">"Failed to spawn FN-DSA keygen worker thread: {e}"</span>),
-<a href=#335 id=335 data-nosnippet>335</a>            recovery: <span class="string">"Investigate OS thread limits"</span>.to_string(),
-<a href=#336 id=336 data-nosnippet>336</a>        })<span class="question-mark">?</span>;
+<a href=#315 id=315 data-nosnippet>315</a>    <span class="kw">let </span>handle =
+<a href=#316 id=316 data-nosnippet>316</a>        std::thread::Builder::new()
+<a href=#317 id=317 data-nosnippet>317</a>            .name(<span class="macro">format!</span>(<span class="string">"latticearc-fn-dsa-keygen-{level_name}"</span>))
+<a href=#318 id=318 data-nosnippet>318</a>            .stack_size(FN_DSA_KEYGEN_STACK)
+<a href=#319 id=319 data-nosnippet>319</a>            .spawn(<span class="kw">move </span>|| -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;u8&gt;, Vec&lt;u8&gt;)&gt; {
+<a href=#320 id=320 data-nosnippet>320</a>                <span class="kw">let </span>keypair = <span class="kw">crate</span>::primitives::sig::fndsa::FnDsaKeyPair::generate(level)
+<a href=#321 id=321 data-nosnippet>321</a>                    .map_err(|e| CoreError::KeyGenerationFailed {
+<a href=#322 id=322 data-nosnippet>322</a>                        reason: <span class="macro">format!</span>(<span class="string">"FN-DSA key generation failed: {e}"</span>),
+<a href=#323 id=323 data-nosnippet>323</a>                        recovery: <span class="string">"Check RNG availability"</span>.to_string(),
+<a href=#324 id=324 data-nosnippet>324</a>                    })<span class="question-mark">?</span>;
+<a href=#325 id=325 data-nosnippet>325</a>                <span class="kw">let </span>pk_bytes = keypair.verifying_key().to_bytes();
+<a href=#326 id=326 data-nosnippet>326</a>                <span class="kw">let </span><span class="kw-2">mut </span>sk_zeroizing = keypair.signing_key().to_bytes();
+<a href=#327 id=327 data-nosnippet>327</a>                <span class="comment">// mem::take the signing-key bytes out of the Zeroizing wrapper so
+<a href=#328 id=328 data-nosnippet>328</a>                // the final PrivateKey owns them without a transient unzeroized
+<a href=#329 id=329 data-nosnippet>329</a>                // clone on the heap (matches the Ed25519 path above).
+<a href=#330 id=330 data-nosnippet>330</a>                </span><span class="kw">let </span>sk_bytes = std::mem::take(<span class="kw-2">&amp;mut *</span>sk_zeroizing);
+<a href=#331 id=331 data-nosnippet>331</a>                <span class="prelude-val">Ok</span>((pk_bytes, sk_bytes))
+<a href=#332 id=332 data-nosnippet>332</a>            })
+<a href=#333 id=333 data-nosnippet>333</a>            .map_err(|e| CoreError::KeyGenerationFailed {
+<a href=#334 id=334 data-nosnippet>334</a>                reason: <span class="macro">format!</span>(<span class="string">"Failed to spawn FN-DSA keygen worker thread: {e}"</span>),
+<a href=#335 id=335 data-nosnippet>335</a>                recovery: <span class="string">"Investigate OS thread limits"</span>.to_string(),
+<a href=#336 id=336 data-nosnippet>336</a>            })<span class="question-mark">?</span>;
 <a href=#337 id=337 data-nosnippet>337</a>
 <a href=#338 id=338 data-nosnippet>338</a>    <span class="kw">let </span>(pk_bytes, sk_bytes) =
 <a href=#339 id=339 data-nosnippet>339</a>        handle.join().map_err(|_panic| CoreError::KeyGenerationFailed {
