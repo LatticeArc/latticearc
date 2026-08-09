@@ -15,8 +15,8 @@
 use crate::primitives::hash::sha2::sha256;
 use crate::zkp::error::{Result, ZkpError};
 use k256::{
-    EncodedPoint, FieldBytes, ProjectivePoint, Scalar,
-    elliptic_curve::{Group, PrimeField, sec1::FromEncodedPoint},
+    FieldBytes, ProjectivePoint, Scalar, Sec1Point,
+    elliptic_curve::{Group, PrimeField, sec1::FromSec1Point},
 };
 use subtle::ConstantTimeEq;
 
@@ -49,8 +49,10 @@ pub(super) fn sample_nonzero_scalar() -> Scalar {
     loop {
         let nonce_bytes =
             zeroize::Zeroizing::new(crate::primitives::rand::csprng::random_bytes(32));
-        let candidate: Option<Scalar> =
-            Scalar::from_repr(*FieldBytes::from_slice(&nonce_bytes)).into();
+        let Ok(repr) = FieldBytes::try_from(&nonce_bytes[..]) else {
+            continue;
+        };
+        let candidate: Option<Scalar> = Scalar::from_repr(repr).into();
         if let Some(s) = candidate
             && !bool::from(s.ct_eq(&Scalar::ZERO))
         {
@@ -75,9 +77,9 @@ pub(super) fn sample_nonzero_scalar() -> Scalar {
 /// encoding, or [`ZkpError::InvalidPublicKey`] if the bytes decode to a
 /// point that is not on the curve, or is the identity.
 pub(super) fn parse_compressed_point(bytes: &[u8; 33]) -> Result<ProjectivePoint> {
-    let encoded = EncodedPoint::from_bytes(bytes)
+    let encoded = Sec1Point::from_bytes(bytes)
         .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {e}")))?;
-    let point: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded).into();
+    let point: Option<ProjectivePoint> = ProjectivePoint::from_sec1_point(&encoded).into();
     let p = point.ok_or(ZkpError::InvalidPublicKey)?;
     if bool::from(p.is_identity()) {
         return Err(ZkpError::InvalidPublicKey);
@@ -133,7 +135,7 @@ where
 
         let hash = sha256(&buf)
             .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?;
-        let cand: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
+        let cand: Option<Scalar> = Scalar::from_repr(FieldBytes::from(hash)).into();
         if let Some(s) = cand
             && !bool::from(s.ct_eq(&Scalar::ZERO))
         {

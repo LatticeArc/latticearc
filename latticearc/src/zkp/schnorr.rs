@@ -27,7 +27,7 @@
 //! - Uses secp256k1 curve (same as Bitcoin/Ethereum)
 //! - SHA-256 for Fiat-Shamir challenge
 //! - Constant-time operations where possible
-//! - **Nonce k is generated fresh from `OsRng` on every call to `prove()`**
+//! - **Nonce k is generated fresh from the OS CSPRNG on every call to `prove()`**
 //!
 //! # Warning: Nonce Reuse is Catastrophic
 //!
@@ -40,7 +40,7 @@
 //! ```
 //!
 //! This implementation prevents nonce reuse by generating `k` from the OS
-//! CSPRNG (`OsRng`) on every proof. **Never modify `prove()` to accept an
+//! CSPRNG on every proof. **Never modify `prove()` to accept an
 //! external nonce or to cache/reuse nonces.**
 
 use crate::zkp::ec_utils;
@@ -99,7 +99,7 @@ fn fiat_shamir_challenge(
     // `from_repr` below cannot observe `None` in practice. We still
     // thread the (unreachable) failure through `Result` rather than
     // assume infallibility — lints deny `.expect()`/`.unwrap()`.
-    let scalar: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&hash)).into();
+    let scalar: Option<Scalar> = Scalar::from_repr(FieldBytes::from(hash)).into();
     scalar.ok_or(ZkpError::InvalidScalar)
 }
 
@@ -272,7 +272,7 @@ impl SchnorrProver {
         use zeroize::Zeroizing;
 
         // Parse secret key
-        let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.secret)).into();
+        let x: Option<Scalar> = Scalar::from_repr(FieldBytes::from(self.secret)).into();
         let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
         // Nonce sampling (rejection sampling, rejects k = 0) lives in
@@ -344,7 +344,7 @@ impl SchnorrVerifier {
         let r_point = ec_utils::parse_compressed_point(proof.commitment())?;
 
         // Parse response s
-        let s: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(proof.response())).into();
+        let s: Option<Scalar> = Scalar::from_repr(FieldBytes::from(*proof.response())).into();
         let s = s.ok_or(ZkpError::InvalidScalar)?;
 
         // Compute challenge c = H(G || P || R || context)

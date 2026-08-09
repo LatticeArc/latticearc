@@ -53,39 +53,53 @@ pub fn allocate_secure_buffer(size: usize) -> Result<SecretVec> {
 
 // Secure RNG implementation
 
-use rand::rngs::OsRng;
+use rand::rngs::SysRng;
 use rand_core::UnwrapErr;
 
 /// Cryptographically secure random number generator.
 ///
-/// Wraps `rand::rngs::OsRng` (which is `TryRngCore` in rand 0.9, fallible at
+/// Wraps `rand::rngs::SysRng` (which is `TryRng` in rand 0.10, fallible at
 /// the type level) in `rand_core::UnwrapErr` so it presents the infallible
-/// `RngCore` surface that the rest of the API expects. OS RNG failure is
+/// `Rng` surface that the rest of the API expects. OS RNG failure is
 /// fatal — see `crate::primitives::rand::csprng` module docs for the
 /// rationale.
-pub type SecureRng = UnwrapErr<OsRng>;
+pub type SecureRng = UnwrapErr<SysRng>;
 
-use rand::{RngCore, SeedableRng}; // SeedableRng provides ChaCha20Rng::from_os_rng()
+use rand::Rng;
+#[cfg(not(feature = "fips"))]
+use rand::SeedableRng; // provides ChaCha20Rng::try_from_rng()
+#[cfg(not(feature = "fips"))]
 use rand_chacha::ChaCha20Rng;
 use std::sync::{Mutex, OnceLock};
 
 // Thread-local fallback RNG for poisoned-lock recovery.
 //
-// `from_os_rng()` (replaced `from_entropy()` in rand 0.9) is infallible
-// by signature but **panics** if the underlying OS RNG fails. The
-// `thread_local!` initializer runs lazily on first access from each
-// thread; this panic therefore fires exactly on the "fallback" code
-// path that exists to recover from a poisoned global RNG — so a caller
-// who calls `RngHandle::secure()` while the global path is poisoned AND
-// the OS RNG is dead will get a panic rather than the documented
-// `LatticeArcError::RandomError`. The window is narrow (poisoned mutex
-// + OS-RNG simultaneously unavailable) but real; if it ever fires, a
-// secure RNG is fundamentally unobtainable and crashing is the only
-// safe outcome — using a deterministic seed in this situation would
-// silently produce predictable "random" bytes. See [`RngHandle::secure`]
-// for the contract.
+// The seeding helper below **panics** if the underlying OS RNG fails
+// (`try_from_rng` is the rand 0.10 replacement for the removed
+// `from_os_rng()`). The `thread_local!` initializer runs lazily on first
+// access from each thread; this panic therefore fires exactly on the
+// "fallback" code path that exists to recover from a poisoned global RNG
+// — so a caller who calls `RngHandle::secure()` while the global path is
+// poisoned AND the OS RNG is dead will get a panic rather than the
+// documented `LatticeArcError::RandomError`. The window is narrow
+// (poisoned mutex + OS-RNG simultaneously unavailable) but real; if it
+// ever fires, a secure RNG is fundamentally unobtainable and crashing is
+// the only safe outcome — using a deterministic seed in this situation
+// would silently produce predictable "random" bytes. See
+// [`RngHandle::secure`] for the contract.
+#[cfg(not(feature = "fips"))]
+fn os_seeded_chacha() -> ChaCha20Rng {
+    #[expect(
+        clippy::expect_used,
+        reason = "OS-RNG failure during fallback seeding is fatal by contract; \
+                  see comment above and csprng module docs"
+    )]
+    ChaCha20Rng::try_from_rng(&mut SysRng).expect("OS RNG failure")
+}
+
+#[cfg(not(feature = "fips"))]
 thread_local! {
-    static FALLBACK_RNG: Mutex<ChaCha20Rng> = Mutex::new(ChaCha20Rng::from_os_rng());
+    static FALLBACK_RNG: Mutex<ChaCha20Rng> = Mutex::new(os_seeded_chacha());
 }
 
 /// RNG handle with fallback capability.
@@ -119,9 +133,9 @@ impl<'a> RngHandle<'a> {
     /// the non-FIPS fallback.
     ///
     /// # Panics
-    /// In non-FIPS builds, the thread-local fallback uses
-    /// `ChaCha20Rng::from_os_rng()`, whose `rand_core` 0.9 contract is to
-    /// **panic** when the OS RNG is unavailable (`getrandom` failure).
+    /// In non-FIPS builds, the thread-local fallback seeds a `ChaCha20Rng`
+    /// from the OS RNG (`os_seeded_chacha`), which **panics** when the OS
+    /// RNG is unavailable (`getrandom` failure).
     /// `secure()` therefore panics — rather than returning
     /// `LatticeArcError::RandomError` — when the global RNG is poisoned
     /// AND the OS RNG is dead at the moment of the thread-local's lazy
@@ -138,7 +152,7 @@ impl<'a> RngHandle<'a> {
                 }
                 #[cfg(not(feature = "fips"))]
                 {
-                    tracing::warn!("Global OsRng unavailable; falling back to thread-local RNG");
+                    tracing::warn!("Global OS RNG unavailable; falling back to thread-local RNG");
                     Ok(RngHandle::ThreadLocal)
                 }
             }
@@ -256,7 +270,7 @@ static GLOBAL_SECURE_RNG: OnceLock<Mutex<SecureRng>> = OnceLock::new();
 /// # Errors
 /// Returns an error if RNG initialization fails
 pub fn get_global_secure_rng() -> Result<&'static Mutex<SecureRng>> {
-    Ok(GLOBAL_SECURE_RNG.get_or_init(|| Mutex::new(UnwrapErr(OsRng))))
+    Ok(GLOBAL_SECURE_RNG.get_or_init(|| Mutex::new(UnwrapErr(SysRng))))
 }
 
 /// Initialize the global secure RNG

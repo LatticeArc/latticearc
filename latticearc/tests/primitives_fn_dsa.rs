@@ -46,9 +46,9 @@ use rand_core_0_6::OsRng;
 /// deterministic-keygen test seeds a `ChaCha20Rng` from `rand_chacha 0.9`.
 /// Drop once the dalek 3.x stable line lands and we can drop the
 /// `rand_core_0_6` bridge entirely.
-struct Rand06Adapter<R: rand::RngCore>(R);
+struct Rand06Adapter<R: rand::Rng>(R);
 
-impl<R: rand::RngCore> rand_core_0_6::RngCore for Rand06Adapter<R> {
+impl<R: rand::Rng> rand_core_0_6::RngCore for Rand06Adapter<R> {
     fn next_u32(&mut self) -> u32 {
         self.0.next_u32()
     }
@@ -64,7 +64,7 @@ impl<R: rand::RngCore> rand_core_0_6::RngCore for Rand06Adapter<R> {
     }
 }
 
-impl<R: rand::RngCore> rand_core_0_6::CryptoRng for Rand06Adapter<R> {}
+impl<R: rand::Rng> rand_core_0_6::CryptoRng for Rand06Adapter<R> {}
 
 /// Helper to run FN-DSA tests with sufficient stack size
 /// FN-DSA requires ~32MB stack for safe operation in debug builds

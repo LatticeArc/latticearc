@@ -12,7 +12,8 @@ use super::traits::{EcKeyPair, EcSignature, sealed};
 use crate::prelude::error::{LatticeArcError, Result};
 use crate::primitives::resource_limits::validate_signature_size;
 use k256::ecdsa::{Signature, SigningKey, VerifyingKey, signature::Signer, signature::Verifier};
-use rand_core::RngCore;
+use k256::elliptic_curve::scalar::IsHigh;
+use rand_core::Rng;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
@@ -27,7 +28,7 @@ use zeroize::Zeroizing;
 /// `0x06`/`0x07` prefix) forms are both refused, because the same key under
 /// different encodings produces distinct PK-byte identities for downstream
 /// consumers that hash or address-derive over the public key. Callers that
-/// derive bytes from `k256::VerifyingKey::to_encoded_point(true)`
+/// derive bytes from `k256::VerifyingKey::to_sec1_point(true)`
 /// (compressed) must re-encode to uncompressed before passing them to this
 /// type.
 ///
@@ -80,7 +81,7 @@ impl Secp256k1KeyPair {
         // opaque error string. Upstream k256
         // wording is version-volatile and would leak which exact
         // validity check failed (e.g. zero scalar vs out-of-range).
-        SigningKey::from_bytes((&self.secret_bytes[..]).into()).map_err(|e| {
+        SigningKey::from_slice(&self.secret_bytes[..]).map_err(|e| {
             tracing::debug!(error = %e, "secp256k1 signing key reconstruction failed");
             LatticeArcError::KeyGenerationError("invalid secp256k1 secret key".to_string())
         })
@@ -106,7 +107,7 @@ impl EcKeyPair for Secp256k1KeyPair {
             let mut sk_opt: Option<SigningKey> = None;
             for _ in 0..8u8 {
                 rng.fill_bytes(secret_bytes.as_mut_slice());
-                if let Ok(sk_candidate) = SigningKey::from_bytes((&secret_bytes[..]).into()) {
+                if let Ok(sk_candidate) = SigningKey::from_slice(&secret_bytes[..]) {
                     sk_opt = Some(sk_candidate);
                     break;
                 }
@@ -146,7 +147,7 @@ impl EcKeyPair for Secp256k1KeyPair {
 
         // Validate that the bytes form a valid scalar. audit
         // fix (H9): opaque error string for k256 validity failures.
-        let sk = SigningKey::from_bytes(secret_key_bytes.into()).map_err(|e| {
+        let sk = SigningKey::from_slice(secret_key_bytes).map_err(|e| {
             tracing::debug!(error = %e, "secp256k1 from_secret_key parse failed");
             LatticeArcError::InvalidKey("invalid secp256k1 secret key".to_string())
         })?;
@@ -171,7 +172,7 @@ impl EcKeyPair for Secp256k1KeyPair {
     }
 
     fn public_key_bytes(&self) -> Vec<u8> {
-        self.public_key.to_encoded_point(false).as_bytes().to_vec()
+        self.public_key.to_sec1_point(false).as_bytes().to_vec()
     }
 
     fn secret_key_bytes(&self) -> Zeroizing<Vec<u8>> {
@@ -214,8 +215,8 @@ impl EcSignature for Secp256k1Signature {
         // high-S unconditionally here; callers that need legacy
         // behavior can re-normalize via `Signature::normalize_s` before
         // calling.
-        if let Some(_normalized) = signature.normalize_s() {
-            // `normalize_s()` returns `Some` when the input was high-S.
+        if bool::from(signature.s().is_high()) {
+            // `s().is_high()` flags a non-canonical high-S signature.
             tracing::debug!("secp256k1 verify rejected: high-S signature (BIP-146/EIP-2)");
             return Err(LatticeArcError::SignatureVerificationError(
                 "secp256k1 verification failed".to_string(),
@@ -270,18 +271,17 @@ impl EcSignature for Secp256k1Signature {
         }
 
         // opaque parse error string.
-        let signature = Signature::from_bytes(bytes.into()).map_err(|e| {
+        let signature = Signature::from_slice(bytes).map_err(|e| {
             tracing::debug!(error = %e, "secp256k1 signature parse failed");
             LatticeArcError::InvalidSignature("invalid secp256k1 signature".to_string())
         })?;
 
         // reject high-S at parse time so
-        // downstream code never sees malleable signatures. `normalize_s`
-        // returns `Some` when the input was high-S; treat that as a
-        // parse failure rather than silently canonicalizing, so the
-        // wire format the producer chose is preserved or rejected (no
-        // surprise rewrite).
-        if signature.normalize_s().is_some() {
+        // downstream code never sees malleable signatures. `s().is_high()`
+        // flags a high-S signature; treat that as a parse failure rather
+        // than silently canonicalizing, so the wire format the producer
+        // chose is preserved or rejected (no surprise rewrite).
+        if bool::from(signature.s().is_high()) {
             tracing::debug!("secp256k1 signature_from_bytes rejected: high-S (BIP-146/EIP-2)");
             return Err(LatticeArcError::InvalidSignature(
                 "invalid secp256k1 signature".to_string(),
@@ -318,10 +318,9 @@ impl Secp256k1KeyPair {
         // canonicalize the produced signature
         // to low-S so downstream consumers (BIP-146 / EIP-2 protocols
         // that hash the signature into a txid) see a single canonical
-        // representation. `normalize_s` returns `Some(low_s)` when the
-        // input was high-S and `None` when already low-S; either way,
-        // the result returned is canonical.
-        Ok(signature.normalize_s().unwrap_or(signature))
+        // representation. `normalize_s` returns the canonical low-S form
+        // (the identity when the input is already low-S).
+        Ok(signature.normalize_s())
     }
 }
 
@@ -517,7 +516,7 @@ mod tests {
 
         // Sanity: the test setup actually produced a high-S signature.
         assert!(
-            high_sig.normalize_s().is_some(),
+            bool::from(high_sig.s().is_high()),
             "test setup bug: constructed signature is not high-S"
         );
 

@@ -1135,7 +1135,7 @@ mod tests {
         // wanting the optimization: pre-set `SecurityLevel::Standard`,
         // or use `select_encryption_scheme_typed` (no downgrade path).
         use crate::primitives::rand::secure_rng;
-        use rand::RngCore;
+        use rand::Rng;
         let mut data = vec![0u8; 8192];
         secure_rng().fill_bytes(&mut data);
         let config = CoreConfig::new()
@@ -1156,7 +1156,7 @@ mod tests {
         // explicitly declares `Standard`, ML-KEM-512 is the requested
         // level — no refusal, just normal selection.
         use crate::primitives::rand::secure_rng;
-        use rand::RngCore;
+        use rand::Rng;
         let mut data = vec![0u8; 8192];
         secure_rng().fill_bytes(&mut data);
         let config = CoreConfig::new()
@@ -1237,7 +1237,7 @@ mod tests {
     #[test]
     fn test_performance_preference_influences_encryption_scheme_succeeds() {
         use crate::primitives::rand::secure_rng;
-        use rand::RngCore;
+        use rand::Rng;
         // Use random data so the size-conditioned branch activates. Post-L3 audit
         // fix: caller-declared `SecurityLevel::High` + `Speed` + Random
         // data REFUSES (was: silent downgrade to ML-KEM-512). To still

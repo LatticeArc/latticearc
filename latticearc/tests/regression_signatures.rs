@@ -277,17 +277,17 @@ fn schnorr_prove_uses_rejection_sampling_no_panic() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn dlog_equality_canonical_constructor_uses_canonical_bases() {
+    use k256::elliptic_curve::Generate;
     use k256::{
         FieldBytes, ProjectivePoint, Scalar, SecretKey,
         elliptic_curve::{PrimeField, group::GroupEncoding},
     };
     use latticearc::zkp::commitment::PedersenCommitment;
     use latticearc::zkp::sigma::{DlogEqualityProof, DlogEqualityStatement};
-    use rand_core_0_6::OsRng;
 
-    let secret_key = SecretKey::random(&mut OsRng);
+    let secret_key = SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
     let x_bytes: [u8; 32] = secret_key.to_bytes().into();
-    let x: Scalar = Scalar::from_repr(*FieldBytes::from_slice(&x_bytes)).unwrap();
+    let x: Scalar = Scalar::from_repr(FieldBytes::from(x_bytes)).unwrap();
     let g = ProjectivePoint::GENERATOR;
     let h = PedersenCommitment::generator_h().unwrap();
     let p = g * x;
@@ -304,16 +304,16 @@ fn dlog_equality_canonical_constructor_uses_canonical_bases() {
 #[cfg(not(feature = "fips"))]
 #[test]
 fn dlog_equality_rejects_non_canonical_bases() {
+    use k256::elliptic_curve::Generate;
     use k256::{
         FieldBytes, ProjectivePoint, Scalar, SecretKey,
         elliptic_curve::{PrimeField, group::GroupEncoding},
     };
     use latticearc::zkp::sigma::{DlogEqualityProof, DlogEqualityStatement};
-    use rand_core_0_6::OsRng;
 
-    let secret_key = SecretKey::random(&mut OsRng);
+    let secret_key = SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
     let x_bytes: [u8; 32] = secret_key.to_bytes().into();
-    let x: Scalar = Scalar::from_repr(*FieldBytes::from_slice(&x_bytes)).unwrap();
+    let x: Scalar = Scalar::from_repr(FieldBytes::from(x_bytes)).unwrap();
     let g = ProjectivePoint::GENERATOR;
     let h_bad = g * Scalar::from(2u64);
     let p = g * x;

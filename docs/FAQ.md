@@ -162,12 +162,9 @@ let is_valid = verify_with_anchor(
 
 ```rust
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-use rand::rngs::OsRng;
-
-let mut rng = OsRng;
-let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
-let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &pk)?;
-let recovered = MlKem::decapsulate(&sk, &ciphertext)?;
+let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
+let (shared_secret, ciphertext) = MlKem::encapsulate(&pk)?;
+let recovered = sk.decapsulate(&ciphertext)?;
 ```
 
 ### How do I use hybrid encryption?

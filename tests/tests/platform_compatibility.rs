@@ -489,9 +489,9 @@ fn test_env_thread_local_isolation_succeeds() {
 #[test]
 fn test_env_random_number_generation_succeeds() {
     // Random number generation should work
-    use rand::RngCore;
+    use rand::Rng;
 
-    let mut rng = rand_core::UnwrapErr(rand::rngs::OsRng); // rand 0.9 OsRng is TryRngCore
+    let mut rng = rand_core::UnwrapErr(rand::rngs::SysRng); // rand 0.9 OsRng is TryRngCore
     let mut buffer = [0u8; 32];
     rng.fill_bytes(&mut buffer);
 

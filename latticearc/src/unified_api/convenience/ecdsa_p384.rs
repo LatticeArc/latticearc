@@ -10,6 +10,7 @@ use p384::ecdsa::{
     Signature, SigningKey, VerifyingKey,
     signature::{Signer, Verifier},
 };
+use p384::elliptic_curve::Generate;
 use zeroize::Zeroizing;
 
 use crate::primitives::resource_limits::validate_signature_size;
@@ -31,8 +32,8 @@ fn verifying_key(public_key: &[u8]) -> Result<VerifyingKey> {
 /// Returns an error if the session is invalid under `SecurityMode::Verified`.
 pub fn generate_ecdsa_p384_keypair(mode: SecurityMode) -> Result<(Vec<u8>, Zeroizing<Vec<u8>>)> {
     mode.validate()?;
-    let sk = SigningKey::random(&mut rand_core_0_6::OsRng);
-    let public_key = VerifyingKey::from(&sk).to_encoded_point(false).as_bytes().to_vec();
+    let sk = SigningKey::generate_from_rng(&mut crate::primitives::rand::secure_rng());
+    let public_key = VerifyingKey::from(&sk).to_sec1_point(false).as_bytes().to_vec();
     let secret_key = Zeroizing::new(sk.to_bytes().to_vec());
     Ok((public_key, secret_key))
 }

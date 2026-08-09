@@ -24,7 +24,7 @@ use crate::primitives::aead::{
 };
 use crate::primitives::rand::secure_rng;
 use aws_lc_rs::aead::{AES_128_GCM, AES_256_GCM, Aad, LessSafeKey, Nonce as AwsNonce, UnboundKey};
-use rand::RngCore;
+use rand::Rng;
 use tracing::instrument;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 

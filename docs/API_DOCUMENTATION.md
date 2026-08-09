@@ -371,12 +371,9 @@ let valid = verify_hybrid_signature(b"important message", &signature, &pk, Secur
 
 ```rust
 use latticearc::primitives::kem::ml_kem::*;
-use rand::rngs::OsRng;
-
-let mut rng = OsRng;
-let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)?;
-let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &pk)?;
-let recovered = MlKem::decapsulate(&sk, &ciphertext)?;
+let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)?;
+let (shared_secret, ciphertext) = MlKem::encapsulate(&pk)?;
+let recovered = sk.decapsulate(&ciphertext)?;
 assert_eq!(shared_secret, recovered);
 ```
 

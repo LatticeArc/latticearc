@@ -5,7 +5,7 @@
 
 //! Cryptographically Secure Random Number Generator
 //!
-//! This module provides CSPRNG using OsRng.
+//! This module provides CSPRNG using the OS entropy source (`SysRng`).
 //!
 //! # Failure semantics — process abort vs `Result`
 //!
@@ -13,7 +13,7 @@
 //! handle OS-RNG failure differently. Callers must understand the split:
 //!
 //! - **`csprng::random_bytes` / `random_u32` / `random_u64`** (this module):
-//!   collapse `TryRngCore` errors via `expect("OS RNG failure")` and
+//!   collapse `TryRng` errors via `expect("OS RNG failure")` and
 //!   **panic, aborting the process** if the OS RNG returns an error. Use
 //!   when an OS RNG failure should be treated as fatal.
 //! - **`security::RngHandle::fill_bytes`** (sibling module): returns
@@ -27,21 +27,21 @@
 //! environments where graceful degradation matters more than
 //! fail-fast, the `RngHandle` path provides the alternative.
 //!
-//! # `rand` 0.9 migration note
+//! # `rand` migration note
 //!
-//! `rand` 0.9 made the OS RNG fallible at the type level — `rand_core::OsRng`
-//! now implements `TryRngCore` (returning `Result`) rather than `RngCore`
-//! (infallible). This file is the single, audited place where that fallibility
-//! is collapsed back to a panic. The `expect`/`unwrap` escape lives here only
-//! and is explicitly documented; everywhere else uses these wrappers or
-//! [`secure_rng()`] to stay clippy-clean.
+//! The OS RNG is fallible at the type level — `rand::rngs::SysRng` (the
+//! `rand` 0.10 rename of `OsRng`) implements `TryRng` (returning `Result`)
+//! rather than `Rng` (infallible). This file is the single, audited place
+//! where that fallibility is collapsed back to a panic. The `expect`/`unwrap`
+//! escape lives here only and is explicitly documented; everywhere else uses
+//! these wrappers or [`secure_rng()`] to stay clippy-clean.
 
-use rand::{CryptoRng, TryRngCore, rngs::OsRng};
+use rand::{CryptoRng, TryRng, rngs::SysRng};
 
-/// Returns an infallible CSPRNG suitable as a `RngCore + CryptoRng` argument.
+/// Returns an infallible CSPRNG suitable as an `Rng + CryptoRng` argument.
 ///
-/// Internally, this wraps `rand::rngs::OsRng` (which is `TryRngCore` in
-/// `rand` 0.9) in `rand_core::UnwrapErr`, panicking on OS-RNG failure. See
+/// Internally, this wraps `rand::rngs::SysRng` (which is `TryRng` in
+/// `rand` 0.10) in `rand_core::UnwrapErr`, panicking on OS-RNG failure. See
 /// the module-level docs for why panicking is the right semantic for
 /// `getrandom`/`/dev/urandom` failure on modern systems.
 ///
@@ -57,7 +57,7 @@ use rand::{CryptoRng, TryRngCore, rngs::OsRng};
 #[doc(hidden)]
 #[must_use]
 pub fn secure_rng() -> impl CryptoRng {
-    rand_core::UnwrapErr(OsRng)
+    rand_core::UnwrapErr(SysRng)
 }
 
 /// Generate random bytes.
@@ -69,8 +69,8 @@ pub fn secure_rng() -> impl CryptoRng {
 #[must_use]
 pub fn random_bytes(count: usize) -> Vec<u8> {
     let mut bytes = vec![0u8; count];
-    #[expect(clippy::expect_used, reason = "see module-level rand 0.9 migration note")]
-    OsRng.try_fill_bytes(&mut bytes).expect("OS RNG failure");
+    #[expect(clippy::expect_used, reason = "see module-level rand migration note")]
+    SysRng.try_fill_bytes(&mut bytes).expect("OS RNG failure");
     bytes
 }
 
@@ -81,8 +81,8 @@ pub fn random_bytes(count: usize) -> Vec<u8> {
 /// Panics if the OS entropy source returns an error. See module-level docs.
 #[must_use]
 pub fn random_u32() -> u32 {
-    #[expect(clippy::expect_used, reason = "see module-level rand 0.9 migration note")]
-    OsRng.try_next_u32().expect("OS RNG failure")
+    #[expect(clippy::expect_used, reason = "see module-level rand migration note")]
+    SysRng.try_next_u32().expect("OS RNG failure")
 }
 
 /// Generate random u64.
@@ -92,8 +92,8 @@ pub fn random_u32() -> u32 {
 /// Panics if the OS entropy source returns an error. See module-level docs.
 #[must_use]
 pub fn random_u64() -> u64 {
-    #[expect(clippy::expect_used, reason = "see module-level rand 0.9 migration note")]
-    OsRng.try_next_u64().expect("OS RNG failure")
+    #[expect(clippy::expect_used, reason = "see module-level rand migration note")]
+    SysRng.try_next_u64().expect("OS RNG failure")
 }
 
 #[cfg(test)]

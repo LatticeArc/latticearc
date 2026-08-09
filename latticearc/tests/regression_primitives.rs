@@ -237,7 +237,7 @@ mod m2_zkp_constant_time {
 
     #[test]
     fn m2_dlog_equality_verify_valid_proof() {
-        let x = Scalar::random(&mut rand_core_0_6::OsRng);
+        let x = Scalar::random(&mut latticearc::primitives::rand::secure_rng());
         let g = ProjectivePoint::GENERATOR;
         let h = PedersenCommitment::generator_h().unwrap();
         let p = g * x;
@@ -258,8 +258,8 @@ mod m2_zkp_constant_time {
 
     #[test]
     fn m2_dlog_equality_wrong_secret_fails() {
-        let x = Scalar::random(&mut rand_core_0_6::OsRng);
-        let y = Scalar::random(&mut rand_core_0_6::OsRng); // wrong secret
+        let x = Scalar::random(&mut latticearc::primitives::rand::secure_rng());
+        let y = Scalar::random(&mut latticearc::primitives::rand::secure_rng()); // wrong secret
         let g = ProjectivePoint::GENERATOR;
         let h = PedersenCommitment::generator_h().unwrap();
         let p = g * x;
@@ -480,7 +480,7 @@ mod m10_dlog_equality_debug_redaction {
 
     #[test]
     fn m10_debug_output_redacts_response() {
-        let x = Scalar::random(&mut rand_core_0_6::OsRng);
+        let x = Scalar::random(&mut latticearc::primitives::rand::secure_rng());
         let g = ProjectivePoint::GENERATOR;
         let h = PedersenCommitment::generator_h().unwrap();
         let p = g * x;
@@ -511,7 +511,7 @@ mod m10_dlog_equality_debug_redaction {
 
     #[test]
     fn m10_debug_shows_commitments() {
-        let x = Scalar::random(&mut rand_core_0_6::OsRng);
+        let x = Scalar::random(&mut latticearc::primitives::rand::secure_rng());
         let g = ProjectivePoint::GENERATOR;
         let h = PedersenCommitment::generator_h().unwrap();
 

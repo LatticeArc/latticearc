@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.11.0] — 2026-08-09
+
+### Changed (dependencies — aws-lc-rs 1.18, FIPS module 4.x)
+
+- `aws-lc-rs` 1.17.3 → 1.18.0 (`aws-lc-sys` 0.44, `aws-lc-fips-sys` 0.14.1).
+  **FIPS module change**: the `fips` build now vendors the AWS-LC-FIPS
+  **4.x** module line (lab validation complete, NIST certificate in process
+  on the CMVP Modules-In-Process list). The previous 3.x line holds issued
+  certificates #5314 (static) / #5298 (dynamic); consumers who require a
+  certificate-issued module today should use LatticeArc 0.10.x
+  (aws-lc-rs <1.18). See `docs/FIPS_SECURITY_POLICY.md`.
+- aws-lc-rs 1.18 also stabilizes the ML-DSA `signature` API — but migrating
+  our ML-DSA off `fips204` (#17) remains blocked: the stable API is
+  empty-context-only ("pure" mode), while LatticeArc's hybrid signatures
+  bind a non-empty FIPS 204 domain-separation context. The underlying
+  AWS-LC C API supports context strings; tracking upstream Rust plumbing.
+- Routine patch/minor refresh of the wider tree (thiserror 2.0.20,
+  zerocopy 0.8.56, clap 4.6.6, wasm-bindgen 0.2.127, cc, regex-automata,
+  generic-array 0.14.9, …). `crypto-common` resolves to 0.1.6 on the
+  digest-0.10 generation because 0.1.7 exact-pins `generic-array =0.14.7`
+  (no advisory on either version; 0.2.x coexists for the EC 0.14 stack).
+
+### Changed (dependencies — EC cohort + rand stack, closes #46)
+
+Upgraded the elliptic-curve group and the `rand` stack as one unit (they are
+coupled: `elliptic-curve 0.14` requires the traits-only `rand_core 0.10`):
+
+- `ed25519-dalek` 2.2.0 → 3.0.0, `x25519-dalek` 2.0.1 → 3.0.0 (tests-only)
+- `k256` 0.13.4 → 0.14.0, `p384` 0.13.1 → 0.14.0 (`ecdsa` 0.17 arrives via
+  the curve crates' re-exports)
+- `rand` 0.9.4 → 0.10.2, `rand_core` 0.9 → 0.10, `rand_chacha` 0.9 → 0.10,
+  `getrandom` 0.3 → 0.4
+- Dropped two dead workspace pins: `p256` (no consumer in any workspace
+  member) and the bare `ecdsa` crate (only ever reached through
+  `p384::ecdsa` / `k256::ecdsa`)
+
+Behavioral notes:
+
+- OS entropy is now `rand::rngs::SysRng` (the 0.10 rename of `OsRng`);
+  the `primitives::security::SecureRng` alias is now
+  `UnwrapErr<SysRng>`. Entropy source and failure semantics are unchanged
+  (getrandom-backed, fail-fast on OS-RNG error).
+- Ed25519 and ECDSA-P384 key generation now route through the crate's
+  audited `secure_rng()` plumbing instead of a separately-imported
+  `rand_core 0.6` `OsRng` — one CSPRNG surface to audit. The
+  `rand_core_0_6` bridge remains only for `fn-dsa` / `fips204` / `fips205`.
+- secp256k1 high-S rejection now uses `Signature::s().is_high()`
+  (`ecdsa 0.17` changed `normalize_s()` to return the canonical signature
+  instead of `Option`). Accept/reject behavior is identical.
+- k256 SEC1 API renames applied (`EncodedPoint` → `Sec1Point`,
+  `from/to_encoded_point` → `from/to_sec1_point`); wire formats unchanged.
+
+v0.10.0 remains the last release on the certificate-issued AWS-LC-FIPS 3.x
+module; this release moves to aws-lc-rs 1.18 / FIPS 4.x (see above).
+
+### Documentation
+
+- `sanitizers.yml`: recorded that aws-lc-rs supports
+  `AWS_LC_SYS_SANITIZER=msan` since April 2026 (aws-lc-rs PR #1100), so the
+  historical FFI false-positive blocker for MSan is gone; the 4-hour job-cap
+  budget remains the reason MSan is not run (#36).
+
+---
+
 ## [0.10.0] — 2026-08-09
 
 ### Removed (breaking — pre-1.0 dead-surface cleanup)

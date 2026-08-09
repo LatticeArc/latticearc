@@ -139,9 +139,11 @@ base64 = { workspace = true }
 # =============================================================================
 # Cryptography - FIPS 140-3 validated
 # =============================================================================
-# ML-KEM (FIPS 203) with FIPS certification (Certificate #4631, #4759, #4816)
+# ML-KEM (FIPS 203) via the AWS-LC-FIPS module (4.x: certificate in process;
+# 3.x line holds issued certificates #5314/#5298 — see docs/FIPS_SECURITY_POLICY.md)
 aws-lc-rs = { workspace = true }
-# ML-DSA (FIPS 204) - keep until aws-lc-rs FIPS branch includes ML-DSA
+# ML-DSA (FIPS 204) - keep until aws-lc-rs stable ML-DSA gains FIPS 204
+# context-string support (#17); the current stable API is empty-context-only
 fips204 = { workspace = true }
 # SLH-DSA (FIPS 205) - not yet in aws-lc-rs
 fips205 = { workspace = true }
@@ -159,7 +161,6 @@ chacha20poly1305 = { workspace = true }
 ed25519-dalek = { workspace = true }
 k256 = { workspace = true, features = ["sha256"] }
 p384 = { workspace = true }
-ecdsa = { workspace = true }
 blake2 = { workspace = true }
 ciborium = { workspace = true }
 
@@ -193,7 +194,6 @@ parking_lot = { workspace = true }
 # =============================================================================
 # ZKP
 # =============================================================================
-elliptic-curve = { workspace = true, features = ["sec1"] }
 # Optional: ZKP serialization
 serde_with = { version = "3.20", optional = true }
 

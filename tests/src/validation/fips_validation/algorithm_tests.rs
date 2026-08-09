@@ -18,7 +18,7 @@
 use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 use aws_lc_rs::hkdf::{HKDF_SHA256, KeyType, Salt};
 use latticearc::prelude::error::LatticeArcError;
-use rand::RngCore;
+use rand::Rng;
 use sha3::{Digest as Sha3Digest, Sha3_256};
 
 use super::types::TestResult;

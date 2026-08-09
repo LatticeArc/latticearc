@@ -10,12 +10,9 @@
 
 use super::traits::{EcKeyPair, EcSignature, sealed};
 use crate::prelude::error::{LatticeArcError, Result};
+use crate::primitives::rand::secure_rng;
 use crate::primitives::resource_limits::validate_signature_size;
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
-// `ed25519-dalek 2.x` is pinned to `rand_core 0.6`; pass it the 0.6 OsRng
-// (re-exported here as `OsRng`) so its `RngCore` bound is satisfied. Once
-// the dalek 3.x stable line lands this can switch to plain `rand::rngs::OsRng`.
-use rand_core_0_6::OsRng;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
@@ -73,7 +70,7 @@ impl ConstantTimeEq for Ed25519KeyPair {
 
 impl EcKeyPair for Ed25519KeyPair {
     fn generate() -> Result<Self> {
-        let secret_key = SigningKey::generate(&mut OsRng {});
+        let secret_key = SigningKey::generate(&mut secure_rng());
         let public_key = VerifyingKey::from(&secret_key);
 
         let keypair = Self { public_key, secret_key };

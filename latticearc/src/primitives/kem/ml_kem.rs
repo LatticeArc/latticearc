@@ -364,8 +364,6 @@ impl MlKemPublicKey {
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use latticearc::primitives::kem::ml_kem::{MlKemPublicKey, MlKemSecurityLevel, MlKem};
-    /// # use rand::rngs::OsRng;
-    /// # let mut rng = OsRng;
     /// # let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
     /// // Serialize public key
     /// let pk_bytes = pk.to_bytes();
@@ -402,8 +400,6 @@ impl MlKemPublicKey {
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    /// # use rand::rngs::OsRng;
-    /// # let mut rng = OsRng;
     /// # let level = MlKemSecurityLevel::MlKem768;
     /// let (pk, _sk) = MlKem::generate_keypair(level)?;
     ///

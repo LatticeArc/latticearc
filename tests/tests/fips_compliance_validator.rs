@@ -184,7 +184,7 @@ mod fips_140_3 {
 
     #[test]
     fn test_rng_produces_distinct_samples_are_unique() {
-        use rand::RngCore;
+        use rand::Rng;
         let mut sample1 = [0u8; 32];
         let mut sample2 = [0u8; 32];
         rand::rng().fill_bytes(&mut sample1);
@@ -194,7 +194,7 @@ mod fips_140_3 {
 
     #[test]
     fn test_rng_bit_distribution_within_bounds_succeeds() {
-        use rand::RngCore;
+        use rand::Rng;
         for _ in 0..20 {
             let mut sample1 = [0u8; 32];
             let mut sample2 = [0u8; 32];

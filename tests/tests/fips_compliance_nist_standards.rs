@@ -1045,8 +1045,8 @@ mod sp_800_38d_aes_gcm {
         );
 
         // Correct usage: generate random nonces
-        use rand::RngCore;
-        let mut rng = rand_core::UnwrapErr(rand::rngs::OsRng); // rand 0.9 OsRng is TryRngCore
+        use rand::Rng;
+        let mut rng = rand_core::UnwrapErr(rand::rngs::SysRng); // rand 0.9 OsRng is TryRngCore
         let mut random_nonce1 = [0u8; 12];
         let mut random_nonce2 = [0u8; 12];
         rng.fill_bytes(&mut random_nonce1);

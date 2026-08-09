@@ -44,18 +44,18 @@ pub mod validation;
 pub mod utils {
     use latticearc::PublicKey;
     use latticearc::unified_api::types::{KeyPair, PrivateKey};
-    use rand::RngCore;
-    use rand::rngs::OsRng;
+    use rand::CryptoRng;
+    use rand::rngs::SysRng;
     use rand_core::UnwrapErr;
 
     /// Get a cryptographically secure RNG for tests.
     ///
-    /// Wraps `OsRng` (which is `TryRngCore` in rand 0.9) in `UnwrapErr` so
-    /// the returned value still implements `RngCore` infallibly — same
+    /// Wraps `SysRng` (which is `TryRng` in rand 0.10) in `UnwrapErr` so
+    /// the returned value still implements `CryptoRng` infallibly — same
     /// pattern as `latticearc::primitives::rand::secure_rng`.
     #[must_use]
-    pub fn test_rng_succeeds() -> impl RngCore {
-        UnwrapErr(OsRng)
+    pub fn test_rng_succeeds() -> impl CryptoRng {
+        UnwrapErr(SysRng)
     }
 
     /// Build a `KeyPair` from explicit public/private key bytes.
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_rng_returns_osrng_succeeds() {
-        use rand::RngCore;
+        use rand::Rng;
         let mut rng = utils::test_rng_succeeds();
         let mut buf = [0u8; 16];
         rng.fill_bytes(&mut buf);

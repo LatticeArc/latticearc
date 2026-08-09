@@ -42,7 +42,7 @@ flowchart LR
 // Generate ML-DSA keypair
 let (pq_pk, pq_sk) = ml_dsa_65::try_keygen()?;
 // Generate Ed25519 keypair
-let ed_sk = SigningKey::generate(&mut OsRng);
+let ed_sk = SigningKey::generate(&mut rand_core::UnwrapErr(rand::rngs::SysRng));
 // Sign with both algorithms
 let pq_sig = ml_dsa_65::try_sign(&pq_sk, message, &[])?;
 let ed_sig = ed_sk.sign(message);

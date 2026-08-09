@@ -33,7 +33,7 @@
 use latticearc::primitives::sig::ml_dsa::{
     MlDsaError, MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature, generate_keypair,
 };
-use rand::RngCore;
+use rand::Rng;
 use subtle::ConstantTimeEq;
 
 // ============================================================================

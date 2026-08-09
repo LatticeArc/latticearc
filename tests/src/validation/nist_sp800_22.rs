@@ -660,7 +660,7 @@ mod tests {
     #[test]
     fn test_random_data_succeeds() {
         let tester = NistSp800_22Tester::default();
-        use rand::RngCore;
+        use rand::Rng;
         let mut data = vec![0u8; 1000];
         latticearc::primitives::rand::secure_rng().fill_bytes(&mut data);
 

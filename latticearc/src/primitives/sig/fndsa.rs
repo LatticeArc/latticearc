@@ -671,7 +671,7 @@ impl FnDsaSigningKey {
         self.security_level
     }
 
-    /// Sign a message using the OS CSPRNG ([`rand::rngs::OsRng`]).
+    /// Sign a message using the OS CSPRNG (`rand_core` 0.6 `OsRng`, via the workspace bridge).
     ///
     /// This is the recommended form for production signing. For deterministic
     /// signing with a seeded RNG (e.g. KAT validation), use
@@ -809,7 +809,7 @@ impl Zeroize for FnDsaKeyPair {
 }
 
 impl FnDsaKeyPair {
-    /// Generate a new FN-DSA keypair using the OS CSPRNG ([`rand::rngs::OsRng`]).
+    /// Generate a new FN-DSA keypair using the OS CSPRNG (`rand_core` 0.6 `OsRng`, via the workspace bridge).
     ///
     /// This is the recommended way to produce key material for non-deterministic
     /// use cases. For deterministic testing, pass a seeded RNG via
@@ -904,7 +904,7 @@ impl FnDsaKeyPair {
         &self.verifying_key
     }
 
-    /// Sign a message using the OS CSPRNG ([`rand::rngs::OsRng`]).
+    /// Sign a message using the OS CSPRNG (`rand_core` 0.6 `OsRng`, via the workspace bridge).
     ///
     /// This is the recommended form for production signing. For deterministic
     /// signing with a seeded RNG (KAT validation), use

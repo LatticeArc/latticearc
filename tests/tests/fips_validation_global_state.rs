@@ -354,7 +354,7 @@ mod result_property_tests {
 // ============================================================================
 
 mod rng_test_logic_tests {
-    use rand::RngCore;
+    use rand::Rng;
 
     /// Test the RNG sampling logic used by continuous_rng_test.
     /// This tests the logic in lines 138-148 of global.rs.
@@ -932,7 +932,7 @@ mod conditional_self_test_logic_tests {
 // ============================================================================
 
 mod continuous_rng_direct_tests {
-    use rand::RngCore;
+    use rand::Rng;
 
     /// Test the complete RNG test logic (sample + comparison + distribution).
     /// Mirrors the full continuous_rng_test() body at lines 138-167.

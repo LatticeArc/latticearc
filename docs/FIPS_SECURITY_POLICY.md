@@ -1,20 +1,26 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.10.0
+**Module Version**: 0.11.0
 
 > CI gate `fips-policy-version` (`lint-extras.yml`) enforces that this
 > stamp matches `[workspace.package].version` in `Cargo.toml` exactly.
 > Re-sync at every tag-cut commit when the workspace version is bumped.
 **Module Type**: Software (FIPS 140-3 Level 1)
 **Date**: 2026-05-27
-**Last Reviewed**: 2026-05-27
+**Last Reviewed**: 2026-08-09
 **Status**: Pre-submission draft — not yet CMVP validated
 
 > **IMPORTANT**: LatticeArc is NOT FIPS 140-3 certified. Only the aws-lc-rs
-> backend algorithms (ML-KEM, AES-GCM, HKDF, SHA-2) run through a FIPS 140-3
-> validated module. ML-DSA (fips204), SLH-DSA (fips205), and FN-DSA (fn-dsa)
-> implement NIST-standard algorithms but use non-validated crate implementations.
+> backend algorithms (ML-KEM, AES-GCM, HKDF, SHA-2) run through the AWS-LC
+> FIPS module. As of aws-lc-rs 1.18 (LatticeArc 0.11.0), the `fips` build
+> vendors the **AWS-LC-FIPS 4.x** module line: lab validation testing is
+> complete and the module has been submitted to NIST — its certificate is
+> pending on the CMVP Modules-In-Process list. The previous 3.x module line
+> holds issued FIPS 140-3 certificates #5314 (static) / #5298 (dynamic) and
+> ships with aws-lc-rs <1.18. ML-DSA (fips204), SLH-DSA (fips205), and
+> FN-DSA (fn-dsa) implement NIST-standard algorithms but use non-validated
+> crate implementations.
 
 ---
 
@@ -23,12 +29,12 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.10.0 |
+| Module Version | 0.11.0 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |
 | Platforms | Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64, Windows x86_64 |
-| Underlying Crypto | aws-lc-rs (FIPS validated), fips204, fips205, fn-dsa |
+| Underlying Crypto | aws-lc-rs (AWS-LC-FIPS 4.x, certificate in process), fips204, fips205, fn-dsa |
 
 ---
 
@@ -225,7 +231,7 @@ On any self-test failure:
 
 ### 6.2 Key Generation
 
-- All key generation uses `OsRng` (operating system CSPRNG)
+- All key generation uses the operating-system CSPRNG (`rand::rngs::SysRng`)
 - No `thread_rng()` in production code
 - PCT runs automatically after PQC key generation
 

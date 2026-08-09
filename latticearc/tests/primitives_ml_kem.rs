@@ -31,7 +31,7 @@ use latticearc::primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemConfig, MlKemError, MlKemPublicKey, MlKemSecretKey,
     MlKemSecurityLevel, MlKemSharedSecret,
 };
-use rand::RngCore;
+use rand::Rng;
 use std::time::Instant;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;

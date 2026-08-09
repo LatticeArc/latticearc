@@ -18,7 +18,7 @@ use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 use fips204::ml_dsa_44;
 use hmac::{Hmac, Mac};
 use latticearc::prelude::error::LatticeArcError;
-use rand::RngCore;
+use rand::Rng;
 use sha2::{Digest, Sha256};
 
 use super::types::TestResult;

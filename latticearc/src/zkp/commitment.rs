@@ -14,7 +14,7 @@ use crate::primitives::hash::{sha2::sha256, sha3::sha3_256};
 use crate::zkp::error::{Result, ZkpError};
 use k256::{
     FieldBytes, ProjectivePoint, Scalar,
-    elliptic_curve::{PrimeField, group::GroupEncoding, sec1::ToEncodedPoint},
+    elliptic_curve::{PrimeField, group::GroupEncoding, sec1::ToSec1Point},
 };
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
@@ -265,8 +265,8 @@ impl PedersenCommitment {
         value: &[u8; 32],
         blinding: &[u8; 32],
     ) -> Result<(Self, PedersenOpening)> {
-        let v: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(value)).into();
-        let r: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(blinding)).into();
+        let v: Option<Scalar> = Scalar::from_repr(FieldBytes::from(*value)).into();
+        let r: Option<Scalar> = Scalar::from_repr(FieldBytes::from(*blinding)).into();
 
         let v = v.ok_or(ZkpError::InvalidScalar)?;
         let r = r.ok_or(ZkpError::InvalidScalar)?;
@@ -308,9 +308,8 @@ impl PedersenCommitment {
     /// Uses secp256k1 scalar multiplication and point addition.
     #[expect(clippy::arithmetic_side_effects, reason = "EC math is modular, cannot overflow")]
     pub fn verify(&self, opening: &PedersenOpening) -> Result<bool> {
-        let v: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(opening.value())).into();
-        let r: Option<Scalar> =
-            Scalar::from_repr(*FieldBytes::from_slice(opening.blinding())).into();
+        let v: Option<Scalar> = Scalar::from_repr(FieldBytes::from(*opening.value())).into();
+        let r: Option<Scalar> = Scalar::from_repr(FieldBytes::from(*opening.blinding())).into();
 
         let Some(v) = v else {
             tracing::debug!("Pedersen verify: opening.value out of field");
@@ -335,24 +334,24 @@ impl PedersenCommitment {
         let expected = g * v + h * r;
 
         // Parse stored commitment
-        use k256::EncodedPoint;
-        use k256::elliptic_curve::sec1::FromEncodedPoint;
+        use k256::Sec1Point;
+        use k256::elliptic_curve::sec1::FromSec1Point;
 
-        let encoded = match EncodedPoint::from_bytes(self.commitment) {
+        let encoded = match Sec1Point::from_bytes(self.commitment) {
             Ok(e) => e,
             Err(e) => {
                 tracing::debug!("Pedersen verify: invalid commitment encoding: {e}");
                 return Err(ZkpError::VerificationFailed);
             }
         };
-        let stored: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded).into();
+        let stored: Option<ProjectivePoint> = ProjectivePoint::from_sec1_point(&encoded).into();
         let Some(stored) = stored else {
             tracing::debug!("Pedersen verify: stored commitment not on curve");
             return Err(ZkpError::VerificationFailed);
         };
 
-        let expected_bytes = expected.to_affine().to_encoded_point(true);
-        let stored_bytes = stored.to_affine().to_encoded_point(true);
+        let expected_bytes = expected.to_affine().to_sec1_point(true);
+        let stored_bytes = stored.to_affine().to_sec1_point(true);
         Ok(bool::from(expected_bytes.as_bytes().ct_eq(stored_bytes.as_bytes())))
     }
 
@@ -371,17 +370,17 @@ impl PedersenCommitment {
     /// Uses secp256k1 point addition for homomorphic commitment.
     #[expect(clippy::arithmetic_side_effects, reason = "EC point addition is modular")]
     pub fn add(&self, other: &PedersenCommitment) -> Result<PedersenCommitment> {
-        use k256::EncodedPoint;
-        use k256::elliptic_curve::sec1::FromEncodedPoint;
+        use k256::Sec1Point;
+        use k256::elliptic_curve::sec1::FromSec1Point;
 
-        let encoded1 = EncodedPoint::from_bytes(self.commitment)
+        let encoded1 = Sec1Point::from_bytes(self.commitment)
             .map_err(|e| ZkpError::InvalidCommitment(format!("Invalid point 1: {e}")))?;
-        let point1: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded1).into();
+        let point1: Option<ProjectivePoint> = ProjectivePoint::from_sec1_point(&encoded1).into();
         let point1 = point1.ok_or(ZkpError::InvalidCommitment("Invalid point 1".into()))?;
 
-        let encoded2 = EncodedPoint::from_bytes(other.commitment())
+        let encoded2 = Sec1Point::from_bytes(other.commitment())
             .map_err(|e| ZkpError::InvalidCommitment(format!("Invalid point 2: {e}")))?;
-        let point2: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded2).into();
+        let point2: Option<ProjectivePoint> = ProjectivePoint::from_sec1_point(&encoded2).into();
         let point2 = point2.ok_or(ZkpError::InvalidCommitment("Invalid point 2".into()))?;
 
         let sum = point1 + point2;
@@ -423,8 +422,8 @@ impl PedersenCommitment {
     /// `DlogEqualityStatement::canonical(..)` constructor rather
     /// than calling this directly; both routes pin the same H.
     pub fn generator_h() -> Result<ProjectivePoint> {
-        use k256::EncodedPoint;
-        use k256::elliptic_curve::sec1::FromEncodedPoint;
+        use k256::Sec1Point;
+        use k256::elliptic_curve::sec1::FromSec1Point;
 
         static H: std::sync::OnceLock<ProjectivePoint> = std::sync::OnceLock::new();
 
@@ -468,9 +467,9 @@ impl PedersenCommitment {
             compressed[0] = 0x02;
             compressed[1..33].copy_from_slice(&hash);
 
-            if let Ok(encoded) = EncodedPoint::from_bytes(compressed) {
+            if let Ok(encoded) = Sec1Point::from_bytes(compressed) {
                 let point: Option<ProjectivePoint> =
-                    ProjectivePoint::from_encoded_point(&encoded).into();
+                    ProjectivePoint::from_sec1_point(&encoded).into();
                 if let Some(p) = point {
                     // Best-effort cache: a concurrent thread may have already set this.
                     let _ = H.set(p);
@@ -618,10 +617,10 @@ mod tests {
         let c_sum = c1.add(&c2).unwrap();
 
         // Compute v1 + v2 and b1 + b2 as scalars
-        let s1 = Scalar::from_repr(*FieldBytes::from_slice(&v1)).unwrap();
-        let s2 = Scalar::from_repr(*FieldBytes::from_slice(&v2)).unwrap();
-        let r1 = Scalar::from_repr(*FieldBytes::from_slice(&b1)).unwrap();
-        let r2 = Scalar::from_repr(*FieldBytes::from_slice(&b2)).unwrap();
+        let s1 = Scalar::from_repr(FieldBytes::from(v1)).unwrap();
+        let s2 = Scalar::from_repr(FieldBytes::from(v2)).unwrap();
+        let r1 = Scalar::from_repr(FieldBytes::from(b1)).unwrap();
+        let r2 = Scalar::from_repr(FieldBytes::from(b2)).unwrap();
 
         let v_sum: [u8; 32] = (s1 + s2).to_bytes().into();
         let b_sum: [u8; 32] = (r1 + r2).to_bytes().into();

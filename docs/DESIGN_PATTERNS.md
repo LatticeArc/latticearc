@@ -84,7 +84,7 @@ requirements govern their code.
 | **SP 800-38D §8.2** | "The nonce shall be unique for each invocation of GCM with a given key" | Pattern 3 (Nonce Encapsulation): nonces generated internally from OS CSPRNG via `generate_nonce()`. Callers cannot supply nonces in high-level APIs. |
 | **SP 800-56C Rev.2 §4** | "Each application of a KDF shall use a distinct set of values" | Pattern 2 (Domain Separation Registry): every HKDF call uses a registered constant from `types::domains`. Kani proof verifies pairwise distinctness. |
 | **SP 800-108 Rev.1 §4** | "The label shall be distinct for each key derivation purpose" | Same as above. Counter-mode KDF labels also centralized. |
-| **SP 800-90A Rev.1** | Deterministic Random Bit Generator requirements | RNG routed through `primitives::rand` which uses OS CSPRNG. In FIPS mode, aws-lc-rs uses its FIPS-approved DRBG. Pattern 1 ensures no direct `OsRng` bypass. |
+| **SP 800-90A Rev.1** | Deterministic Random Bit Generator requirements | RNG routed through `primitives::rand` which uses OS CSPRNG. In FIPS mode, aws-lc-rs uses its FIPS-approved DRBG. Pattern 1 ensures no direct `SysRng` bypass. |
 | **SP 800-131A Rev.2 §4** | Transitioning to stronger crypto: key length minimums | All symmetric operations use 256-bit keys (AES-256-GCM). ML-KEM-768 is the default (NIST Category 3 = AES-192 equivalent). |
 
 ## FIPS 140-3 Module Requirements
@@ -670,7 +670,7 @@ crates automatically get the fix.
 
 ### Rules
 
-| Layer | May import `primitives/` | May import external crypto crates | May import `subtle` | May import `OsRng`/`rand` |
+| Layer | May import `primitives/` | May import external crypto crates | May import `subtle` | May import `SysRng`/`rand` |
 |-------|------|------|------|------|
 | `primitives/` | Self | YES (wraps them) | YES | YES |
 | `hybrid/` | YES | NO | YES (ct_eq only) | NO |
@@ -685,7 +685,7 @@ crates automatically get the fix.
 
 ### How To Follow It
 - New crypto operation? Add a wrapper in `primitives/`, then call it from the upper layer.
-- Need randomness? Call `crate::primitives::rand::csprng::random_bytes(n)` — never `OsRng`.
+- Need randomness? Call `crate::primitives::rand::csprng::random_bytes(n)` — never `SysRng` directly.
   If the bytes are **secret** (private keys, blinding factors, KDF input keying
   material), draw them with `security::generate_secure_random_bytes(n)` (returns
   `Zeroizing<Vec<u8>>`), or wrap `random_bytes(n)` in `Zeroizing` at the call site
@@ -1860,7 +1860,7 @@ and an exemplary one is everything surrounding the algorithms:
 | **Error messages** | Different messages for MAC failure vs padding failure (oracle) | Single opaque error for all post-crypto failures, pre-crypto validation may be distinct (documented why) |
 | **Nonce handling** | Caller supplies nonce (and eventually reuses one) | Library generates nonce internally, caller cannot supply one in high-level API |
 | **Domain separation** | Inline string literals scattered across files | Centralized registry with formal proof of pairwise uniqueness |
-| **RNG routing** | `OsRng` imported wherever needed | Single `primitives::rand` module, upper layers cannot import `OsRng` |
+| **RNG routing** | OS RNG imported wherever needed | Single `primitives::rand` module, upper layers cannot import `SysRng` |
 | **Config fields** | "Set this to configure X" (but X is never read) | Every field names its consumer function, with an influence test proving it works |
 | **Enum extensibility** | Adding a variant breaks all downstream crates | `#[non_exhaustive]` on every public enum |
 | **Test coverage** | "We have tests" | 9-level test pyramid from KAT vectors to real-world scenario mirrors, ≥90% line coverage |

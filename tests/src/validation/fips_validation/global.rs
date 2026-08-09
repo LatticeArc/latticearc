@@ -9,7 +9,7 @@
 //! Global FIPS state management and initialization functions
 
 use latticearc::prelude::error::LatticeArcError;
-use rand::RngCore;
+use rand::Rng;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 

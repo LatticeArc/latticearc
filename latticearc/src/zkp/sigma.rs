@@ -613,7 +613,7 @@ impl DlogEqualityProof {
         use zeroize::Zeroizing;
 
         // Parse secret
-        let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(secret)).into();
+        let x: Option<Scalar> = Scalar::from_repr(FieldBytes::from(*secret)).into();
         let x = Zeroizing::new(x.ok_or(ZkpError::InvalidScalar)?);
 
         // Nonce sampling (rejection sampling, rejects k = 0) lives in
@@ -637,7 +637,7 @@ impl DlogEqualityProof {
         // be a redundant residue map here. Using `from_repr` makes the
         // invariant explicit at the call site.
         let challenge = Self::compute_challenge(statement, &a_bytes, &b_bytes, context)?;
-        let c: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&challenge)).into();
+        let c: Option<Scalar> = Scalar::from_repr(FieldBytes::from(challenge)).into();
         let c = c.ok_or(ZkpError::InvalidScalar)?;
 
         // Response s = k + c*x is non-secret (verifier sees it), but the
@@ -713,7 +713,7 @@ impl DlogEqualityProof {
         }
 
         // Parse response and challenge
-        let s: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.response)).into();
+        let s: Option<Scalar> = Scalar::from_repr(FieldBytes::from(self.response)).into();
         let s = s.ok_or_else(|| {
             tracing::debug!("DlogEqualityProof::verify rejected: invalid scalar");
             ZkpError::VerificationFailed
@@ -724,7 +724,7 @@ impl DlogEqualityProof {
         // so `self.challenge` is also < q. `from_repr` is therefore
         // total — but we keep an explicit fallback because lints
         // deny `.expect()` in production code.
-        let c: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.challenge)).into();
+        let c: Option<Scalar> = Scalar::from_repr(FieldBytes::from(self.challenge)).into();
         let c = c.ok_or(ZkpError::VerificationFailed)?;
 
         // Verify: s*G == A + c*P and s*H == B + c*Q (constant-time comparison)
@@ -788,17 +788,18 @@ impl DlogEqualityProof {
 )]
 mod tests {
     use super::*;
+    use crate::primitives::rand::secure_rng;
+    use k256::elliptic_curve::Generate;
     use k256::{
         FieldBytes, ProjectivePoint, Scalar, SecretKey, elliptic_curve::group::GroupEncoding,
     };
-    use rand_core_0_6::OsRng;
 
     #[test]
     fn test_dlog_equality_proof_succeeds() {
         // Generate secret
-        let secret_key = SecretKey::random(&mut OsRng);
+        let secret_key = SecretKey::generate_from_rng(&mut secure_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
-        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+        let x_scalar = Scalar::from_repr(FieldBytes::from(x)).unwrap();
 
         // Two different generators
         let g = ProjectivePoint::GENERATOR;
@@ -821,9 +822,9 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_wrong_context_fails_verification_fails() {
-        let secret_key = SecretKey::random(&mut OsRng);
+        let secret_key = SecretKey::generate_from_rng(&mut secure_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
-        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+        let x_scalar = Scalar::from_repr(FieldBytes::from(x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
         let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
@@ -844,13 +845,13 @@ mod tests {
     #[test]
     fn test_dlog_equality_wrong_secret_fails_verification_fails() {
         // Prove with one secret, verify with a statement that uses a different discrete log
-        let x_key = SecretKey::random(&mut OsRng);
+        let x_key = SecretKey::generate_from_rng(&mut secure_rng());
         let x: [u8; 32] = x_key.to_bytes().into();
-        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+        let x_scalar = Scalar::from_repr(FieldBytes::from(x)).unwrap();
 
-        let y_key = SecretKey::random(&mut OsRng);
+        let y_key = SecretKey::generate_from_rng(&mut secure_rng());
         let y: [u8; 32] = y_key.to_bytes().into();
-        let y_scalar = Scalar::from_repr(*FieldBytes::from_slice(&y)).unwrap();
+        let y_scalar = Scalar::from_repr(FieldBytes::from(y)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
         let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
@@ -874,9 +875,9 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_tampered_challenge_fails_verification_fails() {
-        let secret_key = SecretKey::random(&mut OsRng);
+        let secret_key = SecretKey::generate_from_rng(&mut secure_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
-        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+        let x_scalar = Scalar::from_repr(FieldBytes::from(x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
         let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
@@ -898,9 +899,9 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_tampered_response_fails_verification_fails() {
-        let secret_key = SecretKey::random(&mut OsRng);
+        let secret_key = SecretKey::generate_from_rng(&mut secure_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
-        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+        let x_scalar = Scalar::from_repr(FieldBytes::from(x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
         let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
@@ -944,9 +945,9 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_proof_fields_are_populated_succeeds() {
-        let secret_key = SecretKey::random(&mut OsRng);
+        let secret_key = SecretKey::generate_from_rng(&mut secure_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
-        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+        let x_scalar = Scalar::from_repr(FieldBytes::from(x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
         let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
@@ -1003,9 +1004,9 @@ mod tests {
     #[test]
     fn test_dlog_equality_different_generators_succeeds() {
         // Use a different multiplier for H
-        let secret_key = SecretKey::random(&mut OsRng);
+        let secret_key = SecretKey::generate_from_rng(&mut secure_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
-        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+        let x_scalar = Scalar::from_repr(FieldBytes::from(x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
         let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();
@@ -1211,9 +1212,9 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_empty_context_succeeds() {
-        let secret_key = SecretKey::random(&mut OsRng);
+        let secret_key = SecretKey::generate_from_rng(&mut secure_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
-        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+        let x_scalar = Scalar::from_repr(FieldBytes::from(x)).unwrap();
 
         let g = ProjectivePoint::GENERATOR;
         let h = crate::zkp::commitment::PedersenCommitment::generator_h().unwrap();

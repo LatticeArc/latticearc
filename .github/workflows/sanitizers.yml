@@ -17,6 +17,11 @@
 # the slowest tests (SLH-DSA hash chains, Argon2id passphrase derivation)
 # are minutes-per-test under MSan with origin tracking and the workspace
 # does not fit in the budget. ASan covers most Rust-side memory errors.
+#
+# If MSan is ever revisited: aws-lc-rs supports MSan-instrumented C builds
+# via AWS_LC_SYS_SANITIZER=msan (AWS_LC_FIPS_SYS_SANITIZER for fips) since
+# aws-lc-rs PR #1100 (2026-04), so the historical FFI false-positive
+# problem is solved. The 4h job-cap budget above is the remaining blocker.
 
 name: Sanitizers
 

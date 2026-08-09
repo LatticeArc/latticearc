@@ -476,7 +476,7 @@ impl HybridSignature {
 ///
 /// # Entropy source
 /// ML-DSA and Ed25519 key generation route through the primitives layer,
-/// which uses `OsRng` internally — callers cannot supply an external RNG.
+/// which uses the OS CSPRNG internally — callers cannot supply an external RNG.
 #[must_use = "generated keypair must be stored or used"]
 pub fn generate_keypair() -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError>
 {

@@ -437,13 +437,14 @@ mod pedersen_commitment_tests {
 
 mod dlog_equality_tests {
     use super::*;
+    use k256::elliptic_curve::Generate;
     use k256::{
         FieldBytes, ProjectivePoint, Scalar, SecretKey,
         elliptic_curve::{PrimeField, group::GroupEncoding},
     };
 
     fn create_dlog_statement(secret: &[u8; 32]) -> (DlogEqualityStatement, [u8; 32]) {
-        let x_scalar: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(secret)).into();
+        let x_scalar: Option<Scalar> = Scalar::from_repr(FieldBytes::from(*secret)).into();
         let x_scalar = x_scalar.expect("valid scalar");
 
         // Two different generators
@@ -470,7 +471,8 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_basic_succeeds() {
-        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
+        let secret_key =
+            SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let (statement, secret) = create_dlog_statement(&secret);
@@ -483,7 +485,8 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_wrong_context_fails() {
-        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
+        let secret_key =
+            SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let (statement, secret) = create_dlog_statement(&secret);
@@ -496,7 +499,8 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_empty_context_succeeds() {
-        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
+        let secret_key =
+            SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let (statement, secret) = create_dlog_statement(&secret);
@@ -509,7 +513,8 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_large_context_succeeds() {
-        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
+        let secret_key =
+            SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
         let large_context = vec![0xABu8; 10000];
 
@@ -523,8 +528,8 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_wrong_secret_fails() {
-        let secret1 = SecretKey::random(&mut rand_core_0_6::OsRng);
-        let secret2 = SecretKey::random(&mut rand_core_0_6::OsRng);
+        let secret1 = SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
+        let secret2 = SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
 
         let s1: [u8; 32] = secret1.to_bytes().into();
         let s2: [u8; 32] = secret2.to_bytes().into();
@@ -542,7 +547,8 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_proof_uniqueness_are_unique() {
-        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
+        let secret_key =
+            SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let (statement, secret) = create_dlog_statement(&secret);
@@ -792,16 +798,18 @@ mod error_tests {
 
 mod sigma_protocol_tests {
     use super::*;
+    use k256::elliptic_curve::Generate;
     use k256::{
         FieldBytes, ProjectivePoint, Scalar, SecretKey,
         elliptic_curve::{PrimeField, group::GroupEncoding},
     };
 
     fn create_valid_statement_and_secret() -> (DlogEqualityStatement, [u8; 32]) {
-        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
+        let secret_key =
+            SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
-        let x_scalar: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&secret)).into();
+        let x_scalar: Option<Scalar> = Scalar::from_repr(FieldBytes::from(secret)).into();
         let x_scalar = x_scalar.expect("valid scalar");
 
         let g = ProjectivePoint::GENERATOR;
@@ -829,10 +837,10 @@ mod sigma_protocol_tests {
         // over the canonical (G, NUMS H) pair — the loop body is
         // retained to keep the existing assertion structure.
         for multiplier in [2u64] {
-            let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
+            let secret_key =
+                SecretKey::generate_from_rng(&mut latticearc::primitives::rand::secure_rng());
             let secret: [u8; 32] = secret_key.to_bytes().into();
-            let x_scalar: Option<Scalar> =
-                Scalar::from_repr(*FieldBytes::from_slice(&secret)).into();
+            let x_scalar: Option<Scalar> = Scalar::from_repr(FieldBytes::from(secret)).into();
             let x_scalar = x_scalar.expect("valid scalar");
 
             let g = ProjectivePoint::GENERATOR;

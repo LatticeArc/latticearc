@@ -23,6 +23,6 @@ pub use sp800_108_counter_kdf::*;
 
 /// Fill a byte slice with cryptographically secure random bytes.
 pub(super) fn get_random_bytes(bytes: &mut [u8]) {
-    use rand::RngCore;
+    use rand::Rng;
     crate::primitives::rand::secure_rng().fill_bytes(bytes);
 }

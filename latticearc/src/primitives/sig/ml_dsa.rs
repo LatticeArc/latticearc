@@ -799,7 +799,7 @@ pub fn generate_keypair(
 )]
 mod tests {
     use super::*;
-    use rand::RngCore;
+    use rand::Rng;
 
     fn test_parameter_set_succeeds(param: MlDsaParameterSet) -> Result<(), MlDsaError> {
         let (pk, sk) = generate_keypair(param)?;

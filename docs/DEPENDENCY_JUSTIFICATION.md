@@ -1,22 +1,22 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Post-Quantum Cryptography Library
-**Version:** 0.10.0
-**Date:** 2026-08-04 (release tag)
+**Version:** 0.11.0
+**Date:** 2026-08-09 (release tag)
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
 ## Executive Summary
 
-All dependencies vetted for security (audits, memory safety), licensing (Apache/MIT/BSD — no copyleft), standards compliance (FIPS 203–205, draft 206), and supply chain (crates.io only). **417 lockfile entries across 386 distinct crates** — the two numbers differ because several crates resolve at two major versions at once; see "Crates resolved at two major versions" below.
+All dependencies vetted for security (audits, memory safety), licensing (Apache/MIT/BSD — no copyleft), standards compliance (FIPS 203–205, draft 206), and supply chain (crates.io only). **417 lockfile entries across 389 distinct crates** — the two numbers differ because several crates resolve at two major versions at once; see "Crates resolved at two major versions" below.
 
 ```mermaid
 flowchart TB
     subgraph "latticearc"
-        LA[LatticeArc 0.10.0 target]
+        LA[LatticeArc 0.11.0 target]
     end
 
     subgraph "FIPS-Validated"
-        AWSLC["aws-lc-rs 1.17.3\nML-KEM · AES-GCM · HKDF · X25519"]
+        AWSLC["aws-lc-rs 1.18.0\nML-KEM · AES-GCM · HKDF · X25519"]
     end
 
     subgraph "NIST PQ Signatures"
@@ -61,7 +61,7 @@ flowchart TB
 
 ### Post-Quantum Cryptography (NIST Standards)
 
-#### 1. aws-lc-rs (v1.17.3)
+#### 1. aws-lc-rs (v1.18.0)
 - **Purpose**: Core crypto backend — ML-KEM (FIPS 203), AES-GCM, HKDF, X25519
 - **Justification**:
   - AWS's cryptographic library with FIPS 140-3 validation (with `--features fips`)
@@ -72,10 +72,12 @@ flowchart TB
   - Memory-safe Rust API over aws-lc (BoringSSL fork)
   - Always requires a C/C++ compiler; FIPS builds additionally require CMake + Go
 - **License**: ISC AND (Apache-2.0 OR ISC)
-- **Security Audit**: FIPS 140-3 Level 1 validated (Certificates #4631, #4759, #4816)
+- **Security Audit**: `fips` builds vendor the AWS-LC-FIPS 4.x module (lab
+  validation complete, NIST certificate in process on the CMVP list); the
+  3.x line (aws-lc-rs <1.18) holds issued certificates #5314/#5298
 - **Usage**: `latticearc::primitives` (KEM, AEAD, HKDF), `latticearc::hybrid`, `latticearc::unified_api`
 
-#### 2. aws-lc-sys (v0.43.0)
+#### 2. aws-lc-sys (v0.44.0)
 - **Purpose**: FFI bindings to AWS-LC native library
 - **Justification**:
   - Required by aws-lc-rs for native cryptographic operations
@@ -92,7 +94,9 @@ flowchart TB
   - Primary post-quantum signature scheme
   - Audited by cryptography experts
   - No unsafe code, constant-time operations
-  - Awaiting aws-lc-rs Rust API (tracking: aws/aws-lc-rs#773; our PRs #1029 and #1034 shipped in v1.16.0, ML-DSA FIPS API stabilization pending)
+  - aws-lc-rs 1.18 stabilized its ML-DSA API (our PRs #1029/#1034 shipped in
+    v1.16.0), but the stable API is empty-context-only; migration is blocked
+    on FIPS 204 context-string support in the Rust wrapper (#17)
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: Independent cryptographic review
 - **Usage**: `latticearc::primitives` (signatures), `latticearc::unified_api`
@@ -226,7 +230,7 @@ flowchart TB
 - **Security Audit**: RustCrypto
 - **Usage**: All hash-using crates
 
-#### 15. hkdf (v0.13.0, v0.12.4 transitive)
+#### 15. hkdf (v0.13.0)
 - **Purpose**: HKDF key derivation function
 - **Justification**:
   - RFC 5869 standard
@@ -279,7 +283,7 @@ flowchart TB
 
 ## Random Number Generation
 
-#### 20. rand (v0.9.5, v0.10.2 dev-only)
+#### 20. rand (v0.10.2, v0.9.5 dev-only)
 - **Purpose**: Random number generation
 - **Justification**:
   - Rust ecosystem standard RNG
@@ -289,10 +293,10 @@ flowchart TB
     two major versions" for why each version is present
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: Widely used
-- **Usage**: `latticearc`, `latticearc-cli`, `latticearc-tests` (0.9.5);
-  `dudect-bencher` dev-dependency only (0.10.2)
+- **Usage**: `latticearc`, `latticearc-cli`, `latticearc-tests` (0.10.2);
+  `proptest` dev-dependency only (0.9.5)
 
-#### 21. rand_core (v0.9.5, v0.6.4 bridge, v0.10.1 transitive)
+#### 21. rand_core (v0.10.1, v0.6.4 bridge, v0.9.5 dev-transitive)
 - **Purpose**: Core RNG traits
 - **Justification**:
   - Minimal trait definitions
@@ -302,7 +306,7 @@ flowchart TB
 - **Security Audit**: Part of rand
 - **Usage**: All RNG-using crates
 
-#### 22. rand_chacha (v0.9.0, v0.10.0 transitive)
+#### 22. rand_chacha (v0.10.0, v0.9.0 dev-transitive)
 - **Purpose**: ChaCha-based CSPRNG
 - **Justification**:
   - Cryptographically secure PRNG
@@ -312,7 +316,7 @@ flowchart TB
 - **Security Audit**: Part of rand
 - **Usage**: Transitive via rand
 
-#### 23. getrandom (v0.3.4, v0.2.17 and v0.4.3 transitive)
+#### 23. getrandom (v0.4.3, v0.3.4 and v0.2.17 transitive)
 - **Purpose**: OS random number source
 - **Justification**:
   - Access to OS CSPRNG (/dev/urandom, BCryptGenRandom, etc.)
@@ -326,7 +330,7 @@ flowchart TB
 
 ## Supporting Cryptographic Libraries
 
-#### 24. crypto-bigint (v0.5.5)
+#### 24. crypto-bigint (v0.7.5)
 - **Purpose**: Constant-time big integer arithmetic
 - **Justification**:
   - Used by PQC implementations
@@ -346,7 +350,7 @@ flowchart TB
 - **Security Audit**: RustCrypto
 - **Usage**: Transitive via crypto crates
 
-#### 26. fiat-crypto (v0.2.9)
+#### 26. fiat-crypto (v0.3.0)
 - **Purpose**: Formally verified field arithmetic
 - **Justification**:
   - **Formal verification**: Generated from Coq proofs
@@ -360,7 +364,7 @@ flowchart TB
 
 ## Crates resolved at two major versions
 
-`Cargo.lock` holds 417 entries across 386 distinct crates. The gap is a set of
+`Cargo.lock` holds 417 entries across 389 distinct crates. The gap is a set of
 crates that resolve at more than one major simultaneously. Every case below was
 confirmed with `cargo tree -i <crate>@<version> --workspace --all-features`;
 none is accidental, and none is resolvable from our own manifests alone.
@@ -373,50 +377,51 @@ held in the graph by dependencies that have not migrated:
 
 | Retained version | Pulled in by |
 |------------------|--------------|
-| `sha2 0.10.9` | `ed25519-dalek`, `fips204`, `fips205`, `k256`, `p384` |
+| `sha2 0.10.9` | `fips204`, `fips205` |
 | `sha3 0.10.9` | `fips203`, `fips204`, `fips205` |
-| `digest 0.10.7` | `blake2`, `curve25519-dalek`, `ecdsa`, `elliptic-curve`, `hmac 0.12`, `sha2 0.10`, `sha3 0.10`, `signature` |
-| `hkdf 0.12.4` | `elliptic-curve 0.13.8` |
+| `digest 0.10.7` | `blake2`, `sha2 0.10`, `sha3 0.10` |
 | `crypto-common 0.1.7` | `digest 0.10.7` |
 
-Collapsing this requires upstream releases from three separate families — the
-dalek crates, the RustCrypto elliptic-curve stack, and `fips204`/`fips205`.
-Tracked in #46 (elliptic-curve and dalek) and #17 (ML-DSA via aws-lc-rs).
+The dalek crates and the RustCrypto elliptic-curve stack moved to the 0.11
+generation in 0.11.0 (#46, dalek 3.0 / EC 0.14). The remaining holdouts are
+`fips204`/`fips205` (and `blake2`); collapsing them is tracked in #17 (ML-DSA
+via aws-lc-rs) and upstream fips205/blake2 releases.
 
 ### Random number generation
 
 | Version | Why it is present |
 |---------|-------------------|
-| `rand 0.9.5` | workspace direct dependency |
-| `rand 0.10.2` | dev-only, via `dudect-bencher` for `tests/examples/dudect_ct.rs` |
-| `rand_core 0.9.5` | workspace direct dependency |
-| `rand_core 0.6.4` | deliberate aliased bridge (`rand_core_0_6`) for `fn-dsa` and `ed25519-dalek 2.x`, whose latest stable releases pre-date the `rand_core 0.9` API |
-| `rand_core 0.10.1` | via `getrandom 0.4.3` and `crypto-common 0.2.2` |
-| `rand_chacha 0.9.0` | workspace direct dependency |
-| `getrandom 0.3.4` | workspace direct dependency |
+| `rand 0.10.2` | workspace direct dependency |
+| `rand 0.9.5` | dev-only, via `proptest` |
+| `rand_core 0.10.1` | workspace direct dependency |
+| `rand_core 0.6.4` | deliberate aliased bridge (`rand_core_0_6`) for `fn-dsa`, `fips204`, and `fips205`, whose latest stable releases pre-date the `rand_core 0.9` API |
+| `rand_core 0.9.5` | dev-only, via `proptest` / `rand 0.9.5` |
+| `rand_chacha 0.10.0` | workspace direct dependency |
+| `rand_chacha 0.9.0` | dev-only, via `rand 0.9.5` |
+| `getrandom 0.4.3` | workspace direct dependency (and via `rand_core 0.10.1`) |
+| `getrandom 0.3.4` | via `rand_core 0.9.5` and `pqcrypto-internals` (dev) |
 | `getrandom 0.2.17` | via `rand_core 0.6.4` |
-| `getrandom 0.4.3` | via `rand_core 0.10.1` |
 
 `rand 0.8` is no longer present in the graph.
 
 ---
 
-## Workspace Structure (v0.4.1)
+## Workspace Structure
 
 The workspace contains 3 crates (consolidated from 11 in v0.1.0):
 
-#### latticearc (v0.4.1) — Single publishable crate
+#### latticearc (v0.11.0) — Single publishable crate
 - **Purpose**: All cryptographic functionality in one crate
 - **Modules**: `types`, `prelude`, `primitives`, `hybrid`, `unified_api`, `zkp`, `perf`
 - **License**: Apache-2.0
 - **Published to**: crates.io as `latticearc`
 
-#### latticearc-cli (v0.4.1) — CLI binary (publish = false)
+#### latticearc-cli (v0.11.0) — CLI binary (publish = false)
 - **Purpose**: Command-line tool for key generation, signing, encryption, hashing
 - **License**: Apache-2.0
 - **Usage**: End-user binary, CI/CD pipelines
 
-#### latticearc-tests (v0.4.1) — Test-only crate (publish = false)
+#### latticearc-tests (v0.11.0) — Test-only crate (publish = false)
 - **Purpose**: CAVP validation, NIST KAT vectors, integration tests, FIPS compliance
 - **License**: Apache-2.0
 - **Usage**: CI/CD, development only
@@ -465,7 +470,9 @@ The workspace contains 3 crates (consolidated from 11 in v0.1.0):
 1. **fips204, fips205, fn-dsa** (Pure Rust PQC)
    - **Risk**: Not yet FIPS-validated
    - **Mitigation**: Regular updates, tracking aws-lc-rs integration
-   - **Timeline**: fips204 migration to aws-lc-rs FIPS API targeted for 2026 Q2 (pending aws-lc-rs stable ML-DSA Rust API)
+   - **Timeline**: aws-lc-rs 1.18 (2026-08) stabilized ML-DSA, but without
+     FIPS 204 context-string support; migration blocked on upstream Rust
+     plumbing (#17)
 
 2. **fn-dsa** (Unlicense)
    - **Risk**: Public domain may have patent concerns
@@ -474,12 +481,13 @@ The workspace contains 3 crates (consolidated from 11 in v0.1.0):
 
 ### Medium-Risk Dependencies
 
-1. **Multiple rand versions** (0.8.5, 0.9.2)
+1. **Multiple rand versions** (0.10.2 primary; 0.9.5 dev-only; rand_core 0.6 bridge)
    - **Risk**: Version fragmentation
-   - **Mitigation**: Workspace consolidation complete (v0.2.0)
-   - **Timeline**: Ongoing deduplication
+   - **Mitigation**: primary stack unified on 0.10; the 0.6 bridge is a
+     deliberate alias for fn-dsa/fips204/fips205 (see RNG table above)
+   - **Timeline**: collapses when the PQ signature crates move off rand_core 0.6
 
-2. **Transitive dependencies** (376 total)
+2. **Transitive dependencies** (386 external crates)
    - **Risk**: Supply chain complexity
    - **Mitigation**: cargo-audit, cargo-deny, SBOM tracking
    - **Timeline**: Continuous monitoring
@@ -494,8 +502,8 @@ All RustCrypto crates (sha2, blake2, aes-gcm, etc.) - well-audited, widely used,
 
 | Standard | Dependencies | Status |
 |----------|-------------|--------|
-| FIPS 203 (ML-KEM) | aws-lc-rs, fips203 | ✅ Validated (aws-lc-rs) |
-| FIPS 204 (ML-DSA) | fips204 | ⏳ Awaiting aws-lc-rs |
+| FIPS 203 (ML-KEM) | aws-lc-rs, fips203 | ✅ AWS-LC FIPS module (4.x certificate in process) |
+| FIPS 204 (ML-DSA) | fips204 | ⏳ aws-lc-rs stable API lacks context strings (#17) |
 | FIPS 205 (SLH-DSA) | fips205 | ✅ Audited |
 | draft FIPS 206 (FN-DSA) | fn-dsa | 🔄 Partial |
 | FIPS 180-4 (SHA-2) | sha2, aws-lc-rs | ✅ Validated |
@@ -525,6 +533,6 @@ For questions or concerns, contact: Security@LatticeArc.com
 
 ---
 
-**Document Version:** 2.0
-**Last Updated:** 2026-02-19
-**Next Review:** 2026-05-19 (quarterly)
+**Document Version:** 2.1
+**Last Updated:** 2026-08-09
+**Next Review:** 2026-11-09 (quarterly)

@@ -709,7 +709,7 @@ mod nist_sp800_22 {
     fn test_random_data_passes() {
         let tester = NistSp800_22Tester::default();
         let mut data = vec![0u8; 2000];
-        rand::RngCore::fill_bytes(&mut rand::rng(), &mut data);
+        rand::Rng::fill_bytes(&mut rand::rng(), &mut data);
         let result = tester.test_bit_sequence_succeeds(&data).unwrap();
         assert_eq!(result.bits_tested, 16000);
         assert_eq!(result.algorithm, "NIST SP 800-22");
@@ -736,7 +736,7 @@ mod nist_sp800_22 {
         // 6273..=75000 range uses block_size=128, k=5
         let tester = NistSp800_22Tester::new(0.01, 128);
         let mut data = vec![0u8; 10000]; // 80000 bits
-        rand::RngCore::fill_bytes(&mut rand::rng(), &mut data);
+        rand::Rng::fill_bytes(&mut rand::rng(), &mut data);
         let result = tester.test_bit_sequence_succeeds(&data).unwrap();
         assert_eq!(result.test_results.len(), 6);
     }
@@ -749,7 +749,7 @@ mod nist_sp800_22 {
     fn test_result_test_names_include_all_six_nist_tests_succeeds() {
         let tester = NistSp800_22Tester::default();
         let mut data = vec![0u8; 1000];
-        rand::RngCore::fill_bytes(&mut rand::rng(), &mut data);
+        rand::Rng::fill_bytes(&mut rand::rng(), &mut data);
         let result = tester.test_bit_sequence_succeeds(&data).unwrap();
 
         let names: Vec<&str> = result.test_results.iter().map(|r| r.test_name.as_str()).collect();
@@ -765,7 +765,7 @@ mod nist_sp800_22 {
     fn test_result_p_values_in_range_are_non_negative_succeeds() {
         let tester = NistSp800_22Tester::default();
         let mut data = vec![0u8; 1000];
-        rand::RngCore::fill_bytes(&mut rand::rng(), &mut data);
+        rand::Rng::fill_bytes(&mut rand::rng(), &mut data);
         let result = tester.test_bit_sequence_succeeds(&data).unwrap();
 
         for test_result in &result.test_results {
@@ -796,7 +796,7 @@ mod nist_sp800_22 {
     #[test]
     fn test_significance_level_affects_pass_rate_returns_six_results_succeeds() {
         let mut data = vec![0u8; 1000];
-        rand::RngCore::fill_bytes(&mut rand::rng(), &mut data);
+        rand::Rng::fill_bytes(&mut rand::rng(), &mut data);
 
         let strict = NistSp800_22Tester::new(0.10, 1000);
         let result_strict = strict.test_bit_sequence_succeeds(&data).unwrap();

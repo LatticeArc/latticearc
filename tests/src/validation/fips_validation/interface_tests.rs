@@ -18,7 +18,7 @@ use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 use aws_lc_rs::hkdf::{HKDF_SHA256, KeyType, Salt};
 use hmac::{Hmac, digest::KeyInit as HmacKeyInit};
 use latticearc::prelude::error::LatticeArcError;
-use rand::RngCore;
+use rand::Rng;
 use sha2::Sha256;
 
 use super::types::TestResult;
@@ -165,7 +165,7 @@ pub fn test_key_management_succeeds() -> Result<TestResult, LatticeArcError> {
     // Test 2: Key serialization roundtrip
     test_details.push("Test 2: Key serialization/deserialization".to_string());
 
-    let mut csprng = rand_core_0_6::OsRng; // ed25519-dalek 2.x → rand_core 0.6
+    let mut csprng = crate::utils::test_rng_succeeds(); // ed25519-dalek 3.x → rand_core 0.10
     let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
     let sk_bytes = signing_key.to_bytes();
 

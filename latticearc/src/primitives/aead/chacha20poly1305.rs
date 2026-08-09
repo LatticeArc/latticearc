@@ -29,7 +29,7 @@ use chacha20poly1305::{
     ChaCha20Poly1305,
     aead::{Aead, KeyInit},
 };
-use rand::RngCore;
+use rand::Rng;
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 

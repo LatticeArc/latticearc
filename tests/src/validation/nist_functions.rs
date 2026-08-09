@@ -18,7 +18,7 @@
 //! for Digital Signatures".
 
 use latticearc::prelude::error::{LatticeArcError, Result};
-use rand::RngCore;
+use rand::Rng;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
 /// Randomized hashing modes

@@ -169,7 +169,7 @@ let (pk, sk) = generate_keypair()?;  // Ed25519
 
 When deriving keys from passwords or shared secrets, follow these guidelines:
 
-- **Always use a unique salt** per key derivation. Generate at least 16 bytes from `OsRng`
+- **Always use a unique salt** per key derivation. Generate at least 16 bytes from the OS CSPRNG (`rand::rngs::SysRng`)
 - **Never reuse salts** across different keys or users
 - **Store the salt alongside the ciphertext** — salts are not secret
 - **Use HKDF-SHA256** (`derive_key()`) for key derivation from high-entropy input
