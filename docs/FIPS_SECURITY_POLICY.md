@@ -1,7 +1,7 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.9.2
+**Module Version**: 0.10.0
 
 > CI gate `fips-policy-version` (`lint-extras.yml`) enforces that this
 > stamp matches `[workspace.package].version` in `Cargo.toml` exactly.
@@ -23,7 +23,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.9.2 |
+| Module Version | 0.10.0 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |

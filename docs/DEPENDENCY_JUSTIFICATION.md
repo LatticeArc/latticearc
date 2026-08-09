@@ -1,7 +1,7 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Post-Quantum Cryptography Library
-**Version:** 0.9.2
+**Version:** 0.10.0
 **Date:** 2026-08-04 (release tag)
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
@@ -12,7 +12,7 @@ All dependencies vetted for security (audits, memory safety), licensing (Apache/
 ```mermaid
 flowchart TB
     subgraph "latticearc"
-        LA[LatticeArc 0.9.2 target]
+        LA[LatticeArc 0.10.0 target]
     end
 
     subgraph "FIPS-Validated"
