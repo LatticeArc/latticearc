@@ -123,7 +123,7 @@ flowchart LR
 ### Zero-Trust Configuration
 
 ```rust
-use latticearc::unified_api::config::{ZeroTrustConfig, ProofComplexity};
+use latticearc::unified_api::{ProofComplexity, ZeroTrustConfig};
 use latticearc::ZeroTrustAuth;
 
 // High-security configuration using builder pattern
@@ -306,10 +306,10 @@ let is_valid: bool = pk.verify(message, &signature, &[])?;
 ```rust
 // Zero-trust authenticated session — the session pre-establishes a
 // verified identity, then crypto operations run under that session.
-use latticearc::{generate_keypair, VerifiedSession};
+use latticearc::{CryptoConfig, VerifiedSession, generate_keypair, sign_with_key};
 
 let (zt_pk, zt_sk) = generate_keypair()?;
-let session = VerifiedSession::establish(&zt_pk, zt_sk.expose_secret())?;
+let session = VerifiedSession::establish(zt_pk.as_slice(), zt_sk.expose_secret())?;
 let session_config = CryptoConfig::new().session(&session);
 let signed = sign_with_key(
     message,
@@ -327,11 +327,11 @@ let signed = sign_with_key(
 ### Memory Safety
 
 ```rust
+use latticearc::SecretVec;
 use zeroize::{Zeroize, ZeroizeOnDrop};
-use latticearc::ZeroizedBytes;
 
-// Automatic zeroization with ZeroizedBytes
-let private_key = ZeroizedBytes::new(secret_bytes);
+// Automatic zeroization with SecretVec (heap-backed secret storage)
+let private_key = SecretVec::new(secret_bytes);
 // Automatically zeroized when dropped
 
 // Custom type with zeroization
@@ -413,10 +413,11 @@ DEFAULT_SIGNATURE_SCHEME   // hybrid-ml-dsa-65-ed25519
 ```rust
 use latticearc::*;
 use latticearc::CoreError;
+use zeroize::Zeroizing;
 
-fn process_data(ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, CoreError> {
+fn process_data(ciphertext: &[u8], key: &[u8; 32]) -> Result<Zeroizing<Vec<u8>>> {
     // Use ? to propagate errors - never ignore them
-    let encrypted = EncryptedOutput::deserialize(ciphertext)?;
+    let encrypted = EncryptedOutput::from_bytes(ciphertext)?;
     let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(key), CryptoConfig::new())?;
 
     // Validate before use

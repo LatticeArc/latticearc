@@ -161,8 +161,8 @@ use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
 // PQ encryption using ML-KEM + AES-GCM
-let ciphertext = encrypt_pq_ml_kem(data, &pk, MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
-let plaintext = decrypt_pq_ml_kem(&ciphertext, &sk, MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
+let ciphertext = encrypt_pq_ml_kem(data, pk.as_slice(), MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
+let plaintext = decrypt_pq_ml_kem(&ciphertext, sk.expose_secret(), MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
 
 // Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
 let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
@@ -196,10 +196,10 @@ use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
 
 // Sign (FIPS 204 Section 6.2)
-let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
+let signature = sign_pq_ml_dsa(message, sk.expose_secret(), MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
 
 // Verify (FIPS 204 Section 6.3)
-let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
+let is_valid = verify_pq_ml_dsa(message, &signature, pk.as_slice(), MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
 ```
 
 ### CAVP Validation
@@ -229,16 +229,16 @@ the full six-row form.
 
 ```rust
 use latticearc::*;
-use latticearc::primitives::sig::slh_dsa::SecurityLevel;
+use latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel;
 
 // Key generation (FIPS 205 Section 9.1)
-let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake128s)?;
+let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
 
 // Sign (FIPS 205 Section 9.2)
-let signature = sign_pq_slh_dsa(message, &sk, SecurityLevel::Shake128s, SecurityMode::Unverified)?;
+let signature = sign_pq_slh_dsa(message, sk.expose_secret(), SlhDsaSecurityLevel::Shake128s, SecurityMode::Unverified)?;
 
 // Verify (FIPS 205 Section 9.3)
-let is_valid = verify_pq_slh_dsa(message, &signature, &pk, SecurityLevel::Shake128s, SecurityMode::Unverified)?;
+let is_valid = verify_pq_slh_dsa(message, &signature, pk.as_slice(), SlhDsaSecurityLevel::Shake128s, SecurityMode::Unverified)?;
 ```
 
 ## draft FIPS 206: FN-DSA (FFT over NTRU Lattice Digital Signature)
@@ -254,15 +254,18 @@ let is_valid = verify_pq_slh_dsa(message, &signature, &pk, SecurityLevel::Shake1
 
 ```rust
 use latticearc::*;
+use latticearc::primitives::sig::fndsa::FnDsaSecurityLevel;
 
 // Key generation (draft FIPS 206 Section 6.1)
 let (pk, sk) = generate_fn_dsa_keypair()?;
 
 // Sign (draft FIPS 206 Section 6.2)
-let signature = sign_pq_fn_dsa(message, &sk, SecurityMode::Unverified)?;
+let signature =
+    sign_pq_fn_dsa(message, sk.expose_secret(), FnDsaSecurityLevel::Level512, SecurityMode::Unverified)?;
 
 // Verify (draft FIPS 206 Section 6.3)
-let is_valid = verify_pq_fn_dsa(message, &signature, &pk, SecurityMode::Unverified)?;
+let is_valid =
+    verify_pq_fn_dsa(message, &signature, pk.as_slice(), FnDsaSecurityLevel::Level512, SecurityMode::Unverified)?;
 ```
 
 ## Security Levels

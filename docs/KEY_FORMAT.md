@@ -449,7 +449,8 @@ output to pre-0.8.4 keys.
 ## Rust API
 
 ```rust
-use latticearc::{PortableKey, KeyType, KeyData, UseCase, SecurityLevel};
+use latticearc::{KeyData, KeyType, PortableKey, SecurityLevel, UseCase};
+use std::path::Path;
 
 // Create by use case (recommended — mirrors library API)
 let key = PortableKey::for_use_case(
@@ -466,7 +467,7 @@ let key = PortableKey::for_security_level(
 );
 
 // Both (security_level takes precedence for algorithm resolution)
-let key = PortableKey::for_use_case_with_level(
+let mut key = PortableKey::for_use_case_with_level(
     UseCase::FileStorage,
     SecurityLevel::Maximum,
     KeyType::Public,
