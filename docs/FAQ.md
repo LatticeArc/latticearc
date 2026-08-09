@@ -164,7 +164,7 @@ let is_valid = verify_with_anchor(
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
 let (shared_secret, ciphertext) = MlKem::encapsulate(&pk)?;
-let recovered = sk.decapsulate(&ciphertext)?;
+let recovered = MlKem::decapsulate(&sk, &ciphertext)?;
 ```
 
 ### How do I use hybrid encryption?

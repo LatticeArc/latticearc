@@ -343,7 +343,7 @@ compiles cleanly.
 | Types (structs, enums, traits) | `PascalCase` | `MlKemSecurityLevel`, `AeadCipher`, `HybridCiphertext` |
 | Functions, methods | `snake_case` | `generate_keypair()`, `encrypt_hybrid()`, `derive_hybrid_encryption_key()` |
 | Constants | `SCREAMING_SNAKE_CASE` | `HYBRID_KEM_SS_INFO`, `NONCE_LEN`, `TAG_LEN` |
-| Type parameters | Single uppercase letter or short `PascalCase` | `<T>`, `<R: RngCore>` |
+| Type parameters | Single uppercase letter or short `PascalCase` | `<T>`, `<R: Rng>` |
 | Feature flags | `kebab-case` | `fips`, `fn-dsa`, `zkp-serde` |
 | Module files | `snake_case.rs` | `ml_kem.rs`, `encrypt_hybrid.rs`, `key_lifecycle.rs` |
 | Test functions | `test_<what>_<condition>_<expected>` | `test_ml_kem_encrypt_empty_key_fails` |
@@ -1877,7 +1877,7 @@ with the project verify any claim in under 5 minutes?**
   marker referencing a closed issue is a lint failure.
 - "HKDF labels are unique" → auditor reads `types/domains.rs`, sees all constants,
   reads the Kani proof. Formally verified, one file.
-- "No OsRng bypass in upper layers" → auditor greps for `OsRng` outside `primitives/`,
+- "No SysRng bypass in upper layers" → auditor greps for `SysRng` outside `primitives/`,
   finds zero production hits. Provable in one command.
 - "Decrypt errors don't leak information" → auditor reads the two AEAD decrypt
   functions, sees identical error messages with a comment explaining why.

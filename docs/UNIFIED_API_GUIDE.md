@@ -223,7 +223,7 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, generate_keypa
                  CryptoConfig, VerifiedSession};
 
 let (public_key, private_key) = generate_keypair()?;
-let session = VerifiedSession::establish(&public_key, private_key.expose_secret())?;
+let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
 let config = CryptoConfig::new().session(&session);
 let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?.into_parts();
@@ -254,7 +254,7 @@ graph LR
 ```
 
 ```rust
-use latticearc::{CryptoConfig, UseCase, SecurityLevel, ComplianceMode};
+use latticearc::{ComplianceMode, CryptoConfig, CryptoMode, SecurityLevel, UseCase};
 
 // Default: High security, hybrid mode
 let config = CryptoConfig::new();
@@ -385,9 +385,12 @@ use latticearc::types::types::SecurityLevel;
 
 fn ml_kem_to_security_level(level: MlKemSecurityLevel) -> SecurityLevel {
     match level {
-        MlKemSecurityLevel::MlKem512  => SecurityLevel::Standard,
-        MlKemSecurityLevel::MlKem768  => SecurityLevel::High,
+        MlKemSecurityLevel::MlKem512 => SecurityLevel::Standard,
+        MlKemSecurityLevel::MlKem768 => SecurityLevel::High,
         MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
+        // `MlKemSecurityLevel` is #[non_exhaustive]; map future parameter
+        // sets conservatively.
+        _ => SecurityLevel::Maximum,
     }
 }
 ```
@@ -410,7 +413,7 @@ sequenceDiagram
     App->>LA: generate_keypair()
     LA-->>App: (public_key, private_key)
 
-    App->>LA: VerifiedSession::establish(&pk, sk.expose_secret())
+    App->>LA: VerifiedSession::establish(pk.as_slice(), sk.expose_secret())
     LA->>ZT: Create challenge
     ZT-->>LA: Challenge data
     LA->>ZT: Sign challenge
@@ -433,7 +436,7 @@ use latticearc::{VerifiedSession, generate_keypair};
 
 // Establish session
 let (pk, sk) = generate_keypair()?;
-let session = VerifiedSession::establish(&pk, sk.expose_secret())?;
+let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 
 // Check session state
 assert!(session.is_valid());
@@ -513,8 +516,8 @@ let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
 use latticearc::{hash_data, derive_key, hmac, SecurityMode};
 
 let hash = hash_data(data);
-let derived = derive_key(password, salt, 32, SecurityMode::default())?;
-let mac = hmac(data, &key, SecurityMode::default())?;
+let derived = derive_key(password.as_bytes(), salt, 32, SecurityMode::Unverified)?;
+let mac = hmac(data, &key, SecurityMode::Unverified)?;
 ```
 
 #### HKDF with Custom Info String

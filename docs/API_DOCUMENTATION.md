@@ -1,6 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.9.0 | **License**: Apache 2.0
+**Version**: 0.11.0 | **License**: Apache 2.0
 
 ---
 
@@ -64,6 +64,8 @@ int encrypted_len = RSA_public_encrypt(data_len, data, encrypted,
 
 ```rust
 // After (LatticeArc — 2 lines, quantum-safe)
+use latticearc::{CryptoConfig, CryptoScheme, EncryptKey, encrypt};
+
 let key = latticearc::primitives::rand::random_bytes(32);
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key),
     CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
@@ -97,6 +99,8 @@ byte[] encrypted = cipher.doFinal(plaintext);
 
 ```rust
 // After (LatticeArc)
+use latticearc::{CryptoConfig, CryptoScheme, EncryptKey, encrypt};
+
 let key = latticearc::primitives::rand::random_bytes(32);
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key),
     CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
@@ -256,7 +260,7 @@ let (public_key, private_key) = generate_keypair()?;
 use latticearc::{VerifiedSession, generate_keypair, CryptoConfig};
 
 let (pk, sk) = generate_keypair()?;
-let session = VerifiedSession::establish(&pk, sk.expose_secret())?;
+let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 
 // Use session for crypto operations
 let config = CryptoConfig::new().session(&session);
@@ -373,8 +377,10 @@ let valid = verify_hybrid_signature(b"important message", &signature, &pk, Secur
 use latticearc::primitives::kem::ml_kem::*;
 let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)?;
 let (shared_secret, ciphertext) = MlKem::encapsulate(&pk)?;
-let recovered = sk.decapsulate(&ciphertext)?;
-assert_eq!(shared_secret, recovered);
+let recovered = MlKem::decapsulate(&sk, &ciphertext)?;
+// Secret types deliberately have no `==`; compare in constant time.
+use subtle::ConstantTimeEq;
+assert!(bool::from(shared_secret.ct_eq(&recovered)));
 ```
 
 ### ML-DSA (Digital Signatures)
@@ -383,8 +389,8 @@ assert_eq!(shared_secret, recovered);
 use latticearc::primitives::sig::ml_dsa::*;
 
 let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)?;
-let signature = sign(&sk, b"Important message", b"")?;
-let verified = verify(&pk, b"Important message", &signature, b"")?;
+let signature = sk.sign(b"Important message", b"")?;
+let verified = pk.verify(b"Important message", &signature, b"")?;
 ```
 
 ### SLH-DSA (Hash-Based Signatures)
@@ -392,7 +398,7 @@ let verified = verify(&pk, b"Important message", &signature, b"")?;
 ```rust
 use latticearc::primitives::sig::slh_dsa::*;
 
-let (signing_key, verifying_key) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
+let (signing_key, verifying_key) = SlhDsaSigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
 let signature = signing_key.sign(message, &[])?;
 let verified = verifying_key.verify(message, &signature, &[])?;
 ```
@@ -404,7 +410,7 @@ use latticearc::primitives::aead::aes_gcm::*;
 use latticearc::primitives::aead::AeadCipher;
 
 let key = AesGcm256::generate_key();
-let cipher = AesGcm256::new(&key)?;
+let cipher = AesGcm256::new(&*key)?;
 let nonce = AesGcm256::generate_nonce();
 let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
 let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
@@ -454,7 +460,7 @@ use latticearc::primitives::aead::chacha20poly1305::*;
 use latticearc::primitives::aead::AeadCipher;
 
 let key = ChaCha20Poly1305Cipher::generate_key();
-let cipher = ChaCha20Poly1305Cipher::new(&key)?;
+let cipher = ChaCha20Poly1305Cipher::new(&*key)?;
 let nonce = ChaCha20Poly1305Cipher::generate_nonce();
 let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
 let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
