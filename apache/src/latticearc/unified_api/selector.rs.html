@@ -1135,7 +1135,7 @@
 <a href=#1135 id=1135 data-nosnippet>1135</a>        // wanting the optimization: pre-set `SecurityLevel::Standard`,
 <a href=#1136 id=1136 data-nosnippet>1136</a>        // or use `select_encryption_scheme_typed` (no downgrade path).
 <a href=#1137 id=1137 data-nosnippet>1137</a>        </span><span class="kw">use </span><span class="kw">crate</span>::primitives::rand::secure_rng;
-<a href=#1138 id=1138 data-nosnippet>1138</a>        <span class="kw">use </span>rand::RngCore;
+<a href=#1138 id=1138 data-nosnippet>1138</a>        <span class="kw">use </span>rand::Rng;
 <a href=#1139 id=1139 data-nosnippet>1139</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">8192</span>];
 <a href=#1140 id=1140 data-nosnippet>1140</a>        secure_rng().fill_bytes(<span class="kw-2">&amp;mut </span>data);
 <a href=#1141 id=1141 data-nosnippet>1141</a>        <span class="kw">let </span>config = CoreConfig::new()
@@ -1156,7 +1156,7 @@
 <a href=#1156 id=1156 data-nosnippet>1156</a>        // explicitly declares `Standard`, ML-KEM-512 is the requested
 <a href=#1157 id=1157 data-nosnippet>1157</a>        // level — no refusal, just normal selection.
 <a href=#1158 id=1158 data-nosnippet>1158</a>        </span><span class="kw">use </span><span class="kw">crate</span>::primitives::rand::secure_rng;
-<a href=#1159 id=1159 data-nosnippet>1159</a>        <span class="kw">use </span>rand::RngCore;
+<a href=#1159 id=1159 data-nosnippet>1159</a>        <span class="kw">use </span>rand::Rng;
 <a href=#1160 id=1160 data-nosnippet>1160</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">8192</span>];
 <a href=#1161 id=1161 data-nosnippet>1161</a>        secure_rng().fill_bytes(<span class="kw-2">&amp;mut </span>data);
 <a href=#1162 id=1162 data-nosnippet>1162</a>        <span class="kw">let </span>config = CoreConfig::new()
@@ -1237,7 +1237,7 @@
 <a href=#1237 id=1237 data-nosnippet>1237</a>    <span class="attr">#[test]
 <a href=#1238 id=1238 data-nosnippet>1238</a>    </span><span class="kw">fn </span>test_performance_preference_influences_encryption_scheme_succeeds() {
 <a href=#1239 id=1239 data-nosnippet>1239</a>        <span class="kw">use </span><span class="kw">crate</span>::primitives::rand::secure_rng;
-<a href=#1240 id=1240 data-nosnippet>1240</a>        <span class="kw">use </span>rand::RngCore;
+<a href=#1240 id=1240 data-nosnippet>1240</a>        <span class="kw">use </span>rand::Rng;
 <a href=#1241 id=1241 data-nosnippet>1241</a>        <span class="comment">// Use random data so the size-conditioned branch activates. Post-L3 audit
 <a href=#1242 id=1242 data-nosnippet>1242</a>        // fix: caller-declared `SecurityLevel::High` + `Speed` + Random
 <a href=#1243 id=1243 data-nosnippet>1243</a>        // data REFUSES (was: silent downgrade to ML-KEM-512). To still

@@ -18,7 +18,7 @@
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>aws_lc_rs::hkdf::{HKDF_SHA256, KeyType, Salt};
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>hmac::{Hmac, digest::KeyInit <span class="kw">as </span>HmacKeyInit};
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>latticearc::prelude::error::LatticeArcError;
-<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>rand::RngCore;
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>rand::Rng;
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>sha2::Sha256;
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">super</span>::types::TestResult;
@@ -165,7 +165,7 @@
 <a href=#165 id=165 data-nosnippet>165</a>    <span class="comment">// Test 2: Key serialization roundtrip
 <a href=#166 id=166 data-nosnippet>166</a>    </span>test_details.push(<span class="string">"Test 2: Key serialization/deserialization"</span>.to_string());
 <a href=#167 id=167 data-nosnippet>167</a>
-<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">let </span><span class="kw-2">mut </span>csprng = rand_core_0_6::OsRng; <span class="comment">// ed25519-dalek 2.x → rand_core 0.6
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">let </span><span class="kw-2">mut </span>csprng = <span class="kw">crate</span>::utils::test_rng_succeeds(); <span class="comment">// ed25519-dalek 3.x → rand_core 0.10
 <a href=#169 id=169 data-nosnippet>169</a>    </span><span class="kw">let </span>signing_key = ed25519_dalek::SigningKey::generate(<span class="kw-2">&amp;mut </span>csprng);
 <a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">let </span>sk_bytes = signing_key.to_bytes();
 <a href=#171 id=171 data-nosnippet>171</a>
