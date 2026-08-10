@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **FIPS §9.2.2 integrity test: an unrecognizable module artifact no longer
+  aborts the process.** `integrity_test()` returned `Err` when
+  `current_exe()` did not look like a LatticeArc artifact, and
+  `initialize_and_test()` routes any integrity `Err` into the FIPS 140-3
+  §9.1 `process::abort()`. That path is reached by every production binary
+  that statically links latticearc under its own name (and by every
+  dynamic-library host), because neither is distinguishable by name from a
+  foreign host process — observed as a downstream MCP server binary
+  SIGABRT-ing at its first keygen when a workspace build unioned
+  `fips-self-test` onto it, while the hash-named test binary of the same
+  code passed. "Cannot verify" is a deployment condition, not tamper: the
+  unrecognized-artifact case now routes exactly like the
+  missing-`PRODUCTION_HMAC.txt` case — skip with a loud warning, leave
+  `INTEGRITY_TEST_CONFIGURED` false — so the §9.1 abort fires only on real
+  tamper (HMAC mismatch) or KAT failure. The `fips-strict-integrity` gate
+  still fails closed: `verify_operational` refuses operational entry in
+  both cannot-verify conditions (its message now names both). The
+  artifact-recognition heuristic itself is unchanged; the routing is now
+  unit-tested via a path-parameterized `integrity_test_at`.
+  `docs/FIPS_SECURITY_POLICY.md` §5.3/§5.4 synced to the implemented
+  behavior.
+
+---
+
 ## [0.11.0] — 2026-08-09
 
 ### Changed (dependencies — aws-lc-rs 1.18, FIPS module 4.x)

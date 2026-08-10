@@ -200,14 +200,27 @@ PCT implementation: Sign fixed message `b"FIPS PCT test"` with generated private
 1. `build.rs` generates `integrity_hmac.rs` containing expected HMAC:
    - Production: reads from `PRODUCTION_HMAC.txt` (externally generated)
    - Development: sets expected HMAC to `None`
-2. At runtime, `integrity_test()` computes HMAC-SHA256 over the current binary
-3. Compares against expected value
-4. Debug builds: warn and continue if no expected HMAC
-5. Release builds: fail if no expected HMAC configured
+2. At runtime, `integrity_test()` resolves the module artifact via
+   `current_exe()` and checks it is a recognizable LatticeArc artifact
+   (the LatticeArc shared library / CLI names, or a cargo-generated
+   `<crate>-<16-hex>` binary under `target/`). If the artifact is not
+   recognizable — a dynamic-library host interpreter, or a production
+   binary that statically links LatticeArc under its own name — the test
+   **skips with a loud warning** (integrity cannot be verified from a
+   file that cannot be attributed to the module; verify out-of-band)
+3. For a recognized artifact, computes HMAC-SHA256 over it and compares
+   against the expected value (constant-time)
+4. No expected HMAC configured (development builds): warn and continue
+5. Both cannot-verify conditions (unrecognized artifact, no configured
+   HMAC) leave the module in "integrity unverified" state; under the
+   `fips-strict-integrity` feature, `verify_operational` refuses to enter
+   operational state until integrity is verified
 
 ### 5.4 Self-Test Failure Behavior
 
-On any self-test failure:
+On any self-test **failure** (integrity HMAC mismatch — i.e. detected
+tamper — or any KAT failure; a skipped integrity check is a
+cannot-verify condition, not a failure):
 - `std::process::abort()` is called immediately
 - No crypto operations are permitted
 - No recovery path (FIPS 140-3 compliant)

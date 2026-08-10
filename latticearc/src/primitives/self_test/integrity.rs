@@ -146,69 +146,104 @@ fn path_looks_like_latticearc_module(path: &std::path::Path) -> bool {
 ///
 /// The module path is resolved via `std::env::current_exe()` and then
 /// cross-checked with [`path_looks_like_latticearc_module`]. If the
-/// resolved path does not look like a LatticeArc shared library or
-/// LatticeArc-bearing binary (e.g. when the library is loaded by a
-/// host interpreter and `current_exe()` returns the interpreter
-/// itself), the test returns an explicit "cannot locate" error rather
-/// than HMACing the wrong file. Without `unsafe`, which the workspace
-/// `unsafe_code` lint forbids, there is no portable way to call the
-/// platform dynamic-loader APIs (`dladdr`, `dl_iterate_phdr`,
-/// `GetModuleFileName`) that would recover the library's path
-/// directly; the dynamic-load case must be handled by the deployment
-/// (e.g. by also shipping a static-link CLI that runs the integrity
-/// test out-of-band).
+/// resolved path does not look like a LatticeArc artifact, the test
+/// SKIPS with a loud warning rather than HMACing the wrong file: that
+/// path is reached both by dynamic-library hosts (`current_exe()` is
+/// the Python/Node/JVM interpreter) and by production binaries that
+/// statically link latticearc under their own name — the two are
+/// indistinguishable by name, and neither is evidence of tamper.
+/// `INTEGRITY_TEST_CONFIGURED` stays false, so under the
+/// `fips-strict-integrity` feature `verify_operational` refuses to
+/// enter operational state until integrity is verified out-of-band.
+/// Without `unsafe`, which the workspace `unsafe_code` lint forbids,
+/// there is no portable way to call the platform dynamic-loader APIs
+/// (`dladdr`, `dl_iterate_phdr`, `GetModuleFileName`) that would
+/// recover the library's path directly; the dynamic-load case must be
+/// handled by the deployment (e.g. by also shipping a static-link CLI
+/// that runs the integrity test out-of-band).
 ///
 /// # Errors
 ///
 /// Returns error if:
 /// - `current_exe()` is unavailable
-/// - The resolved path does not look like a LatticeArc artifact
-/// - The artifact cannot be read
+/// - The located artifact cannot be read
 /// - HMAC computation fails
 /// - The computed HMAC does not match the build-time expected value
+///   (tamper — this is the condition that triggers the FIPS 140-3
+///   §9.1 abort in `initialize_and_test`)
 pub fn integrity_test() -> Result<()> {
+    let module_path = std::env::current_exe().map_err(|e| LatticeArcError::ValidationError {
+        message: format!("Integrity test: cannot locate module binary: {e}"),
+    })?;
+    integrity_test_at(&module_path)
+}
+
+/// [`integrity_test`] body, parameterized over the resolved module path so
+/// the artifact-recognition routing is unit-testable (`current_exe()`
+/// cannot be faked from a test).
+fn integrity_test_at(module_path: &std::path::Path) -> Result<()> {
     // FIPS requires using a cryptographic key for HMAC
     // For a self-contained integrity test, we use a deterministic key derived
     // from the module identity. In production FIPS, this would come from HSM/TPM.
     const INTEGRITY_KEY: &[u8] = crate::types::domains::MODULE_INTEGRITY_HMAC_KEY;
 
-    // Locate the latticearc module binary on disk.
+    // Artifact recognition.
     //
-    // `std::env::current_exe()` returns the path to the *host* binary,
-    // which is correct only when latticearc is statically linked into
-    // that binary. When latticearc is loaded as a `.so`/`.dylib`/`.dll`
-    // (e.g. from a Python or Node.js extension), `current_exe()` points
-    // at the host interpreter, and HMACing it would silently verify
-    // the wrong file.
+    // `current_exe()` is the *host* binary path, which is the module
+    // artifact only when latticearc is statically linked into it. When
+    // latticearc is loaded as a `.so`/`.dylib`/`.dll` (e.g. from a
+    // Python or Node.js extension), `current_exe()` is the host
+    // interpreter, and HMACing it would silently verify the wrong
+    // file. Without `unsafe` (forbidden crate-wide) the platform
+    // dynamic-loader APIs (`dladdr`, `dl_iterate_phdr`,
+    // `GetModuleFileName`) that would recover the library's own path
+    // are unavailable, so recognition is by artifact-name shape.
     //
-    // Without `unsafe` (forbidden crate-wide) we cannot call
-    // platform dynamic-loader APIs (`dladdr`, `dl_iterate_phdr`,
-    // `GetModuleFileName`) to recover the library's own path. Instead
-    // we read `current_exe()`, then check whether the resolved file
-    // name matches one of the LatticeArc artifact names compiled
-    // into this build (`liblatticearc.so`, `liblatticearc.dylib`,
-    // `latticearc.dll`, or any binary that links them statically).
-    // If the path looks like a host-process executable rather than the
-    // LatticeArc library, return an explicit "cannot locate" error so
-    // FIPS callers see the integrity gap rather than a silent
-    // false-positive verification of the wrong file.
-    let module_path = std::env::current_exe().map_err(|e| LatticeArcError::ValidationError {
-        message: format!("Integrity test: cannot locate module binary: {e}"),
-    })?;
-
-    if !path_looks_like_latticearc_module(&module_path) {
-        return Err(LatticeArcError::ValidationError {
-            message: format!(
-                "Integrity test: current_exe() = {:?} does not appear to be a \
-                 LatticeArc library or a binary that statically links it. \
-                 This build cannot verify dynamic-library integrity without \
-                 platform dynamic-loader APIs (forbidden by the workspace \
-                 `unsafe_code` lint). Run the integrity test from a binary \
-                 that statically links latticearc, or supply an external \
-                 library path via the FIPS deployment manifest.",
-                module_path,
-            ),
-        });
+    // An unrecognized name is a "cannot verify" condition, NOT tamper:
+    // a production binary that statically links latticearc under its
+    // own name (a server binary, an MCP subprocess, …) is
+    // indistinguishable by name from a host interpreter, and treating
+    // either as tamper would let `initialize_and_test`'s FIPS 140-3
+    // §9.1 abort take down every such deployment at its first crypto
+    // call. So this routes exactly like the missing-PRODUCTION_HMAC
+    // case below: skip with a loud warning, leave
+    // `INTEGRITY_TEST_CONFIGURED` false, and let the
+    // `fips-strict-integrity` gate in `verify_operational` refuse
+    // operational entry for deployments that require verified
+    // integrity. The §9.1 abort stays reserved for real tamper (HMAC
+    // mismatch) and KAT failures.
+    if !path_looks_like_latticearc_module(module_path) {
+        tracing::warn!(
+            current_exe = ?module_path,
+            "FIPS integrity test SKIPPED — current_exe() is not a recognizable \
+             LatticeArc artifact, so the module cannot locate its own binary to \
+             verify. Module-integrity verification did NOT run. Run the \
+             integrity test from a static-link LatticeArc binary out-of-band, \
+             or ship the module under a recognized artifact name; under the \
+             fips-strict-integrity feature, verify_operational will refuse to \
+             enter operational state until integrity is verified."
+        );
+        #[expect(
+            clippy::print_stderr,
+            reason = "Operator-facing diagnostic — must surface even when tracing is unconfigured"
+        )]
+        {
+            eprintln!(
+                "WARNING: FIPS Integrity Test SKIPPED (current_exe() = {} is not a \
+                 recognizable LatticeArc artifact)",
+                module_path.display()
+            );
+            eprintln!("   Module-integrity verification did NOT run.");
+            eprintln!(
+                "   Verify module integrity out-of-band (static-link CLI), or ship \
+                 the module under a recognized artifact name; under \
+                 fips-strict-integrity, verify_operational refuses operational \
+                 state until then."
+            );
+        }
+        // INTEGRITY_TEST_CONFIGURED stays false — strict-integrity gate
+        // in `verify_operational` reads this and refuses Ok.
+        return Ok(());
     }
 
     // Read the module binary with an explicit upper bound. The path is
@@ -218,7 +253,7 @@ pub fn integrity_test() -> Result<()> {
     // and well below the smallest deployment target's RAM ceiling.
     const MAX_MODULE_SIZE: u64 = 512 * 1024 * 1024;
     use std::io::Read;
-    let f = std::fs::File::open(&module_path).map_err(|e| LatticeArcError::ValidationError {
+    let f = std::fs::File::open(module_path).map_err(|e| LatticeArcError::ValidationError {
         message: format!("Integrity test: cannot open module binary: {e}"),
     })?;
     let mut module_bytes = Vec::new();
@@ -414,6 +449,35 @@ mod tests {
             assert!(
                 !path_looks_like_latticearc_module(&PathBuf::from(path)),
                 "non-LatticeArc path should be rejected: {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_integrity_test_at_unrecognized_artifact_skips_instead_of_failing() {
+        use std::path::Path;
+
+        // "Cannot verify" must not be confused with "ran and detected
+        // tamper": an Err here reaches `initialize_and_test`'s FIPS 140-3
+        // §9.1 process::abort(), which would take down every production
+        // binary that statically links latticearc under its own name (and
+        // every dynamic-library host) at its first crypto call. The skip
+        // leaves `INTEGRITY_TEST_CONFIGURED` false, so strict-integrity
+        // deployments still refuse operational entry.
+        for path in [
+            // Production binary statically linking latticearc — the shape
+            // that aborted a downstream MCP server spawned by its own
+            // end-to-end test.
+            "/usr/local/bin/vault-mcp",
+            "/work/repo/target/release/vault-mcp",
+            // Dynamic-library hosts.
+            "/usr/bin/python3.12",
+            "/opt/node/bin/node",
+        ] {
+            assert!(
+                integrity_test_at(Path::new(path)).is_ok(),
+                "unrecognized artifact is a cannot-verify condition, not tamper — \
+                 integrity_test must skip (Ok), not Err into the §9.1 abort: {path}"
             );
         }
     }

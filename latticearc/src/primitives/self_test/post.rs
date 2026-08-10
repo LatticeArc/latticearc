@@ -547,9 +547,11 @@ pub fn verify_operational() -> Result<()> {
         if !INTEGRITY_TEST_CONFIGURED.load(Ordering::SeqCst) {
             return Err(LatticeArcError::ValidationError {
                 message: "FIPS module not operational: fips-strict-integrity is enabled but \
-                          no PRODUCTION_HMAC.txt was provisioned, so the pre-operational \
-                          integrity test (FIPS 140-3 §9.2) could not establish module \
-                          authenticity."
+                          the pre-operational integrity test (FIPS 140-3 §9.2) could not \
+                          establish module authenticity — either no PRODUCTION_HMAC.txt was \
+                          provisioned, or current_exe() is not a recognizable LatticeArc \
+                          artifact (dynamic-library host or custom-named binary; verify \
+                          integrity out-of-band)."
                     .to_string(),
             });
         }
