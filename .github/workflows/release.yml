@@ -23,14 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Run tests
         run: cargo test --workspace --all-features --release
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Install cargo-audit
         # Pinned: see ci.yml security-tools install rationale.
-        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # main
+        uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # main
         with:
           tool: cargo-audit@0.22.1
       - name: Security audit
@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       # Single crate publish (all sub-crates consolidated into latticearc).
       # Tolerate "already uploaded/exists" so workflow re-runs don't fail.
@@ -181,7 +181,7 @@ jobs:
         # the correct semantic now that the downstream sign step refuses
         # placeholder SBOMs: a tool-install failure should abort the
         # release here rather than continue and fail at signing.
-        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # main
+        uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # main
         with:
           tool: cargo-sbom@0.10.0,cargo-cyclonedx@0.5.9
       - name: Generate SBOM (SPDX)
@@ -275,7 +275,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       # Go is required for aws-lc-fips-sys FIPS builds
       - name: Install Go (macOS)
