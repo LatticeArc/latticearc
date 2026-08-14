@@ -227,7 +227,7 @@ fn test_hashing_functions_accessible_are_stable() {
     let data = b"test data";
 
     // hash_data is stateless
-    let hash = hash_data(data);
+    let hash = hash_data(data).expect("hash");
     assert_eq!(hash.len(), 32, "Hash output should be 32 bytes");
 }
 
@@ -747,7 +747,7 @@ fn test_generate_keypair_returns_expected_types_correctly_succeeds() {
 #[test]
 fn test_hash_data_returns_expected_type_correctly_succeeds() {
     let data = b"test data";
-    let raw: [u8; 32] = hash_data(data);
+    let raw: [u8; 32] = hash_data(data).expect("hash");
     let result = HashOutput::new(raw);
     assert_eq!(result.as_slice().len(), 32);
 }

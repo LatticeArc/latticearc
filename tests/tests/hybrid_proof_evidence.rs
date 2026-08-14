@@ -1133,7 +1133,7 @@ fn proof_cross_level_mismatch(
 
 /// Helper: SHA3-256 hash as hex string
 fn sha3_hex(data: &[u8]) -> String {
-    let hash = hash_data(data);
+    let hash = hash_data(data).expect("hash");
     hash.iter().map(|b| format!("{b:02x}")).collect()
 }
 

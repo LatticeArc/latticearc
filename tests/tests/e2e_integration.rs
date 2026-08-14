@@ -134,16 +134,16 @@ fn test_hybrid_different_plaintexts_produce_different_ciphertexts_succeeds() {
 #[test]
 fn test_hash_deterministic_for_same_input_is_deterministic() {
     let data = b"Hash determinism check";
-    let h1 = hash_data(data);
-    let h2 = hash_data(data);
+    let h1 = hash_data(data).expect("hash");
+    let h2 = hash_data(data).expect("hash");
     assert_eq!(h1, h2, "SHA3-256 must be deterministic");
     assert_eq!(h1.len(), 32, "SHA3-256 = 32 bytes");
 }
 
 #[test]
 fn test_hash_collision_resistance_verified_succeeds() {
-    let h1 = hash_data(b"data-a");
-    let h2 = hash_data(b"data-b");
+    let h1 = hash_data(b"data-a").expect("hash");
+    let h2 = hash_data(b"data-b").expect("hash");
     assert_ne!(h1, h2, "Different inputs should hash differently");
 }
 

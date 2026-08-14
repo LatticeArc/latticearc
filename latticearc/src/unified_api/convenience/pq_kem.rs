@@ -86,6 +86,12 @@ fn encrypt_pq_ml_kem_internal(
     ml_kem_pk: &[u8],
     security_level: MlKemSecurityLevel,
 ) -> Result<Vec<u8>> {
+    // FIPS 140-3 §9.6: no cryptographic service while the module is in an
+    // error state. This module reaches `primitives::*` directly rather than
+    // routing through `unified_api::{encrypt,decrypt,sign,verify}`, so the
+    // latch has to be consulted here or a consumer of this module alone
+    // would never see it.
+    super::api::fips_verify_operational()?;
     crate::log_crypto_operation_start!(
         "encrypt_pq_ml_kem",
         security_level = ?security_level,
@@ -155,6 +161,7 @@ fn decrypt_pq_ml_kem_internal(
     ml_kem_sk: &[u8],
     security_level: MlKemSecurityLevel,
 ) -> Result<Zeroizing<Vec<u8>>> {
+    super::api::fips_verify_operational()?;
     use super::aes_gcm::decrypt_aes_gcm_internal;
     use crate::primitives::kem::ml_kem::{MlKemCiphertext, MlKemSecretKey};
 

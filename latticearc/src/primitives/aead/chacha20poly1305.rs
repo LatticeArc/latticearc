@@ -747,6 +747,18 @@ mod tests {
         assert_eq!(plaintext, decrypted.as_slice());
     }
 
+    /// RFC 8439 §2.8.2 Test Case 1, checked against the published output.
+    ///
+    /// The assertions that matter are `ciphertext == RFC_CIPHERTEXT` and
+    /// `tag == RFC_TAG`. Length checks and an encrypt/decrypt roundtrip are
+    /// not a KAT: they hold for *any* self-consistent cipher, including a
+    /// completely wrong one. Only comparing against the published bytes
+    /// detects a wrong keystream or a wrong Poly1305 key derivation.
+    ///
+    /// The AAD must be the vector's own `50 51 52 53 c0 c1 c2 c3 c4 c5 c6 c7`.
+    /// Poly1305 covers the AAD, so running this vector with an empty AAD
+    /// yields the RFC ciphertext but a different tag — which is how the tag
+    /// assertion came to be dropped in the first place.
     #[test]
     fn test_chacha20_poly1305_rfc_test_vector_1_matches_vector() {
         // RFC 8439 Test Case 1 - ChaCha20-Poly1305
@@ -758,17 +770,40 @@ mod tests {
         let nonce: [u8; 12] =
             [0x07, 0x00, 0x00, 0x00, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47];
         let plaintext = b"Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.";
-        let aad: [u8; 0] = [];
+        let aad: [u8; 12] =
+            [0x50, 0x51, 0x52, 0x53, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
+
+        /// Expected ciphertext from RFC 8439 §2.8.2.
+        const RFC_CIPHERTEXT: [u8; 114] = [
+            0xd3, 0x1a, 0x8d, 0x34, 0x64, 0x8e, 0x60, 0xdb, 0x7b, 0x86, 0xaf, 0xbc, 0x53, 0xef,
+            0x7e, 0xc2, 0xa4, 0xad, 0xed, 0x51, 0x29, 0x6e, 0x08, 0xfe, 0xa9, 0xe2, 0xb5, 0xa7,
+            0x36, 0xee, 0x62, 0xd6, 0x3d, 0xbe, 0xa4, 0x5e, 0x8c, 0xa9, 0x67, 0x12, 0x82, 0xfa,
+            0xfb, 0x69, 0xda, 0x92, 0x72, 0x8b, 0x1a, 0x71, 0xde, 0x0a, 0x9e, 0x06, 0x0b, 0x29,
+            0x05, 0xd6, 0xa5, 0xb6, 0x7e, 0xcd, 0x3b, 0x36, 0x92, 0xdd, 0xbd, 0x7f, 0x2d, 0x77,
+            0x8b, 0x8c, 0x98, 0x03, 0xae, 0xe3, 0x28, 0x09, 0x1b, 0x58, 0xfa, 0xb3, 0x24, 0xe4,
+            0xfa, 0xd6, 0x75, 0x94, 0x55, 0x85, 0x80, 0x8b, 0x48, 0x31, 0xd7, 0xbc, 0x3f, 0xf4,
+            0xde, 0xf0, 0x8e, 0x4b, 0x7a, 0x9d, 0xe5, 0x76, 0xd2, 0x65, 0x86, 0xce, 0xc6, 0x4b,
+            0x61, 0x16,
+        ];
+        /// Expected Poly1305 tag from RFC 8439 §2.8.2.
+        const RFC_TAG: [u8; 16] = [
+            0x1a, 0xe1, 0x0b, 0x59, 0x4f, 0x09, 0xe2, 0x6a, 0x7e, 0x90, 0x2e, 0xcb, 0xd0, 0x60,
+            0x06, 0x91,
+        ];
 
         let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
         let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(&aad)).unwrap();
 
-        // Verify basic properties
-        assert_eq!(ciphertext.len(), plaintext.len()); // Same length as plaintext
-        assert_eq!(tag.len(), 16); // Poly1305 tag is 16 bytes
+        // The KAT proper: published bytes, not just self-consistency.
+        assert_eq!(
+            ciphertext.as_slice(),
+            RFC_CIPHERTEXT.as_slice(),
+            "RFC 8439 ciphertext mismatch"
+        );
+        assert_eq!(tag.as_slice(), RFC_TAG.as_slice(), "RFC 8439 Poly1305 tag mismatch");
 
-        // Test decryption works
-        let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(&aad)).unwrap();
+        // Decryption must recover the plaintext from the published bytes.
+        let decrypted = cipher.decrypt(&nonce, &RFC_CIPHERTEXT, &RFC_TAG, Some(&aad)).unwrap();
         assert_eq!(decrypted.as_slice(), plaintext);
 
         // Verify that wrong tag fails
@@ -780,9 +815,10 @@ mod tests {
         let wrong_nonce = [0x08, 0x00, 0x00, 0x00, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47];
         assert!(cipher.decrypt(&wrong_nonce, &ciphertext, &tag, Some(&aad)).is_err());
 
-        // Verify decryption
-        let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(&aad)).unwrap();
-        assert_eq!(plaintext, decrypted.as_slice());
+        // Verify that a wrong AAD fails — the tag binds it.
+        let mut wrong_aad = aad;
+        wrong_aad[0] ^= 0x01;
+        assert!(cipher.decrypt(&nonce, &ciphertext, &tag, Some(&wrong_aad)).is_err());
     }
 
     #[test]

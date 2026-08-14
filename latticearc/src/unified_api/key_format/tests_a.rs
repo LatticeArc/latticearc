@@ -549,6 +549,128 @@ fn test_secp256k1_keyalgorithm_classification_returns_classical() {
 
 // --- not_after lifecycle field (added 0.8.4) ---
 
+/// The M-B convention is that the expiry gate runs before extraction, so a
+/// key past its `not_after` can be loaded and inspected but never yields
+/// usable typed key material. That must hold for every extractor, not only
+/// the hybrid ones — an expired standalone Ed25519/X25519/ML-KEM/ML-DSA key
+/// is exactly as unusable as an expired hybrid one.
+#[test]
+fn test_expired_key_rejected_by_every_single_algorithm_extractor_fails() {
+    use crate::types::types::UseCase;
+
+    let past = Utc::now() - chrono::Duration::hours(1);
+    let expire = |mut k: PortableKey| {
+        k.set_not_after(Some(past));
+        k
+    };
+    let assert_expired = |result: crate::unified_api::error::Result<()>, what: &str| {
+        let Err(e) = result else {
+            panic!("{what}: expired key must not yield extractable key material");
+        };
+        let msg = e.to_string();
+        assert!(msg.contains("expired"), "{what}: expected an expiry error, got: {msg}");
+    };
+
+    // Ed25519 (public + secret)
+    use crate::primitives::ec::traits::EcKeyPair as _;
+    let ed_kp = crate::primitives::ec::ed25519::Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let (ed_pk, ed_sk) = (ed_kp.public_key_bytes(), ed_kp.secret_key_bytes());
+    let (ed_pub, ed_sec) =
+        PortableKey::from_ed25519_keypair(UseCase::SecureMessaging, &ed_pk, &ed_sk);
+    assert_expired(expire(ed_pub).to_ed25519_verifying_key_bytes().map(|_| ()), "ed25519 public");
+    assert_expired(expire(ed_sec).to_ed25519_signing_key_bytes().map(|_| ()), "ed25519 secret");
+
+    // X25519 (public + secret)
+    let x_kp =
+        crate::primitives::kem::ecdh::X25519StaticKeyPair::generate().expect("x25519 keygen");
+    let x_seed = x_kp.seed_bytes().expect("x25519 seed");
+    let (x_pub, x_sec) = PortableKey::from_x25519_keypair(
+        UseCase::SecureMessaging,
+        x_kp.public_key_bytes(),
+        &x_seed,
+    );
+    assert_expired(expire(x_pub).to_x25519_public_key_bytes().map(|_| ()), "x25519 public");
+    assert_expired(expire(x_sec).to_x25519_secret_key_bytes().map(|_| ()), "x25519 secret");
+
+    // ML-KEM (public + secret)
+    let (kem_pk, kem_sk) = crate::primitives::kem::ml_kem::MlKem::generate_keypair(
+        crate::primitives::kem::MlKemSecurityLevel::MlKem768,
+    )
+    .expect("ml-kem keygen");
+    let (kem_pub, kem_sec) =
+        PortableKey::from_ml_kem_keypair(UseCase::SecureMessaging, &kem_pk, &kem_sk);
+    assert_expired(expire(kem_pub).to_ml_kem_public_key().map(|_| ()), "ml-kem public");
+    assert_expired(expire(kem_sec).to_ml_kem_secret_key().map(|_| ()), "ml-kem secret");
+
+    // ML-DSA (public + secret)
+    let (dsa_pk, dsa_sk) = crate::primitives::sig::ml_dsa::generate_keypair(
+        crate::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
+    )
+    .expect("ml-dsa keygen");
+    let (dsa_pub, dsa_sec) = PortableKey::from_keypair(
+        UseCase::SecureMessaging,
+        KeyAlgorithm::MlDsa65,
+        dsa_pk.as_bytes(),
+        dsa_sk.expose_secret(),
+    );
+    assert_expired(expire(dsa_pub).to_ml_dsa_verifying_key_bytes().map(|_| ()), "ml-dsa public");
+    assert_expired(expire(dsa_sec).to_ml_dsa_signing_key_bytes().map(|_| ()), "ml-dsa secret");
+}
+
+/// The gate must key off expiry alone: an unexpired key, and a key with no
+/// `not_after` at all, must still extract cleanly through the same paths.
+#[test]
+fn test_unexpired_key_still_extracts_through_every_extractor_succeeds() {
+    use crate::types::types::UseCase;
+
+    let future = Utc::now() + chrono::Duration::hours(1);
+
+    use crate::primitives::ec::traits::EcKeyPair as _;
+    let ed_kp = crate::primitives::ec::ed25519::Ed25519KeyPair::generate().expect("ed25519 keygen");
+    let (ed_pk, ed_sk) = (ed_kp.public_key_bytes(), ed_kp.secret_key_bytes());
+    let (mut ed_pub, ed_sec) =
+        PortableKey::from_ed25519_keypair(UseCase::SecureMessaging, &ed_pk, &ed_sk);
+    ed_pub.set_not_after(Some(future));
+    assert!(ed_pub.to_ed25519_verifying_key_bytes().is_ok(), "unexpired ed25519 public");
+    assert!(ed_sec.to_ed25519_signing_key_bytes().is_ok(), "no-expiry ed25519 secret");
+
+    let x_kp =
+        crate::primitives::kem::ecdh::X25519StaticKeyPair::generate().expect("x25519 keygen");
+    let x_seed = x_kp.seed_bytes().expect("x25519 seed");
+    let (mut x_pub, x_sec) = PortableKey::from_x25519_keypair(
+        UseCase::SecureMessaging,
+        x_kp.public_key_bytes(),
+        &x_seed,
+    );
+    x_pub.set_not_after(Some(future));
+    assert!(x_pub.to_x25519_public_key_bytes().is_ok(), "unexpired x25519 public");
+    assert!(x_sec.to_x25519_secret_key_bytes().is_ok(), "no-expiry x25519 secret");
+
+    let (kem_pk, kem_sk) = crate::primitives::kem::ml_kem::MlKem::generate_keypair(
+        crate::primitives::kem::MlKemSecurityLevel::MlKem768,
+    )
+    .expect("ml-kem keygen");
+    let (mut kem_pub, kem_sec) =
+        PortableKey::from_ml_kem_keypair(UseCase::SecureMessaging, &kem_pk, &kem_sk);
+    kem_pub.set_not_after(Some(future));
+    assert!(kem_pub.to_ml_kem_public_key().is_ok(), "unexpired ml-kem public");
+    assert!(kem_sec.to_ml_kem_secret_key().is_ok(), "no-expiry ml-kem secret");
+
+    let (dsa_pk, dsa_sk) = crate::primitives::sig::ml_dsa::generate_keypair(
+        crate::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
+    )
+    .expect("ml-dsa keygen");
+    let (mut dsa_pub, dsa_sec) = PortableKey::from_keypair(
+        UseCase::SecureMessaging,
+        KeyAlgorithm::MlDsa65,
+        dsa_pk.as_bytes(),
+        dsa_sk.expose_secret(),
+    );
+    dsa_pub.set_not_after(Some(future));
+    assert!(dsa_pub.to_ml_dsa_verifying_key_bytes().is_ok(), "unexpired ml-dsa public");
+    assert!(dsa_sec.to_ml_dsa_signing_key_bytes().is_ok(), "no-expiry ml-dsa secret");
+}
+
 #[test]
 fn test_not_after_default_is_none() {
     let key =

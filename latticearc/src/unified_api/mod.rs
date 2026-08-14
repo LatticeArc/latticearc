@@ -419,7 +419,12 @@ pub use convenience::{
 /// Library version from Cargo.toml.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// FIPS 140-3 self-test status - must pass before any crypto operations
+// Records that this module's own power-up self-test sequence
+// (`run_power_up_self_tests`) completed. It is deliberately NOT the whole
+// answer to `self_tests_passed()`: gated operations enforce
+// `primitives::self_test`'s operational latch, and a query that reported only
+// this flag could answer "self-tests passed" for a module that refuses every
+// operation. See `self_tests_passed()`.
 static SELF_TESTS_PASSED: AtomicBool = AtomicBool::new(false);
 
 /// Initializes the LatticeArc library with default configuration.
@@ -462,14 +467,44 @@ pub fn init_with_config(config: &CoreConfig) -> Result<()> {
     Ok(())
 }
 
-/// Check if FIPS 140-3 self-tests have passed
+/// Check if FIPS 140-3 self-tests have passed and the module is operational.
+///
+/// Reports the state that actually gates cryptographic operations, so a `true`
+/// here means gated operations will be serviced and a `false` means they will
+/// be refused.
+///
+/// Under the `fips-self-test` feature that is the conjunction of two things:
+/// this module's power-up sequence having completed (via [`init`]), and
+/// `primitives::self_test`'s operational latch — the one every gated operation
+/// consults — being clear. The two are separate because the second also covers
+/// the FIPS 140-3 §9.6 error state, which can be entered *after* a successful
+/// `init()` (for example by a conditional-test failure). A query that reported
+/// only the first would keep claiming "self-tests passed" for a module that
+/// refuses every operation, which is exactly the claim a FIPS evidence
+/// collector must not be given.
 #[must_use]
 pub fn self_tests_passed() -> bool {
-    SELF_TESTS_PASSED.load(Ordering::SeqCst)
+    if !SELF_TESTS_PASSED.load(Ordering::SeqCst) {
+        return false;
+    }
+    #[cfg(feature = "fips-self-test")]
+    {
+        crate::primitives::self_test::is_module_operational()
+    }
+    #[cfg(not(feature = "fips-self-test"))]
+    {
+        true
+    }
 }
 
 /// Run FIPS 140-3 power-up self-tests
 fn run_power_up_self_tests() -> Result<()> {
+    // Drive the same one-shot power-up run that every gated operation uses,
+    // so `init()` and the operation path share a single run and a single
+    // resulting latch rather than testing the module twice and disagreeing
+    // about the result. No-op without `fips-self-test`.
+    convenience::api::fips_ensure_initialized();
+
     // Test 1: SHA-3 KAT — routed through the primitives wrapper so the
     // self-test exercises the same call path production code uses, rather
     // than a bare `sha3::Sha3_256` instance that could diverge over time.
@@ -653,6 +688,18 @@ fn run_power_up_self_tests() -> Result<()> {
             status: "tampered message was incorrectly accepted at startup".to_string(),
         });
     }
+
+    // This module's own KATs passed. Before declaring success, confirm the
+    // module is actually operational — the shared power-up run above can have
+    // left it in the §9.6 error state, or (under `fips-strict-integrity`)
+    // flagged a deployment with no provisioned `PRODUCTION_HMAC.txt`. Without
+    // this, `init()` could return `Ok` for a module that refuses every
+    // subsequent operation.
+    #[cfg(feature = "fips-self-test")]
+    crate::primitives::self_test::verify_operational().map_err(|e| CoreError::SelfTestFailed {
+        component: "FIPS module".to_string(),
+        status: e.to_string(),
+    })?;
 
     // All tests passed - set self-test status
     SELF_TESTS_PASSED.store(true, Ordering::SeqCst);

@@ -43,6 +43,12 @@ use crate::primitives::resource_limits::validate_signature_size;
 pub fn generate_hybrid_signing_keypair(
     mode: SecurityMode,
 ) -> Result<(HybridSigPublicKey, HybridSigSecretKey)> {
+    // FIPS 140-3 §9.6: no cryptographic service while the module is in an
+    // error state. This module reaches `primitives::*` directly rather than
+    // routing through `unified_api::{encrypt,decrypt,sign,verify}`, so the
+    // latch has to be consulted here or a consumer of this module alone
+    // would never see it.
+    super::api::fips_verify_operational()?;
     mode.validate()?;
 
     Ok(sig_hybrid::generate_keypair()?)
@@ -64,6 +70,7 @@ pub fn sign_hybrid(
     sk: &HybridSigSecretKey,
     mode: SecurityMode,
 ) -> Result<HybridSignature> {
+    super::api::fips_verify_operational()?;
     mode.validate()?;
 
     // opaque ResourceExceeded — sign-side
@@ -93,6 +100,7 @@ pub fn verify_hybrid_signature(
     pk: &HybridSigPublicKey,
     mode: SecurityMode,
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     mode.validate()?;
 
     // collapse to `Ok(false)` on the

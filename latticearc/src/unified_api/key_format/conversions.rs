@@ -1,6 +1,25 @@
 //! `PortableKey` bridge conversions to/from the concrete typed key types:
 //! hybrid KEM, hybrid signature, Ed25519, X25519, ML-KEM, ML-DSA, and
 //! symmetric keys.
+//!
+//! # Expiry gate
+//!
+//! Every `to_*` extractor in this module opens with
+//! [`validate_with_expiry_now`](PortableKey::validate_with_expiry_now).
+//!
+//! A key file whose `not_after` is in the past loads cleanly through
+//! [`validate`](PortableKey::validate) — by design, because inspection,
+//! rotation and migration tooling must be able to read an expired key. The
+//! extractors are the boundary where "readable metadata" becomes "usable key
+//! material", so that is where expiry has to be enforced: emitting a typed
+//! key value hands a downstream encrypt / decrypt / sign / agree path
+//! something it will happily use.
+//!
+//! The gate belongs on every extractor, not just the hybrid ones. Expiry is a
+//! property of the key file, not of the algorithm inside it — a standalone
+//! Ed25519, X25519, ML-KEM or ML-DSA key is exactly as expired as a hybrid
+//! one, and downstream length validation inside the primitive constructors
+//! checks shape, never lifetime.
 
 use super::{KeyAlgorithm, KeyData, KeyType, ML_KEM_PK_METADATA_KEY, PortableKey};
 use crate::unified_api::error::{CoreError, Result};
@@ -86,11 +105,7 @@ impl PortableKey {
     /// `HybridKemPublicKey::new`, but the asymmetry was a defense-in-depth
     /// hole. The guard makes the contract structural.
     pub fn to_hybrid_public_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemPublicKey> {
-        // M-B: expiry gate must run before extraction. A key file with
-        // `not_after` in the past loads cleanly through validate() (by
-        // design — inspection / migration paths need it), but emitting
-        // the typed HybridKemPublicKey lets a downstream encrypt path
-        // use expired key material. Route through the M-B helper.
+        // Expiry gate — see the module-level "Expiry gate" docs.
         self.validate_with_expiry_now()?;
         if self.key_type != KeyType::Public {
             return Err(CoreError::InvalidKey(
@@ -127,9 +142,7 @@ impl PortableKey {
     /// (stored at keygen time), making the secret key file fully self-contained.
     /// No separate public key file is needed for decryption.
     pub fn to_hybrid_secret_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemSecretKey> {
-        // M-B: see `to_hybrid_public_key`. Expired secret keys must not be
-        // turned into a typed secret-key value that a downstream decrypt
-        // / agree path would use.
+        // Expiry gate — see the module-level "Expiry gate" docs.
         self.validate_with_expiry_now()?;
         let level =
             crate::primitives::kem::MlKemSecurityLevel::try_from(self.algorithm).map_err(|()| {
@@ -271,7 +284,7 @@ impl PortableKey {
     pub fn to_hybrid_sig_public_key(
         &self,
     ) -> Result<crate::hybrid::sig_hybrid::HybridSigPublicKey> {
-        // M-B: see `to_hybrid_public_key`.
+        // Expiry gate — see the module-level "Expiry gate" docs.
         self.validate_with_expiry_now()?;
         if self.key_type != KeyType::Public {
             return Err(CoreError::InvalidKey(
@@ -302,7 +315,7 @@ impl PortableKey {
     pub fn to_hybrid_sig_secret_key(
         &self,
     ) -> Result<crate::hybrid::sig_hybrid::HybridSigSecretKey> {
-        // M-B: see `to_hybrid_public_key`.
+        // Expiry gate — see the module-level "Expiry gate" docs.
         self.validate_with_expiry_now()?;
         let parameter_set = crate::primitives::sig::ml_dsa::MlDsaParameterSet::try_from(
             self.algorithm,
@@ -391,6 +404,8 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if the algorithm is not Ed25519 or key type is not Public.
     pub fn to_ed25519_verifying_key_bytes(&self) -> Result<Vec<u8>> {
+        // Expiry gate — see the module-level "Expiry gate" docs.
+        self.validate_with_expiry_now()?;
         if self.algorithm != KeyAlgorithm::Ed25519 {
             return Err(CoreError::InvalidKey(format!("Not an Ed25519 key: {:?}", self.algorithm)));
         }
@@ -407,6 +422,8 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if the algorithm is not Ed25519 or key type is not Secret.
     pub fn to_ed25519_signing_key_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+        // Expiry gate — see the module-level "Expiry gate" docs.
+        self.validate_with_expiry_now()?;
         if self.algorithm != KeyAlgorithm::Ed25519 {
             return Err(CoreError::InvalidKey(format!("Not an Ed25519 key: {:?}", self.algorithm)));
         }
@@ -438,6 +455,8 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if the algorithm is not X25519 or key type is not Public.
     pub fn to_x25519_public_key_bytes(&self) -> Result<Vec<u8>> {
+        // Expiry gate — see the module-level "Expiry gate" docs.
+        self.validate_with_expiry_now()?;
         if self.algorithm != KeyAlgorithm::X25519 {
             return Err(CoreError::InvalidKey(format!("Not an X25519 key: {:?}", self.algorithm)));
         }
@@ -457,6 +476,8 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if the algorithm is not X25519 or key type is not Secret.
     pub fn to_x25519_secret_key_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+        // Expiry gate — see the module-level "Expiry gate" docs.
+        self.validate_with_expiry_now()?;
         if self.algorithm != KeyAlgorithm::X25519 {
             return Err(CoreError::InvalidKey(format!("Not an X25519 key: {:?}", self.algorithm)));
         }
@@ -493,6 +514,8 @@ impl PortableKey {
     /// Returns an error if the algorithm is not a standalone ML-KEM variant,
     /// key type is not Public, or the key data is malformed.
     pub fn to_ml_kem_public_key(&self) -> Result<crate::primitives::kem::ml_kem::MlKemPublicKey> {
+        // Expiry gate — see the module-level "Expiry gate" docs.
+        self.validate_with_expiry_now()?;
         let level = match self.algorithm {
             KeyAlgorithm::MlKem512 => crate::primitives::kem::MlKemSecurityLevel::MlKem512,
             KeyAlgorithm::MlKem768 => crate::primitives::kem::MlKemSecurityLevel::MlKem768,
@@ -519,6 +542,8 @@ impl PortableKey {
     /// Returns an error if the algorithm is not a standalone ML-KEM variant,
     /// key type is not Secret, or the key data is malformed.
     pub fn to_ml_kem_secret_key(&self) -> Result<crate::primitives::kem::ml_kem::MlKemSecretKey> {
+        // Expiry gate — see the module-level "Expiry gate" docs.
+        self.validate_with_expiry_now()?;
         let level = match self.algorithm {
             KeyAlgorithm::MlKem512 => crate::primitives::kem::MlKemSecurityLevel::MlKem512,
             KeyAlgorithm::MlKem768 => crate::primitives::kem::MlKemSecurityLevel::MlKem768,
@@ -551,6 +576,8 @@ impl PortableKey {
     /// Returns an error if the algorithm is not a standalone ML-DSA variant
     /// or key type is not Public.
     pub fn to_ml_dsa_verifying_key_bytes(&self) -> Result<Vec<u8>> {
+        // Expiry gate — see the module-level "Expiry gate" docs.
+        self.validate_with_expiry_now()?;
         if !matches!(
             self.algorithm,
             KeyAlgorithm::MlDsa44 | KeyAlgorithm::MlDsa65 | KeyAlgorithm::MlDsa87
@@ -574,6 +601,8 @@ impl PortableKey {
     /// Returns an error if the algorithm is not a standalone ML-DSA variant
     /// or key type is not Secret.
     pub fn to_ml_dsa_signing_key_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+        // Expiry gate — see the module-level "Expiry gate" docs.
+        self.validate_with_expiry_now()?;
         if !matches!(
             self.algorithm,
             KeyAlgorithm::MlDsa44 | KeyAlgorithm::MlDsa65 | KeyAlgorithm::MlDsa87

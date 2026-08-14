@@ -62,7 +62,7 @@ latticearc-cli encrypt --use-case healthcare-records \
 ## Security
 
 - `#![forbid(unsafe_code)]`, constant-time comparisons via `subtle`, automatic secret zeroization
-- 30 Kani proofs (18 PR-blocking) + cross-impl differential testing + 31 fuzz targets + Wycheproof + mutation testing at 80% floor
+- 30 Kani proofs (18 PR-blocking) + cross-impl differential testing + 29 fuzz targets + Wycheproof + mutation testing at 80% floor
 - Pre-1.0: API may change between minor versions; see [CHANGELOG.md](https://github.com/LatticeArc/latticearc/blob/main/CHANGELOG.md)
 
 ## More

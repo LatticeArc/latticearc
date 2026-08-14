@@ -126,14 +126,14 @@ fn test_hmac_create_verify_succeeds() {
 #[test]
 fn test_hash_same_input_returns_deterministic_output() {
     let data = b"Hash this data twice";
-    let hash1 = hash_data(data);
-    let hash2 = hash_data(data);
+    let hash1 = hash_data(data).expect("hash");
+    let hash2 = hash_data(data).expect("hash");
 
     assert_eq!(hash1, hash2, "SHA3-256 should be deterministic");
     assert_eq!(hash1.len(), 32, "SHA3-256 output should be 32 bytes");
 
     // Different data → different hash
-    let hash3 = hash_data(b"Different data");
+    let hash3 = hash_data(b"Different data").expect("hash");
     assert_ne!(hash1, hash3, "Different data should produce different hashes");
 }
 

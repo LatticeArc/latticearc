@@ -30,12 +30,32 @@
 //! }
 //! ```
 //!
-//! ## FIPS 140-3 Compliance
+//! ## These are caller-invoked, not automatic
 //!
-//! This test suite supports FIPS 140-3 entropy source validation:
-//! - Power-up self-tests (repetition, frequency)
-//! - Continuous health monitoring (adaptive proportion)
-//! - Statistical quality assurance (monobit, runs, longest run)
+//! Nothing in this crate calls these functions at runtime. They are a public
+//! API for callers who want to assess an entropy source; the library's own
+//! power-up path ([`primitives::self_test`](crate::primitives::self_test))
+//! runs algorithm KATs and does not run any entropy test. If you want
+//! SP 800-90B health checks in your deployment, call
+//! [`run_entropy_health_tests`] (or [`run_entropy_health_tests_on_bytes`] for
+//! an externally-supplied sample) from your own startup or monitoring path.
+//!
+//! **Why they are not wired into the power-up path.** These are statistical
+//! tests with a non-zero false-positive rate — measured at roughly 0.6% per
+//! call for the six-test [`run_entropy_health_tests`] chain on a 1024-byte
+//! sample. The FIPS 140-3 §9.1 power-up path calls `std::process::abort()` on
+//! failure, so wiring a 0.6%-FPR test into it would abort roughly one process
+//! in 170 at startup. A test that must not produce false positives cannot sit
+//! behind an abort; hooking these into a monitoring path that can retry and
+//! alert is the appropriate use.
+//!
+//! ## FIPS 140-3 relevance
+//!
+//! These implement the statistical machinery FIPS 140-3 entropy-source
+//! validation refers to — SP 800-90B repetition (§4.4.1) and adaptive
+//! proportion (§4.4.2), plus the SP 800-22 quality tests. Wiring them into a
+//! continuous-health-monitoring path is the caller's responsibility; this
+//! module supplies the tests, not the schedule.
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]

@@ -69,7 +69,8 @@ pub(crate) fn run(args: HashArgs) -> Result<()> {
 
     let (alg_label, hash_bytes) = match args.algorithm {
         HashAlgorithm::Sha3_256 => {
-            let hash = latticearc::hash_data(&data);
+            let hash = latticearc::hash_data(&data)
+                .map_err(|e| anyhow::anyhow!("SHA3-256 hash failed: {e}"))?;
             ("SHA3-256", hash.to_vec())
         }
         HashAlgorithm::Sha256 => {

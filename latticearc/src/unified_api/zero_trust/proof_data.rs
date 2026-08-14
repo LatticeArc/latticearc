@@ -35,10 +35,18 @@ impl ZeroTrustAuth {
     /// This is a proper zero-knowledge proof: the signature proves knowledge
     /// of the private key without revealing any information about it.
     ///
-    /// Proof complexity affects what is signed:
-    /// - Low: sign(challenge)
-    /// - Medium: sign(challenge || timestamp)
-    /// - High: sign(challenge || timestamp || context)
+    /// All three complexity levels sign the same transcript shape:
+    ///
+    /// ```text
+    /// domain_tag || challenge || timestamp || public_key
+    /// ```
+    ///
+    /// `proof_complexity` selects only the 1-byte leading domain tag —
+    /// `0x01` for `Low`, `0x02` for `Medium`, `0x03` for `High` — which
+    /// separates the levels so a proof produced for one cannot satisfy a
+    /// verifier expecting another. The timestamp and public-key bindings are
+    /// unconditional; see the comment on the `match` below for why they must
+    /// not be complexity-dependent.
     pub(super) fn compute_proof_data(&self, challenge: &[u8]) -> Result<Vec<u8>> {
         let timestamp = Utc::now().timestamp_millis().to_le_bytes();
 

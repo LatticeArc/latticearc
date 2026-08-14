@@ -212,7 +212,7 @@ cargo test --package latticearc-tests --release -- proptest
 | **Proptest** | API crypto correctness (256 random cases/property) | 40+ properties, 6 files | ~60s (release) |
 | **Kani** | Type invariants (all possible inputs) | 30 proofs across 8 files (latticearc::types + primitives::resource_limits) | ~15 min |
 | **Unit tests** | Specific test cases | 8,500+ tests | ~120s (release) |
-| **Fuzzing** | Edge cases via randomness | 31 fuzz targets | 5 min/day |
+| **Fuzzing** | Edge cases via randomness | 29 fuzz targets | 5 min/day |
 
 ## Additional Resources
 

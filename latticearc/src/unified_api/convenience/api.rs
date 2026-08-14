@@ -167,18 +167,40 @@ fn sign_hybrid_ml_dsa_ed25519(
     Ok((public_key.to_vec(), combined_sig))
 }
 
+/// Run the power-up self-tests exactly once per process.
+///
+/// Idempotent and safe to call from anywhere: the `Once` makes concurrent
+/// first-callers block until the single run completes. `initialize_and_test`
+/// calls `std::process::abort()` on failure (FIPS 140-3 §9.1), so if this
+/// returns at all the KATs passed.
+///
+/// This is deliberately the *only* place the power-up run is triggered.
+/// `unified_api::init()` and every gated operation funnel through here, so a
+/// process has one power-up run and one resulting latch — not one per entry
+/// point. `self_tests_passed()` can then answer for the same state that
+/// operations enforce.
+///
+/// Must not be called from anything the KATs themselves reach, or the `Once`
+/// would deadlock. It is safe today because `primitives::self_test` never
+/// calls back into `unified_api`.
+#[cfg(feature = "fips-self-test")]
+pub(crate) fn fips_ensure_initialized() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let _passed = crate::primitives::self_test::initialize_and_test();
+    });
+}
+
+#[cfg(not(feature = "fips-self-test"))]
+pub(crate) fn fips_ensure_initialized() {}
+
 /// Check FIPS module is operational before any crypto operation.
 /// On first call, runs power-up self-tests (lazy initialization).
 /// No-op when `fips-self-test` feature is not enabled.
 #[cfg(feature = "fips-self-test")]
 pub(super) fn fips_verify_operational() -> Result<()> {
-    use std::sync::Once;
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        // initialize_and_test() calls std::process::abort() on failure (FIPS 140-3 §9.1).
-        // If execution continues past this call, self-tests passed.
-        let _passed = crate::primitives::self_test::initialize_and_test();
-    });
+    fips_ensure_initialized();
     crate::primitives::self_test::verify_operational().map_err(|e| CoreError::SelfTestFailed {
         component: "FIPS module".to_string(),
         status: e.to_string(),

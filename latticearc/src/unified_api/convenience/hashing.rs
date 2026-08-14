@@ -81,6 +81,12 @@ fn derive_key_with_info_internal(
     length: usize,
     info: &[u8],
 ) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    // FIPS 140-3 §9.6: no cryptographic service while the module is in an
+    // error state. This module reaches `primitives::*` directly rather than
+    // routing through `unified_api::{encrypt,decrypt,sign,verify}`, so the
+    // latch has to be consulted here or a consumer of this module alone
+    // would never see it.
+    super::api::fips_verify_operational()?;
     crate::log_crypto_operation_start!(
         "key_derivation_info",
         algorithm = "HKDF-SHA256",
@@ -140,6 +146,7 @@ fn derive_key_internal(
     salt: &[u8],
     length: usize,
 ) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    super::api::fips_verify_operational()?;
     crate::log_crypto_operation_start!(
         "key_derivation",
         algorithm = "HKDF-SHA256",
@@ -181,6 +188,7 @@ fn derive_key_internal(
 
 /// Internal implementation of HMAC.
 fn hmac_internal(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    super::api::fips_verify_operational()?;
     crate::log_crypto_operation_start!(op::HMAC, algorithm = "HMAC-SHA256", data_len = data.len());
 
     if key.is_empty() {
@@ -208,6 +216,7 @@ fn hmac_internal(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
 
 /// Internal implementation of HMAC verification.
 fn hmac_verify_internal(key: &[u8], data: &[u8], tag: &[u8]) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     crate::log_crypto_operation_start!(
         "hmac_verify",
         algorithm = "HMAC-SHA256",
@@ -254,15 +263,28 @@ fn hmac_verify_internal(key: &[u8], data: &[u8], tag: &[u8]) -> Result<bool> {
 
 /// Hash data using SHA3-256.
 ///
-/// This function is infallible and returns the computed hash directly.
 /// Hash operations are stateless and don't require a verified session.
+///
+/// # Errors
+///
+/// Returns `CoreError::SelfTestFailed` when the FIPS module is not
+/// operational. SHA-3 is an approved algorithm (FIPS 202) inside the module
+/// boundary, so FIPS 140-3 §9.6 forbids servicing this call while the module
+/// is in an error state — including the `fips-strict-integrity` case where a
+/// deployment has no provisioned `PRODUCTION_HMAC.txt`. The SHA3-256
+/// computation itself cannot fail; without the `fips-self-test` feature the
+/// gate is a no-op and this always returns `Ok`.
 #[inline]
-#[must_use]
-pub fn hash_data(data: &[u8]) -> [u8; 32] {
+pub fn hash_data(data: &[u8]) -> Result<[u8; 32]> {
+    // FIPS 140-3 §9.6: no cryptographic service while the module is in an
+    // error state. This is why the signature is fallible despite SHA3-256
+    // being an infallible computation — the module state, not the hash, is
+    // what can fail.
+    super::api::fips_verify_operational()?;
     debug!(algorithm = "SHA3-256", data_len = data.len(), "Hashing data");
     let result = hash_sha3_256(data);
     debug!(algorithm = "SHA3-256", "Hash completed");
-    result
+    Ok(result)
 }
 
 // ============================================================================
@@ -672,35 +694,39 @@ mod tests {
 
     // hash_data tests
     #[test]
-    fn test_hash_data_deterministic_returns_same_hash_is_deterministic() {
+    fn test_hash_data_deterministic_returns_same_hash_is_deterministic() -> Result<()> {
         let data = b"Test data for hashing";
-        let hash1 = hash_data(data);
-        let hash2 = hash_data(data);
+        let hash1 = hash_data(data)?;
+        let hash2 = hash_data(data)?;
         assert_eq!(hash1, hash2, "Hash should be deterministic");
         assert_eq!(hash1.len(), 32, "SHA-256 hash should be 32 bytes");
+        Ok(())
     }
 
     #[test]
-    fn test_hash_data_different_inputs_produce_distinct_hashes_are_unique() {
+    fn test_hash_data_different_inputs_produce_distinct_hashes_are_unique() -> Result<()> {
         let data1 = b"First message";
         let data2 = b"Second message";
-        let hash1 = hash_data(data1);
-        let hash2 = hash_data(data2);
+        let hash1 = hash_data(data1)?;
+        let hash2 = hash_data(data2)?;
         assert_ne!(hash1, hash2, "Different inputs should produce different hashes");
+        Ok(())
     }
 
     #[test]
-    fn test_hash_data_empty_input_returns_32_byte_hash_fails() {
+    fn test_hash_data_empty_input_returns_32_byte_hash_fails() -> Result<()> {
         let data = b"";
-        let hash = hash_data(data);
+        let hash = hash_data(data)?;
         assert_eq!(hash.len(), 32, "Empty input should still produce 32-byte hash");
+        Ok(())
     }
 
     #[test]
-    fn test_hash_data_large_input_returns_32_byte_hash_succeeds() {
+    fn test_hash_data_large_input_returns_32_byte_hash_succeeds() -> Result<()> {
         let data = vec![0xAB; 100000];
-        let hash = hash_data(&data);
+        let hash = hash_data(&data)?;
         assert_eq!(hash.len(), 32, "Large input should produce 32-byte hash");
+        Ok(())
     }
 
     // derive_key tests (unverified API)
@@ -1056,14 +1082,19 @@ mod tests {
         Ok(())
     }
 
-    // Hash parallel path (data > 65536 bytes)
+    // Multi-block input. `hash_data` delegates to `primitives::hash::sha3`,
+    // a sequential RustCrypto `Sha3_256` wrapper — there is no size threshold
+    // and no parallel path to select. What this covers is that an input
+    // spanning many SHA3-256 blocks (70 000 bytes is ~514 blocks at the
+    // 136-byte rate) absorbs deterministically.
     #[test]
-    fn test_hash_data_parallel_path_is_deterministic() {
-        let data = vec![0xAB; 70000]; // > 65536 to trigger parallel path
-        let hash1 = hash_data(&data);
-        let hash2 = hash_data(&data);
-        assert_eq!(hash1, hash2, "Parallel hash should be deterministic");
+    fn test_hash_data_multi_block_input_is_deterministic() -> Result<()> {
+        let data = vec![0xAB; 70000];
+        let hash1 = hash_data(&data)?;
+        let hash2 = hash_data(&data)?;
+        assert_eq!(hash1, hash2, "Multi-block hash should be deterministic");
         assert_eq!(hash1.len(), 32);
+        Ok(())
     }
 
     // Edge cases

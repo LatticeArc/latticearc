@@ -405,13 +405,22 @@ impl PortableKey {
     /// [`expected_hybrid_classical_len`](Self::expected_hybrid_classical_len);
     /// the PQ leg has algorithm- and key-type-dependent sizes.
     ///
-    /// We use ranges rather than exact equality because the `Composite`
-    /// secret-key encoding holds the seed + embedded public key (the
-    /// FIPS 203 §6.1 layout for ML-KEM SKs), which varies in length
-    /// across the encoding choices used historically. Lower bound is
-    /// 32 (any-curve seed); upper bound is the full SK size for the
-    /// level. Public-key composites must match the level's PK size
-    /// exactly because the SEC1/raw-bytes encoding is fixed.
+    /// The classical leg is checked for exact equality. The PQ leg is
+    /// checked against a broad range (`PQ_LEN_FLOOR ..= PQ_LEN_CEILING`)
+    /// for **both** key types, not against a per-(algorithm, key-type)
+    /// exact size:
+    ///
+    /// - The `Composite` secret-key encoding holds the seed plus the
+    ///   embedded public key (the FIPS 203 §6.1 layout for ML-KEM SKs),
+    ///   which varies in length across the encoding choices used
+    ///   historically, so an exact size is not well-defined here.
+    /// - Public-key composites *do* have a fixed size per level, but this
+    ///   function does not dispatch on `key_type`, so the same range
+    ///   applies. Exact public-key sizes are enforced downstream by the
+    ///   primitive constructors (`MlKemPublicKey::new`,
+    ///   `HybridKemPublicKey::new`, …), which reject a wrong-length key
+    ///   before it can be used. This check is therefore a cheap
+    ///   structural pre-filter, not the authoritative length gate.
     fn validate_composite_lengths(
         algorithm: KeyAlgorithm,
         pq_len: usize,

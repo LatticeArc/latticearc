@@ -14,6 +14,20 @@
 //! - With and without AAD
 //! - Various plaintext lengths
 //! - Authentication tag verification
+//!
+//! ## Which implementations this validates
+//!
+//! Each vector is run through **two** implementations:
+//!
+//! 1. The backing `chacha20poly1305` crate. Matches the convention of the
+//!    sibling KATs in this module (`aes_gcm_kat` drives `aws_lc_rs` directly),
+//!    whose purpose is to validate the backend this crate depends on.
+//! 2. `latticearc`'s own [`ChaCha20Poly1305Cipher`] wrapper, which the
+//!    backend leg cannot speak for: the wrapper splits and recombines the tag,
+//!    applies resource caps and a weak-key guard, and is the code this crate
+//!    actually ships. Gated `cfg(not(feature = "fips"))` because the wrapper
+//!    module itself is — ChaCha20-Poly1305 is not in NIST SP 800-38D, so it is
+//!    compiled out of `fips` builds.
 
 use super::{NistKatError, decode_hex};
 use chacha20poly1305::{
@@ -54,7 +68,83 @@ pub const CHACHA20_POLY1305_VECTORS: &[ChaCha20Poly1305TestVector] = &[
 pub fn run_chacha20_poly1305_kat() -> Result<(), NistKatError> {
     for vector in CHACHA20_POLY1305_VECTORS {
         run_chacha20_poly1305_test(vector)?;
+        #[cfg(not(feature = "fips"))]
+        run_chacha20_poly1305_test_via_wrapper(vector)?;
     }
+    Ok(())
+}
+
+/// Run one vector through `latticearc`'s `ChaCha20Poly1305Cipher`.
+///
+/// Encrypt is checked against the published ciphertext *and* tag; decrypt is
+/// run against the published bytes rather than the wrapper's own output, so a
+/// wrapper that round-trips self-consistently but wrongly still fails.
+///
+/// # Errors
+///
+/// Returns `NistKatError` if the wrapper's output differs from the vector.
+#[cfg(not(feature = "fips"))]
+pub fn run_chacha20_poly1305_test_via_wrapper(
+    vector: &ChaCha20Poly1305TestVector,
+) -> Result<(), NistKatError> {
+    use latticearc::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
+
+    let fail = |message: String| NistKatError::TestFailed {
+        algorithm: "ChaCha20-Poly1305 (latticearc wrapper)".to_string(),
+        test_name: vector.test_name.to_string(),
+        message,
+    };
+
+    let key = decode_hex(vector.key)?;
+    let nonce = decode_hex(vector.nonce)?;
+    let aad = decode_hex(vector.aad)?;
+    let plaintext = decode_hex(vector.plaintext)?;
+    let expected_ciphertext = decode_hex(vector.expected_ciphertext)?;
+    let expected_tag = decode_hex(vector.expected_tag)?;
+
+    let key_array: [u8; 32] = key
+        .try_into()
+        .map_err(|_err| NistKatError::ImplementationError("Invalid key length".to_string()))?;
+    let nonce_array: [u8; 12] = nonce
+        .try_into()
+        .map_err(|_err| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
+    let expected_tag_array: [u8; 16] = expected_tag
+        .as_slice()
+        .try_into()
+        .map_err(|_err| NistKatError::ImplementationError("Invalid tag length".to_string()))?;
+
+    let cipher = ChaCha20Poly1305Cipher::new(&key_array).map_err(|e| {
+        NistKatError::ImplementationError(format!("Cipher construction failed: {e:?}"))
+    })?;
+
+    // The wrapper returns ciphertext and tag already separated.
+    let (ct, tag) = cipher
+        .encrypt(&nonce_array, &plaintext, Some(&aad))
+        .map_err(|e| NistKatError::ImplementationError(format!("Encryption failed: {e:?}")))?;
+
+    if ct != expected_ciphertext.as_slice() {
+        return Err(fail(format!(
+            "Ciphertext mismatch: got {}, expected {}",
+            hex::encode(&ct),
+            hex::encode(&expected_ciphertext)
+        )));
+    }
+    if tag != expected_tag_array {
+        return Err(fail(format!(
+            "Tag mismatch: got {}, expected {}",
+            hex::encode(tag),
+            hex::encode(&expected_tag)
+        )));
+    }
+
+    let decrypted = cipher
+        .decrypt(&nonce_array, &expected_ciphertext, &expected_tag_array, Some(&aad))
+        .map_err(|e| NistKatError::ImplementationError(format!("Decryption failed: {e:?}")))?;
+
+    if decrypted.as_slice() != plaintext.as_slice() {
+        return Err(fail("Decrypted plaintext mismatch".to_string()));
+    }
+
     Ok(())
 }
 

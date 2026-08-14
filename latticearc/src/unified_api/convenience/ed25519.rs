@@ -47,6 +47,12 @@ use crate::unified_api::zero_trust::SecurityMode;
 
 /// Internal implementation of Ed25519 signing.
 pub(crate) fn sign_ed25519_internal(data: &[u8], ed25519_sk: &[u8]) -> Result<Vec<u8>> {
+    // FIPS 140-3 §9.6: no cryptographic service while the module is in an
+    // error state. This module reaches `primitives::*` directly rather than
+    // routing through `unified_api::{encrypt,decrypt,sign,verify}`, so the
+    // latch has to be consulted here or a consumer of this module alone
+    // would never see it.
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(op::ED25519_SIGN, algorithm = "Ed25519", data_len = data.len());
 
     // bound message length before
@@ -101,6 +107,7 @@ pub(crate) fn verify_ed25519_internal(
     signature_bytes: &[u8],
     ed25519_pk: &[u8],
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(op::ED25519_VERIFY, algorithm = "Ed25519", data_len = data.len());
 
     // bound message length before SHA-512

@@ -209,7 +209,7 @@ fn test_encrypt_decrypt_reexport_roundtrip() {
 
 #[test]
 fn test_hash_data_reexport_succeeds() {
-    let result = latticearc::unified_api::hash_data(b"test");
+    let result = latticearc::unified_api::hash_data(b"test").unwrap();
     assert_eq!(result.len(), 32); // SHA3-256 is 32 bytes
 }
 

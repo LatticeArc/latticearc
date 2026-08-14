@@ -1280,8 +1280,8 @@ mod integration {
     fn test_hash_deterministic_produces_same_output_is_deterministic() {
         let data = b"Data to hash";
 
-        let hash1 = hash_data(data);
-        let hash2 = hash_data(data);
+        let hash1 = hash_data(data).expect("hash");
+        let hash2 = hash_data(data).expect("hash");
 
         assert_eq!(hash1, hash2, "Same data should produce same hash");
     }
@@ -1291,8 +1291,8 @@ mod integration {
         let data1 = b"First data";
         let data2 = b"Second data";
 
-        let hash1 = hash_data(data1);
-        let hash2 = hash_data(data2);
+        let hash1 = hash_data(data1).expect("hash");
+        let hash2 = hash_data(data2).expect("hash");
 
         assert_ne!(hash1, hash2, "Different data should produce different hashes");
     }
@@ -1300,7 +1300,7 @@ mod integration {
     #[test]
     fn test_hash_empty_input_has_correct_length_fails() {
         let empty = b"";
-        let hash = hash_data(empty);
+        let hash = hash_data(empty).expect("hash");
         // SHA-3-256 produces 32-byte output even for empty input
         assert_eq!(hash.len(), 32, "Hash should be 32 bytes");
     }
@@ -1308,14 +1308,14 @@ mod integration {
     #[test]
     fn test_hash_large_input_has_correct_length_has_correct_size() {
         let large_data = vec![0x42u8; 1_000_000]; // 1MB
-        let hash = hash_data(&large_data);
+        let hash = hash_data(&large_data).expect("hash");
         assert_eq!(hash.len(), 32, "Hash should be 32 bytes");
     }
 
     #[test]
     fn test_hash_output_size_is_32_bytes_has_correct_size() {
         let data = b"Test data";
-        let hash = hash_data(data);
+        let hash = hash_data(data).expect("hash");
 
         // SHA-3-256 produces 32-byte output
         assert_eq!(hash.len(), 32, "Hash should be 32 bytes");
@@ -1588,7 +1588,7 @@ mod integration {
         let document = b"Important legal document content";
 
         // Hash the document
-        let doc_hash = hash_data(document);
+        let doc_hash = hash_data(document).expect("hash");
 
         // "Sign" the hash (using HMAC as a stand-in for actual signature)
         let signing_key = b"document signing key";

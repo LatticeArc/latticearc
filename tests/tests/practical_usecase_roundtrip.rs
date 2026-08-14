@@ -927,7 +927,7 @@ fn scenario_multi_party_signing_succeeds() {
         signatures: Vec<String>, // serialized SignedData
     }
 
-    let doc_hash = hex::encode(hash_data(document));
+    let doc_hash = hex::encode(hash_data(document).expect("hash"));
 
     let multi_sig = MultiSigDocument {
         document_hash: doc_hash.clone(),

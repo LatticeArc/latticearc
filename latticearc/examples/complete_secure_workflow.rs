@@ -76,7 +76,7 @@ fn main() {
     println!("\nStep 3: Encrypt sensitive data...");
     // Example fixture — not real patient data.
     let original_data = b"Record-ID: RCRD-0001\nCategory: Example\nNotes: fixture data";
-    let original_hash = hash_data(original_data);
+    let original_hash = hash_data(original_data).expect("hashing failed");
     println!(
         "  Original: {} bytes, SHA3-256: {:02x?}...",
         original_data.len(),
@@ -131,7 +131,7 @@ fn main() {
     // -----------------------------------------------------------------------
     println!("\nStep 9: Verify integrity...");
     assert_eq!(decrypted.as_slice(), original_data);
-    let decrypted_hash = hash_data(&decrypted);
+    let decrypted_hash = hash_data(&decrypted).expect("hashing failed");
     assert_eq!(original_hash, decrypted_hash, "Hash mismatch");
     println!("  Content: {:?}", std::str::from_utf8(&decrypted).unwrap());
     println!("  SHA3-256 match: OK");

@@ -272,7 +272,7 @@ patched, what almost-shipped instead).
 
 ### Continuous Security Measures
 
-- **Fuzzing** - Nightly + weekly scheduled cargo-fuzz matrices (`fuzz-nightly` runs ~5 min/target, `fuzz-weekly` runs ~30 min/target across 31 targets — see `.github/workflows/ci.yml` and `fuzzing.yml`)
+- **Fuzzing** - Nightly + weekly scheduled cargo-fuzz matrices (`fuzz-nightly` runs ~5 min/target, `fuzz-weekly` runs ~30 min/target across 29 targets — see `.github/workflows/ci.yml` and `fuzzing.yml`)
 - **Static analysis** - Clippy with security lints
 - **Dependency audit** - cargo-audit in CI
 - **License compliance** - cargo-deny checks

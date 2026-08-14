@@ -172,7 +172,11 @@ impl<'a> CryptoConfig<'a> {
     /// is set, [`decrypt`](crate::unified_api::convenience::api::decrypt)
     /// rejects ciphertexts whose timestamp is more than `seconds` behind
     /// the receiver's wall-clock as
-    /// `CoreError::ResourceExceeded("ciphertext too old: …")`.
+    /// `CoreError::Replay { age_seconds, max_age_seconds }`.
+    ///
+    /// The dedicated `Replay` variant — not `ResourceExceeded` — is
+    /// deliberate: a caller can pattern-match a suspected replay and raise an
+    /// alert, distinct from a genuine size-quota rejection.
     ///
     /// # Caveats
     ///
@@ -453,13 +457,25 @@ fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
     // (e.g. `sha-256`, `slh-dsa-shake-256s`, hypothetical
     // `prefix-256xxx`) as a security-level claim regardless of actual
     // algorithm strength. Substring matching across security-tier
-    // dispatch is a correctness footgun. Now uses an explicit
-    // allowlist of full scheme tokens, with "-" boundary matching for
-    // hybrid forms.
+    // dispatch is a correctness footgun.
+    //
+    // The needles below are therefore full algorithm names
+    // (`ml-kem-512`), never bare size literals (`512`). A composite
+    // scheme tag embeds its PQ algorithm name verbatim in every
+    // spelling the library emits or accepts —
+    // `pq-ml-kem-512-aes-256-gcm`, `hybrid-ml-kem-512-aes-256-gcm`,
+    // `hybrid-ml-dsa-44-ed25519`, `ml-dsa-44-hybrid-ed25519` — so
+    // substring containment on the *algorithm name* classifies all of
+    // them without reintroducing the size-literal footgun.
+    //
+    // Matching must NOT be restricted to a prefix (`starts_with
+    // ("hybrid-")`) or to `-`-delimited whole tokens: the PQ algorithm
+    // name is itself hyphenated, so token equality never matches, and
+    // the `pq-` prefixed and `-hybrid-ed25519` suffixed forms carry no
+    // `hybrid-` prefix. Either restriction silently returns `None` for
+    // real wire schemes, which disables the minimum-strength gate in
+    // `validate_scheme_compliance` for exactly those spellings.
     let s = scheme.to_ascii_lowercase();
-
-    // Helper: split on '-' and check if a token is present.
-    let has_token = |needle: &str| s.split('-').any(|t| t == needle);
 
     // Only the SLH-DSA `-shake-*s` (small) variants are exposed by
     // `SlhDsaSecurityLevel`; `-shake-*f` (fast) and `-sha2-*` are not
@@ -475,23 +491,20 @@ fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
             | "ed25519"
             | "aes-256-gcm"
             | "chacha20-poly1305"
-    ) || has_token("ml-kem-512")
-        || has_token("ml-dsa-44")
-        || (s.starts_with("hybrid-") && (s.contains("ml-kem-512") || s.contains("ml-dsa-44")))
+    ) || s.contains("ml-kem-512")
+        || s.contains("ml-dsa-44")
     {
         Some(SecurityLevel::Standard)
     } else if matches!(s.as_str(), "ml-kem-768" | "ml-dsa-65" | "slh-dsa-shake-192s")
-        || has_token("ml-kem-768")
-        || has_token("ml-dsa-65")
-        || (s.starts_with("hybrid-") && (s.contains("ml-kem-768") || s.contains("ml-dsa-65")))
+        || s.contains("ml-kem-768")
+        || s.contains("ml-dsa-65")
     {
         Some(SecurityLevel::High)
     } else if matches!(
         s.as_str(),
         "ml-kem-1024" | "ml-dsa-87" | "slh-dsa-shake-256s" | "fn-dsa-1024"
-    ) || has_token("ml-kem-1024")
-        || has_token("ml-dsa-87")
-        || (s.starts_with("hybrid-") && (s.contains("ml-kem-1024") || s.contains("ml-dsa-87")))
+    ) || s.contains("ml-kem-1024")
+        || s.contains("ml-dsa-87")
     {
         Some(SecurityLevel::Maximum)
     } else {
@@ -735,6 +748,116 @@ mod tests {
     }
 
     // --- validate_scheme_compliance tests ---
+
+    /// Every scheme spelling the library can emit or accept on the wire must
+    /// be classifiable by `scheme_min_security_level`. A `None` here silently
+    /// disables the minimum-strength gate for that spelling, which is exactly
+    /// how the `pq-`-prefixed and `-hybrid-ed25519`-suffixed forms escaped it.
+    #[test]
+    fn test_every_wire_scheme_spelling_is_level_classified_succeeds() {
+        // `pq-` prefixed encryption tags (crypto_types::EncryptionScheme).
+        // Signature tags, canonical hybrid and legacy alias spellings
+        // (types::domains + api.rs dispatch).
+        let level_1 = [
+            "pq-ml-kem-512-aes-256-gcm",
+            "hybrid-ml-kem-512-aes-256-gcm",
+            "pq-ml-dsa-44",
+            "hybrid-ml-dsa-44-ed25519",
+            "ml-dsa-44-hybrid-ed25519",
+        ];
+        let level_3 = [
+            "pq-ml-kem-768-aes-256-gcm",
+            "hybrid-ml-kem-768-aes-256-gcm",
+            "pq-ml-dsa-65",
+            "hybrid-ml-dsa-65-ed25519",
+            "ml-dsa-65-hybrid-ed25519",
+        ];
+        let level_5 = [
+            "pq-ml-kem-1024-aes-256-gcm",
+            "hybrid-ml-kem-1024-aes-256-gcm",
+            "pq-ml-dsa-87",
+            "hybrid-ml-dsa-87-ed25519",
+            "ml-dsa-87-hybrid-ed25519",
+        ];
+
+        for scheme in level_1 {
+            assert_eq!(
+                scheme_min_security_level(scheme),
+                Some(SecurityLevel::Standard),
+                "{scheme} must classify as Standard"
+            );
+        }
+        for scheme in level_3 {
+            assert_eq!(
+                scheme_min_security_level(scheme),
+                Some(SecurityLevel::High),
+                "{scheme} must classify as High"
+            );
+        }
+        for scheme in level_5 {
+            assert_eq!(
+                scheme_min_security_level(scheme),
+                Some(SecurityLevel::Maximum),
+                "{scheme} must classify as Maximum"
+            );
+        }
+    }
+
+    /// The gate must fire on the `pq-`/alias spellings, not just on the
+    /// `hybrid-` prefixed ones. Wire-supplied schemes reach this check from
+    /// `decrypt` and `verify`, so a spelling that skips it lets a Category-1
+    /// scheme through a `SecurityLevel::Maximum` configuration.
+    #[test]
+    fn test_below_minimum_level_rejected_for_all_spellings_fails() {
+        for scheme in [
+            "pq-ml-kem-512-aes-256-gcm",
+            "hybrid-ml-kem-512-aes-256-gcm",
+            "pq-ml-dsa-44",
+            "ml-dsa-44-hybrid-ed25519",
+            "hybrid-ml-dsa-44-ed25519",
+        ] {
+            let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+            let result = config.validate_scheme_compliance(scheme);
+            assert!(result.is_err(), "{scheme} must be rejected under Maximum");
+            let err_msg = format!("{}", result.unwrap_err());
+            assert!(err_msg.contains("Standard"), "{scheme}: {err_msg}");
+            assert!(err_msg.contains("Maximum"), "{scheme}: {err_msg}");
+        }
+    }
+
+    /// A scheme at or above the configured minimum must still pass — the gate
+    /// rejects on strength, not on spelling.
+    #[test]
+    fn test_at_or_above_minimum_level_accepted_for_all_spellings_succeeds() {
+        for scheme in ["pq-ml-kem-1024-aes-256-gcm", "ml-dsa-87-hybrid-ed25519"] {
+            let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+            assert!(
+                config.validate_scheme_compliance(scheme).is_ok(),
+                "{scheme} must pass under Maximum"
+            );
+        }
+        for scheme in ["pq-ml-kem-768-aes-256-gcm", "ml-dsa-65-hybrid-ed25519"] {
+            let config = CryptoConfig::new().security_level(SecurityLevel::High);
+            assert!(
+                config.validate_scheme_compliance(scheme).is_ok(),
+                "{scheme} must pass under High"
+            );
+        }
+    }
+
+    /// The classifier must not treat an embedded key-size or hash-size literal
+    /// as a strength claim — this is the footgun the token-boundary rewrite was
+    /// introduced to close, and the `contains` form must not reopen it.
+    #[test]
+    fn test_unrelated_size_literals_are_not_level_claims_is_correct() {
+        for scheme in ["sha-256", "slh-dsa-sha2-128f", "hmac-sha-512", "prefix-1024-suffix"] {
+            assert_eq!(
+                scheme_min_security_level(scheme),
+                None,
+                "{scheme} must not be classified from an embedded size literal"
+            );
+        }
+    }
 
     #[test]
     fn test_default_compliance_allows_all_schemes_is_correct() {

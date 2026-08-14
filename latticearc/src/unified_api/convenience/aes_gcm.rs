@@ -70,6 +70,12 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
     key: &[u8],
     aad: &[u8],
 ) -> Result<Vec<u8>> {
+    // FIPS 140-3 §9.6: no cryptographic service while the module is in an
+    // error state. This module reaches `primitives::*` directly rather than
+    // routing through `unified_api::{encrypt,decrypt,sign,verify}`, so the
+    // latch has to be consulted here or a consumer of this module alone
+    // would never see it.
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(
         "aes_gcm_encrypt_aad",
         algorithm = "AES-256-GCM",
@@ -147,6 +153,7 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
     key: &[u8],
     aad: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(
         "aes_gcm_decrypt_aad",
         algorithm = "AES-256-GCM",

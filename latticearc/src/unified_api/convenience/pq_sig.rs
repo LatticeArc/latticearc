@@ -77,6 +77,12 @@ pub(crate) fn sign_pq_ml_dsa_internal_with_ctx(
     parameter_set: MlDsaParameterSet,
     context: &[u8],
 ) -> Result<Vec<u8>> {
+    // FIPS 140-3 §9.6: no cryptographic service while the module is in an
+    // error state. This module reaches `primitives::*` directly rather than
+    // routing through `unified_api::{encrypt,decrypt,sign,verify}`, so the
+    // latch has to be consulted here or a consumer of this module alone
+    // would never see it.
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(op::ML_DSA_SIGN, algorithm = ?parameter_set, message_len = message.len());
 
     if let Err(e) = validate_signature_size(message.len()) {
@@ -111,6 +117,7 @@ pub(crate) fn verify_pq_ml_dsa_internal_with_ctx(
     parameter_set: MlDsaParameterSet,
     context: &[u8],
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(op::ML_DSA_VERIFY, algorithm = ?parameter_set, message_len = message.len());
 
     if let Err(e) = validate_signature_size(message.len()) {
@@ -267,6 +274,7 @@ fn sign_pq_ml_dsa_internal(
     ml_dsa_sk: &[u8],
     parameter_set: MlDsaParameterSet,
 ) -> Result<Vec<u8>> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(op::ML_DSA_SIGN, algorithm = ?parameter_set, message_len = message.len());
 
     // opaque ResourceExceeded — never expose
@@ -304,6 +312,7 @@ fn verify_pq_ml_dsa_internal(
     ml_dsa_pk: &[u8],
     parameter_set: MlDsaParameterSet,
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(op::ML_DSA_VERIFY, algorithm = ?parameter_set, message_len = message.len());
 
     // collapse "message exceeds
@@ -359,6 +368,7 @@ fn sign_pq_slh_dsa_internal(
     slh_dsa_sk: &[u8],
     security_level: SlhDsaSecurityLevel,
 ) -> Result<Vec<u8>> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(op::SLH_DSA_SIGN, algorithm = ?security_level, message_len = message.len());
 
     if let Err(e) = validate_signature_size(message.len()) {
@@ -401,6 +411,7 @@ fn verify_pq_slh_dsa_internal(
     slh_dsa_pk: &[u8],
     security_level: SlhDsaSecurityLevel,
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(op::SLH_DSA_VERIFY, algorithm = ?security_level, message_len = message.len());
 
     // see ML-DSA verify above for rationale.
@@ -448,6 +459,7 @@ fn sign_pq_fn_dsa_internal(
     fn_dsa_sk: &[u8],
     security_level: FnDsaSecurityLevel,
 ) -> Result<Vec<u8>> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(
         op::FN_DSA_SIGN,
         algorithm = "FN-DSA",
@@ -496,6 +508,7 @@ fn verify_pq_fn_dsa_internal(
     fn_dsa_pk: &[u8],
     security_level: FnDsaSecurityLevel,
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     log_crypto_operation_start!(
         op::FN_DSA_VERIFY,
         algorithm = "FN-DSA",

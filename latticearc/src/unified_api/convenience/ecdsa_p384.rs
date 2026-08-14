@@ -31,6 +31,12 @@ fn verifying_key(public_key: &[u8]) -> Result<VerifyingKey> {
 /// # Errors
 /// Returns an error if the session is invalid under `SecurityMode::Verified`.
 pub fn generate_ecdsa_p384_keypair(mode: SecurityMode) -> Result<(Vec<u8>, Zeroizing<Vec<u8>>)> {
+    // FIPS 140-3 §9.6: no cryptographic service while the module is in an
+    // error state. This module reaches `primitives::*` directly rather than
+    // routing through `unified_api::{encrypt,decrypt,sign,verify}`, so the
+    // latch has to be consulted here or a consumer of this module alone
+    // would never see it.
+    super::api::fips_verify_operational()?;
     mode.validate()?;
     let sk = SigningKey::generate_from_rng(&mut crate::primitives::rand::secure_rng());
     let public_key = VerifyingKey::from(&sk).to_sec1_point(false).as_bytes().to_vec();
@@ -44,6 +50,7 @@ pub fn generate_ecdsa_p384_keypair(mode: SecurityMode) -> Result<(Vec<u8>, Zeroi
 /// Returns an error on an invalid secret key, an oversized message, or an invalid
 /// session.
 pub fn sign_ecdsa_p384(data: &[u8], secret_key: &[u8], mode: SecurityMode) -> Result<Vec<u8>> {
+    super::api::fips_verify_operational()?;
     mode.validate()?;
     validate_signature_size(data.len())
         .map_err(|_e| CoreError::ResourceExceeded("message exceeds resource limit".to_string()))?;
@@ -65,6 +72,7 @@ pub fn verify_ecdsa_p384(
     public_key: &[u8],
     mode: SecurityMode,
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     mode.validate()?;
     validate_signature_size(data.len())
         .map_err(|_e| CoreError::ResourceExceeded("message exceeds resource limit".to_string()))?;
@@ -84,6 +92,7 @@ pub fn verify_ecdsa_p384_prehash(
     public_key: &[u8],
     mode: SecurityMode,
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     mode.validate()?;
     let vk = verifying_key(public_key)?;
     Ok(Signature::from_slice(signature)
@@ -106,6 +115,7 @@ pub fn verify_ecdsa_p384_prehash_der(
     public_key: &[u8],
     mode: SecurityMode,
 ) -> Result<bool> {
+    super::api::fips_verify_operational()?;
     mode.validate()?;
     let vk = verifying_key(public_key)?;
     Ok(Signature::from_der(signature_der)

@@ -97,7 +97,9 @@
 //! ```
 
 mod aes_gcm;
-mod api;
+// `pub(crate)` so `unified_api::init()` can drive the same one-shot
+// power-up run (`api::fips_ensure_initialized`) that gated operations use.
+pub(crate) mod api;
 pub(crate) mod ecdsa_p384;
 pub(crate) mod ed25519;
 mod hashing;

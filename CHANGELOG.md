@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed (security)
+
+- **`SecurityLevel` minimum-strength gate was silently skipped for the `pq-`
+  and `-hybrid-ed25519` scheme spellings.** `scheme_min_security_level` used a
+  `s.split('-').any(|t| t == needle)` token test against hyphenated needles
+  (`"ml-kem-512"`, `"ml-dsa-44"`, …), so all six of its calls were
+  unconditionally false, and the remaining arms only matched a bare canonical
+  tag or a `hybrid-`-prefixed one. Every other spelling the library emits or
+  accepts on the wire — `pq-ml-kem-512-aes-256-gcm`, `pq-ml-dsa-44`,
+  `ml-dsa-44-hybrid-ed25519` — therefore returned `None`, which
+  `validate_scheme_compliance` treats as "unrecognized, let dispatch reject
+  it". Dispatch does *not* reject them, so a config with an explicit
+  `.security_level(SecurityLevel::Maximum)` accepted a wire-supplied NIST
+  Category-1 scheme on `decrypt` (`EncryptedOutput::scheme`) and `verify`
+  (`SignedData::scheme`). Classification is now substring containment on the
+  full **algorithm name** (never a bare size literal such as `512`/`256`, the
+  footgun the token test was introduced to close). A regression test asserts
+  every wire spelling is level-classified, and that unrelated size literals
+  (`sha-256`, `slh-dsa-sha2-128f`) still classify as `None`.
+- **FIPS 140-3 §9.6 operational latch was consulted by only 8 convenience
+  entry points.** The AEAD, hash/KDF/MAC, PQ-KEM, PQ-signature, Ed25519,
+  hybrid-signature and ECDSA-P384 convenience modules each reach
+  `primitives::*` directly instead of routing through
+  `unified_api::{encrypt,decrypt,sign,verify}`, so a consumer using only those
+  modules kept performing cryptographic operations after the module entered an
+  error state — including the `fips-strict-integrity` deployment case where no
+  `PRODUCTION_HMAC.txt` is provisioned and every gated operation is otherwise
+  refused. `fips_verify_operational()` is now called at each module's internal
+  chokepoint. A new `fips_operational_gate_coverage` integration test trips the
+  §9.6 error state and asserts every convenience entry point refuses service,
+  naming any that do not.
+- **Key-expiry gate covered only the 4 hybrid extractors.** `PortableKey`'s
+  eight single-algorithm extractors (`to_ed25519_*`, `to_x25519_*`,
+  `to_ml_kem_*`, `to_ml_dsa_*`) emitted usable typed key material from a key
+  file whose `not_after` was in the past. All twelve extractors now call
+  `validate_with_expiry_now()` first; the rationale moved from a per-function
+  comment to the module docs.
+
+### Changed (breaking)
+
+- **`hash_data` returns `Result<[u8; 32]>` instead of `[u8; 32]`.** SHA-3 is an
+  approved algorithm inside the FIPS module boundary, so §9.6 forbids
+  servicing the call while the module is in an error state — which an
+  infallible signature cannot express. The SHA3-256 computation itself still
+  cannot fail; without `fips-self-test` the gate is a no-op and the call always
+  returns `Ok`. Callers add `?` or `.expect(...)`.
+- **`unified_api::self_tests_passed()` now reports the latch that actually
+  gates operations.** It previously read only `unified_api`'s private
+  `init()`-time flag, while operations enforce `primitives::self_test`'s
+  separate latch — two independent test runs, one queryable, so the query could
+  answer "self-tests passed" for a module refusing every operation.
+  `init()` and every gated operation now share one `Once`-guarded power-up run
+  (`convenience::api::fips_ensure_initialized`), `init()` fails if the module is
+  not operational afterwards, and `self_tests_passed()` is the conjunction of
+  the power-up flag and the operational latch. Callers relying on it staying
+  `true` after a §9.6 error state will now see `false` — which is the point.
+
+### Fixed (tests)
+
+- **RFC 8439 ChaCha20-Poly1305 unit test asserted nothing about the vector.**
+  It used the RFC's key/nonce/plaintext but an *empty* AAD (the vector
+  specifies `50515253c0c1c2c3c4c5c6c7`) and only checked lengths and an
+  encrypt/decrypt roundtrip — properties any self-consistent cipher satisfies,
+  including a wrong one. It now uses the vector's AAD and asserts the published
+  ciphertext and Poly1305 tag, decrypts the published bytes, and adds a
+  wrong-AAD rejection case.
+- **NIST ChaCha20-Poly1305 KAT exercised only the backing crate.** Driving the
+  dependency matches this module's convention (`aes_gcm_kat` drives
+  `aws_lc_rs` directly) and is kept, but it cannot speak for our wrapper's
+  tag split/recombine, resource caps or weak-key guard. Each vector now
+  additionally runs through `ChaCha20Poly1305Cipher`
+  (`cfg(not(feature = "fips"))`, matching the wrapper module's own gate).
+- Removed `fuzz_target_1`, which duplicated the `fuzz_ml_kem_{keygen,encaps,
+  decaps}` roundtrip. The fuzz-target count in `SECURITY.md`,
+  `docs/FORMAL_VERIFICATION.md` and `latticearc/README.md` said 31; the real
+  count was 30 before this removal and is 29 after.
+
+### Fixed (documentation)
+
+- `CryptoConfig::max_age` documented rejection as
+  `CoreError::ResourceExceeded("ciphertext too old: …")`; the code returns
+  `CoreError::Replay { age_seconds, max_age_seconds }` (deliberately distinct,
+  so callers can pattern-match a suspected replay).
+- `compute_proof_data` documented three different signed structures per
+  `ProofComplexity`; all three sign
+  `domain_tag ‖ challenge ‖ timestamp ‖ public_key` and differ only in the
+  1-byte tag. The timestamp and public-key bindings are unconditional.
+- `entropy_tests` module docs claimed the tests run as power-up self-tests and
+  continuous health monitoring. Nothing in the crate calls them; the power-up
+  path runs algorithm KATs only. Documented as a caller-invoked API, with the
+  reason they are not wired into the aborting §9.1 path: the six-test chain has
+  a measured ~0.6% per-call false-positive rate, which behind a
+  `process::abort()` would abort roughly 1 process in 170 at startup.
+- `validate_composite_lengths` documented "public-key composites must match the
+  level's PK size exactly"; the code applies one PQ-length range to both key
+  types with no `key_type` dispatch. Documented as a structural pre-filter,
+  with exact sizes enforced downstream by the primitive constructors.
+- Renamed `test_hash_data_parallel_path_is_deterministic` — `hash_data`
+  delegates to a sequential RustCrypto `Sha3_256` wrapper; there is no size
+  threshold and no parallel path. It now reads as the multi-block test it is.
+
+---
+
 ## [0.11.1] — 2026-08-10
 
 ### Fixed
