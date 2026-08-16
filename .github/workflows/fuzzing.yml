@@ -77,7 +77,6 @@ jobs:
           # Other
           - constant_time_fuzz
           - fuzz_random
-          - fuzz_target_1
           - hmac_fuzz
           # DoS (allocation-bounded adversarial inputs)
           - fuzz_dos_alloc_bounded
