@@ -23,7 +23,7 @@ path = "src/main.rs"
 # soundness-bypassing items (`SigmaProof::challenge_mut`,
 # `clear_error_state`, `restore_operational_state`) which must never be
 # reachable from a production CLI build. C1.
-latticearc = { path = "../latticearc", version = "0.11", features = ["tracing-init", "kat-replay"] }
+latticearc = { path = "../latticearc", version = "0.12", features = ["tracing-init", "kat-replay"] }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
