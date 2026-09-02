@@ -366,7 +366,7 @@ jobs:
       # behaviour between identical source revisions. Bump intentionally.
       # Uses taiki-e/install-action (prebuilt binaries) to match the
       # cargo-llvm-cov pinning pattern earlier in this file.
-      uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # main
+      uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # main
       with:
         tool: cargo-audit@0.22.1,cargo-deny@0.19.6
 
@@ -519,7 +519,7 @@ jobs:
 
     - name: Install cargo-llvm-cov
       if: matrix.features.coverage
-      uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # main
+      uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # main
       with:
         tool: cargo-llvm-cov
 
