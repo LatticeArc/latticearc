@@ -171,7 +171,7 @@ Both `requires_fips()` and `allows_hybrid()` are formally verified by Kani proof
 
 ### 5.1 Power-Up Self-Tests
 
-Executed automatically on first cryptographic operation (lazy initialization via `std::sync::Once`). Located in `latticearc/src/primitives/self_test.rs`.
+Executed automatically on first cryptographic operation (lazy initialization via `std::sync::Once`). Located in `latticearc/src/primitives/self_test/` (`post.rs` runs the power-up sequence; `kat.rs` holds the known-answer tests).
 
 | Test | Type | Algorithm | Requirement |
 |------|------|-----------|-------------|

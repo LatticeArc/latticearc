@@ -80,7 +80,7 @@ tracing = { workspace = true }
 aes-gcm = "=0.11.0"
 hkdf = { workspace = true }
 libm = "0.2.8"
-fips203 = { version = "=0.4.3", registry = "crates-io" }
+fips203 = "=0.4.3"
 fips204 = { workspace = true }
 fips205 = { workspace = true }
 fn-dsa = { workspace = true }

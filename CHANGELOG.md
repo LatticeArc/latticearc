@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Dependency advisories in `Cargo.lock`.** `h2` 0.4.15 → 0.4.19 closes
+  RUSTSEC-2026-0258 (unbounded empty DATA frames; reached only through the
+  `reqwest` dev-dependency of `latticearc-tests`), and `chacha20` 0.10.1 →
+  0.10.2 replaces a yanked release. `cargo audit --deny warnings` had failed
+  every scheduled Security Scan since 2026-08-19. Lockfile-only; the
+  published crate's API and feature set are unchanged.
+- **`fips-validation.yml` self-test coverage step grepped a file that no
+  longer exists.** The step still looked in
+  `latticearc/src/primitives/self_test.rs`, which was split into
+  `self_test/{kat,post,integrity,error_state,mod}.rs`; every scheduled run
+  since 2026-08-10 failed on the missing file even though the self-tests
+  themselves passed. The KAT functions are now checked in `self_test/kat.rs`
+  and `run_power_up_tests` in `self_test/post.rs`.
+- **Dependabot `cargo` updates never ran.** `tests/Cargo.toml` declared
+  `fips203` with an explicit `registry = "crates-io"`. Dependabot's manifest
+  parser treats any `registry` key as a custom registry and requires
+  `registries.<name>.index` in cargo config, so every weekly cargo update job
+  aborted with "Registry index for crates-io must be defined via cargo
+  config" and no dependency PRs (including the `h2` fix above) were ever
+  opened. crates.io is the default registry, so the key was redundant and is
+  removed; the lockfile source for `fips203` is unchanged.
+
 ## [0.12.0] — 2026-08-16
 
 ### Fixed (security)

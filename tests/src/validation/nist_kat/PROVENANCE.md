@@ -37,6 +37,6 @@ To verify test vectors against authoritative sources:
 ## Notes
 
 - Test vectors are embedded as constants in source code for build-time availability
-- FIPS power-up self-tests use these vectors via `latticearc/src/primitives/self_test.rs`
+- FIPS power-up self-tests use these vectors via `latticearc/src/primitives/self_test/` (`kat.rs` holds the known-answer tests, `post.rs` runs the power-up sequence)
 - Module-level doc comments in each file reference the authoritative source
 - Individual vector comments reference specific NIST CAVP test case numbers
