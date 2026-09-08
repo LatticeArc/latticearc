@@ -1095,14 +1095,14 @@ dependencies = [
 
 [[package]]
 name = "fn-dsa"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afb39d94be3f4538ccfdf23dc69a89904c9b802331b1975538fcc251973593f9"
+checksum = "13662b90285f1d8d0cf7bc600808b036a52802eeadbd9912992bc9a357fbdfd0"
 dependencies = [
- "fn-dsa-comm 0.3.0",
+ "fn-dsa-comm 0.4.0",
  "fn-dsa-kgen",
- "fn-dsa-sign",
- "fn-dsa-vrfy 0.3.0",
+ "fn-dsa-sign 0.4.0",
+ "fn-dsa-vrfy",
 ]
 
 [[package]]
@@ -1127,11 +1127,11 @@ dependencies = [
 
 [[package]]
 name = "fn-dsa-kgen"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8a04fe82799cc1550d32778b415648d1962a7b4b4860ff5f2e6ca32494fc9aa"
+checksum = "d1dcea5794c0cd70a7b084851a6ab8b070c956b332d8b91760d569e5a6778218"
 dependencies = [
- "fn-dsa-comm 0.3.0",
+ "fn-dsa-comm 0.4.0",
  "zeroize",
 ]
 
@@ -1146,12 +1146,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "fn-dsa-vrfy"
-version = "0.3.0"
+name = "fn-dsa-sign"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc96b904b213160c8804cc2642ccd15cb968318a64648fc5ca3edab9153cda2b"
+checksum = "01a64adea5213c0f5d5f77d862b5d06b56a47dc317f19d7e3b164830c92f4693"
 dependencies = [
- "fn-dsa-comm 0.3.0",
+ "fn-dsa-comm 0.4.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -1946,8 +1947,8 @@ dependencies = [
  "fips204",
  "fips205",
  "fn-dsa",
- "fn-dsa-sign",
- "fn-dsa-vrfy 0.4.0",
+ "fn-dsa-sign 0.3.0",
+ "fn-dsa-vrfy",
  "hex",
  "hkdf",
  "hmac",
