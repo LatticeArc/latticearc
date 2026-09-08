@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`wnaf` 0.14.0 yanked.** The rust-minor group bump (#72) brought in
+  `k256`/`p384` 0.14, whose `primeorder` dependency resolved to the yanked
+  `wnaf` 0.14.0; `cargo audit --deny warnings` failed on `main` and on every
+  open Dependabot PR. `Cargo.lock` now pins `wnaf` 0.14.1. Lockfile-only.
+- **Kani PR subset failed before running any proof.** The harness manifest
+  `.github/kani-pr-harnesses.txt` still listed
+  `validate_key_derivation_count_accepts_zero`, a proof that no longer exists
+  in `latticearc/src`; the workflow's preflight check rejects unknown names,
+  so the job had failed on every open pull request. The stale entry is removed and
+  the step summary no longer hardcodes a proof count.
 - **Dependency advisories in `Cargo.lock`.** `h2` 0.4.15 → 0.4.19 closes
   RUSTSEC-2026-0258 (unbounded empty DATA frames; reached only through the
   `reqwest` dev-dependency of `latticearc-tests`), and `chacha20` 0.10.1 →

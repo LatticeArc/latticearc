@@ -118,7 +118,7 @@ jobs:
       - name: PR Subset Summary
         if: always()
         run: |
-          echo "## Kani PR Subset (15 fast proofs)" >> $GITHUB_STEP_SUMMARY
+          echo "## Kani PR Subset" >> $GITHUB_STEP_SUMMARY
           if grep -q "VERIFICATION:- SUCCESSFUL" kani-pr-output.txt 2>/dev/null; then
             COUNT=$(grep -c "VERIFICATION:- SUCCESSFUL" kani-pr-output.txt || echo 0)
             echo "✅ $COUNT proofs verified" >> $GITHUB_STEP_SUMMARY
