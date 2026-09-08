@@ -396,7 +396,7 @@ rpassword = { version = "7.5" }
 parking_lot = { version = "0.12.5" }
 # exact-pin blake2 (used in proof-evidence and
 # CAVP cross-validation paths).
-blake2 = { version = "=0.10.6" }
+blake2 = { version = "=0.11.0" }
 ciborium = { version = "0.2" }
 # hkdf hoisted out of latticearc/Cargo.toml to
 # the workspace so the trait-resolution version is canonical across crates.
