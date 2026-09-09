@@ -320,7 +320,7 @@ aes = { version = "=0.9.3" }
 # needs `Shake128` for the SHAKE-based deterministic RNG that the C2SP CCTV
 # ML-KEM accumulated vectors are defined against, and 0.12 ships no in-crate
 # replacement. Revisit if upstream restores a XOF path.
-sha3 = { version = "=0.11.0" }
+sha3 = { version = "=0.12.0" }
 ctr = { version = "=0.10.0" }
 hex-literal = { version = "1.1" }
 libfuzzer-sys = { version = "0.4.8" }
@@ -367,7 +367,7 @@ aws-lc-rs = { version = "1.18.0" }
 # updating.
 fips204 = { version = "=0.4.6" } # ML-DSA (FIPS 204) — keep until aws-lc-rs exposes it
 fips205 = { version = "=0.4.1" } # SLH-DSA (FIPS 205) — not yet in aws-lc-rs
-fn-dsa = { version = "=0.3.0" }  # FN-DSA (FIPS 206) — unique implementation
+fn-dsa = { version = "=0.4.0" }  # FN-DSA (FIPS 206) — unique implementation
 
 # Development and testing
 proptest = { version = "1.11" }
@@ -396,7 +396,7 @@ rpassword = { version = "7.5" }
 parking_lot = { version = "0.12.5" }
 # exact-pin blake2 (used in proof-evidence and
 # CAVP cross-validation paths).
-blake2 = { version = "=0.10.6" }
+blake2 = { version = "=0.11.0" }
 ciborium = { version = "0.2" }
 # hkdf hoisted out of latticearc/Cargo.toml to
 # the workspace so the trait-resolution version is canonical across crates.
