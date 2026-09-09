@@ -365,7 +365,7 @@
 <a href=#365 id=365 data-nosnippet>365</a>/// `fill_bytes` reads from `seed`, wrapping at the end. The output
 <a href=#366 id=366 data-nosnippet>366</a>/// for any input length is therefore a deterministic function of
 <a href=#367 id=367 data-nosnippet>367</a>/// `(seed, accumulated_bytes_read_so_far)`. Used by [`kat_fn_dsa`]
-<a href=#368 id=368 data-nosnippet>368</a>/// because `fn-dsa 0.3`'s `KeyPairGeneratorStandard::keygen` makes
+<a href=#368 id=368 data-nosnippet>368</a>/// because `fn-dsa 0.4`'s `KeyPairGeneratorStandard::keygen` makes
 <a href=#369 id=369 data-nosnippet>369</a>/// many internal RNG draws whose individual sizes aren't documented;
 <a href=#370 id=370 data-nosnippet>370</a>/// pre-pushing matching chunks into `FixedBytesRng` is infeasible.
 <a href=#371 id=371 data-nosnippet>371</a>///
@@ -1123,7 +1123,7 @@
 <a href=#1123 id=1123 data-nosnippet>1123</a>/// ACVP `internalProjection.json` files — the algorithm is still
 <a href=#1124 id=1124 data-nosnippet>1124</a>/// pre-final in the FIPS 206 pipeline. The expected pk / sk SHA-256
 <a href=#1125 id=1125 data-nosnippet>1125</a>/// digests below are self-attested: derived from running
-<a href=#1126 id=1126 data-nosnippet>1126</a>/// `fn-dsa 0.3.x`'s `KeyPairGeneratorStandard::keygen` against the
+<a href=#1126 id=1126 data-nosnippet>1126</a>/// `fn-dsa 0.4.x`'s `KeyPairGeneratorStandard::keygen` against the
 <a href=#1127 id=1127 data-nosnippet>1127</a>/// 64-byte `KEYGEN_SEED` below and hashing the resulting outputs.
 <a href=#1128 id=1128 data-nosnippet>1128</a>/// Treat this as a CHANGE-DETECTION KAT (any `fn-dsa` upstream bump
 <a href=#1129 id=1129 data-nosnippet>1129</a>/// that alters the deterministic keygen output will trip this) NOT
@@ -1146,7 +1146,7 @@
 <a href=#1146 id=1146 data-nosnippet>1146</a>
 <a href=#1147 id=1147 data-nosnippet>1147</a>    <span class="comment">// 64-byte deterministic keygen seed. Bytes chosen pseudo-randomly
 <a href=#1148 id=1148 data-nosnippet>1148</a>    // for the FN-DSA self-attested baseline; the digests below were
-<a href=#1149 id=1149 data-nosnippet>1149</a>    // captured by running fn-dsa 0.3.x against this exact byte
+<a href=#1149 id=1149 data-nosnippet>1149</a>    // captured by running fn-dsa 0.4.x against this exact byte
 <a href=#1150 id=1150 data-nosnippet>1150</a>    // sequence. Any change to this constant requires re-deriving
 <a href=#1151 id=1151 data-nosnippet>1151</a>    // EXPECTED_VK_SHA256 / EXPECTED_SK_SHA256 below.
 <a href=#1152 id=1152 data-nosnippet>1152</a>    </span><span class="kw">const </span>KEYGEN_SEED: [u8; <span class="number">64</span>] = [
@@ -1157,14 +1157,14 @@
 <a href=#1157 id=1157 data-nosnippet>1157</a>        <span class="number">0x37</span>, <span class="number">0xab</span>, <span class="number">0x06</span>, <span class="number">0x91</span>,
 <a href=#1158 id=1158 data-nosnippet>1158</a>    ];
 <a href=#1159 id=1159 data-nosnippet>1159</a>    <span class="kw">const </span>EXPECTED_VK_SHA256: [u8; <span class="number">32</span>] = [
-<a href=#1160 id=1160 data-nosnippet>1160</a>        <span class="number">0xc9</span>, <span class="number">0x89</span>, <span class="number">0xb1</span>, <span class="number">0xd4</span>, <span class="number">0x13</span>, <span class="number">0x35</span>, <span class="number">0x69</span>, <span class="number">0x44</span>, <span class="number">0x55</span>, <span class="number">0x9e</span>, <span class="number">0x42</span>, <span class="number">0x45</span>, <span class="number">0x55</span>, <span class="number">0x2f</span>, <span class="number">0x85</span>,
-<a href=#1161 id=1161 data-nosnippet>1161</a>        <span class="number">0x70</span>, <span class="number">0x31</span>, <span class="number">0xb3</span>, <span class="number">0x8c</span>, <span class="number">0xaf</span>, <span class="number">0x6d</span>, <span class="number">0x22</span>, <span class="number">0x00</span>, <span class="number">0xd1</span>, <span class="number">0x90</span>, <span class="number">0x9f</span>, <span class="number">0x9d</span>, <span class="number">0x46</span>, <span class="number">0x8c</span>, <span class="number">0xee</span>,
-<a href=#1162 id=1162 data-nosnippet>1162</a>        <span class="number">0x1b</span>, <span class="number">0xff</span>,
+<a href=#1160 id=1160 data-nosnippet>1160</a>        <span class="number">0x16</span>, <span class="number">0x5d</span>, <span class="number">0xea</span>, <span class="number">0x61</span>, <span class="number">0x4b</span>, <span class="number">0x2a</span>, <span class="number">0xa7</span>, <span class="number">0x9e</span>, <span class="number">0x9d</span>, <span class="number">0xc5</span>, <span class="number">0x2c</span>, <span class="number">0xb8</span>, <span class="number">0x7e</span>, <span class="number">0xa3</span>, <span class="number">0x50</span>,
+<a href=#1161 id=1161 data-nosnippet>1161</a>        <span class="number">0x4d</span>, <span class="number">0x50</span>, <span class="number">0x7d</span>, <span class="number">0x1d</span>, <span class="number">0xf2</span>, <span class="number">0x39</span>, <span class="number">0x79</span>, <span class="number">0x18</span>, <span class="number">0x06</span>, <span class="number">0x12</span>, <span class="number">0x31</span>, <span class="number">0x3b</span>, <span class="number">0x74</span>, <span class="number">0x0a</span>, <span class="number">0xfb</span>,
+<a href=#1162 id=1162 data-nosnippet>1162</a>        <span class="number">0xd7</span>, <span class="number">0x38</span>,
 <a href=#1163 id=1163 data-nosnippet>1163</a>    ];
 <a href=#1164 id=1164 data-nosnippet>1164</a>    <span class="kw">const </span>EXPECTED_SK_SHA256: [u8; <span class="number">32</span>] = [
-<a href=#1165 id=1165 data-nosnippet>1165</a>        <span class="number">0x2b</span>, <span class="number">0xc8</span>, <span class="number">0x7e</span>, <span class="number">0xec</span>, <span class="number">0xd4</span>, <span class="number">0x8c</span>, <span class="number">0x4e</span>, <span class="number">0xa2</span>, <span class="number">0x28</span>, <span class="number">0xc2</span>, <span class="number">0xa7</span>, <span class="number">0x87</span>, <span class="number">0x00</span>, <span class="number">0x59</span>, <span class="number">0x02</span>,
-<a href=#1166 id=1166 data-nosnippet>1166</a>        <span class="number">0x89</span>, <span class="number">0x7b</span>, <span class="number">0x1d</span>, <span class="number">0x3a</span>, <span class="number">0x82</span>, <span class="number">0x86</span>, <span class="number">0xa9</span>, <span class="number">0xaf</span>, <span class="number">0x87</span>, <span class="number">0x37</span>, <span class="number">0x9a</span>, <span class="number">0x81</span>, <span class="number">0xab</span>, <span class="number">0x16</span>, <span class="number">0x05</span>,
-<a href=#1167 id=1167 data-nosnippet>1167</a>        <span class="number">0x7a</span>, <span class="number">0x70</span>,
+<a href=#1165 id=1165 data-nosnippet>1165</a>        <span class="number">0xe6</span>, <span class="number">0x71</span>, <span class="number">0xc2</span>, <span class="number">0xbf</span>, <span class="number">0xf3</span>, <span class="number">0x63</span>, <span class="number">0x91</span>, <span class="number">0x87</span>, <span class="number">0x71</span>, <span class="number">0x14</span>, <span class="number">0x06</span>, <span class="number">0xdf</span>, <span class="number">0x69</span>, <span class="number">0x25</span>, <span class="number">0x03</span>,
+<a href=#1166 id=1166 data-nosnippet>1166</a>        <span class="number">0xba</span>, <span class="number">0x02</span>, <span class="number">0xd4</span>, <span class="number">0xfb</span>, <span class="number">0x93</span>, <span class="number">0x34</span>, <span class="number">0x0d</span>, <span class="number">0xd0</span>, <span class="number">0x29</span>, <span class="number">0x25</span>, <span class="number">0xbb</span>, <span class="number">0x55</span>, <span class="number">0xfe</span>, <span class="number">0x52</span>, <span class="number">0x1e</span>,
+<a href=#1167 id=1167 data-nosnippet>1167</a>        <span class="number">0x9a</span>, <span class="number">0x6d</span>,
 <a href=#1168 id=1168 data-nosnippet>1168</a>    ];
 <a href=#1169 id=1169 data-nosnippet>1169</a>    <span class="kw">const </span>TEST_MESSAGE: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"FIPS 140-3 FN-DSA Known Answer Test"</span>;
 <a href=#1170 id=1170 data-nosnippet>1170</a>    <span class="kw">const </span>WRONG_MESSAGE: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"FIPS 140-3 FN-DSA Wrong Message"</span>;
