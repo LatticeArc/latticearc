@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING: FN-DSA key format follows `fn-dsa` 0.4.0.** Dependabot #74 moved
+  the pinned `fn-dsa` crate from 0.3.0 to 0.4.0, which realigns on the expected
+  final FIPS 206 encoding: the public key is stored in NTT form, the message is
+  first hashed into a `mu` value that binds the context string and the hashed
+  public key, the hashed public key is appended to the private key, and all
+  encodings are little-endian. FN-DSA-512 signing keys grow from 1281 to 1345
+  bytes and FN-DSA-1024 from 2305 to 2369 bytes; verifying-key and signature
+  sizes are unchanged. **Keys and signatures produced by 0.12.0 and earlier do
+  not interoperate with this release.** The change-detection KAT in
+  `self_test/kat.rs` was re-baselined against 0.4.0 (same 64-byte seed; new
+  self-attested vk/sk SHA-256 digests), and every hardcoded size in tests and
+  docs (`KEY_FORMAT.md`, CLI README / quick reference) was updated.
+- **Dependency bumps.** `sha3` 0.11 → 0.12 (SHAKE moved upstream to the `shake`
+  crate; `latticearc-tests` now depends on `shake` 0.1 for the C2SP CCTV
+  ML-KEM accumulated-vector test), `blake2` 0.10 → 0.11, `region` 3 → 4,
+  `fn-dsa-sign` / `fn-dsa-vrfy` 0.3 → 0.4 (#75–#78).
+
 ### Fixed
 
 - **`wnaf` 0.14.0 yanked.** The rust-minor group bump (#72) brought in

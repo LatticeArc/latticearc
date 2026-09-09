@@ -42,7 +42,7 @@ use rand_chacha::ChaCha20Rng;
 use rand_core_0_6::OsRng;
 
 /// Adapter wrapping a `rand 0.9` RNG so it satisfies `rand_core 0.6` traits.
-/// Required because `fn-dsa 0.3` is pinned to `rand_core 0.6` but our
+/// Required because `fn-dsa 0.4` is pinned to `rand_core 0.6` but our
 /// deterministic-keygen test seeds a `ChaCha20Rng` from `rand_chacha 0.9`.
 /// Drop once the dalek 3.x stable line lands and we can drop the
 /// `rand_core_0_6` bridge entirely.
@@ -97,7 +97,7 @@ fn test_fndsa_512_key_generation_succeeds() {
         assert_eq!(
             keypair.signing_key().to_bytes().len(),
             FnDsaSecurityLevel::Level512.signing_key_size(),
-            "Signing key should be 1281 bytes for FN-DSA-512"
+            "Signing key should be 1345 bytes for FN-DSA-512"
         );
         assert_eq!(
             keypair.verifying_key().to_bytes().len(),
@@ -237,7 +237,7 @@ fn test_fndsa_1024_key_generation_succeeds() {
         assert_eq!(
             keypair.signing_key().to_bytes().len(),
             FnDsaSecurityLevel::Level1024.signing_key_size(),
-            "Signing key should be 2305 bytes for FN-DSA-1024"
+            "Signing key should be 2369 bytes for FN-DSA-1024"
         );
         assert_eq!(
             keypair.verifying_key().to_bytes().len(),
@@ -582,14 +582,14 @@ fn test_fndsa_security_level_parameters_succeeds() {
     let level512 = FnDsaSecurityLevel::Level512;
     assert_eq!(level512.to_logn(), 9, "Level512 logn should be 9");
     assert_eq!(level512.signature_size(), 666, "Level512 signature size should be 666");
-    assert_eq!(level512.signing_key_size(), 1281, "Level512 signing key size should be 1281");
+    assert_eq!(level512.signing_key_size(), 1345, "Level512 signing key size should be 1345");
     assert_eq!(level512.verifying_key_size(), 897, "Level512 verifying key size should be 897");
 
     // FN-DSA-1024 parameters (256-bit security)
     let level1024 = FnDsaSecurityLevel::Level1024;
     assert_eq!(level1024.to_logn(), 10, "Level1024 logn should be 10");
     assert_eq!(level1024.signature_size(), 1280, "Level1024 signature size should be 1280");
-    assert_eq!(level1024.signing_key_size(), 2305, "Level1024 signing key size should be 2305");
+    assert_eq!(level1024.signing_key_size(), 2369, "Level1024 signing key size should be 2369");
     assert_eq!(level1024.verifying_key_size(), 1793, "Level1024 verifying key size should be 1793");
 }
 

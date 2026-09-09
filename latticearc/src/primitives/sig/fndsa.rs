@@ -27,7 +27,7 @@
 //! - FN-DSA-1024: ~256-bit security (Level V)
 
 use crate::prelude::error::LatticeArcError;
-// `fn-dsa 0.3` is pinned to `rand_core 0.6`; use the 0.6 traits/types for the
+// `fn-dsa 0.4` is pinned to `rand_core 0.6`; use the 0.6 traits/types for the
 // keygen and signing entry points. See workspace Cargo.toml `rand_core_0_6`.
 use rand_core_0_6::OsRng;
 use subtle::ConstantTimeEq;
@@ -136,7 +136,7 @@ impl From<FnDsaError> for LatticeArcError {
 
 /// Stack size handed to the FN-DSA worker thread.
 ///
-/// `fn-dsa 0.3` allocates large polynomial FFT buffers on the stack —
+/// `fn-dsa 0.4` allocates large polynomial FFT buffers on the stack —
 /// `FnDsaKeyPair::generate`, `FnDsaSigningKey::sign`, `FnDsaSigningKey::from_bytes`,
 /// and `FnDsaVerifyingKey::{from_bytes, verify}` each exceed the default
 /// 2 MiB thread stack in debug builds and produce
@@ -255,8 +255,8 @@ impl FnDsaSecurityLevel {
     ///
     /// # Returns
     ///
-    /// - `1281` bytes for Level 512
-    /// - `2305` bytes for Level 1024
+    /// - `1345` bytes for Level 512
+    /// - `2369` bytes for Level 1024
     #[must_use]
     pub fn signing_key_size(&self) -> usize {
         sign_key_size(self.to_logn())
@@ -1124,11 +1124,11 @@ mod tests {
         let level1024 = FnDsaSecurityLevel::Level1024;
 
         assert_eq!(level512.signature_size(), 666);
-        assert_eq!(level512.signing_key_size(), 1281);
+        assert_eq!(level512.signing_key_size(), 1345);
         assert_eq!(level512.verifying_key_size(), 897);
 
         assert_eq!(level1024.signature_size(), 1280);
-        assert_eq!(level1024.signing_key_size(), 2305);
+        assert_eq!(level1024.signing_key_size(), 2369);
         assert_eq!(level1024.verifying_key_size(), 1793);
     }
 

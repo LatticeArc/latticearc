@@ -365,7 +365,7 @@ impl rand_core_0_6::CryptoRng for FixedBytesRng {}
 /// `fill_bytes` reads from `seed`, wrapping at the end. The output
 /// for any input length is therefore a deterministic function of
 /// `(seed, accumulated_bytes_read_so_far)`. Used by [`kat_fn_dsa`]
-/// because `fn-dsa 0.3`'s `KeyPairGeneratorStandard::keygen` makes
+/// because `fn-dsa 0.4`'s `KeyPairGeneratorStandard::keygen` makes
 /// many internal RNG draws whose individual sizes aren't documented;
 /// pre-pushing matching chunks into `FixedBytesRng` is infeasible.
 ///
@@ -1123,7 +1123,7 @@ pub fn kat_slh_dsa() -> Result<()> {
 /// ACVP `internalProjection.json` files — the algorithm is still
 /// pre-final in the FIPS 206 pipeline. The expected pk / sk SHA-256
 /// digests below are self-attested: derived from running
-/// `fn-dsa 0.3.x`'s `KeyPairGeneratorStandard::keygen` against the
+/// `fn-dsa 0.4.x`'s `KeyPairGeneratorStandard::keygen` against the
 /// 64-byte `KEYGEN_SEED` below and hashing the resulting outputs.
 /// Treat this as a CHANGE-DETECTION KAT (any `fn-dsa` upstream bump
 /// that alters the deterministic keygen output will trip this) NOT
@@ -1146,7 +1146,7 @@ pub fn kat_fn_dsa() -> Result<()> {
 
     // 64-byte deterministic keygen seed. Bytes chosen pseudo-randomly
     // for the FN-DSA self-attested baseline; the digests below were
-    // captured by running fn-dsa 0.3.x against this exact byte
+    // captured by running fn-dsa 0.4.x against this exact byte
     // sequence. Any change to this constant requires re-deriving
     // EXPECTED_VK_SHA256 / EXPECTED_SK_SHA256 below.
     const KEYGEN_SEED: [u8; 64] = [
@@ -1157,14 +1157,14 @@ pub fn kat_fn_dsa() -> Result<()> {
         0x37, 0xab, 0x06, 0x91,
     ];
     const EXPECTED_VK_SHA256: [u8; 32] = [
-        0xc9, 0x89, 0xb1, 0xd4, 0x13, 0x35, 0x69, 0x44, 0x55, 0x9e, 0x42, 0x45, 0x55, 0x2f, 0x85,
-        0x70, 0x31, 0xb3, 0x8c, 0xaf, 0x6d, 0x22, 0x00, 0xd1, 0x90, 0x9f, 0x9d, 0x46, 0x8c, 0xee,
-        0x1b, 0xff,
+        0x16, 0x5d, 0xea, 0x61, 0x4b, 0x2a, 0xa7, 0x9e, 0x9d, 0xc5, 0x2c, 0xb8, 0x7e, 0xa3, 0x50,
+        0x4d, 0x50, 0x7d, 0x1d, 0xf2, 0x39, 0x79, 0x18, 0x06, 0x12, 0x31, 0x3b, 0x74, 0x0a, 0xfb,
+        0xd7, 0x38,
     ];
     const EXPECTED_SK_SHA256: [u8; 32] = [
-        0x2b, 0xc8, 0x7e, 0xec, 0xd4, 0x8c, 0x4e, 0xa2, 0x28, 0xc2, 0xa7, 0x87, 0x00, 0x59, 0x02,
-        0x89, 0x7b, 0x1d, 0x3a, 0x82, 0x86, 0xa9, 0xaf, 0x87, 0x37, 0x9a, 0x81, 0xab, 0x16, 0x05,
-        0x7a, 0x70,
+        0xe6, 0x71, 0xc2, 0xbf, 0xf3, 0x63, 0x91, 0x87, 0x71, 0x14, 0x06, 0xdf, 0x69, 0x25, 0x03,
+        0xba, 0x02, 0xd4, 0xfb, 0x93, 0x34, 0x0d, 0xd0, 0x29, 0x25, 0xbb, 0x55, 0xfe, 0x52, 0x1e,
+        0x9a, 0x6d,
     ];
     const TEST_MESSAGE: &[u8] = b"FIPS 140-3 FN-DSA Known Answer Test";
     const WRONG_MESSAGE: &[u8] = b"FIPS 140-3 FN-DSA Wrong Message";

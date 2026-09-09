@@ -350,11 +350,11 @@ mod pipeline_sign_verify_roundtrip {
 
         // FN-DSA KeyGen returns vrfy_key + sign_key
         // vrfy_key_size(FN_DSA_LOGN_512) and sign_key_size(FN_DSA_LOGN_512)
-        // For logn=9 (512): vrfy_key = 897, sign_key = 1281
+        // For logn=9 (512): vrfy_key = 897, sign_key = 1345
         let vrfy_key_len = 897;
         let pk = key_material[..vrfy_key_len].to_vec();
         let sk = key_material[vrfy_key_len..].to_vec();
-        assert_eq!(sk.len(), 1281, "FN-DSA-512 sign key should be 1281 bytes");
+        assert_eq!(sk.len(), 1345, "FN-DSA-512 sign key should be 1345 bytes");
 
         // Sign
         let sign_vec = make_sign_vector("fndsa512-sign", alg.clone(), sk, message.clone());
@@ -382,11 +382,11 @@ mod pipeline_sign_verify_roundtrip {
         let keygen_result = executor.execute_single_test_vector(&keygen_vec).await.unwrap();
         let key_material = keygen_result.actual_result;
 
-        // For logn=10 (1024): vrfy_key = 1793, sign_key = 2305
+        // For logn=10 (1024): vrfy_key = 1793, sign_key = 2369
         let vrfy_key_len = 1793;
         let pk = key_material[..vrfy_key_len].to_vec();
         let sk = key_material[vrfy_key_len..].to_vec();
-        assert_eq!(sk.len(), 2305, "FN-DSA-1024 sign key should be 2305 bytes");
+        assert_eq!(sk.len(), 2369, "FN-DSA-1024 sign key should be 2369 bytes");
 
         // Sign
         let sign_vec = make_sign_vector("fndsa1024-sign", alg.clone(), sk, message.clone());

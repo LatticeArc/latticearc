@@ -55,12 +55,12 @@
 //!
 //! - **FN-DSA-512**: NIST Category 1 (~103-bit quantum, ~128-bit classical)
 //!   - Public key: 897 bytes
-//!   - Secret key: 1281 bytes
+//!   - Secret key: 1345 bytes
 //!   - Signature: ~666 bytes average (variable-length encoding)
 //!
 //! - **FN-DSA-1024**: NIST Category 5 (~230-bit quantum, ~256-bit classical)
 //!   - Public key: 1793 bytes
-//!   - Secret key: 2305 bytes
+//!   - Secret key: 2369 bytes
 //!   - Signature: ~1280 bytes average
 //!
 //! ## Classical Algorithms

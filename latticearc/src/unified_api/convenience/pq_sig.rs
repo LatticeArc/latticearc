@@ -477,7 +477,7 @@ fn sign_pq_fn_dsa_internal(
         CoreError::InvalidInput("Invalid FN-DSA private key format".to_string())
     })?;
 
-    // H1 / M1 fix: FN-DSA's underlying `fn-dsa 0.3` exposes no context
+    // H1 / M1 fix: FN-DSA's underlying `fn-dsa 0.4` exposes no context
     // parameter, so the signed transcript is bound by hashing the scheme
     // context together with the message and signing the 64-byte digest.
     // Fixed-size digest also keeps us under the signature-size cap for

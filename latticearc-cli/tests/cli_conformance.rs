@@ -287,7 +287,7 @@ fn test_nist_fips205_slh_dsa_shake_128s_sizes_has_correct_size() {
 // ============================================================================
 //
 // FIPS 206 (draft, based on Falcon-512):
-// Public key: 897 bytes | Secret key: 1,281 bytes
+// Public key: 897 bytes | Secret key: 1,345 bytes
 // Signature: variable length (compressed), max 666 bytes per spec
 #[test]
 fn test_fips206_fn_dsa_512_sizes_has_correct_size() {
@@ -303,7 +303,7 @@ fn test_fips206_fn_dsa_512_sizes_has_correct_size() {
     let sk_len = key_file_raw_len(&sk_path);
 
     assert_eq!(pk_len, 897, "FIPS 206: FN-DSA-512 pk MUST be 897 bytes");
-    assert_eq!(sk_len, 1281, "FIPS 206: FN-DSA-512 sk MUST be 1,281 bytes");
+    assert_eq!(sk_len, 1345, "FIPS 206: FN-DSA-512 sk MUST be 1,345 bytes");
 
     // Sign to verify signature size range (Falcon uses compressed encoding)
     let msg_path = dir.path().join("msg.txt");
@@ -328,7 +328,7 @@ fn test_fips206_fn_dsa_512_sizes_has_correct_size() {
     assert!(sig_len >= 580, "FIPS 206: FN-DSA-512 signature suspiciously small at {sig_len} bytes");
 
     println!(
-        "[PROOF] {{\"test\": \"fips206_fn_dsa_512_sizes\", \"category\": \"nist-conformance\", \"standard\": \"FIPS 206 (draft)\", \"algorithm\": \"FN-DSA-512\", \"pk_bytes\": {pk_len}, \"expected_pk\": 897, \"sk_bytes\": {sk_len}, \"expected_sk\": 1281, \"sig_bytes\": {sig_len}, \"sig_max\": 690, \"all_conformant\": true}}"
+        "[PROOF] {{\"test\": \"fips206_fn_dsa_512_sizes\", \"category\": \"nist-conformance\", \"standard\": \"FIPS 206 (draft)\", \"algorithm\": \"FN-DSA-512\", \"pk_bytes\": {pk_len}, \"expected_pk\": 897, \"sk_bytes\": {sk_len}, \"expected_sk\": 1345, \"sig_bytes\": {sig_len}, \"sig_max\": 690, \"all_conformant\": true}}"
     );
 }
 // ============================================================================

@@ -161,7 +161,7 @@ ML-DSA-44:  pk=1,312 B  sk=2,560 B  sig=2,420 B   (NIST Cat 2)
 ML-DSA-65:  pk=1,952 B  sk=4,032 B  sig=3,309 B   (NIST Cat 3) ← recommended
 ML-DSA-87:  pk=2,592 B  sk=4,896 B  sig=4,627 B   (NIST Cat 5)
 SLH-DSA:    pk=32 B     sk=64 B     sig=7,856 B   (NIST Cat 1)
-FN-DSA-512: pk=897 B    sk=1,281 B  sig=~666 B    (compact)
+FN-DSA-512: pk=897 B    sk=1,345 B  sig=~666 B    (compact)
 Ed25519:    pk=32 B     sk=32 B     sig=64 B      (classical)
 AES-256:    key=32 B    nonce=12 B  tag=16 B
 ```

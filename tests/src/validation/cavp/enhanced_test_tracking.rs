@@ -339,7 +339,7 @@ mod enhanced_cavp_result_tracking_tests {
                     message: Some(b"Integration test message".to_vec()),
                     key_material: None,
                     pk: Some(vec![0x05; 897]),
-                    sk: Some(vec![0x06; 1281]),
+                    sk: Some(vec![0x06; 1345]),
                     c: None,
                     m: None,
                     ek: None,
@@ -349,7 +349,7 @@ mod enhanced_cavp_result_tracking_tests {
                 },
                 expected_outputs: CavpVectorOutputs {
                     public_key: Some(vec![0x05; 897]),
-                    secret_key: Some(vec![0x06; 1281]),
+                    secret_key: Some(vec![0x06; 1345]),
                     ciphertext: None,
                     signature: Some(vec![0x07; 690]),
                     shared_secret: None,

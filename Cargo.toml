@@ -265,7 +265,7 @@ serde_json = { version = "1.0.150" }
 rand = { version = "0.10.2", features = ["thread_rng", "sys_rng"] }
 rand_core = { version = "0.10" }
 rand_chacha = { version = "0.10" }
-# Bridge to crypto crates (`fn-dsa 0.3`, `fips204`, `fips205`) whose latest
+# Bridge to crypto crates (`fn-dsa 0.4`, `fips204`, `fips205`) whose latest
 # stable releases still depend on `rand_core 0.6`. Aliased as `rand_core_0_6`
 # so it can coexist with `rand_core` 0.10 in the same module without naming
 # conflicts. Drop this once fn-dsa/fips204/fips205 move off `rand_core 0.6`.

@@ -272,7 +272,7 @@ pub(crate) const fn zk_proof_sig_context() -> &'static [u8] {
 }
 
 /// Domain-separated SHA-512 digest for signature primitives without a native
-/// context parameter — Ed25519 (RFC 8032 §5.1) and FN-DSA (`fn-dsa 0.3`).
+/// context parameter — Ed25519 (RFC 8032 §5.1) and FN-DSA (`fn-dsa 0.4`).
 ///
 /// Returns `SHA-512(scheme_ctx || 0x00 || message)`. The 64-byte fixed-size
 /// output is bound to the scheme (via `scheme_ctx`) while sidestepping the

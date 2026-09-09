@@ -18,8 +18,8 @@
 
 #![allow(clippy::unwrap_used)]
 
-use sha3::Shake128;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
+use shake::Shake128;
 
 /// Run the C2SP CCTV accumulated vector test for a given ML-KEM parameter set.
 ///

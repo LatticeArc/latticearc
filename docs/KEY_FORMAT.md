@@ -320,8 +320,8 @@ CBOR is the recommended format for:
 
 | Identifier | Standard | PK Size | SK Size |
 |------------|----------|---------|---------|
-| `fn-dsa-512` | draft FIPS 206 | 897 B | 1,281 B |
-| `fn-dsa-1024` | draft FIPS 206 | 1,793 B | 2,305 B |
+| `fn-dsa-512` | draft FIPS 206 | 897 B | 1,345 B |
+| `fn-dsa-1024` | draft FIPS 206 | 1,793 B | 2,369 B |
 
 ### Classical
 

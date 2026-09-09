@@ -553,7 +553,7 @@ enforced by our test suite (91 tests, all passing).
 | Algorithm | Standard | Public Key | Secret Key | Signature |
 |-----------|----------|------------|------------|-----------|
 | SLH-DSA-SHAKE-128s | FIPS 205 | 32 B | 64 B | 7,856 B |
-| FN-DSA-512 | draft FIPS 206 | 897 B | 1,281 B | ~666 B (variable) |
+| FN-DSA-512 | draft FIPS 206 | 897 B | 1,345 B | ~666 B (variable) |
 | Ed25519 | RFC 8032 | 32 B | 32 B | 64 B |
 
 **Key Encapsulation (FIPS 203 — ML-KEM):**
