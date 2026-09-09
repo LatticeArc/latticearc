@@ -84,7 +84,7 @@ fips203 = "=0.4.3"
 fips204 = { workspace = true }
 fips205 = { workspace = true }
 fn-dsa = { workspace = true }
-fn-dsa-sign = "0.3"
+fn-dsa-sign = "0.4"
 fn-dsa-vrfy = "0.4"
 reqwest = { workspace = true, features = ["blocking"] }
 num_cpus = "1.16.0"
