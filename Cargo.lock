@@ -1098,20 +1098,10 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13662b90285f1d8d0cf7bc600808b036a52802eeadbd9912992bc9a357fbdfd0"
 dependencies = [
- "fn-dsa-comm 0.4.0",
+ "fn-dsa-comm",
  "fn-dsa-kgen",
- "fn-dsa-sign 0.4.0",
+ "fn-dsa-sign",
  "fn-dsa-vrfy",
-]
-
-[[package]]
-name = "fn-dsa-comm"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28104bba227c79bff8ffe34dff7c5a5631fd790dfd4d4f0a84b01952ef7c6f46"
-dependencies = [
- "cpufeatures 0.2.17",
- "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -1130,17 +1120,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d1dcea5794c0cd70a7b084851a6ab8b070c956b332d8b91760d569e5a6778218"
 dependencies = [
- "fn-dsa-comm 0.4.0",
- "zeroize",
-]
-
-[[package]]
-name = "fn-dsa-sign"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ffb7d9c94e56de7e64019849b3b6110b1495690da2e9e1decef8f1744b3bab4"
-dependencies = [
- "fn-dsa-comm 0.3.0",
+ "fn-dsa-comm",
  "zeroize",
 ]
 
@@ -1150,7 +1130,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01a64adea5213c0f5d5f77d862b5d06b56a47dc317f19d7e3b164830c92f4693"
 dependencies = [
- "fn-dsa-comm 0.4.0",
+ "fn-dsa-comm",
  "zeroize",
 ]
 
@@ -1160,7 +1140,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1028459ccd32c695ce0ca44ae5d59ea7046a04bc145004cc1b8aabd91d3457a7"
 dependencies = [
- "fn-dsa-comm 0.4.0",
+ "fn-dsa-comm",
 ]
 
 [[package]]
@@ -1946,7 +1926,7 @@ dependencies = [
  "fips204",
  "fips205",
  "fn-dsa",
- "fn-dsa-sign 0.3.0",
+ "fn-dsa-sign",
  "fn-dsa-vrfy",
  "hex",
  "hkdf",
