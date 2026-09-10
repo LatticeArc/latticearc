@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a>//! - FN-DSA-1024: ~256-bit security (Level V)
 <a href=#28 id=28 data-nosnippet>28</a>
 <a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">use </span><span class="kw">crate</span>::prelude::error::LatticeArcError;
-<a href=#30 id=30 data-nosnippet>30</a><span class="comment">// `fn-dsa 0.3` is pinned to `rand_core 0.6`; use the 0.6 traits/types for the
+<a href=#30 id=30 data-nosnippet>30</a><span class="comment">// `fn-dsa 0.4` is pinned to `rand_core 0.6`; use the 0.6 traits/types for the
 <a href=#31 id=31 data-nosnippet>31</a>// keygen and signing entry points. See workspace Cargo.toml `rand_core_0_6`.
 <a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">use </span>rand_core_0_6::OsRng;
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>subtle::ConstantTimeEq;
@@ -136,7 +136,7 @@
 <a href=#136 id=136 data-nosnippet>136</a>
 <a href=#137 id=137 data-nosnippet>137</a><span class="doccomment">/// Stack size handed to the FN-DSA worker thread.
 <a href=#138 id=138 data-nosnippet>138</a>///
-<a href=#139 id=139 data-nosnippet>139</a>/// `fn-dsa 0.3` allocates large polynomial FFT buffers on the stack —
+<a href=#139 id=139 data-nosnippet>139</a>/// `fn-dsa 0.4` allocates large polynomial FFT buffers on the stack —
 <a href=#140 id=140 data-nosnippet>140</a>/// `FnDsaKeyPair::generate`, `FnDsaSigningKey::sign`, `FnDsaSigningKey::from_bytes`,
 <a href=#141 id=141 data-nosnippet>141</a>/// and `FnDsaVerifyingKey::{from_bytes, verify}` each exceed the default
 <a href=#142 id=142 data-nosnippet>142</a>/// 2 MiB thread stack in debug builds and produce
@@ -255,8 +255,8 @@
 <a href=#255 id=255 data-nosnippet>255</a>    ///
 <a href=#256 id=256 data-nosnippet>256</a>    /// # Returns
 <a href=#257 id=257 data-nosnippet>257</a>    ///
-<a href=#258 id=258 data-nosnippet>258</a>    /// - `1281` bytes for Level 512
-<a href=#259 id=259 data-nosnippet>259</a>    /// - `2305` bytes for Level 1024
+<a href=#258 id=258 data-nosnippet>258</a>    /// - `1345` bytes for Level 512
+<a href=#259 id=259 data-nosnippet>259</a>    /// - `2369` bytes for Level 1024
 <a href=#260 id=260 data-nosnippet>260</a>    </span><span class="attr">#[must_use]
 <a href=#261 id=261 data-nosnippet>261</a>    </span><span class="kw">pub fn </span>signing_key_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
 <a href=#262 id=262 data-nosnippet>262</a>        sign_key_size(<span class="self">self</span>.to_logn())
@@ -1124,11 +1124,11 @@
 <a href=#1124 id=1124 data-nosnippet>1124</a>        <span class="kw">let </span>level1024 = FnDsaSecurityLevel::Level1024;
 <a href=#1125 id=1125 data-nosnippet>1125</a>
 <a href=#1126 id=1126 data-nosnippet>1126</a>        <span class="macro">assert_eq!</span>(level512.signature_size(), <span class="number">666</span>);
-<a href=#1127 id=1127 data-nosnippet>1127</a>        <span class="macro">assert_eq!</span>(level512.signing_key_size(), <span class="number">1281</span>);
+<a href=#1127 id=1127 data-nosnippet>1127</a>        <span class="macro">assert_eq!</span>(level512.signing_key_size(), <span class="number">1345</span>);
 <a href=#1128 id=1128 data-nosnippet>1128</a>        <span class="macro">assert_eq!</span>(level512.verifying_key_size(), <span class="number">897</span>);
 <a href=#1129 id=1129 data-nosnippet>1129</a>
 <a href=#1130 id=1130 data-nosnippet>1130</a>        <span class="macro">assert_eq!</span>(level1024.signature_size(), <span class="number">1280</span>);
-<a href=#1131 id=1131 data-nosnippet>1131</a>        <span class="macro">assert_eq!</span>(level1024.signing_key_size(), <span class="number">2305</span>);
+<a href=#1131 id=1131 data-nosnippet>1131</a>        <span class="macro">assert_eq!</span>(level1024.signing_key_size(), <span class="number">2369</span>);
 <a href=#1132 id=1132 data-nosnippet>1132</a>        <span class="macro">assert_eq!</span>(level1024.verifying_key_size(), <span class="number">1793</span>);
 <a href=#1133 id=1133 data-nosnippet>1133</a>    }
 <a href=#1134 id=1134 data-nosnippet>1134</a>

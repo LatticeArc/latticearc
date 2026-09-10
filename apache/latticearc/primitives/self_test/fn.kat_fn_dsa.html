@@ -17,7 +17,7 @@ have published NIST CAVP vectors equivalent to the ML-DSA / SLH-DSA
 ACVP <code>internalProjection.json</code> files — the algorithm is still
 pre-final in the FIPS 206 pipeline. The expected pk / sk SHA-256
 digests below are self-attested: derived from running
-<code>fn-dsa 0.3.x</code>’s <code>KeyPairGeneratorStandard::keygen</code> against the
+<code>fn-dsa 0.4.x</code>’s <code>KeyPairGeneratorStandard::keygen</code> against the
 64-byte <code>KEYGEN_SEED</code> below and hashing the resulting outputs.
 Treat this as a CHANGE-DETECTION KAT (any <code>fn-dsa</code> upstream bump
 that alters the deterministic keygen output will trip this) NOT
