@@ -93,7 +93,7 @@ tempfile = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4.4"
-wycheproof = "0.6"
+wycheproof = "0.7"
 criterion = { workspace = true }
 # Compile-time assertions used by `tests/tests/version_compatibility.rs`.
 # Type-export and trait-impl checks belong in `static_assertions!`, not
