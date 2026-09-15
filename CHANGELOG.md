@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **RUSTSEC-2026-0285 (`rustls` 0.23.43).** TLS 1.3 handshake messages were
+  accepted across encryption-level boundaries (CVSS 5.3, published
+  2026-09-14). `rustls` reaches the lockfile only through `reqwest`, a
+  dev-dependency of `latticearc-tests`; the published `latticearc` crate does
+  not link it. `cargo audit --deny warnings` failed on `main`'s scheduled scan
+  and on every open Dependabot PR (#80–#82). `Cargo.lock` now pins `rustls`
+  0.23.45 (and its `rustls-webpki` 0.103.15). Lockfile-only.
 - **`wnaf` 0.14.0 yanked.** The rust-minor group bump (#72) brought in
   `k256`/`p384` 0.14, whose `primeorder` dependency resolved to the yanked
   `wnaf` 0.14.0; `cargo audit --deny warnings` failed on `main` and on every
