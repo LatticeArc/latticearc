@@ -366,7 +366,7 @@ jobs:
       # behaviour between identical source revisions. Bump intentionally.
       # Uses taiki-e/install-action (prebuilt binaries) to match the
       # cargo-llvm-cov pinning pattern earlier in this file.
-      uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # main
+      uses: taiki-e/install-action@4076c08d76dba979c11a7285295b0716c1d67908 # main
       with:
         tool: cargo-audit@0.22.1,cargo-deny@0.19.6
 
@@ -519,7 +519,7 @@ jobs:
 
     - name: Install cargo-llvm-cov
       if: matrix.features.coverage
-      uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # main
+      uses: taiki-e/install-action@4076c08d76dba979c11a7285295b0716c1d67908 # main
       with:
         tool: cargo-llvm-cov
 
@@ -570,7 +570,7 @@ jobs:
 
     - name: Upload coverage to Codecov
       if: matrix.features.coverage
-      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       with:
         files: lcov.info
         fail_ci_if_error: false
@@ -862,7 +862,7 @@ jobs:
         echo "benchmark_duration_seconds $BENCH_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-performance/instance/${{ github.run_id }}/operation/benchmark-run || true
 
     - name: Performance regression detection
-      uses: benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba # v1
+      uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1
       continue-on-error: true
       with:
         tool: 'cargo'
