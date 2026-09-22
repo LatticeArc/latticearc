@@ -47,6 +47,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in `latticearc/src`; the workflow's preflight check rejects unknown names,
   so the job had failed on every open pull request. The stale entry is removed and
   the step summary no longer hardcodes a proof count.
+- **Kani crashed while compiling `latticearc` from 2026-09-16 on.** `kani.yml`
+  installed an unpinned `kani-verifier`, so it picked up 0.68.0 on release day.
+  Its new toolchain trips an internal assertion on the `catch_unwind` intrinsic
+  (`kani-compiler/src/intrinsics.rs:243`, upstream model-checking/kani#4813),
+  so every scheduled and PR Kani job failed before running a proof. Kani is now
+  pinned to 0.67.0 via `KANI_VERSION`, and the version is part of both cache
+  keys so a cached 0.68.0 binary is never restored. CI-only.
 - **Dependency advisories in `Cargo.lock`.** `h2` 0.4.15 → 0.4.19 closes
   RUSTSEC-2026-0258 (unbounded empty DATA frames; reached only through the
   `reqwest` dev-dependency of `latticearc-tests`), and `chacha20` 0.10.1 →

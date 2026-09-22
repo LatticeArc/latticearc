@@ -33,6 +33,11 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Pinned: kani 0.68.0 ICEs on any crate reaching `catch_unwind`
+  # (intrinsics.rs:243 i32 assertion; model-checking/kani#4813). Unpin once a
+  # fixed release ships. The version is part of the cache keys below so a
+  # cached binary of another version is never restored.
+  KANI_VERSION: "0.67.0"
 
 jobs:
   # PR-blocking fast subset — runs on every pull request, must complete in ≤10 min.
@@ -59,7 +64,7 @@ jobs:
             ~/.cargo/bin/kani-compiler
             ~/.cargo/bin/kani-driver
             ~/.kani
-          key: ${{ runner.os }}-kani-pr-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-kani-pr-${{ env.KANI_VERSION }}-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
           # scope cache restore to the same
           # branch/ref so a PR cache cannot contaminate main-branch
           # runs (the Kani binary is the verification authority — a
@@ -67,12 +72,12 @@ jobs:
           # the original `kani-pr-` prefix any branch's cache could
           # be restored on main.
           restore-keys: |
-            ${{ runner.os }}-kani-pr-${{ github.ref_name }}-
+            ${{ runner.os }}-kani-pr-${{ env.KANI_VERSION }}-${{ github.ref_name }}-
 
       - name: Install Kani
         run: |
           if ! command -v kani >/dev/null 2>&1; then
-            cargo install --locked kani-verifier
+            cargo install --locked kani-verifier --version "$KANI_VERSION"
           fi
           kani setup
 
@@ -151,16 +156,16 @@ jobs:
             ~/.cargo/bin/kani-compiler
             ~/.cargo/bin/kani-driver
             ~/.kani
-          key: ${{ runner.os }}-kani-verified-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-kani-verified-${{ env.KANI_VERSION }}-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
           # scope cache restore to the same
           # branch/ref. See the kani-pr- block above for rationale.
           restore-keys: |
-            ${{ runner.os }}-kani-verified-${{ github.ref_name }}-
+            ${{ runner.os }}-kani-verified-${{ env.KANI_VERSION }}-${{ github.ref_name }}-
 
       - name: Install Kani
         run: |
           if ! command -v kani >/dev/null 2>&1; then
-            cargo install --locked kani-verifier
+            cargo install --locked kani-verifier --version "$KANI_VERSION"
           fi
           kani setup
 
