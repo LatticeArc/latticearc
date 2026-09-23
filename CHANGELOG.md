@@ -59,6 +59,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so every scheduled and PR Kani job failed before running a proof. Kani is now
   pinned to 0.67.0 via `KANI_VERSION`, and the version is part of both cache
   keys so a cached 0.68.0 binary is never restored. CI-only.
+- **Weekly ThreadSanitizer job timed out.** The 2026-09-20 run hit the
+  90-minute step cap with 1126 of 1636 tests done and no race reported; SLH-DSA
+  tests take ~55 min under TSan and the previous passing runs finished at
+  75–88 min. The TSan step timeout is now 150 minutes; no tests are skipped.
+  CI-only.
 - **Dependency advisories in `Cargo.lock`.** `h2` 0.4.15 → 0.4.19 closes
   RUSTSEC-2026-0258 (unbounded empty DATA frames; reached only through the
   `reqwest` dev-dependency of `latticearc-tests`), and `chacha20` 0.10.1 →

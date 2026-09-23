@@ -116,7 +116,10 @@ jobs:
             --lib -- --test-threads=1
         env:
           TSAN_OPTIONS: second_deadlock_stack=1:history_size=7
-        timeout-minutes: 90
+        # TSan is the slowest sanitizer: SLH-DSA tests alone take ~55 min of
+        # the ~85-90 min suite (2026-09-20 run), so a 90-min cap times out
+        # mid-run. 150 leaves headroom without skipping tests.
+        timeout-minutes: 150
 
       - name: TSan Summary
         if: always()
