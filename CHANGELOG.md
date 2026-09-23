@@ -26,7 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependency bumps.** `sha3` 0.11 → 0.12 (SHAKE moved upstream to the `shake`
   crate; `latticearc-tests` now depends on `shake` 0.1 for the C2SP CCTV
   ML-KEM accumulated-vector test), `blake2` 0.10 → 0.11, `region` 3 → 4,
-  `fn-dsa-sign` / `fn-dsa-vrfy` 0.3 → 0.4 (#75–#78).
+  `fn-dsa-sign` / `fn-dsa-vrfy` 0.3 → 0.4 (#75–#78). A 2026-09-22 lockfile
+  refresh moved 80 packages to their latest Rust 1.93-compatible semver
+  releases (including `clap` 4.6.7, `keccak` 0.2.2, `rand` 0.10.3, `zerocopy`
+  0.8.57); the only new crates (`multiversion`, `core_detect`) enter through
+  `encoding_rs` under the test-only `reqwest` and are not linked by the
+  published crate.
 
 ### Fixed
 
