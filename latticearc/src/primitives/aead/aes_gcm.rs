@@ -261,14 +261,20 @@ impl_aes_gcm!(
     /// AES-GCM-128 cipher (128-bit key).
     ///
     /// Uses AES-GCM with a 128-bit key following NIST SP 800-38D via aws-lc-rs.
-    AesGcm128, AES_GCM_128_KEY_LEN, &AES_128_GCM, "AES-GCM-128"
+    AesGcm128,
+    AES_GCM_128_KEY_LEN,
+    &AES_128_GCM,
+    "AES-GCM-128"
 );
 
 impl_aes_gcm!(
     /// AES-GCM-256 cipher (256-bit key).
     ///
     /// Uses AES-GCM with a 256-bit key following NIST SP 800-38D via aws-lc-rs.
-    AesGcm256, AES_GCM_256_KEY_LEN, &AES_256_GCM, "AES-GCM-256"
+    AesGcm256,
+    AES_GCM_256_KEY_LEN,
+    &AES_256_GCM,
+    "AES-GCM-256"
 );
 
 #[cfg(test)]
