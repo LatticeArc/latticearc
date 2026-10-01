@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `k256`/`p384` 0.14, whose `primeorder` dependency resolved to the yanked
   `wnaf` 0.14.0; `cargo audit --deny warnings` failed on `main` and on every
   open Dependabot PR. `Cargo.lock` now pins `wnaf` 0.14.1. Lockfile-only.
+- **`yoke-derive` 0.8.3 yanked.** The 2026-09-22 lockfile refresh resolved it
+  (via `yoke` / `zerovec` / ICU under the test-only `reqwest`); the yank failed
+  the scheduled Security Scan's `cargo audit --deny warnings` on 2026-10-01.
+  `Cargo.lock` now pins `yoke-derive` 0.8.4. Lockfile-only.
 - **Kani PR subset failed before running any proof.** The harness manifest
   `.github/kani-pr-harnesses.txt` still listed
   `validate_key_derivation_count_accepts_zero`, a proof that no longer exists
