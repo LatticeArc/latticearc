@@ -174,21 +174,21 @@ flowchart LR
 
 ### Algorithms & Backends
 
-Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-rs to its CMVP-validated build for the algorithms it covers. PQ signatures always use non-validated crates. LatticeArc itself is **not** a CMVP-certified module.
+Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-rs to its FIPS backend for the algorithms it covers. Module validation depends on the bundled AWS-LC version: the current 1.18.x line uses FIPS 4.x, whose certificate is in process; the earlier FIPS 3.x line holds issued certificates. See [FIPS Security Policy](docs/FIPS_SECURITY_POLICY.md). PQ signatures always use non-validated crates. LatticeArc itself is **not** a CMVP-certified module.
 
 | Category | Algorithms | Backend |
 |----------|-----------|---------|
-| **PQ Key Encapsulation** | ML-KEM-512/768/1024 (FIPS 203) | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
+| **PQ Key Encapsulation** | ML-KEM-512/768/1024 (FIPS 203) | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
 | **PQ Signatures** | ML-DSA-44/65/87 (FIPS 204) | fips204 — NIST-conformant, not CMVP-validated |
 | **PQ Hash Signatures** | SLH-DSA (FIPS 205) | fips205 — NIST-conformant, not CMVP-validated |
 | **PQ Lattice Signatures** | FN-DSA-512/1024 (draft FIPS 206) | fn-dsa — NIST-conformant, not CMVP-validated |
 | **Classical Signatures** | Ed25519 | ed25519-dalek — audited |
-| **Classical Key Exchange** | X25519 | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
-| **Symmetric Encryption** | AES-256-GCM | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
+| **Classical Key Exchange** | X25519 | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
+| **Symmetric Encryption** | AES-256-GCM | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
 | **Symmetric Encryption** | ChaCha20-Poly1305 | chacha20poly1305 — non-FIPS |
 | **Hash** | SHA-2 (256/384/512) | RustCrypto `sha2` — widely reviewed, NOT CMVP-validated. `--features fips` does NOT swap SHA-2 to aws-lc-rs. |
 | **Hash** | SHA-3, BLAKE2 | sha3 / blake2 crates — non-FIPS |
-| **KDF** | HKDF-SHA256 | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
+| **KDF** | HKDF-SHA256 | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
 
 > Details: [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md) · [NIST Compliance](docs/NIST_COMPLIANCE.md)
 
@@ -319,7 +319,7 @@ cargo build --features fips       # FIPS-validated backend
 
 | Feature | Default | Effect |
 |---|:---:|---|
-| `fips` | off | Routes AES-GCM, ML-KEM, X25519, HKDF through CMVP-validated aws-lc-rs. Required for `ComplianceMode::Fips140_3` / `Cnsa2_0`. SHA-2 stays on RustCrypto `sha2`. Transitively enables `fips-self-test`. |
+| `fips` | off | Routes AES-GCM, ML-KEM, X25519, HKDF through the aws-lc-rs FIPS backend (module validation is version-dependent; see above). Required for `ComplianceMode::Fips140_3` / `Cnsa2_0`. SHA-2 stays on RustCrypto `sha2`. Transitively enables `fips-self-test` and `fips-strict-integrity`. |
 | `fips-self-test` | off | Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, ML-DSA, SLH-DSA). |
 | `tracing-init` | off | Exposes `init_tracing[_with_file]` helpers. Libraries must NOT enable this — subscriber init belongs in the binary. Enabled by `latticearc-cli`. |
 | `secret-mlock` | off | `mlock(2)` / `VirtualLock` for heap-backed `SecretVec` buffers — prevents swap and core-dump exposure. |

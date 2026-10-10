@@ -1,7 +1,7 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.12.0
+**Module Version**: 0.12.1
 
 > CI gate `fips-policy-version` (`lint-extras.yml`) enforces that this
 > stamp matches `[workspace.package].version` in `Cargo.toml` exactly.
@@ -12,7 +12,7 @@
 **Status**: Pre-submission draft — not yet CMVP validated
 
 > **IMPORTANT**: LatticeArc is NOT FIPS 140-3 certified. Only the aws-lc-rs
-> backend algorithms (ML-KEM, AES-GCM, HKDF, SHA-2) run through the AWS-LC
+> backend algorithms (ML-KEM, AES-GCM, HKDF) run through the AWS-LC
 > FIPS module. As of aws-lc-rs 1.18 (LatticeArc 0.11.0), the `fips` build
 > vendors the **AWS-LC-FIPS 4.x** module line: lab validation testing is
 > complete and the module has been submitted to NIST — its certificate is
@@ -20,7 +20,8 @@
 > holds issued FIPS 140-3 certificates #5314 (static) / #5298 (dynamic) and
 > ships with aws-lc-rs <1.18. ML-DSA (fips204), SLH-DSA (fips205), and
 > FN-DSA (fn-dsa) implement NIST-standard algorithms but use non-validated
-> crate implementations.
+> crate implementations. SHA-2 also uses non-validated RustCrypto `sha2`
+> implementations in every build; see the SHA-2 routing disclosure below.
 
 ---
 
@@ -29,7 +30,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.12.0 |
+| Module Version | 0.12.1 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |

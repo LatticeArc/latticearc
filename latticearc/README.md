@@ -57,7 +57,7 @@ latticearc-cli encrypt --use-case healthcare-records \
 | PQ Signatures | ML-DSA, SLH-DSA, FN-DSA (FIPS 204/205/206) | fips204 / fips205 / fn-dsa |
 | Classical | X25519, Ed25519, AES-256-GCM, SHA-2/3, BLAKE2, HKDF | aws-lc-rs / RustCrypto |
 
-`--features fips` routes AES-GCM, ML-KEM, X25519, and HKDF through the CMVP-validated aws-lc-rs build. PQ signatures use NIST-conformant but non-validated crates. LatticeArc itself is **not** a CMVP-certified cryptographic module.
+`--features fips` routes AES-GCM, ML-KEM, X25519, and HKDF through the aws-lc-rs FIPS backend. Module validation is version-dependent: the current 1.18.x line uses FIPS 4.x, whose certificate is in process; the earlier FIPS 3.x line holds issued certificates. See the repository's `docs/FIPS_SECURITY_POLICY.md`. SHA-2 stays on non-validated RustCrypto `sha2` in every build. PQ signatures use NIST-conformant but non-validated crates. LatticeArc itself is **not** a CMVP-certified cryptographic module.
 
 ## Security
 

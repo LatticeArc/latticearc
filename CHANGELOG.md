@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-09
+
 ### Changed
 
 - **BREAKING: FN-DSA key format follows `fn-dsa` 0.4.0.** Dependabot #74 moved
@@ -34,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   published crate.
 
 ### Fixed
+
+- CLI expert and inferred encryption modes now preserve compliance and security-level settings. Hybrid encryption selects the key's ML-KEM parameter set unless an explicit security level is requested.
+- Hybrid encryption examples now use a use case compatible with their ML-KEM-768 keys and run as doctests.
+- FIPS documentation now accurately describes SHA-2 routing and version-dependent AWS-LC module validation. Dependency tracking reflects the current dudect-bencher release.
+- The AWS-LC dependency minimum and fuzz lockfile now use `aws-lc-rs` 1.18.1.
 
 - **RUSTSEC-2026-0285 (`rustls` 0.23.43).** TLS 1.3 handshake messages were
   accepted across encryption-level boundaries (CVSS 5.3, published
