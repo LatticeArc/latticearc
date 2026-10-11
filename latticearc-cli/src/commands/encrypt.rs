@@ -132,9 +132,9 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
         },
     };
     let json_output = match mode {
-        EncryptMode::Aes256Gcm => encrypt_symmetric(&plaintext, &key_file)?,
-        EncryptMode::Chacha20Poly1305 => encrypt_chacha20(&plaintext, &key_file)?,
-        EncryptMode::Hybrid => encrypt_hybrid(&plaintext, &key_file)?,
+        EncryptMode::Aes256Gcm => encrypt_symmetric(&plaintext, &key_file, &args)?,
+        EncryptMode::Chacha20Poly1305 => encrypt_chacha20(&plaintext, &key_file, &args)?,
+        EncryptMode::Hybrid => encrypt_hybrid(&plaintext, &key_file, &args)?,
         EncryptMode::PqOnly => encrypt_pq_only_mode(&plaintext, &key_file, &args)?,
     };
 
@@ -188,7 +188,7 @@ fn encrypt_with_config(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs)
     }
 }
 
-fn encrypt_symmetric(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
+fn encrypt_symmetric(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs) -> Result<String> {
     if key_file.key_type != KeyType::Symmetric {
         bail!("Expected symmetric key file, got {}", key_file.key_type.canonical_name());
     }
@@ -201,7 +201,8 @@ fn encrypt_symmetric(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
     let encrypted = latticearc::encrypt(
         plaintext,
         latticearc::EncryptKey::Symmetric(&key_bytes),
-        latticearc::CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric),
+        super::common::build_config(None, args.security_level, &args.compliance)
+            .force_scheme(latticearc::CryptoScheme::Symmetric),
     )
     .map_err(|e| anyhow::anyhow!("Encryption failed: {e}"))?;
 
@@ -209,7 +210,7 @@ fn encrypt_symmetric(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
         .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
 }
 
-fn encrypt_chacha20(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
+fn encrypt_chacha20(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs) -> Result<String> {
     if key_file.key_type != KeyType::Symmetric {
         bail!(
             "Expected symmetric key file for ChaCha20 encryption, got {}",
@@ -221,7 +222,8 @@ fn encrypt_chacha20(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
     let encrypted = latticearc::encrypt(
         plaintext,
         latticearc::EncryptKey::Symmetric(&key_bytes),
-        latticearc::CryptoConfig::new().force_scheme(latticearc::CryptoScheme::SymmetricChaCha20),
+        super::common::build_config(None, args.security_level, &args.compliance)
+            .force_scheme(latticearc::CryptoScheme::SymmetricChaCha20),
     )
     .map_err(|e| anyhow::anyhow!("ChaCha20-Poly1305 encryption failed: {e}"))?;
 
@@ -229,7 +231,7 @@ fn encrypt_chacha20(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
         .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
 }
 
-fn encrypt_hybrid(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
+fn encrypt_hybrid(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs) -> Result<String> {
     if key_file.key_type != KeyType::Public {
         bail!(
             "Expected public key file for hybrid encryption, got {}",
@@ -254,13 +256,15 @@ fn encrypt_hybrid(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
         latticearc::unified_api::key_format::KeyAlgorithm::HybridMlKem768X25519
     };
     let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes, resolved_alg)?;
+    // Match the key's parameter set unless the operator explicitly requests
+    // a level. Preserve that request so the library rejects mismatched keys.
+    let level = args
+        .security_level
+        .unwrap_or_else(|| super::common::ml_kem_to_security_level(pk.security_level()));
+    let config = super::common::build_config(None, Some(level), &args.compliance);
 
-    let encrypted = latticearc::encrypt(
-        plaintext,
-        latticearc::EncryptKey::Hybrid(&pk),
-        latticearc::CryptoConfig::new(),
-    )
-    .map_err(|e| anyhow::anyhow!("Hybrid encryption failed: {e}"))?;
+    let encrypted = latticearc::encrypt(plaintext, latticearc::EncryptKey::Hybrid(&pk), config)
+        .map_err(|e| anyhow::anyhow!("Hybrid encryption failed: {e}"))?;
 
     latticearc::unified_api::serialization::serialize_encrypted_output(&encrypted)
         .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))

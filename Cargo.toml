@@ -9,7 +9,7 @@ exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.12.0"
+version = "0.12.1"
 edition = "2024"
 rust-version = "1.93"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
@@ -353,10 +353,11 @@ x25519-dalek = { version = "=3.0.0", features = ["static_secrets"] }
 # The previous 3.x module line holds issued certificates #5314 (static) /
 # #5298 (dynamic) and ships with aws-lc-rs <1.18. See docs/FIPS_SECURITY_POLICY.md.
 # Note: FIPS mode requires cmake and go build tools
-aws-lc-rs = { version = "1.18.0" }
+aws-lc-rs = { version = "1.18.1" }
 
-# Post-quantum signatures - aws-lc-rs ML-DSA is unstable and requires !fips feature
-# See: https://github.com/aws/aws-lc-rs/issues/964 (FIPS branch lacks ML-DSA)
+# Post-quantum signatures - aws-lc-rs ML-DSA is stable as of 1.18.0,
+# including FIPS builds. Keep fips204 for FIPS 204 context-string support:
+# the stable aws-lc-rs ML-DSA API currently supports only an empty context.
 # Our PRs merged in v1.16.0: #1029 (DecapsulationKey serialization), #1034 (ML-DSA from_seed)
 #
 # PQC crates are pinned with `=` (exact version) rather than the default

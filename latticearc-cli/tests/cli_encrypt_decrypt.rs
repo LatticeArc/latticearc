@@ -12,6 +12,153 @@
 mod support;
 use support::*;
 
+#[test]
+fn test_expert_encryption_preserves_compliance_and_refuses_output() {
+    let dir = temp_dir();
+    let input = dir.path().join("plaintext.txt");
+    let output = dir.path().join("ciphertext.json");
+    std::fs::write(&input, b"policy regression").unwrap();
+    run_ok(&["keygen", "--algorithm", "aes256", "--output", dir.path().to_str().unwrap()]);
+    run_ok(&["keygen", "--algorithm", "hybrid", "--output", dir.path().to_str().unwrap()]);
+
+    // FIPS builds reject ChaCha20 even with the default compliance setting.
+    let allowed_output = dir.path().join("allowed.json");
+    let symmetric_key = dir.path().join("aes256.key.json");
+    let chacha_args = [
+        "encrypt",
+        "--mode",
+        "chacha20-poly1305",
+        "--compliance",
+        "default",
+        "--key",
+        symmetric_key.to_str().unwrap(),
+        "--input",
+        input.to_str().unwrap(),
+        "--output",
+        allowed_output.to_str().unwrap(),
+    ];
+    if latticearc::fips_available() {
+        let stderr = run_fail(&chacha_args);
+        assert!(stderr.contains("not FIPS 140-3 approved"), "unexpected error: {stderr}");
+        assert!(!allowed_output.exists(), "rejected operation wrote ciphertext");
+    } else {
+        run_ok(&chacha_args);
+        assert_eq!(read_json_file(&allowed_output)["scheme"], "chacha20-poly1305");
+    }
+
+    // Exercise every previously affected helper, including inferred modes.
+    // These combinations must fail even without a FIPS-enabled build.
+    for (key_name, mode, compliance) in [
+        ("aes256.key.json", Some("chacha20-poly1305"), "fips"),
+        ("aes256.key.json", Some("aes256-gcm"), "cnsa-2.0"),
+        ("aes256.key.json", None, "cnsa-2.0"),
+        ("hybrid-kem.pub.json", Some("hybrid"), "cnsa-2.0"),
+        ("hybrid-kem.pub.json", None, "cnsa-2.0"),
+    ] {
+        let key = dir.path().join(key_name);
+        let mut args = vec![
+            "encrypt",
+            "--key",
+            key.to_str().unwrap(),
+            "--input",
+            input.to_str().unwrap(),
+            "--output",
+            output.to_str().unwrap(),
+            "--compliance",
+            compliance,
+        ];
+        if let Some(mode) = mode {
+            args.extend(["--mode", mode]);
+        }
+        let stderr = run_fail(&args);
+        assert!(stderr.contains("compliance"), "unexpected error: {stderr}");
+        assert!(!output.exists(), "rejected operation wrote ciphertext: {args:?}");
+    }
+}
+
+#[test]
+fn test_hybrid_encryption_honors_explicit_security_level() {
+    let dir = temp_dir();
+    run_ok(&["keygen", "--algorithm", "hybrid", "--output", dir.path().to_str().unwrap()]);
+    let key = dir.path().join("hybrid-kem.pub.json");
+    let input = dir.path().join("plaintext.txt");
+    let output = dir.path().join("ciphertext.json");
+    std::fs::write(&input, b"security level regression").unwrap();
+
+    for mode in [Some("hybrid"), None] {
+        let mut args = vec![
+            "encrypt",
+            "--key",
+            key.to_str().unwrap(),
+            "--input",
+            input.to_str().unwrap(),
+            "--output",
+            output.to_str().unwrap(),
+            "--security-level",
+            "maximum",
+        ];
+        if let Some(mode) = mode {
+            args.extend(["--mode", mode]);
+        }
+        let stderr = run_fail(&args);
+        assert!(stderr.contains("requires ML-KEM-1024 key"), "unexpected error: {stderr}");
+        assert!(!output.exists(), "mismatched key produced ciphertext");
+    }
+}
+
+#[test]
+fn test_hybrid_encryption_infers_all_key_levels_roundtrip() {
+    use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+    use latticearc::{PortableKey, UseCase, generate_hybrid_keypair_with_level};
+
+    for (level, expected_scheme) in [
+        (MlKemSecurityLevel::MlKem512, "hybrid-ml-kem-512-aes-256-gcm"),
+        (MlKemSecurityLevel::MlKem768, "hybrid-ml-kem-768-aes-256-gcm"),
+        (MlKemSecurityLevel::MlKem1024, "hybrid-ml-kem-1024-aes-256-gcm"),
+    ] {
+        let dir = temp_dir();
+        let (pk, sk) = generate_hybrid_keypair_with_level(level).unwrap();
+        let (portable_pk, portable_sk) =
+            PortableKey::from_hybrid_kem_keypair(UseCase::SecureMessaging, &pk, &sk).unwrap();
+        let pk_path = dir.path().join("public.json");
+        let sk_path = dir.path().join("secret.json");
+        portable_pk.write_to_file(&pk_path).unwrap();
+        portable_sk.write_to_file(&sk_path).unwrap();
+        let input = dir.path().join("plaintext.txt");
+        let plaintext = b"hybrid key level roundtrip";
+        std::fs::write(&input, plaintext).unwrap();
+
+        for (name, mode) in [("explicit", Some("hybrid")), ("inferred", None)] {
+            let ciphertext = dir.path().join(format!("{name}.json"));
+            let decrypted = dir.path().join(format!("{name}.txt"));
+            let mut args = vec![
+                "encrypt",
+                "--key",
+                pk_path.to_str().unwrap(),
+                "--input",
+                input.to_str().unwrap(),
+                "--output",
+                ciphertext.to_str().unwrap(),
+            ];
+            if let Some(mode) = mode {
+                args.extend(["--mode", mode]);
+            }
+            run_ok(&args);
+            assert_eq!(read_json_file(&ciphertext)["scheme"], expected_scheme);
+            run_ok(&[
+                "decrypt",
+                "--key",
+                sk_path.to_str().unwrap(),
+                "--input",
+                ciphertext.to_str().unwrap(),
+                "--output",
+                decrypted.to_str().unwrap(),
+            ]);
+            assert_eq!(std::fs::read(decrypted).unwrap(), plaintext);
+        }
+    }
+}
+
 fn pure_pq_kem_encrypt_decrypt_roundtrip(algorithm: &str, expected_scheme: &str) {
     let dir = temp_dir();
     run_ok(&["keygen", "--algorithm", algorithm, "--output", dir.path().to_str().unwrap()]);

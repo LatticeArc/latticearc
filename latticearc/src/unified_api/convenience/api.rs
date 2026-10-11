@@ -7,7 +7,7 @@
 //!
 //! All operations use `CryptoConfig` for configuration:
 //!
-//! ```no_run
+//! ```
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::unified_api::{encrypt, decrypt, CryptoConfig, UseCase};
 //! use latticearc::unified_api::crypto_types::{EncryptKey, DecryptKey};
@@ -22,7 +22,7 @@
 //! // Hybrid encryption (ML-KEM-768 + X25519 + AES-256-GCM)
 //! let (pk, sk) = latticearc::generate_hybrid_keypair()?;
 //! let encrypted = encrypt(b"secret", EncryptKey::Hybrid(&pk),
-//!     CryptoConfig::new().use_case(UseCase::FileStorage))?;
+//!     CryptoConfig::new().use_case(UseCase::SecureMessaging))?;
 //! let plaintext = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 //! # Ok(())
 //! # }
@@ -449,9 +449,9 @@ fn decrypt_chacha20_internal(
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, SecurityLevel};
+/// use latticearc::unified_api::{encrypt, CryptoConfig, UseCase};
 /// use latticearc::unified_api::crypto_types::EncryptKey;
 ///
 /// // Symmetric encryption (AES-256-GCM). Generate a fresh key — `[0u8; 32]`
@@ -463,7 +463,7 @@ fn decrypt_chacha20_internal(
 /// // Hybrid encryption (ML-KEM-768 + X25519 + HKDF + AES-256-GCM)
 /// let (pk, sk) = latticearc::generate_hybrid_keypair()?;
 /// let encrypted = encrypt(b"secret", EncryptKey::Hybrid(&pk),
-///     CryptoConfig::new().use_case(UseCase::FileStorage))?;
+///     CryptoConfig::new().use_case(UseCase::SecureMessaging))?;
 /// # Ok(())
 /// # }
 /// ```

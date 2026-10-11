@@ -15,8 +15,10 @@
 //! > *module validation* (FIPS 140-3 CMVP certification of a cryptographic
 //! > module). LatticeArc implements the algorithms for all four standards but
 //! > is **not itself CMVP-validated**. With `--features fips`, AES-GCM,
-//! > ML-KEM, HKDF, and SHA-2 are routed through the FIPS 140-3 validated
-//! > aws-lc-rs backend. ML-DSA (`fips204`), SLH-DSA (`fips205`), and FN-DSA
+//! > ML-KEM, and HKDF are routed through the aws-lc-rs FIPS backend;
+//! > its module validation status depends on the bundled AWS-LC version
+//! > (see `docs/FIPS_SECURITY_POLICY.md`). SHA-2 uses RustCrypto `sha2`
+//! > in every build and is not CMVP-validated. ML-DSA (`fips204`), SLH-DSA (`fips205`), and FN-DSA
 //! > (`fn-dsa`) are NIST-conformant but use non-validated crate
 //! > implementations regardless of feature flags.
 //!
@@ -36,7 +38,7 @@
 //!   files, network streams), partition into chunks at the application
 //!   layer and bind chunk-index + total-count into the AEAD additional
 //!   authenticated data so the per-chunk tags compose into a single
-//!   document tag. A native streaming API is on the roadmap; not in 0.8.
+//!   document tag. A native streaming API is on the roadmap; not in 0.12.
 //! - **No async API.** Cryptographic functions are blocking. They run in
 //!   microseconds-to-low-milliseconds and don't interact with I/O, so
 //!   wrapping them in `tokio::task::spawn_blocking` is the recommended
@@ -47,10 +49,10 @@
 //!
 //! | Algorithm | Standard | Backend | FIPS Validated |
 //! |-----------|----------|---------|----------------|
-//! | ML-KEM | FIPS 203 | aws-lc-rs | Yes |
-//! | AES-256-GCM | SP 800-38D | aws-lc-rs | Yes |
-//! | HKDF-SHA256 | SP 800-56C | aws-lc-rs | Yes |
-//! | SHA-256 | FIPS 180-4 | aws-lc-rs | Yes |
+//! | ML-KEM | FIPS 203 | aws-lc-rs | Version-dependent; requires `fips` |
+//! | AES-256-GCM | SP 800-38D | aws-lc-rs | Version-dependent; requires `fips` |
+//! | HKDF-SHA256 | SP 800-56C | aws-lc-rs | Version-dependent; requires `fips` |
+//! | SHA-256 | FIPS 180-4 | RustCrypto `sha2` | No |
 //! | ML-DSA | FIPS 204 | fips204 | No |
 //! | SLH-DSA | FIPS 205 | fips205 | No |
 //! | FN-DSA | FIPS 206 (draft / Falcon) | fn-dsa | No |
