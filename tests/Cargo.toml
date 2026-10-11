@@ -126,7 +126,7 @@ dudect-bencher = "0.7"
 # Because of that gate, a non-Linux `cargo check` cannot compile this dep —
 # `ctgrind.yml` is the first place a breaking bump would surface.
 [target.'cfg(target_os = "linux")'.dev-dependencies]
-crabgrind = "0.3"
+crabgrind = "0.4"
 
 [lib]
 path = "src/lib.rs"
