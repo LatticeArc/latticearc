@@ -123,10 +123,12 @@ dudect-bencher = "0.7"
 # `ctgrind.yml` workflow anyway, so gating the dep on `cfg(target_os =
 # "linux")` is the right scope. `tests/examples/ctgrind_ct.rs` has a
 # matching `#[cfg(target_os = "linux")]` guard on its harness module.
-# Because of that gate, a non-Linux `cargo check` cannot compile this dep —
-# `ctgrind.yml` is the first place a breaking bump would surface.
+# Because of that gate, a non-Linux `cargo check` cannot compile this dep;
+# validate dependency updates with Linux CI, including the ctgrind harness.
 [target.'cfg(target_os = "linux")'.dev-dependencies]
-crabgrind = "0.4"
+# 0.4.0 pulls bindgen 0.73.2, whose syn 3 AST is incompatible with the
+# syn 2 AST expected by prettyplease 0.2.37 in the current dependency graph.
+crabgrind = "=0.3.1"
 
 [lib]
 path = "src/lib.rs"
