@@ -128,7 +128,7 @@ dudect-bencher = "0.7"
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 # 0.4.0 pulls bindgen 0.73.2, whose syn 3 AST is incompatible with the
 # syn 2 AST expected by prettyplease 0.2.37 in the current dependency graph.
-crabgrind = "=0.3.1"
+crabgrind = "=0.4.0"
 
 [lib]
 path = "src/lib.rs"
