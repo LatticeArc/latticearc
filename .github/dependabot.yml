@@ -8,7 +8,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "America/Los_Angeles"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0  # Update proposals disabled
     groups:
       # Group minor/patch updates to reduce PR noise
       rust-minor-updates:
@@ -33,7 +33,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "America/Los_Angeles"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0  # Update proposals disabled
     # Auto-merge minor/patch updates for GitHub Actions (always use latest)
     groups:
       github-actions-updates:
