@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a>/// On first call, runs power-up self-tests (lazy initialization).
 <a href=#200 id=200 data-nosnippet>200</a>/// No-op when `fips-self-test` feature is not enabled.
 <a href=#201 id=201 data-nosnippet>201</a></span><span class="attr">#[cfg(feature = <span class="string">"fips-self-test"</span>)]
-<a href=#202 id=202 data-nosnippet>202</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fips_verify_operational() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#202 id=202 data-nosnippet>202</a></span><span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::unified_api) <span class="kw">fn </span>fips_verify_operational() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
 <a href=#203 id=203 data-nosnippet>203</a>    fips_ensure_initialized();
 <a href=#204 id=204 data-nosnippet>204</a>    <span class="kw">crate</span>::primitives::self_test::verify_operational().map_err(|e| CoreError::SelfTestFailed {
 <a href=#205 id=205 data-nosnippet>205</a>        component: <span class="string">"FIPS module"</span>.to_string(),
@@ -212,7 +212,7 @@
 <a href=#212 id=212 data-nosnippet>212</a>    clippy::unnecessary_wraps,
 <a href=#213 id=213 data-nosnippet>213</a>    reason = <span class="string">"Result returned for API parity with the fips-self-test-enabled path; this no-op variant must keep the same signature"
 <a href=#214 id=214 data-nosnippet>214</a></span>)]
-<a href=#215 id=215 data-nosnippet>215</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fips_verify_operational() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#215 id=215 data-nosnippet>215</a></span><span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::unified_api) <span class="kw">fn </span>fips_verify_operational() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
 <a href=#216 id=216 data-nosnippet>216</a>    <span class="prelude-val">Ok</span>(())
 <a href=#217 id=217 data-nosnippet>217</a>}
 <a href=#218 id=218 data-nosnippet>218</a>
