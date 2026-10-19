@@ -62,3 +62,4 @@ docs/audit/
 # AI tool metadata
 .claude/
 **/CLAUDE.md
+.playwright-mcp/
