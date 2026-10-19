@@ -446,6 +446,10 @@ pub use hybrid::sig_hybrid::{
 
 // Single entry points for all cryptographic operations
 pub use unified_api::{
+    DetachedSignature, DetachedSigningKey, DetachedVerificationKey, generate_detached_keypair,
+    sign_detached, verify_detached_with_key,
+};
+pub use unified_api::{
     SigningKeypair, decrypt, encrypt, generate_signing_keypair, sign_with_key, verify,
     verify_with_anchor,
 };

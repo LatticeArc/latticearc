@@ -199,7 +199,7 @@ pub(crate) fn fips_ensure_initialized() {}
 /// On first call, runs power-up self-tests (lazy initialization).
 /// No-op when `fips-self-test` feature is not enabled.
 #[cfg(feature = "fips-self-test")]
-pub(super) fn fips_verify_operational() -> Result<()> {
+pub(in crate::unified_api) fn fips_verify_operational() -> Result<()> {
     fips_ensure_initialized();
     crate::primitives::self_test::verify_operational().map_err(|e| CoreError::SelfTestFailed {
         component: "FIPS module".to_string(),
@@ -212,7 +212,7 @@ pub(super) fn fips_verify_operational() -> Result<()> {
     clippy::unnecessary_wraps,
     reason = "Result returned for API parity with the fips-self-test-enabled path; this no-op variant must keep the same signature"
 )]
-pub(super) fn fips_verify_operational() -> Result<()> {
+pub(in crate::unified_api) fn fips_verify_operational() -> Result<()> {
     Ok(())
 }
 

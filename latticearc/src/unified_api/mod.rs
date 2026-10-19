@@ -200,6 +200,12 @@ pub mod audit;
 pub mod convenience;
 /// Type-safe encryption scheme types (EncryptKey, DecryptKey, EncryptionScheme, EncryptedOutput).
 pub mod crypto_types;
+/// Versioned detached signatures with caller-pinned verification keys.
+pub mod detached;
+pub use detached::{
+    DetachedSignature, DetachedSigningKey, DetachedVerificationKey, generate_detached_keypair,
+    sign_detached, verify_detached_with_key,
+};
 /// Error types and result aliases.
 pub mod error;
 /// Portable key serialization format (v1).

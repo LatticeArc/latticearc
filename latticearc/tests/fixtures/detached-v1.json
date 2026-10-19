@@ -1,0 +1,259 @@
+{
+  "description": "Public RFC 8032 seed; independent OpenSSL Ed25519 vectors for detached v1",
+  "generator": "OpenSSL 3.6.5 29 Sep 2026 (Library: OpenSSL 3.6.5 29 Sep 2026)",
+  "seed_hex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+  "vectors": [
+    {
+      "name": "valid-claims",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": true,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ=="
+      }
+    },
+    {
+      "name": "valid-empty-claims",
+      "claims_hex": "",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": true,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d730000000000000000",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "+kEU3ur0Pqa1DBJwNRmof3XhbE/ucFxluBEkAnSgPBD6EJn8rIERi0OGamy/D/aTZqK/B96Kg4v5GkLc/FR3DQ=="
+      }
+    },
+    {
+      "name": "valid-binary-claims",
+      "claims_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": true,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d730000000000000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "w8ezuOaabJQgnrKRA3EhQPkekXkRyIhP5NUbDoZVMEp7mZmDhzQ5XYfk8tfqy7t7f/XQlXFkEKowSFxWXuUeCg=="
+      }
+    },
+    {
+      "name": "valid-max-domain",
+      "claims_hex": "626f756e64617279",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "valid": true,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100ff6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161610000000000000008626f756e64617279",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "signature": "v2k1K9j2LgTDtpKP+ia1Z9G8IshrZpyU7zMrpd0spihw6vJ2iuqh9WgCNAO8V4s8B9snBRUF85PTF78z0/gUBQ=="
+      }
+    },
+    {
+      "name": "altered-claims",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a2261646d696e222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ=="
+      }
+    },
+    {
+      "name": "reserialized-claims",
+      "claims_hex": "7b22737562223a22616c696365222c2022726f6c65223a22726561646572222c2022657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ=="
+      }
+    },
+    {
+      "name": "wrong-key",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ=="
+      }
+    },
+    {
+      "name": "wrong-expected-domain",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/other",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ=="
+      }
+    },
+    {
+      "name": "relabeled-domain",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/other",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/other",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ=="
+      }
+    },
+    {
+      "name": "unsupported-version",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 2,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ=="
+      }
+    },
+    {
+      "name": "unsupported-algorithm",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519ph",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ=="
+      }
+    },
+    {
+      "name": "malformed-base64",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+      }
+    },
+    {
+      "name": "truncated-signature",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRn"
+      }
+    },
+    {
+      "name": "extended-signature",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQA="
+      }
+    },
+    {
+      "name": "unpadded-base64",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "bm6t6GDslPDn/fmGY7ny+XdZmM7LggwvMbSMzwdYDVgTq9+Luc8gzjD7Cktnv15iv+dLYIRYCbN/CFPjWnRnCQ"
+      }
+    },
+    {
+      "name": "invalid-signature",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "/////////////////////////////////////////////////////////////////////////////////////w=="
+      }
+    },
+    {
+      "name": "raw-ed25519-is-not-detached",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "X6WqlSXTfkmZEHwsp/acC6n0qGe4bV333uup6ASZ5g8nvI4LjVWedkEb8jRC2sCRlSsQajhj7V+CSeSIs2dKDQ=="
+      }
+    },
+    {
+      "name": "unified-envelope-is-not-detached",
+      "claims_hex": "7b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "expected_domain": "example.com/claims",
+      "valid": false,
+      "transcript_hex": "4c6174746963654172632d44657461636865642d5369676e617475726500010100126578616d706c652e636f6d2f636c61696d7300000000000000307b22737562223a22616c696365222c22726f6c65223a22726561646572222c22657870223a323030303030303030307d",
+      "record": {
+        "version": 1,
+        "algorithm": "ed25519",
+        "domain": "example.com/claims",
+        "signature": "tuytJ2rxfvzfgR2Dw1K1R6Mv+ljbos0yjlMj/GMSj30ZjGiIeGBMa2VxhJzr/VD2kWATWziGVm1NXqJa8CyADg=="
+      }
+    }
+  ]
+}

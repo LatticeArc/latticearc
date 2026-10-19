@@ -181,6 +181,11 @@ pub(crate) fn verify_ed25519_internal(
 
 /// Sign data using Ed25519.
 ///
+/// Signs the supplied bytes directly. This is not the representation signed by
+/// the unified `SignedData` Ed25519 envelope (which signs a scheme-bound digest).
+/// For a versioned, application-domain-bound contract, use `sign_detached` and
+/// `verify_detached_with_key` in non-FIPS builds. These formats are not interchangeable.
+///
 /// Uses `SecurityMode` to specify verification behavior:
 /// - `SecurityMode::Verified(&session)`: Validates session before signing
 /// - `SecurityMode::Unverified`: Skips session validation
@@ -216,6 +221,10 @@ pub fn sign_ed25519(data: &[u8], ed25519_sk: &[u8], mode: SecurityMode) -> Resul
 }
 
 /// Verify an Ed25519 signature.
+///
+/// Verifies raw message bytes with the caller-supplied public key. It does not
+/// interpret unified envelopes or detached v1 records, or try alternative formats.
+/// The caller must obtain the public key from a trusted source.
 ///
 /// Uses `SecurityMode` to specify verification behavior:
 /// - `SecurityMode::Verified(&session)`: Validates session before verification

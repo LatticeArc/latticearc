@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Restore `crabgrind` 0.3.1 to avoid the incompatible `bindgen` 0.73.2
+  dependency graph, and update Rustls to 0.23.46 for RUSTSEC-2026-0346–0349.
+
+### Added
+
+- Detached signature v1 with typed keys and `CryptoConfig`, pure ML-DSA-65
+  key generation by default, and ML-DSA-44/87 for explicit security levels.
+  The transcript binds version, algorithm, application domain and exact claims
+  bytes; verification pins both the key and its algorithm. Ed25519 is an explicit
+  compatibility option in non-FIPS builds, with no automatic downgrade.
+- Independent OpenSSL Ed25519 and ML-DSA interoperability fixtures covering altered claims, wrong
+  keys, malformed signatures, domain mismatches, algorithm substitution, and raw/envelope format confusion.
+  Both ARM64 and x86-64 musl execute these fixtures as required CI jobs.
+
 ## [0.12.1] - 2026-10-09
 
 ### Changed
