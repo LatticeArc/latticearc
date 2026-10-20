@@ -35,7 +35,10 @@
 //! ## FIPS
 //!
 //! ECDSA P256 / SHA-256 verification over a message is a FIPS 186-5
-//! approved service of the aws-lc-rs module. The `_prehash` variants verify a
+//! approved service of the aws-lc-rs module. Under `--features fips` the
+//! AWS-LC FIPS module rejects two valid Wycheproof P-256 signatures (with
+//! `s = 2^128` and `s = n - 2^128`) that the default backend accepts; that
+//! is a false reject, never a false accept. The `_prehash` variants verify a
 //! caller-supplied digest; aws-lc-rs does not list digest verification as an
 //! approved service, so they are documented as non-approved in
 //! `docs/FIPS_SECURITY_POLICY.md`.

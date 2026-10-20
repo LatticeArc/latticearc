@@ -23,7 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   above the signature resource limit is an error, and a signature that does
   not verify is `Ok(false)`. Wycheproof `ecdsa_secp256r1_sha256{,_p1363}`
   and `ecdsa_secp384r1_sha384{,_p1363}` (1,530 cases) pass through both the
-  message and the digest entry points. A `fuzz_ecdsa_verify` target is added.
+  message and the digest entry points; under `--features fips` the AWS-LC
+  FIPS module rejects two of them (valid P-256 signatures with `s = 2^128`
+  and `s = n - 2^128`), which the test records as known backend false
+  rejects. A `fuzz_ecdsa_verify` target is added.
 - `primitives::sig::rsa_legacy::verify_rsa_pkcs1_sha1`: verify-only RSA
   PKCS#1 v1.5 / SHA-1 for legacy third-party formats such as RSA-SHA1 signed
   receipts. The key is passed as PKCS#1 `RSAPublicKey` or

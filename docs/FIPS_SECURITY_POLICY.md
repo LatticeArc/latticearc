@@ -104,7 +104,7 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 | SHA3-256 | FIPS 202 | sha3 crate | Hashing |
 | HMAC-SHA256 | FIPS 198-1 | hmac + sha2 crates (MAC module), aws-lc-rs (HKDF module) | Message authentication |
 | HKDF-SHA256 | SP 800-56C | aws-lc-rs HMAC-based (`aws_lc_rs::hmac::HMAC_SHA256`) | Key derivation |
-| ECDSA P-256/SHA-256, P-384/SHA-384 | FIPS 186-5 | aws-lc-rs (`primitives::ec::{p256, p384}`) | Signature verification only, over a message (DER or fixed-width `r \|\| s`) |
+| ECDSA P-256/SHA-256, P-384/SHA-384 | FIPS 186-5 | aws-lc-rs (`primitives::ec::{p256, p384}`) | Signature verification only, over a message (DER or fixed-width `r \|\| s`). The FIPS module rejects two valid Wycheproof P-256 cases (`s = 2^128`, `s = n - 2^128`) that the non-FIPS backend accepts |
 
 ### Non-Approved Algorithms
 
