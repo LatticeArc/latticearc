@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix a stack overflow on Windows when the first FIPS-gated call (for example
+  `generate_hybrid_keypair` or `encrypt`) ran on a 1 MiB main-thread stack. The
+  power-up ML-DSA-44 and SLH-DSA known-answer tests ran on the caller's thread
+  and needed roughly 0.6 MiB of stack on their own; they now run on a dedicated
+  8 MiB worker thread. A regression test exercises hybrid keygen, encrypt and
+  decrypt on a 1 MiB thread.
 - Restore `crabgrind` 0.3.1 to avoid the incompatible `bindgen` 0.73.2
   dependency graph, and update Rustls to 0.23.46 for RUSTSEC-2026-0346–0349.
 - `secret-mlock`: locked pages are now reference-counted process-wide.

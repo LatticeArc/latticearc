@@ -6,6 +6,43 @@
 use crate::prelude::error::{LatticeArcError, Result};
 use subtle::ConstantTimeEq;
 
+/// Stack size for the dedicated KAT worker thread.
+///
+/// The pure-Rust ML-DSA and SLH-DSA backends keep their working state
+/// (NTT polynomial vectors, hypertree buffers) on the stack. Measured on
+/// release builds the ML-DSA-44 KAT alone needs roughly 0.6 MiB, which
+/// together with the caller's frames overflows the 1 MiB main-thread
+/// stack Windows gives a process (the first FIPS-gated call runs the
+/// power-up self-tests on the caller's thread). 8 MiB matches the
+/// default main-thread stack on Linux and macOS.
+const KAT_WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+
+/// Run a stack-hungry KAT on a scoped worker thread with
+/// [`KAT_WORKER_STACK_BYTES`] of stack, so the self-test footprint does
+/// not depend on the stack size of whichever thread triggers power-up.
+///
+/// Panics in the worker are re-raised on the caller thread, so the
+/// worker boundary is transparent. A failure to spawn the thread is
+/// reported as a KAT failure (fail closed).
+fn run_on_kat_worker<F>(name: &'static str, f: F) -> Result<()>
+where
+    F: FnOnce() -> Result<()> + Send,
+{
+    std::thread::scope(|s| {
+        let handle = std::thread::Builder::new()
+            .name(format!("latticearc-kat-{name}"))
+            .stack_size(KAT_WORKER_STACK_BYTES)
+            .spawn_scoped(s, f)
+            .map_err(|e| LatticeArcError::ValidationError {
+                message: format!("{name} KAT: failed to spawn worker thread: {e}"),
+            })?;
+        match handle.join() {
+            Ok(inner) => inner,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    })
+}
+
 // =============================================================================
 // SHA-256 Known Answer Test
 // =============================================================================
@@ -868,6 +905,10 @@ pub fn roundtrip_ml_kem_768() -> Result<()> {
 /// Returns error if keygen output does not match the ACVP vector, or if
 /// the sign/verify roundtrip on the fixed key fails.
 pub fn kat_ml_dsa() -> Result<()> {
+    run_on_kat_worker("ml-dsa", kat_ml_dsa_inner)
+}
+
+fn kat_ml_dsa_inner() -> Result<()> {
     use crate::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
     use fips204::ml_dsa_44;
     use fips204::traits::{KeyGen, SerDes};
@@ -1006,6 +1047,10 @@ pub fn kat_ml_dsa() -> Result<()> {
 /// Returns error if keygen output does not match the ACVP vector, or if
 /// the sign/verify roundtrip on the production-default key fails.
 pub fn kat_slh_dsa() -> Result<()> {
+    run_on_kat_worker("slh-dsa", kat_slh_dsa_inner)
+}
+
+fn kat_slh_dsa_inner() -> Result<()> {
     use crate::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SlhDsaSigningKey};
     use fips205::slh_dsa_shake_192s;
     use fips205::traits::{KeyGen, SerDes};
