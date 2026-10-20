@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DetachedSigningKey","DetachedVerificationKey"],"fn":["generate_detached_keypair","sign_detached","verify_detached_with_key"],"struct":["DetachedSignature"]};

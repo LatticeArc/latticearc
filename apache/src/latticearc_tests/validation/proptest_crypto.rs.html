@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tests/src/validation/proptest_crypto.rs`."><title>proptest_crypto.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="latticearc_tests" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">latticearc_tests/validation/</div>proptest_crypto.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Property-Based Cryptographic Tests
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tests/src/validation/proptest_crypto.rs`."><title>proptest_crypto.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="latticearc_tests" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">latticearc_tests/validation/</div>proptest_crypto.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Property-Based Cryptographic Tests
 <a href=#2 id=2 data-nosnippet>2</a>//!
 <a href=#3 id=3 data-nosnippet>3</a>//! This module contains comprehensive property-based tests using proptest
 <a href=#4 id=4 data-nosnippet>4</a>//! to validate cryptographic invariants across a wide range of inputs.
@@ -75,7 +75,7 @@
 <a href=#75 id=75 data-nosnippet>75</a>        ) {
 <a href=#76 id=76 data-nosnippet>76</a>            <span class="kw">use </span>aws_lc_rs::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 <a href=#77 id=77 data-nosnippet>77</a>
-<a href=#78 id=78 data-nosnippet>78</a>            <span class="macro">prop_assume!</span>(<span class="macro">key1 !</span>= key2);
+<a href=#78 id=78 data-nosnippet>78</a>            <span class="macro">prop_assume!</span>(key1 != key2);
 <a href=#79 id=79 data-nosnippet>79</a>
 <a href=#80 id=80 data-nosnippet>80</a>            <span class="comment">// Encrypt with key1
 <a href=#81 id=81 data-nosnippet>81</a>            </span><span class="kw">let </span>uk1 = UnboundKey::new(<span class="kw-2">&amp;</span>AES_256_GCM, <span class="kw-2">&amp;</span>key1).unwrap();
@@ -206,7 +206,7 @@
 <a href=#206 id=206 data-nosnippet>206</a>        ) {
 <a href=#207 id=207 data-nosnippet>207</a>            <span class="kw">use </span>ed25519_dalek::{Signer, SigningKey};
 <a href=#208 id=208 data-nosnippet>208</a>
-<a href=#209 id=209 data-nosnippet>209</a>            <span class="macro">prop_assume!</span>(<span class="macro">seed1 !</span>= seed2);
+<a href=#209 id=209 data-nosnippet>209</a>            <span class="macro">prop_assume!</span>(seed1 != seed2);
 <a href=#210 id=210 data-nosnippet>210</a>
 <a href=#211 id=211 data-nosnippet>211</a>            <span class="kw">let </span>sk1 = SigningKey::from_bytes(<span class="kw-2">&amp;</span>seed1);
 <a href=#212 id=212 data-nosnippet>212</a>            <span class="kw">let </span>sk2 = SigningKey::from_bytes(<span class="kw-2">&amp;</span>seed2);
@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>        ) {
 <a href=#227 id=227 data-nosnippet>227</a>            <span class="kw">use </span>ed25519_dalek::{Signer, SigningKey, Verifier};
 <a href=#228 id=228 data-nosnippet>228</a>
-<a href=#229 id=229 data-nosnippet>229</a>            <span class="macro">prop_assume!</span>(<span class="macro">message1 !</span>= message2);
+<a href=#229 id=229 data-nosnippet>229</a>            <span class="macro">prop_assume!</span>(message1 != message2);
 <a href=#230 id=230 data-nosnippet>230</a>
 <a href=#231 id=231 data-nosnippet>231</a>            <span class="kw">let </span>signing_key = SigningKey::from_bytes(<span class="kw-2">&amp;</span>seed);
 <a href=#232 id=232 data-nosnippet>232</a>            <span class="kw">let </span>verifying_key = signing_key.verifying_key();
@@ -290,7 +290,7 @@
 <a href=#290 id=290 data-nosnippet>290</a>        ) {
 <a href=#291 id=291 data-nosnippet>291</a>            <span class="kw">use </span>x25519_dalek::{PublicKey, StaticSecret};
 <a href=#292 id=292 data-nosnippet>292</a>
-<a href=#293 id=293 data-nosnippet>293</a>            <span class="macro">prop_assume!</span>(<span class="macro">bob_secret1 !</span>= bob_secret2);
+<a href=#293 id=293 data-nosnippet>293</a>            <span class="macro">prop_assume!</span>(bob_secret1 != bob_secret2);
 <a href=#294 id=294 data-nosnippet>294</a>
 <a href=#295 id=295 data-nosnippet>295</a>            <span class="kw">let </span>alice_sk = StaticSecret::from(alice_secret);
 <a href=#296 id=296 data-nosnippet>296</a>
@@ -347,7 +347,7 @@
 <a href=#347 id=347 data-nosnippet>347</a>            <span class="kw">use </span>hkdf::Hkdf;
 <a href=#348 id=348 data-nosnippet>348</a>            <span class="kw">use </span>sha2::Sha256;
 <a href=#349 id=349 data-nosnippet>349</a>
-<a href=#350 id=350 data-nosnippet>350</a>            <span class="macro">prop_assume!</span>(<span class="macro">info1 !</span>= info2);
+<a href=#350 id=350 data-nosnippet>350</a>            <span class="macro">prop_assume!</span>(info1 != info2);
 <a href=#351 id=351 data-nosnippet>351</a>
 <a href=#352 id=352 data-nosnippet>352</a>            <span class="kw">let </span>hk = Hkdf::&lt;Sha256&gt;::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>salt), <span class="kw-2">&amp;</span>ikm);
 <a href=#353 id=353 data-nosnippet>353</a>
@@ -371,7 +371,7 @@
 <a href=#371 id=371 data-nosnippet>371</a>            <span class="kw">use </span>hkdf::Hkdf;
 <a href=#372 id=372 data-nosnippet>372</a>            <span class="kw">use </span>sha2::Sha256;
 <a href=#373 id=373 data-nosnippet>373</a>
-<a href=#374 id=374 data-nosnippet>374</a>            <span class="macro">prop_assume!</span>(<span class="macro">ikm1 !</span>= ikm2);
+<a href=#374 id=374 data-nosnippet>374</a>            <span class="macro">prop_assume!</span>(ikm1 != ikm2);
 <a href=#375 id=375 data-nosnippet>375</a>
 <a href=#376 id=376 data-nosnippet>376</a>            <span class="kw">let </span>hk1 = Hkdf::&lt;Sha256&gt;::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>salt), <span class="kw-2">&amp;</span>ikm1);
 <a href=#377 id=377 data-nosnippet>377</a>            <span class="kw">let </span>hk2 = Hkdf::&lt;Sha256&gt;::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>salt), <span class="kw-2">&amp;</span>ikm2);
@@ -426,7 +426,7 @@
 <a href=#426 id=426 data-nosnippet>426</a>        ) {
 <a href=#427 id=427 data-nosnippet>427</a>            <span class="kw">use </span>sha2::{Digest, Sha256};
 <a href=#428 id=428 data-nosnippet>428</a>
-<a href=#429 id=429 data-nosnippet>429</a>            <span class="macro">prop_assume!</span>(<span class="macro">data1 !</span>= data2);
+<a href=#429 id=429 data-nosnippet>429</a>            <span class="macro">prop_assume!</span>(data1 != data2);
 <a href=#430 id=430 data-nosnippet>430</a>
 <a href=#431 id=431 data-nosnippet>431</a>            <span class="kw">let </span>hash1 = Sha256::digest(<span class="kw-2">&amp;</span>data1);
 <a href=#432 id=432 data-nosnippet>432</a>            <span class="kw">let </span>hash2 = Sha256::digest(<span class="kw-2">&amp;</span>data2);
@@ -476,7 +476,7 @@
 <a href=#476 id=476 data-nosnippet>476</a>            <span class="kw">use </span>hmac::{Hmac, KeyInit, Mac};
 <a href=#477 id=477 data-nosnippet>477</a>            <span class="kw">use </span>sha2::Sha256;
 <a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a>            <span class="macro">prop_assume!</span>(<span class="macro">key1 !</span>= key2);
+<a href=#479 id=479 data-nosnippet>479</a>            <span class="macro">prop_assume!</span>(key1 != key2);
 <a href=#480 id=480 data-nosnippet>480</a>
 <a href=#481 id=481 data-nosnippet>481</a>            <span class="kw">type </span>HmacSha256 = Hmac&lt;Sha256&gt;;
 <a href=#482 id=482 data-nosnippet>482</a>
