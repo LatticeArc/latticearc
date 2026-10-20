@@ -390,3 +390,21 @@ path = "fuzz_targets/fuzz_ffi_surface.rs"
 test = false
 doc = false
 bench = false
+
+# ============================================================================
+# Verify-only interoperability primitives
+# ============================================================================
+
+[[bin]]
+name = "fuzz_ecdsa_verify"
+path = "fuzz_targets/fuzz_ecdsa_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_hash_to_curve"
+path = "fuzz_targets/fuzz_hash_to_curve.rs"
+test = false
+doc = false
+bench = false

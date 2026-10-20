@@ -12,6 +12,9 @@
 //! - ChaCha20-Poly1305 via `ChaCha20Poly1305Cipher`
 //! - HMAC-SHA256 via `hmac_sha256` + `verify_hmac_sha256`
 //! - HKDF-SHA256 via `hkdf_extract` + `hkdf_expand`
+//! - ECDSA P-256/SHA-256 and P-384/SHA-384, DER and P1363 (fixed-width), via
+//!   `latticearc::primitives::ec::{p256, p384}`, each case run through both the
+//!   message and the prehash entry point
 
 #![allow(
     clippy::unwrap_used,
@@ -318,4 +321,116 @@ fn hkdf_sha256_via_wrapper_matches_wycheproof() {
         }
     }
     s.check_rate("HKDF-SHA256 wrapper", MAX_FAILURE_RATE);
+}
+
+// =============================================================================
+// ECDSA P-256 / P-384 verify-only primitives
+// =============================================================================
+
+type Verdict = latticearc::prelude::error::Result<bool>;
+type MsgVerifier = fn(&[u8], &[u8], &[u8]) -> Verdict;
+type PrehashVerifier<'a> = &'a dyn Fn(&[u8], &[u8], &[u8]) -> Verdict;
+
+/// Run one Wycheproof ECDSA file through a message verifier and the matching
+/// prehash verifier. `Valid` must verify through both; `Invalid` must not
+/// verify through either (`Ok(false)` and `Err` both count as rejection,
+/// since out-of-range encodings are errors by design); `Acceptable` cases
+/// (BER-style encodings and similar) are recorded as skips.
+fn run_ecdsa_suite(
+    name: wycheproof::ecdsa::TestName,
+    label: &str,
+    verify_msg: MsgVerifier,
+    verify_prehash: PrehashVerifier<'_>,
+) {
+    use wycheproof::ecdsa::TestSet;
+
+    let Ok(ts) = TestSet::load(name) else {
+        eprintln!("wycheproof {label} vectors unavailable — skipping");
+        return;
+    };
+
+    let mut s = WycheproofResults::new();
+    for group in ts.test_groups {
+        let pk = &group.key.key[..];
+        for tc in group.tests {
+            let by_msg = verify_msg(pk, &tc.msg[..], &tc.sig[..]);
+            let by_digest = verify_prehash(pk, &tc.msg[..], &tc.sig[..]);
+            match tc.result {
+                TestResult::Valid => {
+                    if matches!(by_msg, Ok(true)) && matches!(by_digest, Ok(true)) {
+                        s.add_pass();
+                    } else {
+                        s.add_failure(format!(
+                            "tc {} Valid: message {by_msg:?}, prehash {by_digest:?}",
+                            tc.tc_id
+                        ));
+                    }
+                }
+                TestResult::Invalid => {
+                    if matches!(by_msg, Ok(true)) || matches!(by_digest, Ok(true)) {
+                        s.add_failure(format!("tc {} Invalid: accepted", tc.tc_id));
+                    } else {
+                        s.add_pass();
+                    }
+                }
+                TestResult::Acceptable => s.add_skip(),
+            }
+        }
+    }
+    assert!(s.ran() > 0, "{label}: no Wycheproof cases ran");
+    s.check_rate(label, 0.0);
+}
+
+fn sha256(m: &[u8]) -> [u8; 32] {
+    use sha2::Digest;
+    sha2::Sha256::digest(m).into()
+}
+
+fn sha384(m: &[u8]) -> [u8; 48] {
+    use sha2::Digest;
+    sha2::Sha384::digest(m).into()
+}
+
+#[test]
+fn ecdsa_p256_sha256_der_matches_wycheproof() {
+    use latticearc::primitives::ec::p256;
+    run_ecdsa_suite(
+        wycheproof::ecdsa::TestName::EcdsaSecp256r1Sha256,
+        "ECDSA P-256/SHA-256 DER",
+        p256::verify_ecdsa_p256_sha256,
+        &|pk, m, sig| p256::verify_ecdsa_p256_sha256_prehash(pk, &sha256(m), sig),
+    );
+}
+
+#[test]
+fn ecdsa_p256_sha256_p1363_matches_wycheproof() {
+    use latticearc::primitives::ec::p256;
+    run_ecdsa_suite(
+        wycheproof::ecdsa::TestName::EcdsaSecp256r1Sha256P1363,
+        "ECDSA P-256/SHA-256 P1363",
+        p256::verify_ecdsa_p256_sha256_fixed,
+        &|pk, m, sig| p256::verify_ecdsa_p256_sha256_prehash_fixed(pk, &sha256(m), sig),
+    );
+}
+
+#[test]
+fn ecdsa_p384_sha384_der_matches_wycheproof() {
+    use latticearc::primitives::ec::p384;
+    run_ecdsa_suite(
+        wycheproof::ecdsa::TestName::EcdsaSecp384r1Sha384,
+        "ECDSA P-384/SHA-384 DER",
+        p384::verify_ecdsa_p384_sha384,
+        &|pk, m, sig| p384::verify_ecdsa_p384_sha384_prehash(pk, &sha384(m), sig),
+    );
+}
+
+#[test]
+fn ecdsa_p384_sha384_p1363_matches_wycheproof() {
+    use latticearc::primitives::ec::p384;
+    run_ecdsa_suite(
+        wycheproof::ecdsa::TestName::EcdsaSecp384r1Sha384P1363,
+        "ECDSA P-384/SHA-384 P1363",
+        p384::verify_ecdsa_p384_sha384_fixed,
+        &|pk, m, sig| p384::verify_ecdsa_p384_sha384_prehash_fixed(pk, &sha384(m), sig),
+    );
 }

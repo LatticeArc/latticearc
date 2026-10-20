@@ -391,7 +391,7 @@ Low-level cryptographic primitives:
 | `kdf/` | HKDF-SHA256, PBKDF2, SP800-108 Counter KDF |
 | `hash/` | SHA-2, SHA-3 |
 | `mac/` | HMAC-SHA256, CMAC |
-| `ec/` | Ed25519, secp256k1, BLS12-381, BN254 |
+| `ec/` | Ed25519, secp256k1, BLS12-381, BN254; ECDSA P-256 / P-384 verify-only; RFC 9380 hash-to-curve (P-256) |
 
 ### `latticearc::hybrid`
 

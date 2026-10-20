@@ -813,6 +813,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash2curve"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1eaf40612d7d854743e7189228a6d528f0f6e8502cf6a0cb831d28a218b7f3f6"
+dependencies = [
+ "digest 0.11.2",
+ "elliptic-curve",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -972,7 +982,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "aes",
  "argon2",
@@ -990,6 +1000,7 @@ dependencies = [
  "hex",
  "hmac",
  "k256",
+ "p256",
  "p384",
  "parking_lot",
  "rand",
@@ -1012,7 +1023,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc-ffi"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "latticearc",
  "rand",
@@ -1107,6 +1118,18 @@ name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+
+[[package]]
+name = "p256"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2c9239b2dbc807adbbe147e8cf72ea7450c3a0aabe62cb8e75ff4ec22e1f72a"
+dependencies = [
+ "elliptic-curve",
+ "hash2curve",
+ "primefield",
+ "primeorder",
+]
 
 [[package]]
 name = "p384"

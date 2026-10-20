@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- ECDSA verification over NIST P-256 / SHA-256 and P-384 / SHA-384 in
+  `primitives::ec::p256` and `primitives::ec::p384`, for interoperability
+  with third-party signed formats (JWS `ES256`/`ES384`, COSE, X.509 chains).
+  Each curve has four verify-only functions: ASN.1 DER or fixed-width
+  `r || s`, over a message or over a caller-computed digest
+  (`verify_ecdsa_p256_sha256{,_fixed,_prehash,_prehash_fixed}` and the
+  `p384_sha384` equivalents). Backed by aws-lc-rs. Public keys must be
+  uncompressed SEC1 (65 / 97 bytes) and are checked first; a key of the wrong
+  length or off the curve, a signature of impossible length, or a message
+  above the signature resource limit is an error, and a signature that does
+  not verify is `Ok(false)`. Wycheproof `ecdsa_secp256r1_sha256{,_p1363}`
+  and `ecdsa_secp384r1_sha384{,_p1363}` (1,530 cases) pass through both the
+  message and the digest entry points. A `fuzz_ecdsa_verify` target is added.
+- `primitives::ec::hash_to_curve::p256_xmd_sha256_sswu_ro`: RFC 9380 suite
+  `P256_XMD:SHA-256_SSWU_RO_`, returning uncompressed SEC1. The DST must be 1
+  to 255 bytes and the message is capped by the signature resource limit.
+  The five RFC 9380 Appendix J.1.1 vectors pass. aws-lc-rs has no
+  hash-to-curve API, so this uses the RustCrypto `p256` 0.14 crate
+  (`arithmetic` + `hash2curve` features, no `unsafe`), a new dependency; see
+  `docs/DEPENDENCY_JUSTIFICATION.md`. Not FIPS-approved. A
+  `fuzz_hash_to_curve` target is added.
+
+### Changed
+
+- `unified_api::convenience::ecdsa_p384`: the three verify functions now
+  delegate to `primitives::ec::p384` (aws-lc-rs) instead of the RustCrypto
+  `p384` verifier, so the crate has one P-384 verification path. Signing is
+  unchanged. Compressed SEC1 public keys are still accepted, and a signature
+  of the wrong length is still `Ok(false)`. One behaviour change:
+  `verify_ecdsa_p384_prehash` and `verify_ecdsa_p384_prehash_der` now require
+  `prehash` to be exactly 48 bytes (a SHA-384 digest) and return
+  `InvalidInput` otherwise; the previous implementation accepted other
+  lengths and truncated or padded them.
+
 ## [0.13.0] - 2026-10-20
 
 ### Changed

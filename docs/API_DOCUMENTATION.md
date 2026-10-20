@@ -560,6 +560,43 @@ assert_eq!(root.len(), 4096);
 
 ---
 
+### Verifying third-party classical signatures
+
+Verify-only functions for data signed outside this crate. None has a signing
+counterpart. A malformed key, a signature of impossible length, or an
+oversized message is an `Err`; a signature that does not verify is
+`Ok(false)`.
+
+| Function | Algorithm | Typical source | FIPS build |
+|---|---|---|---|
+| `primitives::ec::p256::verify_ecdsa_p256_sha256` | ECDSA P-256 / SHA-256, DER | X.509, CMS | yes |
+| `primitives::ec::p256::verify_ecdsa_p256_sha256_fixed` | ECDSA P-256 / SHA-256, `r \|\| s` | JWS `ES256`, COSE | yes |
+| `primitives::ec::p256::verify_ecdsa_p256_sha256_prehash{,_fixed}` | as above, over a SHA-256 digest | certificate TBS hash | yes (non-approved service) |
+| `primitives::ec::p384::verify_ecdsa_p384_sha384{,_fixed,_prehash,_prehash_fixed}` | ECDSA P-384 / SHA-384 | X.509, JWS `ES384`, COSE | yes |
+
+```rust
+use latticearc::primitives::ec::p256::verify_ecdsa_p256_sha256_fixed;
+
+// `jwk_point` is the 65-byte uncompressed SEC1 key (0x04 || x || y) built
+// from the JWK; `signing_input` is `base64url(header) "." base64url(payload)`;
+// `sig` is the decoded 64-byte JWS signature.
+let ok = verify_ecdsa_p256_sha256_fixed(&jwk_point, signing_input, &sig)?;
+```
+
+### Hash-to-curve (RFC 9380)
+
+`primitives::ec::hash_to_curve::p256_xmd_sha256_sswu_ro(msg, dst)` implements
+the suite `P256_XMD:SHA-256_SSWU_RO_` and returns the point as 65-byte
+uncompressed SEC1. `dst` must be 1 to 255 bytes. Backed by the RustCrypto
+`p256` crate; not FIPS-approved.
+
+```rust
+use latticearc::primitives::ec::hash_to_curve::p256_xmd_sha256_sswu_ro;
+
+let point = p256_xmd_sha256_sswu_ro(b"input", b"MYAPP-V01-CS01-with-P256_XMD:SHA-256_SSWU_RO_")?;
+assert_eq!(point[0], 0x04);
+```
+
 ## Error Handling
 
 ```rust

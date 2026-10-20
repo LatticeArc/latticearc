@@ -595,3 +595,43 @@ pub mod corpus_helpers {
         Ok(removed)
     }
 }
+
+// ============================================================================
+// Verify-only interoperability primitives (ECDSA P-256/P-384, RFC 9380
+// hash-to-curve)
+// ============================================================================
+
+mod verify_primitives_regression {
+    use latticearc::primitives::ec::hash_to_curve::p256_xmd_sha256_sswu_ro;
+    use latticearc::primitives::ec::{p256, p384};
+
+    /// Empty and truncated inputs are errors, never panics.
+    #[test]
+    fn test_ecdsa_empty_inputs_are_errors() {
+        assert!(p256::verify_ecdsa_p256_sha256(&[], &[], &[]).is_err());
+        assert!(p256::verify_ecdsa_p256_sha256_fixed(&[0x04], b"m", &[0u8; 64]).is_err());
+        assert!(p384::verify_ecdsa_p384_sha384_prehash(&[], &[0u8; 48], &[]).is_err());
+        assert!(
+            p384::verify_ecdsa_p384_sha384_prehash_fixed(&[0u8; 97], &[0u8; 48], &[0u8; 96])
+                .is_err()
+        );
+    }
+
+    /// A hash-to-curve output is a valid P-256 key, so garbage signatures
+    /// against it reach the signature parser and come back `Ok(false)`.
+    #[test]
+    fn test_ecdsa_garbage_signature_over_valid_key_is_false() {
+        let key = p256_xmd_sha256_sswu_ro(b"regression", b"fuzz-regression").unwrap();
+        assert_eq!(p256::verify_ecdsa_p256_sha256(&key, b"m", &[0x30, 0x00]).ok(), Some(false));
+        assert_eq!(p256::verify_ecdsa_p256_sha256(&key, b"m", &[0xff; 72]).ok(), Some(false));
+        assert_eq!(p256::verify_ecdsa_p256_sha256_fixed(&key, b"m", &[0xff; 64]).ok(), Some(false));
+    }
+
+    /// The DST bounds are enforced and an empty message is accepted.
+    #[test]
+    fn test_hash_to_curve_dst_bounds() {
+        assert!(p256_xmd_sha256_sswu_ro(b"", b"").is_err());
+        assert!(p256_xmd_sha256_sswu_ro(b"", &[0u8; 256]).is_err());
+        assert!(p256_xmd_sha256_sswu_ro(b"", &[0u8; 1]).is_ok());
+    }
+}

@@ -360,6 +360,38 @@ flowchart TB
 - **Security Audit**: Formally verified
 - **Usage**: Transitive via curve operations
 
+#### 27. p256 (v0.14.0) and hash2curve (v0.14.0)
+- **Purpose**: NIST P-256 field and group arithmetic for RFC 9380
+  hash-to-curve (`primitives::ec::hash_to_curve`, suite
+  `P256_XMD:SHA-256_SSWU_RO_`)
+- **Justification**:
+  - aws-lc-rs exposes no hash-to-curve API. The AWS-LC C library has
+    `EC_hash_to_curve_p256_xmd_sha256_sswu`, but reaching it would need
+    `unsafe` FFI, which the crate forbids
+  - RustCrypto `elliptic-curves`, the same project as the `p384` and `k256`
+    crates already in the tree, and the same 0.14 generation, so it shares
+    `elliptic-curve`, `primeorder` and `primefield` with them (two new
+    lockfile entries: `p256`, `hash2curve`)
+  - Pure Rust: both crates declare `#![forbid(unsafe_code)]`
+  - Built with `default-features = false, features = ["arithmetic",
+    "hash2curve"]`: no ECDSA, PEM or precomputed tables. ECDSA over P-256
+    goes through aws-lc-rs
+  - Callers that hash secret inputs to the curve (for example an OPRF
+    client's private input) should treat the timing behaviour as unaudited
+  - Correctness pinned by the five RFC 9380 Appendix J.1.1 vectors
+  - Pinned to the 0.14 minor line (`version = "0.14.0"`, caret within 0.14)
+- **License**: Apache-2.0 OR MIT
+- **Security Audit**: none. The `p256` README states that its elliptic
+  curve arithmetic "has never been independently audited", and `hash2curve`
+  has no published audit either. The exposure is limited: hash-to-curve here
+  processes public inputs only (message and DST), so the constant-time
+  properties the README cautions about do not protect any secret, and the
+  output is checked against the RFC 9380 vectors and fuzzed
+  (`fuzz_hash_to_curve`)
+- **FIPS**: outside the aws-lc-rs module boundary; hash-to-curve is not an
+  approved algorithm
+- **Usage**: `latticearc::primitives::ec::hash_to_curve`
+
 ---
 
 ## Crates resolved at two major versions

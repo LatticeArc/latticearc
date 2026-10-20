@@ -103,6 +103,7 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 | SHA3-256 | FIPS 202 | sha3 crate | Hashing |
 | HMAC-SHA256 | FIPS 198-1 | hmac + sha2 crates (MAC module), aws-lc-rs (HKDF module) | Message authentication |
 | HKDF-SHA256 | SP 800-56C | aws-lc-rs HMAC-based (`aws_lc_rs::hmac::HMAC_SHA256`) | Key derivation |
+| ECDSA P-256/SHA-256, P-384/SHA-384 | FIPS 186-5 | aws-lc-rs (`primitives::ec::{p256, p384}`) | Signature verification only, over a message (DER or fixed-width `r \|\| s`) |
 
 ### Non-Approved Algorithms
 
@@ -114,6 +115,8 @@ The following algorithms are available in the default (non-FIPS) build but are n
 | Secp256k1 ECDSA | k256 | Runtime: `ComplianceMode` rejects in `Fips140_3`/`Cnsa2_0` |
 | X25519 ECDH | aws-lc-rs | Runtime: `ComplianceMode` rejects in `Cnsa2_0` (allowed in hybrid for `Fips140_3`) |
 | ChaCha20-Poly1305 | chacha20poly1305 | Runtime: `ComplianceMode` rejects in `Fips140_3`/`Cnsa2_0` |
+| ECDSA P-256 / P-384 verification over a caller-supplied digest (`*_prehash*` functions) | aws-lc-rs `verify_digest_sig` | Documentation: aws-lc-rs does not list digest verification as an approved service; the functions are compiled in both builds |
+| RFC 9380 hash-to-curve, `P256_XMD:SHA-256_SSWU_RO_` | RustCrypto `p256` (`hash2curve`) | Documentation: not an approved algorithm and outside the aws-lc-rs module; compiled in both builds |
 
 > **Note:** Non-approved algorithms are currently enforced at runtime via `ComplianceMode`, not at compile time via `cfg` gates. When `ComplianceMode::Fips140_3` or `Cnsa2_0` is set, the `CryptoPolicyEngine` rejects non-approved algorithm selections. For future CMVP submission, compile-time `cfg(not(feature = "fips"))` gating should be implemented to fully exclude non-approved code paths from the FIPS binary.
 >

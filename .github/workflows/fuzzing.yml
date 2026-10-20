@@ -56,6 +56,7 @@ jobs:
           - fuzz_fn_dsa_sign
           - fuzz_fn_dsa_verify
           - fuzz_ed25519
+          - fuzz_ecdsa_verify
           - hybrid_sign_fuzz
           - hybrid_sign_context_fuzz
           - ml_dsa_fuzz
@@ -64,6 +65,7 @@ jobs:
           - fuzz_hkdf
           - fuzz_hmac_sha512
           - fuzz_pbkdf2
+          - fuzz_hash_to_curve
           # Key exchange
           - fuzz_x25519
           # Hybrid (moved `hybrid_encrypt_fuzz` up
@@ -159,6 +161,8 @@ jobs:
           - fuzz_fn_dsa_verify
           - fuzz_slh_dsa_sign
           - fuzz_ed25519
+          - fuzz_ecdsa_verify
+          - fuzz_hash_to_curve
           - fuzz_portable_key_json
           - fuzz_encrypted_data_deser
           - fuzz_wire_decode

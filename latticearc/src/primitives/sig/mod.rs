@@ -65,15 +65,20 @@
 //!
 //! ## Classical Algorithms
 //!
-//! This crate only exposes **Ed25519** (EdDSA over Curve25519) as a classical
-//! signature primitive. It is used in the hybrid ML-DSA-65 + Ed25519
-//! construction in [`hybrid::sig_hybrid`](crate::hybrid::sig_hybrid) and as a
-//! standalone signer via [`primitives::ec::ed25519`](crate::primitives::ec::ed25519).
-//! **ECDSA over NIST P-curves (P-256/P-384/P-521) is NOT implemented** —
-//! prior revisions of this doc listed them, which was aspirational. For
-//! secp256k1 blockchain / interoperability use cases, see
+//! **Ed25519** (EdDSA over Curve25519) is the classical signing primitive. It
+//! is used in the hybrid ML-DSA-65 + Ed25519 construction in
+//! [`hybrid::sig_hybrid`](crate::hybrid::sig_hybrid) and as a standalone
+//! signer via [`primitives::ec::ed25519`](crate::primitives::ec::ed25519).
+//! For secp256k1 blockchain / interoperability use cases, see
 //! `crate::primitives::ec::secp256k1` (available with the default feature set;
 //! gated out under `--features fips`).
+//!
+//! Classical signatures produced by third parties can also be *verified*
+//! (there is no signing counterpart):
+//!
+//! - ECDSA P-256 / SHA-256 and P-384 / SHA-384, DER or fixed-width, over a
+//!   message or a digest: [`primitives::ec::p256`](crate::primitives::ec::p256)
+//!   and [`primitives::ec::p384`](crate::primitives::ec::p384).
 //!
 //! ## Security Properties
 //!

@@ -332,11 +332,17 @@ libfuzzer-sys = { version = "0.4.8" }
 # requires `rand_core ^0.10`, which is traits-only; OS entropy for EC keygen
 # flows through `rand::rngs::SysRng`).
 #
-# Dropped from the pins during the 0.14 bump: `p256` (no consumer in any
-# workspace member) and the bare `ecdsa` crate (only ever reached through the
-# `p384::ecdsa` / `k256::ecdsa` re-exports, which activate the ecdsa-crate
-# features they need themselves).
+# Dropped from the pins during the 0.14 bump: the bare `ecdsa` crate (only
+# ever reached through the `p384::ecdsa` / `k256::ecdsa` re-exports, which
+# activate the ecdsa-crate features they need themselves). `p256` was dropped
+# then too and is back, for hash-to-curve only (see below).
 p384 = { version = "0.14.0", features = ["ecdsa", "std"] }
+# P-256 field and group arithmetic for RFC 9380 hash-to-curve only
+# (`primitives::ec::hash_to_curve`). ECDSA over P-256 goes through aws-lc-rs,
+# so the `ecdsa` feature stays off; `hash2curve` pulls in the RustCrypto
+# `hash2curve` crate (expand_message_xmd + simplified SWU). aws-lc-rs exposes
+# no hash-to-curve API. Same 0.14 generation as `p384` / `k256`.
+p256 = { version = "0.14.0", default-features = false, features = ["arithmetic", "hash2curve"] }
 k256 = { version = "0.14.0", features = ["ecdsa", "std"] }
 ed25519-dalek = { version = "3.0.0", features = ["rand_core", "zeroize", "digest"] }
 # X25519 needed for CAVP test vector validation (deterministic key generation).
