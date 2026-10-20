@@ -144,7 +144,11 @@ let package = Package(
 ```
 
 The XCFramework holds static libraries; nothing is loaded at runtime. The
-release profile builds with `panic = "abort"` and symbols stripped.
+release profile builds with `panic = "abort"` and symbols stripped. The
+script builds for iOS 17.0 and newer (`IPHONEOS_DEPLOYMENT_TARGET` overrides
+it) so the Rust and the aws-lc C objects agree on a minimum version. The
+layout above was verified by building this package for the simulator and the
+device and running the sample on an iOS 27.1 simulator.
 
 ### Android integration
 

@@ -25,16 +25,29 @@ out="$FFI_OUT/xcframework"
 rm -rf "$out"
 mkdir -p "$out/headers" "$out/swift"
 
+# Minimum iOS for the static libraries. Rust defaults to iOS 10, but the C
+# objects aws-lc-sys compiles take the SDK's default (the Xcode version's
+# iOS), and the mismatch leaves linker-only symbols such as ___chkstk_darwin
+# unresolved. One value for both compilers; override with the environment.
+export IPHONEOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-17.0}"
+
 for t in "${targets[@]}"; do
-    echo "building latticearc-ffi for $t"
-    (cd "$FFI_REPO_ROOT" && cargo build --locked -p latticearc-ffi --release --target "$t")
+    echo "building latticearc-ffi (staticlib) for $t, iOS >= $IPHONEOS_DEPLOYMENT_TARGET"
+    # Only the static library goes into the XCFramework; `cargo rustc
+    # --crate-type staticlib` skips the cdylib link the crate also declares,
+    # which is meaningless on iOS.
+    (cd "$FFI_REPO_ROOT" && cargo rustc --locked -p latticearc-ffi --release --target "$t" --crate-type staticlib)
 done
 
 # Metadata is read from the host library: the exported API, and therefore
 # the generated header and sources, are identical for every target.
 ffi_build_host
 host_lib="$(ffi_host_cdylib)"
-ffi_bindgen_swift --headers --modulemap --xcframework \
+# A plain `module` map, not `--xcframework`'s `framework module`: the slices
+# are bare static libraries with a Headers directory, and clang only resolves
+# a framework module inside a .framework bundle (the import would succeed but
+# define no types).
+ffi_bindgen_swift --headers --modulemap \
     --module-name "$FFI_SWIFT_FFI_MODULE" --modulemap-filename module.modulemap \
     "$host_lib" "$out/headers"
 ffi_bindgen_swift --swift-sources "$host_lib" "$out/swift"
