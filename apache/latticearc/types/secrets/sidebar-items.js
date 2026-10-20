@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["SecretBytes","SecretVec"]};
+window.SIDEBAR_ITEMS = {"fn":["memory_lock_status"],"struct":["MemoryLockStatus","SecretBytes","SecretVec"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["HybridSignatureError"],"fn":["generate_keypair","generate_keypair_with_parameter_set","sign","verify"],"struct":["HybridSigPublicKey","HybridSigSecretKey","HybridSignature"]};
+window.SIDEBAR_ITEMS = {"constant":["MAX_HYBRID_SIG_CONTEXT_LEN"],"enum":["HybridSignatureError"],"fn":["generate_keypair","generate_keypair_from_seed","generate_keypair_with_parameter_set","sign","sign_prehashed","sign_with_context","verify","verify_prehashed","verify_with_context"],"struct":["HybridSigPublicKey","HybridSigSecretKey","HybridSignature"]};

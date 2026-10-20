@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["hkdf","pbkdf2","sp800_108_counter_kdf"]};
+window.SIDEBAR_ITEMS = {"mod":["argon2id","hkdf","pbkdf2","sp800_108_counter_kdf"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["hkdf","hkdf_expand","hkdf_extract","hkdf_simple"],"struct":["HkdfResult"]};
+window.SIDEBAR_ITEMS = {"fn":["hkdf","hkdf_expand","hkdf_extract","hkdf_simple","hkdf_with_context"],"struct":["HkdfResult"]};

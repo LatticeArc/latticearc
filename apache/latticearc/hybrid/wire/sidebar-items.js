@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_SYMMETRIC_CIPHERTEXT_LEN","WIRE_HEADER_LEN","WIRE_MAGIC","WIRE_VERSION","WRAPPED_KEY_TYPE_TAG"],"enum":["WireError"],"trait":["WireEncode"]};

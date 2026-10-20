@@ -1,0 +1,79 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Streaming AEAD: AES-256-GCM-HKDF segments (Tink-derived core) under a versioned, key-committing LatticeArc header."><title>latticearc::primitives::aead::stream - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="latticearc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module stream</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../../latticearc/index.html">latticearc</a><span class="version">0.13.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module stream</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#threat-model" title="Threat model">Threat model</a></li><li><a href="#construction" title="Construction">Construction</a></li><li><a href="#random-access" title="Random access">Random access</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#constants" title="Constants">Constants</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In latticearc::<wbr>primitives::<wbr>aead</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">latticearc</a>::<wbr><a href="../../index.html">primitives</a>::<wbr><a href="../index.html">aead</a></div><h1>Module <span>stream</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/latticearc/primitives/aead/stream.rs.html#1-1121">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Streaming AEAD: AES-256-GCM-HKDF segments (Tink-derived core) under a
+versioned, key-committing LatticeArc header.</p>
+<h2 id="threat-model"><a class="doc-anchor" href="#threat-model">§</a>Threat model</h2>
+<p>The adversary controls every byte the decryptor reads: the header and any
+segment, in any order, from any stream. The guarantees are:</p>
+<ul>
+<li><strong>Wrong key fails before any plaintext is released.</strong> The header carries
+a key-commitment tag that <a href="struct.StreamDecryptor.html#method.new" title="associated function latticearc::primitives::aead::stream::StreamDecryptor::new"><code>StreamDecryptor::new</code></a> verifies before a
+segment cipher is even derived, so a stream cannot be opened under two
+different keys and a wrong key never reaches AES-GCM.</li>
+<li><strong>Truncation, reordering, splicing and tampering are detected.</strong> Every
+segment is sealed under a nonce that encodes its index and a
+last-segment flag, and under per-segment associated data that binds the
+SHA-256 hash of the full header and the same index/flag. A segment from
+another stream (different key, salt or nonce prefix), a segment moved to
+a different index, a non-final segment presented as final, or a single
+flipped bit anywhere all fail authentication.</li>
+<li><strong>The 32-bit segment counter never wraps.</strong> Advancing past <code>u32::MAX</code>
+returns <a href="../enum.AeadError.html#variant.SegmentCounterExhausted" title="variant latticearc::primitives::aead::AeadError::SegmentCounterExhausted"><code>AeadError::SegmentCounterExhausted</code></a>; the Kani harness in this
+module proves the increment is checked for every input.</li>
+<li><strong>Errors are opaque on the decrypt path.</strong> Header parse failures,
+commitment mismatch and AES-GCM tag failure all surface as the same
+<a href="../enum.AeadError.html#variant.DecryptionFailed" title="variant latticearc::primitives::aead::AeadError::DecryptionFailed"><code>AeadError::DecryptionFailed</code></a> string, so a remote caller cannot tell
+which check rejected the input (design pattern 6).</li>
+</ul>
+<p>Out of scope: nonce-misuse resistance (a stream key must not be reused
+with the same salt and nonce prefix, which the random header material
+makes a 2^-312 event per <code>new</code>), and hiding the plaintext length (segment
+boundaries are visible by construction).</p>
+<h2 id="construction"><a class="doc-anchor" href="#construction">§</a>Construction</h2>
+<p>The segment layer is Google Tink’s <code>AES-GCM-HKDF-STREAMING</code>, specified at
+<a href="https://developers.google.com/tink/streaming-aead/aes_gcm_hkdf_streaming">https://developers.google.com/tink/streaming-aead/aes_gcm_hkdf_streaming</a>
+and implemented in
+<a href="https://github.com/tink-crypto/tink-java/blob/main/src/main/java/com/google/crypto/tink/subtle/AesGcmHkdfStreaming.java">https://github.com/tink-crypto/tink-java/blob/main/src/main/java/com/google/crypto/tink/subtle/AesGcmHkdfStreaming.java</a>:</p>
+<div class="example-wrap"><pre class="language-text"><code>tink_header  = header_length (1 byte, = 40) || salt (32 bytes) || nonce_prefix (7 bytes)
+segment_key  = HKDF-SHA256(ikm = stream key, salt = salt, info = associated data, L = 32)
+nonce_i      = nonce_prefix (7) || i as u32 big-endian (4) || last_flag (1: 0x00 / 0x01)
+C_i          = AES-256-GCM(segment_key, nonce_i, aad_i, M_i) || tag (16)</code></pre></div>
+<p><code>|C_i| == segment_size</code> for every non-final segment, so each plaintext
+segment carries <code>segment_size - 16</code> bytes, and the first segment is
+shorter by the 40-byte Tink header so that <code>tink_header || C_0</code> also fills
+exactly one <code>segment_size</code> block. Tink validates this core: the
+<code>tink_java_sha256_vector</code> test reproduces the HKDF-SHA256 known-answer
+vector from
+<a href="https://github.com/tink-crypto/tink-java/blob/main/src/main/java/com/google/crypto/tink/streamingaead/internal/testing/AesGcmHkdfStreamingTestUtil.java">https://github.com/tink-crypto/tink-java/blob/main/src/main/java/com/google/crypto/tink/streamingaead/internal/testing/AesGcmHkdfStreamingTestUtil.java</a>
+(<code>createTestVector2</code>) byte for byte.</p>
+<p>Files produced here are <strong>not</strong> Tink-interoperable, because two LatticeArc
+layers sit on top of that core:</p>
+<div class="example-wrap"><pre class="language-text"><code>header = version (1, = 0x01) || flags (1, = 0x00) || segment_size (u32 BE)
+      || tink_header (40) || commitment (32)                      = 78 bytes
+commitment = HMAC-SHA256(stream key, STREAM_AEAD_COMMITMENT || header[..46])
+aad_i      = SHA-256(header) (32) || i as u32 BE (4) || last_flag (1)</code></pre></div>
+<ul>
+<li>The <strong>commitment</strong> follows the “UtC” shape of Bellare and Hoang,
+<em>Efficient Schemes for Committing Authenticated Encryption</em>
+(EUROCRYPT 2022): a PRF of the key over the public header material is
+stored alongside the ciphertext and checked before decryption, which
+turns a non-committing AEAD (AES-GCM; see Albertini et al., <em>How to
+Abuse and Fix Authenticated Encryption with Key Commitment</em>, USENIX
+Security 2022) into a key-committing one. HMAC-SHA256 with a 32-byte key
+is collision resistant in the key, so no two keys verify the same
+header.</li>
+<li>The <strong>per-segment associated data</strong> follows the STREAM construction of
+Hoang, Reyhanitabar, Rogaway and Vizár, <em>Online Authenticated-Encryption
+and its Nonce-Reuse Misuse-Resistance</em> (CCS 2015): each segment is bound
+to the stream it belongs to and to its position in it, in addition to
+Tink’s nonce-level binding.</li>
+</ul>
+<h2 id="random-access"><a class="doc-anchor" href="#random-access">§</a>Random access</h2>
+<p>Segment <code>i</code> for <code>i &gt;= 1</code> holds plaintext bytes
+<code>first + (i - 1) * pss ..</code> where <code>first</code> is
+<a href="struct.StreamDecryptor.html#method.first_plaintext_segment_size" title="method latticearc::primitives::aead::stream::StreamDecryptor::first_plaintext_segment_size"><code>StreamDecryptor::first_plaintext_segment_size</code></a> and <code>pss</code> is
+<a href="struct.StreamDecryptor.html#method.plaintext_segment_size" title="method latticearc::primitives::aead::stream::StreamDecryptor::plaintext_segment_size"><code>StreamDecryptor::plaintext_segment_size</code></a>; the matching ciphertext
+segment is at byte offset <code>i * segment_size</code> of the segment stream (the
+78-byte header is stored separately by the caller). Callers decrypt any
+segment independently with <a href="struct.StreamDecryptor.html#method.open_segment" title="method latticearc::primitives::aead::stream::StreamDecryptor::open_segment"><code>StreamDecryptor::open_segment</code></a>, passing
+<code>is_last</code> for the final one.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.StreamDecryptor.html" title="struct latticearc::primitives::aead::stream::StreamDecryptor">Stream<wbr>Decryptor</a></dt><dd>Streaming decryptor with random access.</dd><dt><a class="struct" href="struct.StreamEncryptor.html" title="struct latticearc::primitives::aead::stream::StreamEncryptor">Stream<wbr>Encryptor</a></dt><dd>Sequential streaming encryptor.</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.COMMITMENT_LEN.html" title="constant latticearc::primitives::aead::stream::COMMITMENT_LEN">COMMITMENT_<wbr>LEN</a></dt><dd>Length of the HMAC-SHA256 key-commitment tag.</dd><dt><a class="constant" href="constant.HEADER_LEN.html" title="constant latticearc::primitives::aead::stream::HEADER_LEN">HEADER_<wbr>LEN</a></dt><dd>Length of the full LatticeArc stream header returned by
+<a href="struct.StreamEncryptor.html#method.header" title="method latticearc::primitives::aead::stream::StreamEncryptor::header"><code>StreamEncryptor::header</code></a> and consumed by <a href="struct.StreamDecryptor.html#method.new" title="associated function latticearc::primitives::aead::stream::StreamDecryptor::new"><code>StreamDecryptor::new</code></a>.</dd><dt><a class="constant" href="constant.MAX_SEGMENT_SIZE.html" title="constant latticearc::primitives::aead::stream::MAX_SEGMENT_SIZE">MAX_<wbr>SEGMENT_<wbr>SIZE</a></dt><dd>Largest accepted ciphertext segment size (16 MiB).</dd><dt><a class="constant" href="constant.MIN_SEGMENT_SIZE.html" title="constant latticearc::primitives::aead::stream::MIN_SEGMENT_SIZE">MIN_<wbr>SEGMENT_<wbr>SIZE</a></dt><dd>Smallest accepted ciphertext segment size.</dd><dt><a class="constant" href="constant.NONCE_PREFIX_LEN.html" title="constant latticearc::primitives::aead::stream::NONCE_PREFIX_LEN">NONCE_<wbr>PREFIX_<wbr>LEN</a></dt><dd>Length of the Tink nonce prefix (random per stream).</dd><dt><a class="constant" href="constant.STREAM_FORMAT_VERSION.html" title="constant latticearc::primitives::aead::stream::STREAM_FORMAT_VERSION">STREAM_<wbr>FORMAT_<wbr>VERSION</a></dt><dd>Version byte at offset 0 of every stream header produced by this module.</dd><dt><a class="constant" href="constant.STREAM_KEY_LEN.html" title="constant latticearc::primitives::aead::stream::STREAM_KEY_LEN">STREAM_<wbr>KEY_<wbr>LEN</a></dt><dd>Length of the stream key in bytes (AES-256-GCM-HKDF).</dd><dt><a class="constant" href="constant.TINK_HEADER_LEN.html" title="constant latticearc::primitives::aead::stream::TINK_HEADER_LEN">TINK_<wbr>HEADER_<wbr>LEN</a></dt><dd>Length of the Tink-layout header: <code>header_length || salt || nonce_prefix</code>.</dd></dl></section></div></main></body></html>

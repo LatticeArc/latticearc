@@ -55,51 +55,55 @@
 <a href=#55 id=55 data-nosnippet>55</a>//! - [`sig_hybrid`](crate::hybrid::sig_hybrid) - Hybrid signatures using ML-DSA + Ed25519
 <a href=#56 id=56 data-nosnippet>56</a>//! - [`compose`](crate::hybrid::compose) - Formal security proofs for hybrid composition
 <a href=#57 id=57 data-nosnippet>57</a>//! - [`pq_only`](mod@crate::hybrid::pq_only) - PQ-only encryption using ML-KEM + HKDF + AES-256-GCM (no X25519)
-<a href=#58 id=58 data-nosnippet>58</a>//!
-<a href=#59 id=59 data-nosnippet>59</a>//! # Security Properties
-<a href=#60 id=60 data-nosnippet>60</a>//!
-<a href=#61 id=61 data-nosnippet>61</a>//! | Construction      | Composition     | Security Guarantee                    |
-<a href=#62 id=62 data-nosnippet>62</a>//! |-------------------|-----------------|---------------------------------------|
-<a href=#63 id=63 data-nosnippet>63</a>//! | Hybrid KEM        | HKDF dual-PRF   | Secure if ML-KEM OR X25519 is secure  |
-<a href=#64 id=64 data-nosnippet>64</a>//! | Hybrid Signature  | AND             | Secure if ML-DSA AND Ed25519 secure   |
-<a href=#65 id=65 data-nosnippet>65</a>//! | Hybrid Encryption | HKDF dual-PRF   | Secure if either KEM component secure |
-<a href=#66 id=66 data-nosnippet>66</a>//! | PQ-Only Encrypt   | ML-KEM + HKDF   | Secure if ML-KEM is secure            |
-<a href=#67 id=67 data-nosnippet>67</a>
-<a href=#68 id=68 data-nosnippet>68</a></span><span class="kw">pub mod </span>compose;
-<a href=#69 id=69 data-nosnippet>69</a><span class="kw">pub mod </span>encrypt_hybrid;
-<a href=#70 id=70 data-nosnippet>70</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>envelope;
-<a href=#71 id=71 data-nosnippet>71</a><span class="kw">pub mod </span>kem_hybrid;
-<a href=#72 id=72 data-nosnippet>72</a><span class="kw">pub mod </span>pq_only;
-<a href=#73 id=73 data-nosnippet>73</a><span class="kw">pub mod </span>sig_hybrid;
-<a href=#74 id=74 data-nosnippet>74</a><span class="comment">// Internal-only: shared timing-equalizer dummy material. Exposing the
-<a href=#75 id=75 data-nosnippet>75</a>// dummy buffers publicly would let downstream callers craft inputs that
-<a href=#76 id=76 data-nosnippet>76</a>// collide with the equalizer branch logic, weakening the timing-oracle
-<a href=#77 id=77 data-nosnippet>77</a>// guarantee as a documented surface.
-<a href=#78 id=78 data-nosnippet>78</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>verify_equalizer;
-<a href=#79 id=79 data-nosnippet>79</a>
-<a href=#80 id=80 data-nosnippet>80</a><span class="comment">// Re-exports for convenience - use explicit exports to avoid ambiguity.
-<a href=#81 id=81 data-nosnippet>81</a>// All hybrid types are reachable directly via `crate::hybrid::*`; the previous
-<a href=#82 id=82 data-nosnippet>82</a>// `hybrid::kem` / `hybrid::sig` / `hybrid::encrypt` inline re-export modules
-<a href=#83 id=83 data-nosnippet>83</a>// were removed as they duplicated this surface.
-<a href=#84 id=84 data-nosnippet>84</a></span><span class="kw">pub use </span>encrypt_hybrid::{
-<a href=#85 id=85 data-nosnippet>85</a>    HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt_hybrid,
-<a href=#86 id=86 data-nosnippet>86</a>    derive_hybrid_encryption_key, encrypt_hybrid,
-<a href=#87 id=87 data-nosnippet>87</a>};
-<a href=#88 id=88 data-nosnippet>88</a><span class="comment">// Generic-named operation fns (`sign`, `verify`, `encapsulate`, `decapsulate`,
-<a href=#89 id=89 data-nosnippet>89</a>// `generate_keypair`) are NOT re-exported at this level — the bare names
-<a href=#90 id=90 data-nosnippet>90</a>// shadow/confuse against the crate-root `sign_with_key`/`verify` unified API.
-<a href=#91 id=91 data-nosnippet>91</a>// Call them through their owning module (`kem_hybrid::encapsulate`,
-<a href=#92 id=92 data-nosnippet>92</a>// `sig_hybrid::verify`, ...). Types and descriptively-named fns stay here.
-<a href=#93 id=93 data-nosnippet>93</a></span><span class="kw">pub use </span>kem_hybrid::{
-<a href=#94 id=94 data-nosnippet>94</a>    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
-<a href=#95 id=95 data-nosnippet>95</a>    HybridSharedSecretInputs, derive_hybrid_shared_secret,
-<a href=#96 id=96 data-nosnippet>96</a>};
-<a href=#97 id=97 data-nosnippet>97</a><span class="kw">pub use </span>pq_only::{
-<a href=#98 id=98 data-nosnippet>98</a>    PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
-<a href=#99 id=99 data-nosnippet>99</a>    decrypt_pq_only_with_aad, encrypt_pq_only, encrypt_pq_only_with_aad, generate_pq_keypair,
-<a href=#100 id=100 data-nosnippet>100</a>    generate_pq_keypair_with_level,
-<a href=#101 id=101 data-nosnippet>101</a>};
-<a href=#102 id=102 data-nosnippet>102</a><span class="kw">pub use </span>sig_hybrid::{
-<a href=#103 id=103 data-nosnippet>103</a>    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
-<a href=#104 id=104 data-nosnippet>104</a>};
+<a href=#58 id=58 data-nosnippet>58</a>//! - [`wire`](crate::hybrid::wire) - Versioned binary wire format for hybrid keys, ciphertexts and signatures
+<a href=#59 id=59 data-nosnippet>59</a>//!
+<a href=#60 id=60 data-nosnippet>60</a>//! # Security Properties
+<a href=#61 id=61 data-nosnippet>61</a>//!
+<a href=#62 id=62 data-nosnippet>62</a>//! | Construction      | Composition     | Security Guarantee                    |
+<a href=#63 id=63 data-nosnippet>63</a>//! |-------------------|-----------------|---------------------------------------|
+<a href=#64 id=64 data-nosnippet>64</a>//! | Hybrid KEM        | HKDF dual-PRF   | Secure if ML-KEM OR X25519 is secure  |
+<a href=#65 id=65 data-nosnippet>65</a>//! | Hybrid Signature  | AND             | Secure if ML-DSA AND Ed25519 secure   |
+<a href=#66 id=66 data-nosnippet>66</a>//! | Hybrid Encryption | HKDF dual-PRF   | Secure if either KEM component secure |
+<a href=#67 id=67 data-nosnippet>67</a>//! | PQ-Only Encrypt   | ML-KEM + HKDF   | Secure if ML-KEM is secure            |
+<a href=#68 id=68 data-nosnippet>68</a>
+<a href=#69 id=69 data-nosnippet>69</a></span><span class="kw">pub mod </span>compose;
+<a href=#70 id=70 data-nosnippet>70</a><span class="kw">pub mod </span>encrypt_hybrid;
+<a href=#71 id=71 data-nosnippet>71</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>envelope;
+<a href=#72 id=72 data-nosnippet>72</a><span class="kw">pub mod </span>kem_hybrid;
+<a href=#73 id=73 data-nosnippet>73</a><span class="kw">pub mod </span>pq_only;
+<a href=#74 id=74 data-nosnippet>74</a><span class="kw">pub mod </span>sig_hybrid;
+<a href=#75 id=75 data-nosnippet>75</a><span class="comment">// Versioned binary wire format (docs/WIRE_FORMAT.md).
+<a href=#76 id=76 data-nosnippet>76</a></span><span class="kw">pub mod </span>wire;
+<a href=#77 id=77 data-nosnippet>77</a><span class="comment">// Internal-only: shared timing-equalizer dummy material. Exposing the
+<a href=#78 id=78 data-nosnippet>78</a>// dummy buffers publicly would let downstream callers craft inputs that
+<a href=#79 id=79 data-nosnippet>79</a>// collide with the equalizer branch logic, weakening the timing-oracle
+<a href=#80 id=80 data-nosnippet>80</a>// guarantee as a documented surface.
+<a href=#81 id=81 data-nosnippet>81</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>verify_equalizer;
+<a href=#82 id=82 data-nosnippet>82</a>
+<a href=#83 id=83 data-nosnippet>83</a><span class="comment">// Re-exports for convenience - use explicit exports to avoid ambiguity.
+<a href=#84 id=84 data-nosnippet>84</a>// All hybrid types are reachable directly via `crate::hybrid::*`; the previous
+<a href=#85 id=85 data-nosnippet>85</a>// `hybrid::kem` / `hybrid::sig` / `hybrid::encrypt` inline re-export modules
+<a href=#86 id=86 data-nosnippet>86</a>// were removed as they duplicated this surface.
+<a href=#87 id=87 data-nosnippet>87</a></span><span class="kw">pub use </span>encrypt_hybrid::{
+<a href=#88 id=88 data-nosnippet>88</a>    HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt_hybrid,
+<a href=#89 id=89 data-nosnippet>89</a>    derive_hybrid_encryption_key, encrypt_hybrid,
+<a href=#90 id=90 data-nosnippet>90</a>};
+<a href=#91 id=91 data-nosnippet>91</a><span class="comment">// Generic-named operation fns (`sign`, `verify`, `encapsulate`, `decapsulate`,
+<a href=#92 id=92 data-nosnippet>92</a>// `generate_keypair`) are NOT re-exported at this level — the bare names
+<a href=#93 id=93 data-nosnippet>93</a>// shadow/confuse against the crate-root `sign_with_key`/`verify` unified API.
+<a href=#94 id=94 data-nosnippet>94</a>// Call them through their owning module (`kem_hybrid::encapsulate`,
+<a href=#95 id=95 data-nosnippet>95</a>// `sig_hybrid::verify`, ...). Types and descriptively-named fns stay here.
+<a href=#96 id=96 data-nosnippet>96</a></span><span class="kw">pub use </span>kem_hybrid::{
+<a href=#97 id=97 data-nosnippet>97</a>    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
+<a href=#98 id=98 data-nosnippet>98</a>    HybridSharedSecretInputs, derive_hybrid_shared_secret,
+<a href=#99 id=99 data-nosnippet>99</a>    derive_hybrid_shared_secret_with_context,
+<a href=#100 id=100 data-nosnippet>100</a>};
+<a href=#101 id=101 data-nosnippet>101</a><span class="kw">pub use </span>pq_only::{
+<a href=#102 id=102 data-nosnippet>102</a>    PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
+<a href=#103 id=103 data-nosnippet>103</a>    decrypt_pq_only_with_aad, encrypt_pq_only, encrypt_pq_only_with_aad, generate_pq_keypair,
+<a href=#104 id=104 data-nosnippet>104</a>    generate_pq_keypair_with_level,
+<a href=#105 id=105 data-nosnippet>105</a>};
+<a href=#106 id=106 data-nosnippet>106</a><span class="kw">pub use </span>sig_hybrid::{
+<a href=#107 id=107 data-nosnippet>107</a>    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
+<a href=#108 id=108 data-nosnippet>108</a>};
 </code></pre></div></section></main></body></html>

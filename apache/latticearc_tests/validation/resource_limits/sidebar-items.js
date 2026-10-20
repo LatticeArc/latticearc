@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ResourceError"],"fn":["get_global_resource_limits","validate_aad_size","validate_decryption_size","validate_encryption_size","validate_signature_size"],"struct":["ResourceLimits","ResourceLimitsManager"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"enum":["ResourceError"],"fn":["get_global_resource_limits","validate_aad_size","validate_argon2_memory_kib","validate_decryption_size","validate_encryption_size","validate_signature_size"],"struct":["ResourceLimits","ResourceLimitsManager"],"type":["Result"]};
