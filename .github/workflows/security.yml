@@ -201,7 +201,7 @@ jobs:
 
     - name: Install cargo-outdated
       # --locked uses cargo-outdated's own Cargo.lock so transitive deps
-      # (e.g. constant_time_eq) can't drift past our MSRV (1.93).
+      # (e.g. constant_time_eq) can't drift past our MSRV (1.99).
       run: cargo install cargo-outdated --locked
 
     - name: Check for outdated dependencies

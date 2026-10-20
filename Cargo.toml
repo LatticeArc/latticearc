@@ -11,7 +11,7 @@ resolver = "3"
 [workspace.package]
 version = "0.12.1"
 edition = "2024"
-rust-version = "1.93"
+rust-version = "1.99"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
 license = "Apache-2.0"
 description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), and FIPS 140-3 backend — one crate. The latticearc library source forbids `unsafe`; cryptographic primitives are routed through audited dependencies (aws-lc-rs / RustCrypto) which carry their own unsafe FFI."

@@ -306,7 +306,7 @@ preferences — they are rules enforced by CI and code review.
 | Setting | Value | Why |
 |---------|-------|-----|
 | Edition | 2024 | Latest Rust edition for modern syntax and new language features |
-| MSRV | 1.93 | Minimum Supported Rust Version — all CI runs against this |
+| MSRV | 1.99 | Minimum Supported Rust Version — all CI runs against this |
 | Formatter | `rustfmt` with `max_width = 100` | 100-char line width balances readability and diff size |
 | Linter | `cargo clippy` with workspace-level `deny` lints | Zero warnings policy — every clippy warning is a compile error |
 

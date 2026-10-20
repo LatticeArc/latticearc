@@ -33,7 +33,7 @@
 | Module Version | 0.12.1 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
-| Language | Rust (edition 2024, MSRV 1.93) |
+| Language | Rust (edition 2024, MSRV 1.99) |
 | Platforms | Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64, Windows x86_64 |
 | Underlying Crypto | aws-lc-rs (AWS-LC-FIPS 4.x, certificate in process), fips204, fips205, fn-dsa |
 
@@ -294,7 +294,7 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 | Requirement | Implementation |
 |-------------|----------------|
 | Operating System | General-purpose OS (Linux, macOS, Windows) |
-| Rust Version | 1.93+ (edition 2024) |
+| Rust Version | 1.99+ (edition 2024) |
 | Unsafe Code | Forbidden (`unsafe_code = "forbid"` workspace-wide) |
 | Memory Safety | Guaranteed by Rust type system + `zeroize` |
 | Side-Channel Mitigation | `subtle` crate for constant-time comparisons |

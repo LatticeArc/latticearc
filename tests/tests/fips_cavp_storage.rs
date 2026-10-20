@@ -365,7 +365,7 @@ mod storage {
                 environment: TestEnvironment {
                     os: "custom-os".to_string(),
                     arch: "custom-arch".to_string(),
-                    rust_version: "1.93.0".to_string(),
+                    rust_version: "1.99.0".to_string(),
                     compiler: "rustc".to_string(),
                     framework_version: "1.0.0".to_string(),
                 },
@@ -1139,7 +1139,7 @@ mod storage {
                 environment: TestEnvironment {
                     os: "linux".to_string(),
                     arch: "x86_64".to_string(),
-                    rust_version: "1.93.0".to_string(),
+                    rust_version: "1.99.0".to_string(),
                     compiler: "rustc".to_string(),
                     framework_version: "1.0.0".to_string(),
                 },
@@ -1508,7 +1508,7 @@ mod storage {
                     environment: TestEnvironment {
                         os: "test-os".to_string(),
                         arch: "test-arch".to_string(),
-                        rust_version: "1.93.0".to_string(),
+                        rust_version: "1.99.0".to_string(),
                         compiler: "rustc".to_string(),
                         framework_version: "1.0.0".to_string(),
                     },

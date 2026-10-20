@@ -32,7 +32,7 @@ latticearc-cli info
 
 ### From Source
 
-Requires Rust 1.93+ and a C compiler (for aws-lc-rs):
+Requires Rust 1.99+ and a C compiler (for aws-lc-rs):
 
 ```bash
 cargo install --path .

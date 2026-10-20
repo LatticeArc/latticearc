@@ -964,10 +964,6 @@ mod kani_proofs {
     reason = "test fns return Result and use assert! macros which expand to panic"
 )]
 #[expect(
-    clippy::float_cmp,
-    reason = "exact float comparison is intentional when verifying entropy/threshold constants"
-)]
-#[expect(
     unused_qualifications,
     reason = "fully-qualified paths kept for clarity in test assertions"
 )]

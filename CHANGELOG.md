@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** Minimum supported Rust version raised from 1.93 to 1.99, and
+  the development toolchain now tracks 1.99. The MSRV-aware resolver no
+  longer holds dependencies back to 1.93-compatible releases.
+
 ### Fixed
 
 - Restore `crabgrind` 0.3.1 to avoid the incompatible `bindgen` 0.73.2

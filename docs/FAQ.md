@@ -254,7 +254,7 @@ Approximate performance on modern x86_64:
 
 ### What Rust version is required?
 
-Rust 1.93+ (2024 edition). See `rust-version` in Cargo.toml.
+Rust 1.99+ (2024 edition). See `rust-version` in Cargo.toml.
 
 ### What platforms are supported?
 

@@ -299,7 +299,7 @@ Designed under the assumption that any single algorithm may be broken — hybrid
 
 ## Build
 
-Requires Rust 1.93+ and a C/C++ compiler. FIPS builds also need CMake and Go.
+Requires Rust 1.99+ and a C/C++ compiler. FIPS builds also need CMake and Go.
 
 ```bash
 cargo build                       # default

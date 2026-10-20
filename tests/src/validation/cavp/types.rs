@@ -91,7 +91,7 @@ impl Default for TestEnvironment {
         Self {
             os: std::env::consts::OS.to_string(),
             arch: std::env::consts::ARCH.to_string(),
-            rust_version: "1.93.0".to_string(),
+            rust_version: "1.99.0".to_string(),
             compiler: "rustc".to_string(),
             framework_version: "1.0.0".to_string(),
         }
