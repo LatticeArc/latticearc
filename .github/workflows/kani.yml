@@ -10,6 +10,8 @@
 #   - Domain constant distinctness (NIST SP 800-108)
 #   - Verification status biconditional
 #   - Resource-limits DoS biconditionals (validate_* error branch correctness)
+#   - Streaming AEAD segment counter (checked successor, never wraps) and
+#     segment-capacity arithmetic (no underflow for any accepted segment size)
 
 name: Kani Model Checking
 

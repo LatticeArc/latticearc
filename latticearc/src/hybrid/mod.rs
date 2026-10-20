@@ -55,6 +55,7 @@
 //! - [`sig_hybrid`](crate::hybrid::sig_hybrid) - Hybrid signatures using ML-DSA + Ed25519
 //! - [`compose`](crate::hybrid::compose) - Formal security proofs for hybrid composition
 //! - [`pq_only`](mod@crate::hybrid::pq_only) - PQ-only encryption using ML-KEM + HKDF + AES-256-GCM (no X25519)
+//! - [`wire`](crate::hybrid::wire) - Versioned binary wire format for hybrid keys, ciphertexts and signatures
 //!
 //! # Security Properties
 //!
@@ -71,6 +72,8 @@ pub(crate) mod envelope;
 pub mod kem_hybrid;
 pub mod pq_only;
 pub mod sig_hybrid;
+// Versioned binary wire format (docs/WIRE_FORMAT.md).
+pub mod wire;
 // Internal-only: shared timing-equalizer dummy material. Exposing the
 // dummy buffers publicly would let downstream callers craft inputs that
 // collide with the equalizer branch logic, weakening the timing-oracle
@@ -93,6 +96,7 @@ pub use encrypt_hybrid::{
 pub use kem_hybrid::{
     EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
     HybridSharedSecretInputs, derive_hybrid_shared_secret,
+    derive_hybrid_shared_secret_with_context,
 };
 pub use pq_only::{
     PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,

@@ -46,7 +46,7 @@
 
 use fips204::{
     ml_dsa_44, ml_dsa_65, ml_dsa_87,
-    traits::{SerDes, Signer, Verifier},
+    traits::{KeyGen, SerDes, Signer, Verifier},
 };
 use subtle::{Choice, ConstantTimeEq};
 use thiserror::Error;
@@ -121,6 +121,115 @@ impl MlDsaParameterSet {
             Self::MlDsa87 => 5,
         }
     }
+
+    /// Minimum pre-hash digest length (bytes) HashML-DSA accepts at this
+    /// parameter set.
+    ///
+    /// FIPS 204 §5.4 requires the pre-hash to provide at least `λ` bits of
+    /// classical collision resistance, which (footnote 6) means a digest of
+    /// at least `2λ` bits: `λ` is 128 / 192 / 256 for ML-DSA-44 / -65 / -87
+    /// (FIPS 204 Table 1), so the floor is 32 / 48 / 64 bytes.
+    #[must_use]
+    pub const fn min_prehash_digest_len(&self) -> usize {
+        match self {
+            Self::MlDsa44 => 32,
+            Self::MlDsa65 => 48,
+            Self::MlDsa87 => 64,
+        }
+    }
+}
+
+/// Pre-hash function for HashML-DSA (FIPS 204 §5.4.1).
+///
+/// Names the hash function or XOF whose output the caller passes to
+/// [`MlDsaSecretKey::sign_prehashed`] / [`MlDsaPublicKey::verify_prehashed`],
+/// and selects the DER-encoded OID that FIPS 204 Algorithm 4 binds into the
+/// message representative `M'`. The caller computes the digest (streaming
+/// over content of any size); this module never sees the content.
+///
+/// Not every pre-hash is allowed at every parameter set: see
+/// [`MlDsaParameterSet::min_prehash_digest_len`] and [`Self::is_permitted_for`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PrehashAlgorithm {
+    /// SHA-256 (FIPS 180-4), 32-byte digest, OID 2.16.840.1.101.3.4.2.1.
+    /// Permitted for ML-DSA-44 only.
+    Sha256,
+    /// SHA-512 (FIPS 180-4), 64-byte digest, OID 2.16.840.1.101.3.4.2.3.
+    /// Permitted for every parameter set.
+    Sha512,
+    /// SHAKE128 (FIPS 202) with 256-bit output, OID 2.16.840.1.101.3.4.2.11.
+    /// Permitted for ML-DSA-44 only.
+    Shake128,
+    /// SHAKE256 (FIPS 202) with 512-bit output, OID 2.16.840.1.101.3.4.2.12.
+    /// Permitted for every parameter set.
+    Shake256,
+}
+
+impl PrehashAlgorithm {
+    /// Returns the ACVP / FIPS name of the pre-hash function.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Sha256 => "SHA2-256",
+            Self::Sha512 => "SHA2-512",
+            Self::Shake128 => "SHAKE-128",
+            Self::Shake256 => "SHAKE-256",
+        }
+    }
+
+    /// Exact digest length in bytes that [`MlDsaSecretKey::sign_prehashed`]
+    /// and [`MlDsaPublicKey::verify_prehashed`] accept for this pre-hash.
+    #[must_use]
+    pub const fn digest_len(&self) -> usize {
+        match self {
+            Self::Sha256 | Self::Shake128 => 32,
+            Self::Sha512 | Self::Shake256 => 64,
+        }
+    }
+
+    /// DER encoding (tag + length + value) of the pre-hash OID, exactly as
+    /// FIPS 204 Algorithm 4 inserts it into `M'`.
+    #[must_use]
+    pub const fn oid_der(&self) -> &'static [u8] {
+        match self {
+            Self::Sha256 => &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01],
+            Self::Sha512 => &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03],
+            Self::Shake128 => &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0B],
+            Self::Shake256 => &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0C],
+        }
+    }
+
+    /// Whether this pre-hash meets the FIPS 204 §5.4 collision-strength
+    /// floor for `parameter_set` (digest length >= `2λ` bits).
+    #[must_use]
+    pub const fn is_permitted_for(&self, parameter_set: MlDsaParameterSet) -> bool {
+        self.digest_len() >= parameter_set.min_prehash_digest_len()
+    }
+}
+
+/// Build the HashML-DSA message representative `M'` of FIPS 204 Algorithm 4
+/// step 23 / Algorithm 5 step 18:
+/// `IntegerToBytes(1, 1) || IntegerToBytes(|ctx|, 1) || ctx || OID || PH(M)`.
+///
+/// Returns `None` if `context` cannot be encoded in one byte (> 255 bytes);
+/// callers reject that case before reaching here.
+fn hash_ml_dsa_message_representative(
+    hash: PrehashAlgorithm,
+    digest: &[u8],
+    context: &[u8],
+) -> Option<Vec<u8>> {
+    let ctx_len = u8::try_from(context.len()).ok()?;
+    let oid = hash.oid_der();
+    let capacity =
+        2usize.saturating_add(context.len()).saturating_add(oid.len()).saturating_add(digest.len());
+    let mut m_prime = Vec::with_capacity(capacity);
+    m_prime.push(0x01);
+    m_prime.push(ctx_len);
+    m_prime.extend_from_slice(context);
+    m_prime.extend_from_slice(oid);
+    m_prime.extend_from_slice(digest);
+    Some(m_prime)
 }
 
 /// Error types for ML-DSA operations
@@ -324,6 +433,73 @@ impl MlDsaPublicKey {
         };
 
         Ok(is_valid)
+    }
+
+    /// Verify a HashML-DSA (FIPS 204 Algorithm 5) signature over a caller-
+    /// supplied pre-hash digest.
+    ///
+    /// `digest` must be exactly `hash.digest_len()` bytes of `PH(M)` for the
+    /// named pre-hash and `context` must be the same non-empty FIPS 204
+    /// context string (at most 255 bytes) used at signing. A signature
+    /// produced by [`MlDsaSecretKey::sign`] (pure ML-DSA, domain byte
+    /// `0x00`) never verifies here, and a pre-hashed signature never
+    /// verifies under [`Self::verify`] — the FIPS 204 domain separator
+    /// binds the mode.
+    ///
+    /// The message-size resource limit does not apply: the input is a
+    /// fixed-size digest, which is the point of the pre-hashed mode.
+    ///
+    /// # Errors
+    /// Returns `MlDsaError::VerificationError` (Pattern 6 opaque) if
+    /// `context` is empty or longer than 255 bytes, `hash` is not permitted
+    /// at this parameter set ([`PrehashAlgorithm::is_permitted_for`]),
+    /// `digest.len() != hash.digest_len()`, or the key / signature bytes
+    /// fail to parse. Returns `MlDsaError::ParameterSetMismatch` if the key
+    /// and signature parameter sets differ.
+    #[instrument(level = "debug", skip(self, digest, signature, context), fields(parameter_set = ?self.parameter_set(), hash = hash.name(), digest_len = digest.len(), context_len = context.len()))]
+    pub fn verify_prehashed(
+        &self,
+        digest: &[u8],
+        hash: PrehashAlgorithm,
+        signature: &MlDsaSignature,
+        context: &[u8],
+    ) -> Result<bool, MlDsaError> {
+        let opaque = || MlDsaError::VerificationError("verification failed".to_string());
+
+        if context.is_empty() || context.len() > 255 {
+            tracing::debug!(
+                ctx_len = context.len(),
+                "HashML-DSA verify rejected: context must be 1..=255 bytes"
+            );
+            return Err(opaque());
+        }
+        if !hash.is_permitted_for(self.parameter_set()) {
+            tracing::debug!(
+                hash = hash.name(),
+                "HashML-DSA verify rejected: pre-hash below FIPS 204 §5.4 strength floor"
+            );
+            return Err(opaque());
+        }
+        if digest.len() != hash.digest_len() {
+            tracing::debug!(
+                digest_len = digest.len(),
+                expected = hash.digest_len(),
+                "HashML-DSA verify rejected: digest length"
+            );
+            return Err(opaque());
+        }
+        if self.parameter_set() != signature.parameter_set() {
+            // Same carve-out as `verify`: a mis-paired (key, signature) is a
+            // configuration bug that must not masquerade as a forgery report.
+            return Err(MlDsaError::ParameterSetMismatch {
+                key: self.parameter_set(),
+                signature: signature.parameter_set(),
+            });
+        }
+        let m_prime =
+            hash_ml_dsa_message_representative(hash, digest, context).ok_or_else(opaque)?;
+
+        verify_message_representative(self, &m_prime, signature).ok_or_else(opaque)
     }
 
     /// Creates a new ML-DSA public key from raw bytes
@@ -534,6 +710,178 @@ impl MlDsaSecretKey {
         };
 
         Ok(signature)
+    }
+
+    /// Sign a caller-supplied pre-hash digest with HashML-DSA (FIPS 204
+    /// Algorithm 4), hedged with 32 bytes of fresh OS randomness (`rnd`).
+    ///
+    /// The caller hashes the content with `hash` (streaming, any size) and
+    /// passes the `hash.digest_len()`-byte digest here; the message-size
+    /// resource limit that bounds [`Self::sign`] does not apply because the
+    /// signer never sees the content. `context` is the FIPS 204 context
+    /// string and must be non-empty (domain separation is mandatory on
+    /// every 0.13 API) and at most 255 bytes.
+    ///
+    /// The signed message representative is
+    /// `0x01 || |ctx| || ctx || OID(hash) || digest` (Algorithm 4 step 23),
+    /// so the result is a standard HashML-DSA signature that any FIPS 204
+    /// verifier accepts with the same `(ctx, PH)`; it never verifies as a
+    /// pure ML-DSA signature and vice versa.
+    ///
+    /// # Errors
+    /// Returns `MlDsaError::SigningError` (Pattern 6 opaque) if `context`
+    /// is empty or longer than 255 bytes, `hash` is not permitted at this
+    /// parameter set ([`PrehashAlgorithm::is_permitted_for`]),
+    /// `digest.len() != hash.digest_len()`, or the secret key bytes fail to
+    /// parse.
+    #[instrument(level = "debug", skip(self, digest, context), fields(parameter_set = ?self.parameter_set(), hash = hash.name(), digest_len = digest.len(), context_len = context.len()))]
+    pub fn sign_prehashed(
+        &self,
+        digest: &[u8],
+        hash: PrehashAlgorithm,
+        context: &[u8],
+    ) -> Result<MlDsaSignature, MlDsaError> {
+        // FIPS 204 §5.4: the hedging value `rnd` shall be generated by the
+        // module that runs Sign_internal. Zeroized on return — `rnd` feeds
+        // the private seed ρ' and must not linger.
+        let mut rnd = Zeroizing::new([0u8; 32]);
+        {
+            use rand::Rng;
+            crate::primitives::rand::secure_rng().fill_bytes(rnd.as_mut());
+        }
+        self.sign_prehashed_inner(digest, hash, context, &rnd)
+    }
+
+    /// HashML-DSA signing with a caller-supplied hedging value `rnd`.
+    ///
+    /// Exists so NIST ACVP `ML-DSA-sigGen` vectors (which fix `rnd`, or use
+    /// the deterministic variant `rnd = 0^32`) can be replayed byte-exactly.
+    /// Production callers use [`Self::sign_prehashed`], which draws `rnd`
+    /// from the OS CSPRNG as FIPS 204 §5.4 requires.
+    #[doc(hidden)]
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn sign_prehashed_with_rnd(
+        &self,
+        digest: &[u8],
+        hash: PrehashAlgorithm,
+        context: &[u8],
+        rnd: &[u8; 32],
+    ) -> Result<MlDsaSignature, MlDsaError> {
+        self.sign_prehashed_inner(digest, hash, context, rnd)
+    }
+
+    /// Shared body of [`Self::sign_prehashed`] / [`Self::sign_prehashed_with_rnd`].
+    ///
+    /// The `fips204` crate's `try_hash_sign` hashes the *content* itself and
+    /// exposes no entry point that takes `PH(M)`, so this builds `M'`
+    /// (Algorithm 4 step 23) locally and hands it to the crate's
+    /// `_internal_sign`, whose `nist = true` path computes
+    /// `μ = H(tr || M')` verbatim (Algorithm 7 step 6) — exactly what
+    /// Algorithm 4 step 24 passes to `ML-DSA.Sign_internal`. The NIST ACVP
+    /// HashML-DSA vectors in `tests/src/validation/nist_kat/ml_dsa_acvp_kat.rs`
+    /// pin this equivalence byte-for-byte.
+    #[expect(
+        deprecated,
+        reason = "fips204 0.4.6 marks `_internal_sign` deprecated because it was added for                   NIST internal-interface vectors; it is the crate's only public entry point                   that accepts a caller-built message representative, and the crate is                   exact-pinned so the function cannot disappear under us"
+    )]
+    fn sign_prehashed_inner(
+        &self,
+        digest: &[u8],
+        hash: PrehashAlgorithm,
+        context: &[u8],
+        rnd: &[u8; 32],
+    ) -> Result<MlDsaSignature, MlDsaError> {
+        const SIGN_ERR_MSG: &str = "ML-DSA signing failed";
+        let opaque_sign_err = || MlDsaError::SigningError(SIGN_ERR_MSG.to_string());
+
+        if context.is_empty() || context.len() > 255 {
+            tracing::debug!(
+                ctx_len = context.len(),
+                "HashML-DSA sign rejected: context must be 1..=255 bytes"
+            );
+            return Err(opaque_sign_err());
+        }
+        let parameter_set = self.parameter_set();
+        if !hash.is_permitted_for(parameter_set) {
+            tracing::debug!(
+                hash = hash.name(),
+                "HashML-DSA sign rejected: pre-hash below FIPS 204 §5.4 strength floor"
+            );
+            return Err(opaque_sign_err());
+        }
+        if digest.len() != hash.digest_len() {
+            tracing::debug!(
+                digest_len = digest.len(),
+                expected = hash.digest_len(),
+                "HashML-DSA sign rejected: digest length"
+            );
+            return Err(opaque_sign_err());
+        }
+        let m_prime = hash_ml_dsa_message_representative(hash, digest, context)
+            .ok_or_else(opaque_sign_err)?;
+
+        let log_reject = |stage: &'static str, e: &dyn std::fmt::Debug| {
+            tracing::debug!(error = ?e, parameter_set = parameter_set.name(), "HashML-DSA sign rejected: {stage}");
+        };
+
+        let sig_bytes: Vec<u8> = match parameter_set {
+            MlDsaParameterSet::MlDsa44 => {
+                let mut sk_bytes: Zeroizing<[u8; 2560]> = Zeroizing::new([0u8; 2560]);
+                if self.expose_secret().len() != 2560 {
+                    log_reject("SK length mismatch", &());
+                    return Err(opaque_sign_err());
+                }
+                sk_bytes.copy_from_slice(self.expose_secret());
+                let sk = ml_dsa_44::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
+                    log_reject("SK deserialize", &e);
+                    opaque_sign_err()
+                })?;
+                ml_dsa_44::_internal_sign(&sk, &m_prime, &[], *rnd)
+                    .map_err(|e| {
+                        log_reject("_internal_sign", &e);
+                        opaque_sign_err()
+                    })?
+                    .to_vec()
+            }
+            MlDsaParameterSet::MlDsa65 => {
+                let mut sk_bytes: Zeroizing<[u8; 4032]> = Zeroizing::new([0u8; 4032]);
+                if self.expose_secret().len() != 4032 {
+                    log_reject("SK length mismatch", &());
+                    return Err(opaque_sign_err());
+                }
+                sk_bytes.copy_from_slice(self.expose_secret());
+                let sk = ml_dsa_65::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
+                    log_reject("SK deserialize", &e);
+                    opaque_sign_err()
+                })?;
+                ml_dsa_65::_internal_sign(&sk, &m_prime, &[], *rnd)
+                    .map_err(|e| {
+                        log_reject("_internal_sign", &e);
+                        opaque_sign_err()
+                    })?
+                    .to_vec()
+            }
+            MlDsaParameterSet::MlDsa87 => {
+                let mut sk_bytes: Zeroizing<[u8; 4896]> = Zeroizing::new([0u8; 4896]);
+                if self.expose_secret().len() != 4896 {
+                    log_reject("SK length mismatch", &());
+                    return Err(opaque_sign_err());
+                }
+                sk_bytes.copy_from_slice(self.expose_secret());
+                let sk = ml_dsa_87::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
+                    log_reject("SK deserialize", &e);
+                    opaque_sign_err()
+                })?;
+                ml_dsa_87::_internal_sign(&sk, &m_prime, &[], *rnd)
+                    .map_err(|e| {
+                        log_reject("_internal_sign", &e);
+                        opaque_sign_err()
+                    })?
+                    .to_vec()
+            }
+        };
+
+        MlDsaSignature::new(parameter_set, sig_bytes)
     }
 
     /// Creates a new ML-DSA secret key from raw bytes
@@ -785,6 +1133,105 @@ pub fn generate_keypair(
         .map_err(|e| MlDsaError::KeyGenerationError(format!("PCT failed: {e}")))?;
 
     Ok((pk, sk))
+}
+
+/// Generate an ML-DSA keypair deterministically from the 32-byte seed `ξ`
+/// (FIPS 204 Algorithm 6, `ML-DSA.KeyGen_internal(ξ)`).
+///
+/// [`generate_keypair`] is FIPS 204 Algorithm 1: it draws `ξ` from the OS
+/// CSPRNG and calls Algorithm 6. This function skips the draw and runs
+/// Algorithm 6 on the caller's `ξ`, so the same seed yields the same keypair
+/// on every platform and build — the property a seed-backed recovery flow
+/// needs. The mapping is implemented by `fips204`'s `keygen_from_seed`,
+/// which expands `H(ξ || IntegerToBytes(k, 1) || IntegerToBytes(ℓ, 1), 128)`
+/// into `(ρ, ρ', K)` exactly as Algorithm 6 step 1 specifies; the NIST ACVP
+/// `ML-DSA-keyGen` vectors in `tests/src/validation/nist_kat/ml_dsa_acvp_kat.rs`
+/// pin that mapping byte-for-byte.
+///
+/// Like [`generate_keypair`], the result passes a FIPS 140-3 pairwise
+/// consistency test before it is returned.
+///
+/// # Security
+/// `ξ` is the whole secret: anyone holding it can regenerate the signing
+/// key. Derive it from high-entropy material (the hybrid layer derives it
+/// through HKDF from a master seed) and keep the caller's copy in a
+/// zeroizing container.
+///
+/// # Errors
+/// Returns `MlDsaError::KeyGenerationError` if the pairwise consistency
+/// test fails.
+#[must_use = "generated keypair must be stored or used"]
+#[instrument(level = "debug", skip(xi), fields(parameter_set = ?parameter_set))]
+pub fn generate_keypair_from_seed(
+    parameter_set: MlDsaParameterSet,
+    xi: &[u8; 32],
+) -> Result<(MlDsaPublicKey, MlDsaSecretKey), MlDsaError> {
+    let (pk, sk) = match parameter_set {
+        MlDsaParameterSet::MlDsa44 => {
+            let (pk, sk) = ml_dsa_44::KG::keygen_from_seed(xi);
+            (
+                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: Zeroizing::new(sk.into_bytes().to_vec()) },
+            )
+        }
+        MlDsaParameterSet::MlDsa65 => {
+            let (pk, sk) = ml_dsa_65::KG::keygen_from_seed(xi);
+            (
+                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: Zeroizing::new(sk.into_bytes().to_vec()) },
+            )
+        }
+        MlDsaParameterSet::MlDsa87 => {
+            let (pk, sk) = ml_dsa_87::KG::keygen_from_seed(xi);
+            (
+                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: Zeroizing::new(sk.into_bytes().to_vec()) },
+            )
+        }
+    };
+
+    crate::primitives::pct::pct_ml_dsa(&pk, &sk)
+        .map_err(|e| MlDsaError::KeyGenerationError(format!("PCT failed: {e}")))?;
+
+    Ok((pk, sk))
+}
+
+/// Run `ML-DSA.Verify_internal(pk, M', σ)` (FIPS 204 Algorithm 8) on a
+/// caller-built message representative.
+///
+/// Returns `None` when the key or signature bytes fail to parse (the caller
+/// maps that to its opaque error), `Some(bool)` otherwise. Companion of
+/// `MlDsaSecretKey::sign_prehashed_inner`; see there for why the crate's
+/// `_internal_verify` is the right entry point.
+#[expect(
+    deprecated,
+    reason = "fips204 0.4.6 marks `_internal_verify` deprecated because it was added for               NIST internal-interface vectors; it is the crate's only public entry point               that accepts a caller-built message representative, and the crate is               exact-pinned so the function cannot disappear under us"
+)]
+fn verify_message_representative(
+    pk: &MlDsaPublicKey,
+    m_prime: &[u8],
+    signature: &MlDsaSignature,
+) -> Option<bool> {
+    match pk.parameter_set() {
+        MlDsaParameterSet::MlDsa44 => {
+            let pk_bytes: [u8; 1312] = pk.as_bytes().try_into().ok()?;
+            let pk = ml_dsa_44::PublicKey::try_from_bytes(pk_bytes).ok()?;
+            let sig_bytes: [u8; 2420] = signature.as_bytes().try_into().ok()?;
+            Some(ml_dsa_44::_internal_verify(&pk, m_prime, &sig_bytes, &[]))
+        }
+        MlDsaParameterSet::MlDsa65 => {
+            let pk_bytes: [u8; 1952] = pk.as_bytes().try_into().ok()?;
+            let pk = ml_dsa_65::PublicKey::try_from_bytes(pk_bytes).ok()?;
+            let sig_bytes: [u8; 3309] = signature.as_bytes().try_into().ok()?;
+            Some(ml_dsa_65::_internal_verify(&pk, m_prime, &sig_bytes, &[]))
+        }
+        MlDsaParameterSet::MlDsa87 => {
+            let pk_bytes: [u8; 2592] = pk.as_bytes().try_into().ok()?;
+            let pk = ml_dsa_87::PublicKey::try_from_bytes(pk_bytes).ok()?;
+            let sig_bytes: [u8; 4627] = signature.as_bytes().try_into().ok()?;
+            Some(ml_dsa_87::_internal_verify(&pk, m_prime, &sig_bytes, &[]))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1412,5 +1859,293 @@ mod tests {
         let oversize: Vec<u8> = vec![0u8; (64 * 1024) + 1];
         let err = sk.sign(&oversize, b"").expect_err("oversized message must be rejected");
         assert!(matches!(err, MlDsaError::SigningError(_)), "expected SigningError, got {err:?}");
+    }
+}
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "tests use unwrap on statically valid inputs")]
+#[expect(clippy::indexing_slicing, reason = "tests index fixed-size buffers")]
+mod prehash_tests {
+    use super::*;
+    use proptest::prelude::*;
+    use sha2::{Digest, Sha256, Sha512};
+
+    const ALL_SETS: [MlDsaParameterSet; 3] =
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87];
+
+    fn sha512(m: &[u8]) -> [u8; 64] {
+        Sha512::digest(m).into()
+    }
+
+    #[test]
+    fn prehashed_roundtrip_all_parameter_sets() {
+        for set in ALL_SETS {
+            let (pk, sk) = generate_keypair(set).unwrap();
+            let digest = sha512(b"manifest bytes");
+            let ctx = b"vault/v1/root-sig";
+            let sig = sk.sign_prehashed(&digest, PrehashAlgorithm::Sha512, ctx).unwrap();
+            assert_eq!(sig.len(), set.signature_size());
+            assert!(pk.verify_prehashed(&digest, PrehashAlgorithm::Sha512, &sig, ctx).unwrap());
+            let other = sha512(b"other bytes");
+            assert!(!pk.verify_prehashed(&other, PrehashAlgorithm::Sha512, &sig, ctx).unwrap());
+            assert!(
+                !pk.verify_prehashed(&digest, PrehashAlgorithm::Sha512, &sig, b"vault/v1/inbox")
+                    .unwrap()
+            );
+            // SHAKE256 shares the digest length but carries a different OID.
+            assert!(!pk.verify_prehashed(&digest, PrehashAlgorithm::Shake256, &sig, ctx).unwrap());
+        }
+    }
+
+    #[test]
+    fn prehashed_rejects_empty_and_oversized_context() {
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+        let digest = sha512(b"m");
+        for ctx in [&[][..], &[0x41u8; 256][..]] {
+            let err = sk.sign_prehashed(&digest, PrehashAlgorithm::Sha512, ctx).unwrap_err();
+            assert!(matches!(err, MlDsaError::SigningError(_)), "{err:?}");
+        }
+        let sig = sk.sign_prehashed(&digest, PrehashAlgorithm::Sha512, b"ctx").unwrap();
+        for ctx in [&[][..], &[0x41u8; 256][..]] {
+            let err =
+                pk.verify_prehashed(&digest, PrehashAlgorithm::Sha512, &sig, ctx).unwrap_err();
+            assert!(matches!(err, MlDsaError::VerificationError(_)), "{err:?}");
+        }
+        // 255 bytes is the FIPS 204 maximum and must work.
+        let max_ctx = [0x42u8; 255];
+        let sig = sk.sign_prehashed(&digest, PrehashAlgorithm::Sha512, &max_ctx).unwrap();
+        assert!(pk.verify_prehashed(&digest, PrehashAlgorithm::Sha512, &sig, &max_ctx).unwrap());
+    }
+
+    #[test]
+    fn prehashed_rejects_wrong_digest_length() {
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+        let ctx = b"ctx";
+        let short = [0u8; 63];
+        let err = sk.sign_prehashed(&short, PrehashAlgorithm::Sha512, ctx).unwrap_err();
+        assert!(matches!(err, MlDsaError::SigningError(_)));
+        let sha256_len = [0u8; 32];
+        let err = sk.sign_prehashed(&sha256_len, PrehashAlgorithm::Sha512, ctx).unwrap_err();
+        assert!(matches!(err, MlDsaError::SigningError(_)));
+        let sig = sk.sign_prehashed(&sha512(b"m"), PrehashAlgorithm::Sha512, ctx).unwrap();
+        let err = pk.verify_prehashed(&short, PrehashAlgorithm::Sha512, &sig, ctx).unwrap_err();
+        assert!(matches!(err, MlDsaError::VerificationError(_)));
+    }
+
+    #[test]
+    fn prehash_strength_floor_matches_fips204_table() {
+        use PrehashAlgorithm::{Sha256, Sha512, Shake128, Shake256};
+        let table: [(MlDsaParameterSet, [bool; 4]); 3] = [
+            (MlDsaParameterSet::MlDsa44, [true, true, true, true]),
+            (MlDsaParameterSet::MlDsa65, [false, true, false, true]),
+            (MlDsaParameterSet::MlDsa87, [false, true, false, true]),
+        ];
+        for (set, expected) in table {
+            let got = [
+                Sha256.is_permitted_for(set),
+                Sha512.is_permitted_for(set),
+                Shake128.is_permitted_for(set),
+                Shake256.is_permitted_for(set),
+            ];
+            assert_eq!(got, expected, "{set:?}");
+        }
+        assert_eq!(MlDsaParameterSet::MlDsa44.min_prehash_digest_len(), 32);
+        assert_eq!(MlDsaParameterSet::MlDsa65.min_prehash_digest_len(), 48);
+        assert_eq!(MlDsaParameterSet::MlDsa87.min_prehash_digest_len(), 64);
+    }
+
+    #[test]
+    fn prehashed_rejects_weak_hash_for_65_and_87_but_allows_it_for_44() {
+        let digest32: [u8; 32] = Sha256::digest(b"m").into();
+        for set in [MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87] {
+            let (pk, sk) = generate_keypair(set).unwrap();
+            for hash in [PrehashAlgorithm::Sha256, PrehashAlgorithm::Shake128] {
+                let err = sk.sign_prehashed(&digest32, hash, b"ctx").unwrap_err();
+                assert!(matches!(err, MlDsaError::SigningError(_)), "{set:?} {hash:?}");
+                let sig =
+                    sk.sign_prehashed(&sha512(b"m"), PrehashAlgorithm::Sha512, b"ctx").unwrap();
+                let err = pk.verify_prehashed(&digest32, hash, &sig, b"ctx").unwrap_err();
+                assert!(matches!(err, MlDsaError::VerificationError(_)), "{set:?} {hash:?}");
+            }
+        }
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+        for hash in [PrehashAlgorithm::Sha256, PrehashAlgorithm::Shake128] {
+            let sig = sk.sign_prehashed(&digest32, hash, b"ctx").unwrap();
+            assert!(pk.verify_prehashed(&digest32, hash, &sig, b"ctx").unwrap(), "{hash:?}");
+        }
+    }
+
+    #[test]
+    fn prehashed_and_plain_modes_never_cross_verify() {
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+        let digest = sha512(b"m");
+        let ctx = b"ctx";
+        // Plain signature over the digest bytes is not a HashML-DSA signature.
+        let plain = sk.sign(&digest, ctx).unwrap();
+        assert!(!pk.verify_prehashed(&digest, PrehashAlgorithm::Sha512, &plain, ctx).unwrap());
+        // HashML-DSA signature is not a plain signature over the digest bytes
+        // (nor over the message representative M').
+        let ph = sk.sign_prehashed(&digest, PrehashAlgorithm::Sha512, ctx).unwrap();
+        assert!(!pk.verify(&digest, &ph, ctx).unwrap());
+        let m_prime =
+            hash_ml_dsa_message_representative(PrehashAlgorithm::Sha512, &digest, ctx).unwrap();
+        assert!(!pk.verify(&m_prime, &ph, ctx).unwrap());
+        assert!(!pk.verify(&m_prime, &ph, &[]).unwrap());
+    }
+
+    #[test]
+    fn prehashed_parameter_set_mismatch_returns_err() {
+        let (_pk44, sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+        let (pk65, _sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
+        let digest = sha512(b"m");
+        let sig44 = sk44.sign_prehashed(&digest, PrehashAlgorithm::Sha512, b"ctx").unwrap();
+        let err =
+            pk65.verify_prehashed(&digest, PrehashAlgorithm::Sha512, &sig44, b"ctx").unwrap_err();
+        assert!(matches!(
+            err,
+            MlDsaError::ParameterSetMismatch {
+                key: MlDsaParameterSet::MlDsa65,
+                signature: MlDsaParameterSet::MlDsa44
+            }
+        ));
+    }
+
+    #[test]
+    fn prehashed_with_rnd_is_deterministic_and_hedged_differs() {
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+        let digest = sha512(b"m");
+        let ctx = b"ctx";
+        let a =
+            sk.sign_prehashed_with_rnd(&digest, PrehashAlgorithm::Sha512, ctx, &[0u8; 32]).unwrap();
+        let b =
+            sk.sign_prehashed_with_rnd(&digest, PrehashAlgorithm::Sha512, ctx, &[0u8; 32]).unwrap();
+        assert_eq!(a.as_bytes(), b.as_bytes(), "rnd = 0^32 must be deterministic");
+        let c =
+            sk.sign_prehashed_with_rnd(&digest, PrehashAlgorithm::Sha512, ctx, &[7u8; 32]).unwrap();
+        assert_ne!(a.as_bytes(), c.as_bytes());
+        let d = sk.sign_prehashed(&digest, PrehashAlgorithm::Sha512, ctx).unwrap();
+        assert_ne!(a.as_bytes(), d.as_bytes(), "hedged signing must draw fresh rnd");
+        for sig in [&a, &c, &d] {
+            assert!(pk.verify_prehashed(&digest, PrehashAlgorithm::Sha512, sig, ctx).unwrap());
+        }
+    }
+
+    #[test]
+    fn prehash_oid_der_matches_fips204_algorithm_4() {
+        assert_eq!(
+            PrehashAlgorithm::Sha256.oid_der(),
+            &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01]
+        );
+        assert_eq!(
+            PrehashAlgorithm::Sha512.oid_der(),
+            &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03]
+        );
+        assert_eq!(
+            PrehashAlgorithm::Shake128.oid_der(),
+            &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0B]
+        );
+        assert_eq!(PrehashAlgorithm::Shake256.oid_der()[10], 0x0C);
+        for hash in [
+            PrehashAlgorithm::Sha256,
+            PrehashAlgorithm::Sha512,
+            PrehashAlgorithm::Shake128,
+            PrehashAlgorithm::Shake256,
+        ] {
+            assert_eq!(hash.oid_der().len(), 11);
+            assert!(!hash.name().is_empty());
+        }
+    }
+
+    /// `rand_core 0.6` RNG that hands out exactly the 32 seed bytes, so
+    /// FIPS 204 Algorithm 1 (`try_keygen_with_rng`) draws `ξ = seed` and
+    /// must reproduce Algorithm 6 (`keygen_from_seed`).
+    struct XiRng([u8; 32]);
+
+    impl rand_core_0_6::RngCore for XiRng {
+        fn next_u32(&mut self) -> u32 {
+            0
+        }
+        fn next_u64(&mut self) -> u64 {
+            0
+        }
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            dest.copy_from_slice(&self.0[..dest.len()]);
+        }
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core_0_6::Error> {
+            self.fill_bytes(dest);
+            Ok(())
+        }
+    }
+    impl rand_core_0_6::CryptoRng for XiRng {}
+
+    #[test]
+    fn from_seed_is_deterministic_and_equals_algorithm_1_with_that_seed() {
+        let seed = [0x5au8; 32];
+        for set in ALL_SETS {
+            let (pk1, sk1) = generate_keypair_from_seed(set, &seed).unwrap();
+            let (pk2, sk2) = generate_keypair_from_seed(set, &seed).unwrap();
+            assert_eq!(pk1.as_bytes(), pk2.as_bytes());
+            assert!(bool::from(sk1.ct_eq(&sk2)));
+            let (pk3, _) = generate_keypair_from_seed(set, &[0x5bu8; 32]).unwrap();
+            assert_ne!(pk1.as_bytes(), pk3.as_bytes());
+
+            let rng_pk: Vec<u8> = match set {
+                MlDsaParameterSet::MlDsa44 => ml_dsa_44::try_keygen_with_rng(&mut XiRng(seed))
+                    .unwrap()
+                    .0
+                    .into_bytes()
+                    .to_vec(),
+                MlDsaParameterSet::MlDsa65 => ml_dsa_65::try_keygen_with_rng(&mut XiRng(seed))
+                    .unwrap()
+                    .0
+                    .into_bytes()
+                    .to_vec(),
+                MlDsaParameterSet::MlDsa87 => ml_dsa_87::try_keygen_with_rng(&mut XiRng(seed))
+                    .unwrap()
+                    .0
+                    .into_bytes()
+                    .to_vec(),
+            };
+            assert_eq!(pk1.as_bytes(), rng_pk.as_slice(), "{set:?}: Algorithm 1 with ξ = seed");
+
+            let sig = sk1.sign(b"m", b"ctx").unwrap();
+            assert!(pk1.verify(b"m", &sig, b"ctx").unwrap());
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn message_representative_binds_context_and_digest(
+            ctx1 in proptest::collection::vec(any::<u8>(), 1..=255),
+            ctx2 in proptest::collection::vec(any::<u8>(), 1..=255),
+            d1 in proptest::collection::vec(any::<u8>(), 64),
+            d2 in proptest::collection::vec(any::<u8>(), 64),
+        ) {
+            let m1 = hash_ml_dsa_message_representative(PrehashAlgorithm::Sha512, &d1, &ctx1).unwrap();
+            let m2 = hash_ml_dsa_message_representative(PrehashAlgorithm::Sha512, &d2, &ctx2).unwrap();
+            prop_assert_eq!(m1[0], 0x01);
+            prop_assert_eq!(usize::from(m1[1]), ctx1.len());
+            prop_assert_eq!(m1.len(), ctx1.len().saturating_add(2 + 11 + 64));
+            if ctx1 != ctx2 || d1 != d2 {
+                prop_assert_ne!(m1, m2);
+            } else {
+                prop_assert_eq!(m1, m2);
+            }
+            let m3 = hash_ml_dsa_message_representative(PrehashAlgorithm::Shake256, &d1, &ctx1).unwrap();
+            prop_assert_ne!(
+                hash_ml_dsa_message_representative(PrehashAlgorithm::Sha512, &d1, &ctx1).unwrap(),
+                m3
+            );
+        }
+    }
+
+    #[test]
+    fn message_representative_rejects_oversized_context() {
+        assert!(
+            hash_ml_dsa_message_representative(PrehashAlgorithm::Sha512, &[0u8; 64], &[0u8; 256])
+                .is_none()
+        );
     }
 }

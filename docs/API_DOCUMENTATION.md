@@ -367,6 +367,48 @@ let signature = sign_hybrid(b"important message", &sk, SecurityMode::Unverified)
 let valid = verify_hybrid_signature(b"important message", &signature, &pk, SecurityMode::Unverified)?;
 ```
 
+**Context-bound, pre-hashed and seed-derived hybrid signatures (0.13):**
+
+```rust
+use latticearc::hybrid::sig_hybrid::{
+    generate_keypair_from_seed, sign_prehashed, sign_with_context, verify_prehashed,
+    verify_with_context,
+};
+use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
+use sha2::{Digest, Sha512};
+
+// Same 32-byte seed -> same keypair on every platform (HKDF -> FIPS 204 Alg. 6 + RFC 8032).
+let (pk, sk) = generate_keypair_from_seed(&seed, MlDsaParameterSet::MlDsa65)?;
+
+// A non-empty context (<= MAX_HYBRID_SIG_CONTEXT_LEN bytes) is bound into both legs.
+let sig = sign_with_context(&sk, b"log batch", b"vault/v1/inbox")?;
+assert!(verify_with_context(&pk, b"log batch", &sig, b"vault/v1/inbox")?);
+
+// Large content: hash it yourself (streaming), then sign the SHA-512 digest.
+// ML-DSA leg = HashML-DSA (FIPS 204 Alg. 4), Ed25519 leg = Ed25519ph (RFC 8032 §5.1).
+let digest: [u8; 64] = Sha512::digest(&large_manifest).into();
+let sig = sign_prehashed(&sk, &digest, b"vault/v1/root-sig")?;
+assert!(verify_prehashed(&pk, &digest, &sig, b"vault/v1/root-sig")?);
+```
+
+The plain `sign` / `verify`, context-mode and pre-hashed signatures use distinct transcript
+labels, so a signature made in one mode never verifies in another. The context-less
+`sig_hybrid::{sign, verify}` are planned for deprecation in 0.14.
+
+**Hybrid KEM with a required context:**
+
+```rust
+use latticearc::hybrid::kem_hybrid::{decapsulate_with_context, encapsulate_with_context, generate_keypair};
+
+let (pk, sk) = generate_keypair()?;
+let enc = encapsulate_with_context(&pk, b"vault/v1/transfer")?;
+let ss = decapsulate_with_context(&sk, &enc, b"vault/v1/transfer")?; // == enc.expose_secret()
+```
+
+The context is appended (length-prefixed) to the combiner's HKDF `info`, which already binds
+both public keys and the ciphertext; an empty context is rejected. `hkdf_with_context` and
+`counter_kdf_with_context` in `primitives::kdf` apply the same rule to the KDFs.
+
 ---
 
 ## Primitives API
@@ -391,6 +433,16 @@ use latticearc::primitives::sig::ml_dsa::*;
 let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)?;
 let signature = sk.sign(b"Important message", b"")?;
 let verified = pk.verify(b"Important message", &signature, b"")?;
+
+// HashML-DSA (FIPS 204 Alg. 4/5): sign a caller-computed digest of content of any size.
+// SHA-512 / SHAKE256 are allowed at every parameter set; SHA-256 / SHAKE128 only at ML-DSA-44
+// (FIPS 204 §5.4 strength floor). The context must be non-empty and at most 255 bytes.
+let digest: [u8; 64] = sha2::Sha512::digest(&huge_log).into();
+let signature = sk.sign_prehashed(&digest, PrehashAlgorithm::Sha512, b"vault/v1/root-sig")?;
+let verified = pk.verify_prehashed(&digest, PrehashAlgorithm::Sha512, &signature, b"vault/v1/root-sig")?;
+
+// Deterministic keygen from a 32-byte seed (FIPS 204 Alg. 6, ACVP-validated).
+let (pk, sk) = generate_keypair_from_seed(MlDsaParameterSet::MlDsa65, &seed)?;
 ```
 
 ### SLH-DSA (Hash-Based Signatures)
@@ -464,6 +516,46 @@ let cipher = ChaCha20Poly1305Cipher::new(&*key)?;
 let nonce = ChaCha20Poly1305Cipher::generate_nonce();
 let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
 let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
+```
+
+### Streaming AEAD
+
+AES-256-GCM-HKDF segments (Tink's nonce and HKDF layout) under a 78-byte
+LatticeArc header that carries an HMAC-SHA256 key commitment. Segment sizes
+run from 64 bytes to 16 MiB; the first segment carries 40 fewer plaintext
+bytes than the rest. A wrong key fails in `StreamDecryptor::new`, before any
+segment is opened.
+
+```rust
+use latticearc::{StreamDecryptor, StreamEncryptor};
+
+let mut enc = StreamEncryptor::new(&key, b"vault/v1/file", 1024 * 1024)?;
+let header = enc.header().to_vec();          // store with the file
+let seg0 = enc.seal_segment(&chunk0)?;       // exactly first_plaintext_segment_size()
+let seg1 = enc.seal_segment(&chunk1)?;       // exactly plaintext_segment_size()
+let seg2 = enc.finish(&tail)?;               // any length up to the segment capacity
+
+let dec = StreamDecryptor::new(&key, b"vault/v1/file", &header)?;
+let chunk1 = dec.open_segment(1, &seg1, false)?;   // random access
+let tail = dec.open_segment(2, &seg2, true)?;
+```
+
+### Committing Key Wrap
+
+AES-256-GCM plus an HMAC-SHA256 key commitment for 16/32/64-byte keys under a
+32-byte KEK. The non-empty context is bound as associated data;
+`wrap_key_padded` pads under the AEAD so the encoding is exactly `total_len`
+bytes and looks random apart from the leading version byte.
+
+```rust
+use latticearc::{WrappedKey, unwrap_key, wrap_key, wrap_key_padded};
+
+let wrapped = wrap_key(&kek, &file_key, b"vault/v1/file-key/locator-42")?;
+let bytes = wrapped.to_bytes();              // version || nonce || commitment || ct || tag
+let key = unwrap_key(&kek, &WrappedKey::from_bytes(&bytes)?, b"vault/v1/file-key/locator-42")?;
+
+let root = wrap_key_padded(&kek, &master_key, b"vault/v1/root/epoch-1", 4096)?;
+assert_eq!(root.len(), 4096);
 ```
 
 ---
@@ -673,6 +765,8 @@ pub enum DecryptKey<'a> {
 - [Unified API Guide](UNIFIED_API_GUIDE.md) — algorithm selection, use cases, builder API
 - [Security Guide](SECURITY_GUIDE.md) — threat model, secure usage patterns
 - [NIST Compliance](NIST_COMPLIANCE.md) — FIPS 203–205, draft 206 conformance details
+- [Key Format](KEY_FORMAT.md) — LatticeArc Portable Key (LPK) schema, JSON + CBOR
+- [Binary Wire Format](WIRE_FORMAT.md) — versioned binary encoding for hybrid keys, ciphertexts and signatures, with its compatibility policy
 - [API Reference](https://docs.rs/latticearc) — generated docs on docs.rs
 
 ---

@@ -186,9 +186,12 @@ Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-r
 | **Classical Key Exchange** | X25519 | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
 | **Symmetric Encryption** | AES-256-GCM | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
 | **Symmetric Encryption** | ChaCha20-Poly1305 | chacha20poly1305 — non-FIPS |
+| **Streaming AEAD** | AES-256-GCM-HKDF segments (Tink layout) + HMAC-SHA256 key commitment | aws-lc-rs — same backend as AES-GCM; LatticeArc header, not Tink-interoperable |
+| **Key Wrap** | AES-256-GCM + HMAC-SHA256 key commitment, fixed-size padded output | aws-lc-rs — same backend as AES-GCM |
 | **Hash** | SHA-2 (256/384/512) | RustCrypto `sha2` — widely reviewed, NOT CMVP-validated. `--features fips` does NOT swap SHA-2 to aws-lc-rs. |
 | **Hash** | SHA-3, BLAKE2 | sha3 / blake2 crates — non-FIPS |
 | **KDF** | HKDF-SHA256 | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
+| **Password KDF** | Argon2id (RFC 9106) | RustCrypto `argon2` — non-FIPS; use PBKDF2 where FIPS is required |
 
 > Details: [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md) · [NIST Compliance](docs/NIST_COMPLIANCE.md)
 
@@ -271,7 +274,7 @@ Multi-layered — each tier catches what the tier below cannot.
 ### DoS, fuzz, sanitizers
 
 - **Allocation budgets** — per-API-call ceiling on every crypto op, regression-gated via `stats_alloc`
-- **31 libfuzzer targets** — AEAD, KEM, signatures, KDF, serialization, DoS; weekly matrix; OSS-Fuzz scaffold in [`fuzz/oss-fuzz/`](fuzz/oss-fuzz/)
+- **35 libfuzzer targets** — AEAD, KEM, signatures, KDF, serialization, DoS; weekly matrix; OSS-Fuzz scaffold in [`fuzz/oss-fuzz/`](fuzz/oss-fuzz/)
 - **`cargo-mutants --in-diff`** — 80% score floor, PR-blocking on changed crypto files
 - **Sanitizers** — ASan / TSan / LSan run weekly (Rust-side coverage); C-side uninitialized-read coverage for `aws-lc` lives in the upstream library's own CI, matching aws-lc-rs / ring / rustls / RustCrypto practice
 - **`#![forbid(unsafe_code)]`** enforced at workspace level
@@ -315,6 +318,20 @@ cargo build --features fips       # FIPS-validated backend
 | `cc not found` (Linux) | `sudo apt install build-essential` |
 | Long initial build | First build compiles AWS-LC from source (~2-3 min) |
 
+### Platform support
+
+| Target | CI coverage | FIPS |
+|---|---|:---:|
+| `x86_64-unknown-linux-gnu` | Built; full test matrix (`ci.yml`) | yes |
+| `aarch64-apple-darwin`, `x86_64-pc-windows-msvc` | Built; integration and CLI tests (`ci.yml`) | yes |
+| `aarch64-apple-ios-sim` | Built; unit, integration and KAT/CAVP tests run on an iOS simulator (`mobile.yml`) | no |
+| `aarch64-apple-ios` | Built; test binaries linked, not executed (no device in CI) | no |
+| `x86_64-linux-android` | Built; unit, integration and KAT/CAVP tests run on an API 28 emulator (`mobile.yml`) | no |
+| `aarch64-linux-android` | Built; test binaries linked, not executed (no arm64 emulator in CI) | no |
+
+The mobile targets are non-FIPS only: aws-lc-rs does not support its FIPS backend on iOS or
+Android. Setup, environment variables and limits are in [docs/MOBILE.md](docs/MOBILE.md).
+
 ### Cargo features
 
 | Feature | Default | Effect |
@@ -339,6 +356,7 @@ LatticeArc is pre-1.0; each minor version may ship breaking changes. See [CHANGE
 | [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md) | Use-case tables, security-level mapping, compliance modes |
 | [Unified API Guide](docs/UNIFIED_API_GUIDE.md) | Zero-trust sessions, all 22 use cases, PQ-only mode |
 | [Key Format Specification](docs/KEY_FORMAT.md) | LatticeArc Portable Key (LPK) schema, JSON + CBOR |
+| [Binary Wire Format](docs/WIRE_FORMAT.md) | Versioned binary encoding for hybrid keys, ciphertexts and signatures; compatibility policy |
 | [Ecosystem Map](docs/ECOSYSTEM.md) | Comparison with OpenSSL, aws-lc-rs, liboqs, RustCrypto, age, Sequoia |
 | [NIST Compliance](docs/NIST_COMPLIANCE.md) | Per-algorithm FIPS conformance status |
 | [Formal Verification](docs/FORMAL_VERIFICATION.md) | Complete Kani proof inventory |

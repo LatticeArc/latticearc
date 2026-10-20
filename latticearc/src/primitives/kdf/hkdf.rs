@@ -324,6 +324,36 @@ pub fn hkdf(
     hkdf_expand(&prk, info, length)
 }
 
+/// HKDF with a required, non-empty `context` as the RFC 5869 `info` input.
+///
+/// Identical to `hkdf(ikm, salt, Some(context), length)` except that an
+/// empty context is rejected: every key derived through this entry point is
+/// bound to an application label such as `b"vault/v1/inbox"`, so two callers
+/// sharing `ikm` and `salt` can never derive the same key by omitting the
+/// label. Different contexts yield independent outputs.
+///
+/// Planned deprecation (0.14): [`hkdf`] with `info = None`. Not attributed
+/// in 0.13 because many crate-internal call sites still use the optional
+/// form.
+///
+/// # Errors
+/// Returns `InvalidParameter` if `context` is empty, and the same errors as
+/// [`hkdf`] otherwise (empty IKM, explicit empty salt, bad length).
+#[instrument(level = "debug", skip(ikm, salt, context), fields(ikm_len = ikm.len(), has_salt = salt.is_some(), context_len = context.len(), output_length = length))]
+pub fn hkdf_with_context(
+    ikm: &[u8],
+    salt: Option<&[u8]>,
+    context: &[u8],
+    length: usize,
+) -> Result<HkdfResult> {
+    if context.is_empty() {
+        return Err(LatticeArcError::InvalidParameter(
+            "HKDF context must not be empty (domain separation is required)".to_string(),
+        ));
+    }
+    hkdf(ikm, salt, Some(context), length)
+}
+
 /// Simple HKDF derivation with default parameters
 ///
 /// Convenience function that uses recommended default parameters:
@@ -681,5 +711,52 @@ mod tests {
             expected_okm,
             "HKDF must use aws-lc-rs implementation correctly"
         );
+    }
+}
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "tests use unwrap on statically valid inputs")]
+mod with_context_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    #[test]
+    fn hkdf_with_context_equals_hkdf_with_info() {
+        let a = hkdf_with_context(b"ikm", Some(b"salt"), b"vault/v1/inbox", 48).unwrap();
+        let b = hkdf(b"ikm", Some(b"salt"), Some(b"vault/v1/inbox"), 48).unwrap();
+        assert!(bool::from(a.ct_eq(&b)));
+        assert_eq!(a.key_length(), 48);
+        let c = hkdf_with_context(b"ikm", None, b"vault/v1/inbox", 48).unwrap();
+        assert!(!bool::from(a.ct_eq(&c)), "salt must still matter");
+    }
+
+    #[test]
+    fn hkdf_with_context_rejects_empty_context() {
+        let err = hkdf_with_context(b"ikm", Some(b"salt"), b"", 32).unwrap_err();
+        assert!(matches!(err, LatticeArcError::InvalidParameter(_)), "{err:?}");
+    }
+
+    #[test]
+    fn hkdf_with_context_propagates_other_argument_errors() {
+        assert!(hkdf_with_context(b"", Some(b"salt"), b"ctx", 32).is_err());
+        assert!(hkdf_with_context(b"ikm", Some(b""), b"ctx", 32).is_err());
+        assert!(hkdf_with_context(b"ikm", Some(b"salt"), b"ctx", 0).is_err());
+        assert!(hkdf_with_context(b"ikm", Some(b"salt"), b"ctx", 8161).is_err());
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn different_contexts_give_different_keys(
+            ctx1 in proptest::collection::vec(any::<u8>(), 1..=64),
+            ctx2 in proptest::collection::vec(any::<u8>(), 1..=64),
+        ) {
+            let a = hkdf_with_context(b"ikm", Some(b"salt"), &ctx1, 32).unwrap();
+            let b = hkdf_with_context(b"ikm", Some(b"salt"), &ctx2, 32).unwrap();
+            let again = hkdf_with_context(b"ikm", Some(b"salt"), &ctx1, 32).unwrap();
+            prop_assert!(bool::from(a.ct_eq(&again)));
+            prop_assert_eq!(bool::from(a.ct_eq(&b)), ctx1 == ctx2);
+        }
     }
 }

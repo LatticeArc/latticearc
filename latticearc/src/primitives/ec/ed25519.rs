@@ -13,6 +13,7 @@ use crate::prelude::error::{LatticeArcError, Result};
 use crate::primitives::rand::secure_rng;
 use crate::primitives::resource_limits::validate_signature_size;
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use sha2::digest::{FixedOutput, HashMarker, Output, OutputSizeUser, Update, consts::U64};
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
@@ -210,7 +211,125 @@ impl EcSignature for Ed25519Signature {
     }
 }
 
+/// Maximum Ed25519ph context length (RFC 8032 §5.1, `dom2(x, y)` encodes
+/// `|y|` in one byte).
+pub const ED25519PH_MAX_CONTEXT_LEN: usize = 255;
+
+/// A finished SHA-512 digest presented through the `digest` traits so it can
+/// be handed to `ed25519-dalek`'s Ed25519ph entry points, which take the
+/// pre-hash as a `Digest<OutputSize = U64>` *state* rather than as bytes.
+///
+/// `finalize` yields the wrapped 64 bytes unchanged. `update` is a no-op:
+/// the wrapper carries an already-final digest and `sign_prehashed` /
+/// `verify_prehashed_strict` never call `update` on it (they only finalize).
+/// It is crate-private and constructed solely by the two functions below.
+#[derive(Clone)]
+struct PrehashedSha512 {
+    digest: [u8; 64],
+}
+
+// `Digest`'s blanket impl requires `Default`; `[u8; 64]` has none, so spell
+// it out. Never reached by the two callers below, which always construct the
+// wrapper with a real digest.
+impl Default for PrehashedSha512 {
+    fn default() -> Self {
+        Self { digest: [0u8; 64] }
+    }
+}
+
+impl Update for PrehashedSha512 {
+    fn update(&mut self, _data: &[u8]) {}
+}
+
+impl OutputSizeUser for PrehashedSha512 {
+    type OutputSize = U64;
+}
+
+impl FixedOutput for PrehashedSha512 {
+    fn finalize_into(self, out: &mut Output<Self>) {
+        out.copy_from_slice(&self.digest);
+    }
+}
+
+impl HashMarker for PrehashedSha512 {}
+
+impl Ed25519Signature {
+    /// Verify an Ed25519ph (RFC 8032 §5.1) signature over a caller-supplied
+    /// SHA-512 digest with the same `context` used at signing.
+    ///
+    /// Uses `verify_prehashed_strict`, matching the canonical-signature
+    /// posture of [`EcSignature::verify`]. All verify-side failures collapse
+    /// to the same opaque `SignatureVerificationError` except the
+    /// non-adversarial argument checks.
+    ///
+    /// # Errors
+    /// Returns `InvalidParameter` if `context` is empty or longer than 255
+    /// bytes, `InvalidKeyLength` if `public_key_bytes` is not 32 bytes,
+    /// `InvalidKey` if the key is not on the curve, and
+    /// `SignatureVerificationError` if the signature does not verify.
+    pub fn verify_prehashed(
+        public_key_bytes: &[u8],
+        digest: &[u8; 64],
+        context: &[u8],
+        signature: &Signature,
+    ) -> Result<()> {
+        if context.is_empty() || context.len() > ED25519PH_MAX_CONTEXT_LEN {
+            return Err(LatticeArcError::InvalidParameter(format!(
+                "Ed25519ph context must be 1..={ED25519PH_MAX_CONTEXT_LEN} bytes, got {}",
+                context.len()
+            )));
+        }
+        if public_key_bytes.len() != 32 {
+            return Err(LatticeArcError::InvalidKeyLength {
+                expected: 32,
+                actual: public_key_bytes.len(),
+            });
+        }
+        let mut pk_bytes = [0u8; 32];
+        pk_bytes.copy_from_slice(public_key_bytes);
+        let public_key = VerifyingKey::from_bytes(&pk_bytes).map_err(|e| {
+            tracing::debug!(error = %e, "Ed25519ph verify rejected: PK parse");
+            LatticeArcError::InvalidKey("invalid public key".to_string())
+        })?;
+        public_key
+            .verify_prehashed_strict(PrehashedSha512 { digest: *digest }, Some(context), signature)
+            .map_err(|_e| {
+                LatticeArcError::SignatureVerificationError(
+                    "Ed25519ph verification failed".to_string(),
+                )
+            })
+    }
+}
+
 impl Ed25519KeyPair {
+    /// Sign a caller-supplied SHA-512 digest with Ed25519ph (RFC 8032 §5.1,
+    /// `dom2(1, context)` prefix) — the pre-hashed Ed25519 variant.
+    ///
+    /// `digest` is `SHA-512(M)` computed by the caller (streaming, any size);
+    /// no message-size limit applies because this function never sees `M`.
+    /// `context` is the RFC 8032 context string: non-empty and at most
+    /// [`ED25519PH_MAX_CONTEXT_LEN`] bytes. An Ed25519ph signature never
+    /// verifies as a pure Ed25519 signature over the same bytes and vice
+    /// versa — the `dom2` prefix binds the mode.
+    ///
+    /// # Errors
+    /// Returns `InvalidParameter` if `context` is empty or longer than 255
+    /// bytes, and `SigningError` if `ed25519-dalek` rejects the input.
+    pub fn sign_prehashed(&self, digest: &[u8; 64], context: &[u8]) -> Result<Signature> {
+        if context.is_empty() || context.len() > ED25519PH_MAX_CONTEXT_LEN {
+            return Err(LatticeArcError::InvalidParameter(format!(
+                "Ed25519ph context must be 1..={ED25519PH_MAX_CONTEXT_LEN} bytes, got {}",
+                context.len()
+            )));
+        }
+        self.secret_key.sign_prehashed(PrehashedSha512 { digest: *digest }, Some(context)).map_err(
+            |e| {
+                tracing::debug!(error = %e, "Ed25519ph sign rejected");
+                LatticeArcError::SigningError("Ed25519ph signing failed".to_string())
+            },
+        )
+    }
+
     /// Sign a message with this key pair.
     ///
     /// Ed25519 signing itself is infallible for valid key pairs (which
@@ -495,5 +614,124 @@ mod tests {
         let too_long = vec![0u8; 64];
         let result = Ed25519KeyPair::from_secret_key(&too_long);
         assert!(result.is_err());
+    }
+}
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "tests use unwrap on statically valid inputs")]
+#[expect(clippy::expect_used, reason = "tests use expect for clarity")]
+mod prehashed_tests {
+    use super::*;
+    use sha2::{Digest, Sha512};
+
+    fn sha512(m: &[u8]) -> [u8; 64] {
+        Sha512::digest(m).into()
+    }
+
+    #[test]
+    fn ed25519ph_roundtrip_and_context_binding() {
+        let kp = Ed25519KeyPair::generate().unwrap();
+        let pk = kp.public_key_bytes();
+        let digest = sha512(b"large content");
+        let sig = kp.sign_prehashed(&digest, b"vault/v1/inbox").unwrap();
+        Ed25519Signature::verify_prehashed(&pk, &digest, b"vault/v1/inbox", &sig).unwrap();
+        assert!(
+            Ed25519Signature::verify_prehashed(&pk, &digest, b"vault/v1/transfer", &sig).is_err()
+        );
+        assert!(
+            Ed25519Signature::verify_prehashed(&pk, &sha512(b"x"), b"vault/v1/inbox", &sig)
+                .is_err()
+        );
+        let other = Ed25519KeyPair::generate().unwrap();
+        assert!(
+            Ed25519Signature::verify_prehashed(
+                &other.public_key_bytes(),
+                &digest,
+                b"vault/v1/inbox",
+                &sig
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn ed25519ph_rejects_empty_and_oversized_context() {
+        let kp = Ed25519KeyPair::generate().unwrap();
+        let digest = sha512(b"m");
+        for ctx in [&[][..], &[1u8; 256][..]] {
+            let err = kp.sign_prehashed(&digest, ctx).unwrap_err();
+            assert!(matches!(err, LatticeArcError::InvalidParameter(_)), "{err:?}");
+        }
+        let sig = kp.sign_prehashed(&digest, b"c").unwrap();
+        for ctx in [&[][..], &[1u8; 256][..]] {
+            let err =
+                Ed25519Signature::verify_prehashed(&kp.public_key_bytes(), &digest, ctx, &sig)
+                    .unwrap_err();
+            assert!(matches!(err, LatticeArcError::InvalidParameter(_)), "{err:?}");
+        }
+        let max = [2u8; ED25519PH_MAX_CONTEXT_LEN];
+        let sig = kp.sign_prehashed(&digest, &max).unwrap();
+        Ed25519Signature::verify_prehashed(&kp.public_key_bytes(), &digest, &max, &sig).unwrap();
+    }
+
+    #[test]
+    fn ed25519ph_verify_rejects_bad_public_key_inputs() {
+        let kp = Ed25519KeyPair::generate().unwrap();
+        let digest = sha512(b"m");
+        let sig = kp.sign_prehashed(&digest, b"c").unwrap();
+        let err = Ed25519Signature::verify_prehashed(&[0u8; 31], &digest, b"c", &sig).unwrap_err();
+        assert!(matches!(err, LatticeArcError::InvalidKeyLength { expected: 32, actual: 31 }));
+        // Find an encoding that does not decompress to a curve point (about
+        // half of all 32-byte strings fail), then make sure it is reported
+        // as an invalid key rather than as a verification failure.
+        let bad_pk = (0u8..=255)
+            .map(|k| [k; 32])
+            .find(|cand| VerifyingKey::from_bytes(cand).is_err())
+            .expect("some constant byte pattern is not a valid Ed25519 point");
+        let err = Ed25519Signature::verify_prehashed(&bad_pk, &digest, b"c", &sig).unwrap_err();
+        assert!(matches!(err, LatticeArcError::InvalidKey(_)), "{err:?}");
+    }
+
+    #[test]
+    fn ed25519ph_and_pure_ed25519_never_cross_verify() {
+        let kp = Ed25519KeyPair::generate().unwrap();
+        let pk = kp.public_key_bytes();
+        let digest = sha512(b"m");
+        let pure = kp.sign(&digest).unwrap();
+        assert!(Ed25519Signature::verify_prehashed(&pk, &digest, b"c", &pure).is_err());
+        let ph = kp.sign_prehashed(&digest, b"c").unwrap();
+        assert!(Ed25519Signature::verify(&pk, &digest, &ph).is_err());
+    }
+
+    /// RFC 8032 §7.3 Ed25519ph test vector (message "abc", no context).
+    /// The public API requires a context, so this drives the crate-private
+    /// digest wrapper straight into `ed25519-dalek` with `None` — proving
+    /// the wrapper injects `PH(M)` exactly as the RFC's own SHA-512 would.
+    #[test]
+    fn ed25519ph_rfc8032_section_7_3_vector_via_digest_wrapper() {
+        let secret =
+            hex::decode("833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42")
+                .unwrap();
+        let expected_pk =
+            hex::decode("ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf")
+                .unwrap();
+        let expected_sig = hex::decode(
+            "98a70222f0b8121aa9d30f813d683f809e462b469c7ff87639499bb94e6dae41\
+             31f85042463c2a355a2003d062adf5aaa10b8c61e636062aaad11c2a26083406",
+        )
+        .unwrap();
+        let mut sk = [0u8; 32];
+        sk.copy_from_slice(&secret);
+        let signing_key = SigningKey::from_bytes(&sk);
+        assert_eq!(signing_key.verifying_key().to_bytes().to_vec(), expected_pk);
+        let digest = sha512(b"abc");
+        let sig = signing_key
+            .sign_prehashed(PrehashedSha512 { digest }, None)
+            .expect("RFC vector must sign");
+        assert_eq!(sig.to_bytes().to_vec(), expected_sig);
+        signing_key
+            .verifying_key()
+            .verify_prehashed_strict(PrehashedSha512 { digest }, None, &sig)
+            .expect("RFC vector must verify");
     }
 }

@@ -129,7 +129,7 @@
 //! | `fips-self-test` | Power-up KAT self-tests (ML-KEM via aws-lc-rs, AES-GCM, SHA-3, ML-DSA, SLH-DSA, FN-DSA). Pulled in transitively by `fips`; can be enabled standalone for non-FIPS builds that still want POST coverage. |
 //! | `tracing-init` | Subscriber/init helpers (`init_tracing`, `init_tracing_with_file`) for the `tracing` facade. Off by default so downstream binaries that wire their own subscriber don't fight ours. The `latticearc-cli` binary enables this. |
 //! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
-//! | `secret-mlock` | OS-level memory locking for `SecretVec` (Secret Type Invariant I-10). Uses `mlock(2)` on Linux/macOS via `region`. **No-op on Windows** — `VirtualLock` is documented as best-effort and `VirtualUnlock`'s `ERROR_NOT_LOCKED` path causes a `panic = "abort"` build to abort the process; the this feature off on Windows targets so the cfg evaluates `false` regardless of the feature flag. Default-off because `RLIMIT_MEMLOCK` can fail at constructor time on some deployments. |
+//! | `secret-mlock` | OS-level memory locking for `SecretVec` (Secret Type Invariant I-10). Uses `mlock(2)` on Linux/macOS via `region`. **No-op on Windows** — `VirtualLock` is documented as best-effort and `VirtualUnlock`'s `ERROR_NOT_LOCKED` path causes a `panic = "abort"` build to abort the process; the cfg gate turns this feature off on Windows targets so the cfg evaluates `false` regardless of the feature flag. Default-off because `RLIMIT_MEMLOCK` can fail at constructor time on some deployments (Android typically allows 64 KiB); failures fall back to an unlocked buffer and are reported by `SecretVec::is_locked()` and `memory_lock_status()`. |
 //! | `kat-test-vectors` | Exposes `AeadCipher::new_allow_weak_key` (AES-GCM Test Cases 1/2 reproducer). Default-off so production builds cannot construct weak-key ciphers. |
 //! | `test-utils` | Exposes FIPS module-error-state recovery helpers (`clear_error_state`, `restore_operational_state`) for negative tests that need to recover global state without re-running POST. FIPS 140-3 §9.6 state-machine bypass — must NOT be enabled in production builds. Default-off. (Note: earlier rounds listed `SigmaProof::challenge_mut` here. M3 narrowed it to `#[cfg(test)]` — strictly narrower than `test-utils` — so downstream consumers **cannot** acquire the soundness-bypass mutator by enabling this feature. The mutator is reachable only from in-tree lib unit tests.) |
 //! | `kat-replay` | Exposes legitimate KAT-replay entry points that bypass operator parameter floors but NOT cryptographic soundness checks. Currently: `pbkdf2_kat` (replays RFC 6070 / NIST CAVP fixtures with sub-OWASP iteration counts; DoS cap and PRF correctness still enforced). The CLI enables this for `kdf --allow-weak-iterations`. Distinct from `test-utils`; safe to ship to consumers that need vector replay. Default-off. |
@@ -433,12 +433,36 @@ pub use hybrid::pq_only::{
 // callers can't write function signatures or struct fields that hold the
 // returned values without referencing the internal path.
 pub use hybrid::encrypt_hybrid::{DerivationBinding, HybridCiphertext, HybridEncryptionError};
+
+// ============================================================================
+// Streaming AEAD and committing key wrap (primitives::aead)
+// ============================================================================
+
 pub use hybrid::kem_hybrid::{
     EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
 };
 pub use hybrid::sig_hybrid::{
     HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
+    MAX_HYBRID_SIG_CONTEXT_LEN,
 };
+pub use primitives::aead::key_wrap::{WrappedKey, unwrap_key, wrap_key, wrap_key_padded};
+pub use primitives::aead::stream::{StreamDecryptor, StreamEncryptor};
+
+// Versioned binary wire format for hybrid public keys, ciphertexts and
+// signatures (docs/WIRE_FORMAT.md). `WireEncode` must be in scope to call
+// `to_wire` / `from_wire`.
+pub use hybrid::wire::{WireEncode, WireError};
+
+// Memory-locking status for `SecretVec` (`secret-mlock` feature, invariant
+// I-10) so applications can display whether swap protection is active.
+pub use types::{MemoryLockStatus, memory_lock_status};
+// Seed-based hybrid signing keygen (0.13): the module-level name is
+// `sig_hybrid::generate_keypair_from_seed`; the crate root exposes it under
+// the descriptive name the product spec uses, next to the other
+// `generate_hybrid_*` constructors.
+pub use hybrid::sig_hybrid::generate_keypair_from_seed as generate_hybrid_signing_keypair_from_seed;
+// Pre-hash selector for `MlDsaSecretKey::sign_prehashed` (0.13).
+pub use primitives::sig::ml_dsa::PrehashAlgorithm;
 
 // ============================================================================
 // Unified API (Recommended)

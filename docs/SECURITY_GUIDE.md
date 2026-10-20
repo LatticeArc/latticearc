@@ -173,7 +173,13 @@ When deriving keys from passwords or shared secrets, follow these guidelines:
 - **Never reuse salts** across different keys or users
 - **Store the salt alongside the ciphertext** — salts are not secret
 - **Use HKDF-SHA256** (`derive_key()`) for key derivation from high-entropy input
-- **Use Argon2/scrypt** for password-based key derivation (not currently provided — use external crate)
+- **Use Argon2id** (`primitives::kdf::argon2id::argon2id`) for password-based key derivation.
+  Start from `Argon2Params::default()` (64 MiB, 3 passes, 1 lane) or tune once per deployment
+  with `Argon2Params::calibrate(target_ms, max_memory_kib)`, then store the parameters next to
+  the salt. Salts shorter than 8 bytes are rejected; use 16. Memory cost is capped by
+  `ResourceLimits::max_argon2_memory_kib` (default 1 GiB) so stored parameters cannot force an
+  oversized allocation. Argon2id is not NIST-approved; FIPS 140-3 deployments use PBKDF2
+  (`primitives::kdf::pbkdf2`).
 - **Use `derive_key_with_info()` for domain separation** — different info strings produce cryptographically independent keys from the same input keying material
 
 ```rust

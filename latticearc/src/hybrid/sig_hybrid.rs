@@ -95,6 +95,25 @@
 //! - **AND-composition**: Requires breaking BOTH ML-DSA AND Ed25519 to forge
 //! - Automatic memory zeroization for secret keys via [`ZeroizeOnDrop`]
 //!
+//! # Transcript modes
+//!
+//! Every hybrid signature binds a per-scheme label into both legs (the
+//! "H1 / M1" transcript fix). 0.13 adds two further modes, each with its own
+//! label family so no signature from one mode verifies under another, even
+//! if one leg is broken:
+//!
+//! | Mode | Entry points | ML-DSA leg | Ed25519 leg |
+//! |------|--------------|------------|-------------|
+//! | plain | [`sign`] / [`verify`] | `ML-DSA.Sign(M, ctx = LABEL)` | `Ed25519(SHA-512(LABEL ‖ 0x00 ‖ M))` |
+//! | context | [`sign_with_context`] / [`verify_with_context`] | `ML-DSA.Sign(M, ctx = LABEL-ctx ‖ 0x00 ‖ app_ctx)` | `Ed25519(SHA-512(LABEL-ctx ‖ 0x00 ‖ ‖app_ctx‖ ‖ app_ctx ‖ M))` |
+//! | pre-hashed | [`sign_prehashed`] / [`verify_prehashed`] | `HashML-DSA.Sign(SHA-512(M), ctx = LABEL-ph ‖ 0x00 ‖ app_ctx)` | `Ed25519ph(SHA-512(M), ctx = LABEL-ph ‖ 0x00 ‖ app_ctx)` |
+//!
+//! The context and pre-hashed modes require a non-empty application context
+//! of at most [`MAX_HYBRID_SIG_CONTEXT_LEN`] bytes. The pre-hashed mode takes
+//! a caller-computed SHA-512 digest, so content of any size can be signed
+//! without the 64 KiB message cap that bounds the other two modes.
+//! [`generate_keypair_from_seed`] derives both legs from one 32-byte seed.
+//!
 //! # Example
 //!
 //! ```rust,no_run
@@ -117,6 +136,7 @@
 //!
 //! [`ZeroizeOnDrop`]: zeroize::ZeroizeOnDrop
 
+use ed25519_dalek::Signature as DalekSignature;
 use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
@@ -124,11 +144,19 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 use crate::log_crypto_operation_error;
 use crate::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature as Ed25519SignatureOps};
 use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
+use crate::primitives::kdf::hkdf::hkdf;
 use crate::primitives::sig::ml_dsa::{
-    MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature,
-    generate_keypair as ml_dsa_generate_keypair,
+    MlDsaError, MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature,
+    PrehashAlgorithm, generate_keypair as ml_dsa_generate_keypair,
+    generate_keypair_from_seed as ml_dsa_generate_keypair_from_seed,
 };
-use crate::types::domains::{SigSchemeLabel, hash_with_context, sig_context};
+use crate::types::domains::{
+    HYBRID_SIG_SEED_ED25519_INFO, HYBRID_SIG_SEED_ML_DSA_INFO,
+    SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_CTX, SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_PH,
+    SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_CTX, SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_PH,
+    SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_CTX, SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_PH,
+    SigSchemeLabel, hash_with_context, hash_with_context_and_app_ctx, sig_context,
+};
 use crate::unified_api::logging::op;
 
 /// Map the ML-DSA parameter set to the corresponding hybrid scheme label so
@@ -191,6 +219,123 @@ pub enum HybridSignatureError {
     /// General cryptographic operation failure.
     #[error("Cryptographic operation failed: {0}")]
     CryptoError(String),
+    /// The application context passed to a context-taking entry point is
+    /// empty or longer than [`MAX_HYBRID_SIG_CONTEXT_LEN`] bytes. Caller-side
+    /// configuration error, not adversary-reachable.
+    #[error("Invalid signature context: {0}")]
+    InvalidContext(String),
+    /// The pre-hash digest passed to [`sign_prehashed`] / [`verify_prehashed`]
+    /// is not the 64 bytes of a SHA-512 digest. Caller-side error.
+    #[error("Invalid pre-hash digest length: expected {expected}, got {actual}")]
+    InvalidDigestLength {
+        /// Required digest length (64 for SHA-512).
+        expected: usize,
+        /// Length the caller supplied.
+        actual: usize,
+    },
+}
+
+/// Longest application context (bytes) accepted by [`sign_with_context`],
+/// [`sign_prehashed`] and their verifiers.
+///
+/// Both legs carry `LABEL || 0x00 || context` in a context field whose
+/// length is encoded in one byte (FIPS 204 §5.2 for ML-DSA, RFC 8032 §5.1
+/// `dom2` for Ed25519ph), so the budget is `255 - longest_label - 1`.
+pub const MAX_HYBRID_SIG_CONTEXT_LEN: usize = 208;
+
+const fn const_max(a: usize, b: usize) -> usize {
+    if a > b { a } else { b }
+}
+
+/// Longest of the six mode labels; the `MAX_HYBRID_SIG_CONTEXT_LEN` budget
+/// is checked against it at compile time below.
+const LONGEST_MODE_LABEL_LEN: usize = const_max(
+    const_max(
+        const_max(
+            SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_CTX.len(),
+            SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_CTX.len(),
+        ),
+        const_max(
+            SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_CTX.len(),
+            SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_PH.len(),
+        ),
+    ),
+    const_max(
+        SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_PH.len(),
+        SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_PH.len(),
+    ),
+);
+
+const _: () = assert!(
+    LONGEST_MODE_LABEL_LEN.saturating_add(1).saturating_add(MAX_HYBRID_SIG_CONTEXT_LEN) <= 255,
+    "mode label + separator + MAX_HYBRID_SIG_CONTEXT_LEN must fit a 255-byte context"
+);
+
+/// Which 0.13 transcript mode a signature was produced under. Selects the
+/// per-scheme label family; see the module docs.
+#[derive(Clone, Copy)]
+enum HybridTranscriptMode {
+    /// `sign_with_context` / `verify_with_context`.
+    Context,
+    /// `sign_prehashed` / `verify_prehashed`.
+    Prehashed,
+}
+
+/// Mode label for `(parameter_set, mode)`. Closed match on both axes so a new
+/// parameter set or mode is a compile error until a label is registered in
+/// `types::domains`.
+const fn hybrid_mode_label(
+    parameter_set: MlDsaParameterSet,
+    mode: HybridTranscriptMode,
+) -> &'static [u8] {
+    match (parameter_set, mode) {
+        (MlDsaParameterSet::MlDsa44, HybridTranscriptMode::Context) => {
+            SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_CTX
+        }
+        (MlDsaParameterSet::MlDsa65, HybridTranscriptMode::Context) => {
+            SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_CTX
+        }
+        (MlDsaParameterSet::MlDsa87, HybridTranscriptMode::Context) => {
+            SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_CTX
+        }
+        (MlDsaParameterSet::MlDsa44, HybridTranscriptMode::Prehashed) => {
+            SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_PH
+        }
+        (MlDsaParameterSet::MlDsa65, HybridTranscriptMode::Prehashed) => {
+            SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_PH
+        }
+        (MlDsaParameterSet::MlDsa87, HybridTranscriptMode::Prehashed) => {
+            SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_PH
+        }
+    }
+}
+
+/// Reject an application context that is empty or over budget.
+fn check_context(context: &[u8]) -> Result<(), HybridSignatureError> {
+    if context.is_empty() {
+        return Err(HybridSignatureError::InvalidContext(
+            "context must not be empty (domain separation is required)".to_string(),
+        ));
+    }
+    if context.len() > MAX_HYBRID_SIG_CONTEXT_LEN {
+        return Err(HybridSignatureError::InvalidContext(format!(
+            "context is {} bytes; maximum is {MAX_HYBRID_SIG_CONTEXT_LEN}",
+            context.len()
+        )));
+    }
+    Ok(())
+}
+
+/// Build the per-leg context string `LABEL || 0x00 || context` for the
+/// context and pre-hashed modes. The label is NUL-free (checked in
+/// `types::domains` tests), so the first `0x00` always delimits it.
+fn build_mode_ctx(label: &'static [u8], context: &[u8]) -> Result<Vec<u8>, HybridSignatureError> {
+    check_context(context)?;
+    let mut ctx = Vec::with_capacity(label.len().saturating_add(1).saturating_add(context.len()));
+    ctx.extend_from_slice(label);
+    ctx.push(0x00);
+    ctx.extend_from_slice(context);
+    Ok(ctx)
 }
 
 /// Hybrid public key combining ML-DSA and Ed25519 public keys.
@@ -529,35 +674,127 @@ pub fn generate_keypair_with_parameter_set(
     // into the HybridSigSecretKey so the wrapping Zeroizing is preserved.
     let ed25519_sk_zeroizing = ed25519_kp.secret_key_bytes();
 
-    // route construction through the validating
-    // `HybridSigPublicKey::new` instead of building
-    // the struct literal directly. Direct construction here
-    // bypassed the length-check L4 added — the production keygen
-    // was the most-common construction path and the only one that
-    // skipped the validator. The bytes here come from real
-    // generate-keypair output so the validator never rejects in
-    // practice; the `expect` documents the invariant.
-    let pk = HybridSigPublicKey::new(
-        parameter_set,
-        ml_dsa_pk.as_bytes().to_vec(),
-        ed25519_pk,
-    )
-    .map_err(|e| HybridSignatureError::InvalidKeyMaterial(format!(
-        "internal invariant violated: generate produced a PK that failed length validation: {e}"
-    )))?;
+    assemble_keypair(parameter_set, &ml_dsa_pk, &ml_dsa_sk, ed25519_pk, ed25519_sk_zeroizing)
+}
+
+/// Build the hybrid `(pk, sk)` pair from freshly generated or derived legs.
+///
+/// Routes construction through the validating `HybridSigPublicKey::new`
+/// instead of building the struct literal directly: the production keygen
+/// is the most common construction path and must not be the only one that
+/// skips the length validator. The bytes come from real keygen output so the
+/// validator never rejects in practice; the error branch documents the
+/// invariant.
+fn assemble_keypair(
+    parameter_set: MlDsaParameterSet,
+    ml_dsa_pk: &MlDsaPublicKey,
+    ml_dsa_sk: &MlDsaSecretKey,
+    ed25519_pk: Vec<u8>,
+    ed25519_sk: Zeroizing<Vec<u8>>,
+) -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError> {
+    let pk = HybridSigPublicKey::new(parameter_set, ml_dsa_pk.as_bytes().to_vec(), ed25519_pk)
+        .map_err(|e| {
+            HybridSignatureError::InvalidKeyMaterial(format!(
+                "internal invariant violated: keygen produced a PK that failed length validation: {e}"
+            ))
+        })?;
 
     let sk = HybridSigSecretKey {
         parameter_set,
         ml_dsa_sk: Zeroizing::new(ml_dsa_sk.expose_secret().to_vec()),
-        ed25519_sk: ed25519_sk_zeroizing,
+        ed25519_sk,
     };
 
     Ok((pk, sk))
 }
 
+/// The two per-leg seeds derived from one master seed: `(ξ, ed25519_seed)`.
+type HybridSubSeeds = (Zeroizing<[u8; 32]>, Zeroizing<[u8; 32]>);
+
+/// Expand a 32-byte master seed into the two per-leg seeds with HKDF-SHA256:
+/// `ξ = HKDF(seed, info = "latticearc/v1/ml-dsa-seed")` and
+/// `ed25519_seed = HKDF(seed, info = "latticearc/v1/ed25519-seed")`.
+///
+/// HKDF's salt is the RFC 5869 default (`None`): the master seed is required
+/// to be uniformly random (a 256-bit recovery secret), so Extract performs no
+/// entropy conditioning and the two labels alone separate the legs. Each
+/// sub-seed is a PRF output under a distinct label, so holding one leg's seed
+/// reveals nothing about the other's.
+fn derive_hybrid_sub_seeds(seed: &[u8; 32]) -> Result<HybridSubSeeds, HybridSignatureError> {
+    let expand = |info: &[u8]| -> Result<Zeroizing<[u8; 32]>, HybridSignatureError> {
+        let okm = hkdf(seed, None, Some(info), 32).map_err(|e| {
+            tracing::debug!(error = %e, "hybrid sig seed keygen: HKDF sub-seed derivation failed");
+            HybridSignatureError::CryptoError("seed derivation failed".to_string())
+        })?;
+        let mut out = Zeroizing::new([0u8; 32]);
+        let okm_bytes = okm.expose_secret().get(..32).ok_or_else(|| {
+            HybridSignatureError::CryptoError("seed derivation output length".to_string())
+        })?;
+        out.copy_from_slice(okm_bytes);
+        Ok(out)
+    };
+    Ok((expand(HYBRID_SIG_SEED_ML_DSA_INFO)?, expand(HYBRID_SIG_SEED_ED25519_INFO)?))
+}
+
+/// Derive a hybrid signing keypair deterministically from a 32-byte seed.
+///
+/// One seed (for example a 256-bit secret held in a recovery phrase) yields
+/// the same `(pk, sk)` on every platform and build: the seed is expanded by
+/// HKDF-SHA256 under two fixed labels (see
+/// [`HYBRID_SIG_SEED_ML_DSA_INFO`] / [`HYBRID_SIG_SEED_ED25519_INFO`]) into
+/// the ML-DSA keygen seed `ξ` — fed to FIPS 204 Algorithm 6 via
+/// [`generate_keypair_from_seed`](crate::primitives::sig::ml_dsa::generate_keypair_from_seed)
+/// — and the Ed25519 private key (RFC 8032 §5.1.5). Both legs pass their
+/// pairwise consistency tests before the pair is returned. The determinism
+/// vectors in `tests/src/validation/nist_kat/hybrid_sig_seed_kat.rs` pin the
+/// derivation for all three parameter sets.
+///
+/// Signing keys only: ML-KEM keygen has no seed entry point in the
+/// FIPS-validated backend, so hybrid KEM keys stay random.
+///
+/// # Security
+/// The seed is the whole secret. Callers must keep their copy in a
+/// zeroizing container and treat it like the private key it reproduces.
+///
+/// # Errors
+/// Returns `InvalidKeyMaterial` for an all-zero seed, `CryptoError` if the
+/// HKDF expansion fails, and the component keygen errors if either leg's
+/// pairwise consistency test fails.
+#[must_use = "generated keypair must be stored or used"]
+pub fn generate_keypair_from_seed(
+    seed: &[u8; 32],
+    parameter_set: MlDsaParameterSet,
+) -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError> {
+    if seed.iter().all(|&b| b == 0) {
+        return Err(HybridSignatureError::InvalidKeyMaterial(
+            "seed must not be all zero".to_string(),
+        ));
+    }
+    let (xi, ed25519_seed) = derive_hybrid_sub_seeds(seed)?;
+
+    let (ml_dsa_pk, ml_dsa_sk) =
+        ml_dsa_generate_keypair_from_seed(parameter_set, &xi).map_err(|e| {
+            tracing::debug!(error = %e, "hybrid sig seed keygen: ML-DSA keypair derivation failed");
+            HybridSignatureError::MlDsaError("keypair generation failed".to_string())
+        })?;
+
+    let ed25519_kp = Ed25519KeyPair::from_secret_key(ed25519_seed.as_slice()).map_err(|e| {
+        tracing::debug!(error = %e, "hybrid sig seed keygen: Ed25519 keypair derivation failed");
+        HybridSignatureError::Ed25519Error("keypair generation failed".to_string())
+    })?;
+
+    let ed25519_pk = ed25519_kp.public_key_bytes();
+    let ed25519_sk = ed25519_kp.secret_key_bytes();
+    assemble_keypair(parameter_set, &ml_dsa_pk, &ml_dsa_sk, ed25519_pk, ed25519_sk)
+}
+
 /// Sign using hybrid signature scheme
 ///
 /// Both ML-DSA and Ed25519 signing are deterministic, so no RNG is required.
+///
+/// Planned deprecation (0.14): prefer [`sign_with_context`], which binds a
+/// required application context into both legs. The attribute is not applied
+/// in 0.13 because the crate's own callers (unified API) still route here.
 ///
 /// # Errors
 ///
@@ -569,6 +806,104 @@ pub fn sign(
     sk: &HybridSigSecretKey,
     message: &[u8],
 ) -> Result<HybridSignature, HybridSignatureError> {
+    // H1 / M1 fix: bind the signed transcript to this specific hybrid scheme.
+    // ML-DSA accepts a FIPS 204 §5.2 context parameter natively; the
+    // previous empty `&[]` left the ML-DSA leg byte-identical to a standalone
+    // ML-DSA signature, enabling the hybrid → PQ-only downgrade attack
+    // (auditor H1). Ed25519 (RFC 8032) has no native context, so its leg
+    // signs `SHA-512(scheme_ctx || 0x00 || message)` — the fixed 64-byte
+    // digest also stays under the signature-size cap regardless of message
+    // size (see `tests/hybrid_sig.rs::test_sign_verify_large_message_roundtrip`).
+    let scheme_ctx = sig_context(hybrid_scheme_label(sk.parameter_set));
+    sign_legs(
+        sk,
+        |ml_dsa_sk| ml_dsa_sk.sign(message, scheme_ctx),
+        |ed25519_kp| ed25519_kp.sign(&hash_with_context(scheme_ctx, message)),
+    )
+}
+
+/// Sign with a required application context bound into both legs.
+///
+/// `context` (1..=[`MAX_HYBRID_SIG_CONTEXT_LEN`] bytes, e.g.
+/// `b"vault/v1/root-sig"`) separates signatures made for different purposes
+/// under one key: the ML-DSA leg receives `LABEL-ctx || 0x00 || context` as
+/// its FIPS 204 context string and the Ed25519 leg signs
+/// `SHA-512(LABEL-ctx || 0x00 || |context| || context || message)`. A
+/// signature verifies only under [`verify_with_context`] with the same
+/// context — never under [`verify`] or [`verify_prehashed`].
+///
+/// The message is bounded by the configured signature resource limit
+/// (64 KiB by default); use [`sign_prehashed`] for larger content.
+///
+/// # Errors
+/// Returns `InvalidContext` if `context` is empty or over budget, otherwise
+/// the same errors as [`sign`].
+pub fn sign_with_context(
+    sk: &HybridSigSecretKey,
+    message: &[u8],
+    context: &[u8],
+) -> Result<HybridSignature, HybridSignatureError> {
+    let label = hybrid_mode_label(sk.parameter_set, HybridTranscriptMode::Context);
+    let ml_dsa_ctx = build_mode_ctx(label, context)?;
+    let ed25519_input = hash_with_context_and_app_ctx(label, context, message)
+        .ok_or_else(|| HybridSignatureError::InvalidContext("context over budget".to_string()))?;
+    sign_legs(
+        sk,
+        |ml_dsa_sk| ml_dsa_sk.sign(message, &ml_dsa_ctx),
+        |ed25519_kp| ed25519_kp.sign(&ed25519_input),
+    )
+}
+
+/// Sign a caller-computed SHA-512 digest (pre-hashed mode).
+///
+/// `digest` is `SHA-512(M)` over content of any size, computed by the caller
+/// (streaming); the signer never sees `M`, so the message resource limit
+/// does not apply. `context` is required (1..=[`MAX_HYBRID_SIG_CONTEXT_LEN`]
+/// bytes). Both legs use their standard pre-hash constructions with
+/// `LABEL-ph || 0x00 || context` as the context string: HashML-DSA with the
+/// SHA-512 OID (FIPS 204 Algorithm 4) and Ed25519ph (RFC 8032 §5.1). SHA-512
+/// is the only pre-hash because Ed25519ph is defined over SHA-512 and SHA-512
+/// meets the FIPS 204 §5.4 strength floor at every ML-DSA parameter set.
+///
+/// A pre-hashed signature verifies only under [`verify_prehashed`] with the
+/// same context — never under [`verify`] or [`verify_with_context`].
+///
+/// # Errors
+/// Returns `InvalidDigestLength` if `digest.len() != 64`, `InvalidContext`
+/// if `context` is empty or over budget, otherwise the same errors as
+/// [`sign`].
+pub fn sign_prehashed(
+    sk: &HybridSigSecretKey,
+    digest: &[u8],
+    context: &[u8],
+) -> Result<HybridSignature, HybridSignatureError> {
+    let digest: &[u8; 64] = digest.try_into().map_err(|_e| {
+        HybridSignatureError::InvalidDigestLength { expected: 64, actual: digest.len() }
+    })?;
+    let label = hybrid_mode_label(sk.parameter_set, HybridTranscriptMode::Prehashed);
+    let mode_ctx = build_mode_ctx(label, context)?;
+    sign_legs(
+        sk,
+        |ml_dsa_sk| ml_dsa_sk.sign_prehashed(digest, PrehashAlgorithm::Sha512, &mode_ctx),
+        |ed25519_kp| ed25519_kp.sign_prehashed(digest, &mode_ctx),
+    )
+}
+
+/// Shared sign body: materialise both leg keys, run the mode-specific leg
+/// closures, assemble the hybrid signature.
+///
+/// Sign-side opacity (defense-in-depth per Pattern 6): every component
+/// failure folds into `SigningFailed` and the stage is routed to the
+/// operation log.
+fn sign_legs<M, E>(
+    sk: &HybridSigSecretKey,
+    ml_dsa_sign: M,
+    ed25519_sign: E,
+) -> Result<HybridSignature, HybridSignatureError>
+where
+    M: FnOnce(&MlDsaSecretKey) -> Result<MlDsaSignature, MlDsaError>,
+    E: FnOnce(&Ed25519KeyPair) -> crate::prelude::error::Result<DalekSignature>,
+{
     // Borrow for the length check instead of `ed25519_sk_bytes()` — the
     // latter allocates and zeroizes a fresh `Zeroizing<Vec<u8>>` on every
     // call just to read `.len()`, and this is the hot sign() path.
@@ -578,36 +913,16 @@ pub fn sign(
         ));
     }
 
-    // Sign with ML-DSA
+    // `MlDsaSecretKey::new()` wraps its `Vec<u8>` argument in `Zeroizing`
+    // on entry, so this single bare clone is consumed-and-wiped on both the
+    // success and the error path.
     let ml_dsa_sk_bytes = sk.ml_dsa_sk_bytes();
-    // Sign-side opacity (defense-in-depth per Pattern 6). SK is caller-side
-    // state; failures here indicate a programmer / storage bug, but keep the
-    // public error uniform to avoid exposing upstream detail.
-    //
-    // the prior attempt at this
-    // wrapped the clone in `Zeroizing<Vec<u8>>` but then immediately
-    // re-cloned to pass into `MlDsaSecretKey::new(.. Vec<u8>)`,
-    // creating a second bare copy that would leak on the `new()` error
-    // path. The proper fix is structural: `MlDsaSecretKey::new()` now
-    // wraps its `Vec<u8>` argument in `Zeroizing` on entry, so a single
-    // bare clone here is consumed-and-wiped on both success and error
-    // paths. (The struct's `data` field is also `Zeroizing<Vec<u8>>`.)
     let ml_dsa_sk_struct = MlDsaSecretKey::new(sk.parameter_set, (*ml_dsa_sk_bytes).clone())
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA SK init failed");
             HybridSignatureError::SigningFailed("signing failed".to_string())
         })?;
-    // H1 / M1 fix: bind the signed transcript to this specific hybrid scheme.
-    // ML-DSA accepts a FIPS 204 §5.2 context parameter natively; the
-    // previous empty `&[]` left the ML-DSA leg byte-identical to a standalone
-    // ML-DSA signature, enabling the hybrid → PQ-only downgrade attack
-    // (auditor H1). Ed25519 (RFC 8032) has no native context, so its message
-    // is prefix-padded with the same scheme-bound context below — the wire
-    // form of each leg now carries the scheme identifier.
-    let scheme_label = hybrid_scheme_label(sk.parameter_set);
-    let scheme_ctx = sig_context(scheme_label);
-    let ml_dsa_sig = ml_dsa_sk_struct
-        .sign(message, scheme_ctx)
+    let ml_dsa_sig = ml_dsa_sign(&ml_dsa_sk_struct)
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA sign failed");
             HybridSignatureError::SigningFailed("signing failed".to_string())
@@ -615,24 +930,13 @@ pub fn sign(
         .as_bytes()
         .to_vec();
 
-    // Sign with Ed25519 via the primitives wrapper.
     let ed25519_sk_zeroizing = sk.ed25519_sk_bytes();
     let ed25519_keypair = Ed25519KeyPair::from_secret_key(ed25519_sk_zeroizing.as_slice())
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_SIGN, "Ed25519 SK init failed");
             HybridSignatureError::SigningFailed("signing failed".to_string())
         })?;
-    // `Ed25519KeyPair::sign` is now fallible
-    // (validate_signature_size). Message length is already gated by
-    // the hybrid sig API above; this `?` is the boundary safety net.
-    // Bind the Ed25519 leg's signed bytes to the same scheme as the ML-DSA
-    // leg by signing `SHA-512(scheme_ctx || 0x00 || message)` instead of the
-    // raw message. The fixed 64-byte digest also stays under the
-    // signature-size cap regardless of message size — a plain prefix-pad
-    // pushes large messages over the cap (see
-    // `tests/hybrid_sig.rs::test_sign_verify_large_message_roundtrip`).
-    let ed25519_input = hash_with_context(scheme_ctx, message);
-    let ed25519_signature = ed25519_keypair.sign(&ed25519_input).map_err(|_e| {
+    let ed25519_signature = ed25519_sign(&ed25519_keypair).map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_SIGN, "Ed25519 sign rejected");
         HybridSignatureError::SigningFailed("signing failed".to_string())
     })?;
@@ -642,6 +946,8 @@ pub fn sign(
 }
 
 /// Verify using hybrid signature scheme
+///
+/// Planned deprecation (0.14): prefer [`verify_with_context`]. See [`sign`].
 ///
 /// # Errors
 ///
@@ -656,42 +962,121 @@ pub fn verify(
     message: &[u8],
     sig: &HybridSignature,
 ) -> Result<bool, HybridSignatureError> {
-    // SECURITY: Verify BOTH components unconditionally with bitwise AND combination.
-    // This preserves AND-security: a partial break of one component must not leak which
-    // one failed, because distinct error paths (or early exit) turn AND into OR.
-    //
-    // Rules:
-    // 1. No early return on a single component failure.
-    // 2. No `&&` (short-circuit) — use `&` (bitwise) so both leg verifies always execute.
-    // 3. A SINGLE opaque error string regardless of which component failed.
-    // 4. Structural parse failures collapse to bit=0 (same as verify-fail),
-    //    matching FIPS 204 §5.3 Verify-returns-bool shape. This removes the
-    //    early-exit timing / variant oracle that would otherwise distinguish
-    //    "malformed ML-DSA" from "Ed25519 failed".
-    //
-    // No length pre-checks are performed here. Earlier revisions had four
-    // distinguishable `InvalidKeyMaterial` returns for the four buffer
-    // lengths; that surface let an adversary varying wire-supplied PK/sig
-    // bytes enumerate which length got rejected. The legs collapse parse
-    // failures (which include length mismatches) to bit = 0, which is
-    // indistinguishable from a verify failure — exactly what Pattern 6
-    // §"adversary-reachable paths" requires.
-    //
-    // Per-stage `tracing` was previously emitted under four distinct
-    // sub-stage tags; that made the Pattern 6 returned-error opacity
-    // reconstructable from the debug log. Operators still get a
-    // single "verify failure occurred" event for alerting; the
-    // granular sub-stage detail is intentionally dropped (see
-    // `docs/DESIGN_PATTERNS.md` Pattern 6).
-
     // H1 / M1 fix: bind the verified transcript to this scheme. Must mirror
     // the sign-side context exactly — any mismatch produces a verify-false
-    // for legitimate signatures.
-    let scheme_label = hybrid_scheme_label(pk.parameter_set);
-    let scheme_ctx = sig_context(scheme_label);
+    // for legitimate signatures. Old (pre-fix) hybrid signatures were
+    // Ed25519 signatures over the raw message and will not verify here —
+    // the deliberate wire-format break documented in CHANGELOG.
+    let scheme_ctx = sig_context(hybrid_scheme_label(pk.parameter_set));
+    let ed25519_input = hash_with_context(scheme_ctx, message);
+    verify_legs(
+        pk,
+        sig,
+        |ml_dsa_pk, ml_dsa_sig| ml_dsa_pk.verify(message, ml_dsa_sig, scheme_ctx),
+        |ed25519_pk, ed25519_sig| {
+            Ed25519SignatureOps::verify(ed25519_pk, &ed25519_input, ed25519_sig)
+        },
+    )
+}
 
-    let ml_dsa_valid = verify_ml_dsa_leg(pk, sig, message, scheme_ctx);
-    let ed25519_valid = verify_ed25519_leg(pk, sig, message, scheme_ctx);
+/// Verify a signature produced by [`sign_with_context`] under the same
+/// `context`.
+///
+/// # Errors
+/// Returns `InvalidContext` if `context` is empty or over budget (a
+/// caller-side configuration error), otherwise the opaque
+/// `VerificationFailed` whenever either leg rejects.
+pub fn verify_with_context(
+    pk: &HybridSigPublicKey,
+    message: &[u8],
+    sig: &HybridSignature,
+    context: &[u8],
+) -> Result<bool, HybridSignatureError> {
+    let label = hybrid_mode_label(pk.parameter_set, HybridTranscriptMode::Context);
+    let ml_dsa_ctx = build_mode_ctx(label, context)?;
+    let ed25519_input = hash_with_context_and_app_ctx(label, context, message)
+        .ok_or_else(|| HybridSignatureError::InvalidContext("context over budget".to_string()))?;
+    verify_legs(
+        pk,
+        sig,
+        |ml_dsa_pk, ml_dsa_sig| ml_dsa_pk.verify(message, ml_dsa_sig, &ml_dsa_ctx),
+        |ed25519_pk, ed25519_sig| {
+            Ed25519SignatureOps::verify(ed25519_pk, &ed25519_input, ed25519_sig)
+        },
+    )
+}
+
+/// Verify a signature produced by [`sign_prehashed`] over the same SHA-512
+/// `digest` and `context`.
+///
+/// # Errors
+/// Returns `InvalidDigestLength` if `digest.len() != 64`, `InvalidContext`
+/// if `context` is empty or over budget (both caller-side), otherwise the
+/// opaque `VerificationFailed` whenever either leg rejects.
+pub fn verify_prehashed(
+    pk: &HybridSigPublicKey,
+    digest: &[u8],
+    sig: &HybridSignature,
+    context: &[u8],
+) -> Result<bool, HybridSignatureError> {
+    let digest: &[u8; 64] = digest.try_into().map_err(|_e| {
+        HybridSignatureError::InvalidDigestLength { expected: 64, actual: digest.len() }
+    })?;
+    let label = hybrid_mode_label(pk.parameter_set, HybridTranscriptMode::Prehashed);
+    let mode_ctx = build_mode_ctx(label, context)?;
+    verify_legs(
+        pk,
+        sig,
+        |ml_dsa_pk, ml_dsa_sig| {
+            ml_dsa_pk.verify_prehashed(digest, PrehashAlgorithm::Sha512, ml_dsa_sig, &mode_ctx)
+        },
+        |ed25519_pk, ed25519_sig| {
+            Ed25519SignatureOps::verify_prehashed(ed25519_pk, digest, &mode_ctx, ed25519_sig)
+        },
+    )
+}
+
+/// Shared verify body for every transcript mode.
+///
+/// SECURITY: Verify BOTH components unconditionally with bitwise AND combination.
+/// This preserves AND-security: a partial break of one component must not leak which
+/// one failed, because distinct error paths (or early exit) turn AND into OR.
+///
+/// Rules:
+/// 1. No early return on a single component failure.
+/// 2. No `&&` (short-circuit) — use `&` (bitwise) so both leg verifies always execute.
+/// 3. A SINGLE opaque error string regardless of which component failed.
+/// 4. Structural parse failures collapse to bit=0 (same as verify-fail),
+///    matching FIPS 204 §5.3 Verify-returns-bool shape. This removes the
+///    early-exit timing / variant oracle that would otherwise distinguish
+///    "malformed ML-DSA" from "Ed25519 failed".
+///
+/// No length pre-checks are performed here. Earlier revisions had four
+/// distinguishable `InvalidKeyMaterial` returns for the four buffer
+/// lengths; that surface let an adversary varying wire-supplied PK/sig
+/// bytes enumerate which length got rejected. The legs collapse parse
+/// failures (which include length mismatches) to bit = 0, which is
+/// indistinguishable from a verify failure — exactly what Pattern 6
+/// §"adversary-reachable paths" requires.
+///
+/// Per-stage `tracing` was previously emitted under four distinct
+/// sub-stage tags; that made the Pattern 6 returned-error opacity
+/// reconstructable from the debug log. Operators still get a
+/// single "verify failure occurred" event for alerting; the
+/// granular sub-stage detail is intentionally dropped (see
+/// `docs/DESIGN_PATTERNS.md` Pattern 6).
+fn verify_legs<M, E>(
+    pk: &HybridSigPublicKey,
+    sig: &HybridSignature,
+    ml_dsa_verify: M,
+    ed25519_verify: E,
+) -> Result<bool, HybridSignatureError>
+where
+    M: Fn(&MlDsaPublicKey, &MlDsaSignature) -> Result<bool, MlDsaError>,
+    E: Fn(&[u8], &DalekSignature) -> crate::prelude::error::Result<()>,
+{
+    let ml_dsa_valid = verify_ml_dsa_leg(pk, sig, &ml_dsa_verify);
+    let ed25519_valid = verify_ed25519_leg(pk, sig, &ed25519_verify);
 
     // One generic event on aggregate failure — preserves the "something
     // went wrong with hybrid verify" alerting signal without leaking
@@ -717,7 +1102,8 @@ pub fn verify(
 }
 
 /// ML-DSA leg of hybrid verify. Returns `1` iff the caller's bytes passed
-/// shape-check AND both `from_bytes` parses AND the real verify.
+/// shape-check AND both `from_bytes` parses AND the real verify
+/// (`real_verify`, which closes over the mode-specific message / context).
 ///
 /// Timing equalizer — see `crate::hybrid::verify_equalizer` for the full
 /// rationale. Briefly: select shape-correct bytes (real or zero-byte dummy)
@@ -729,12 +1115,12 @@ pub fn verify(
 /// material was produced with empty ctx, and its sole purpose is wall-clock
 /// parity (results are discarded). The FIPS 204 §5.2 ctx parsing cost is
 /// negligible relative to the polynomial arithmetic that dominates verify,
-/// so equal cost holds.
+/// so equal cost holds; HashML-DSA verify runs the same `Verify_internal`
+/// and so has the same cost profile as the pure dummy verify.
 fn verify_ml_dsa_leg(
     pk: &HybridSigPublicKey,
     sig: &HybridSignature,
-    message: &[u8],
-    scheme_ctx: &[u8],
+    real_verify: &dyn Fn(&MlDsaPublicKey, &MlDsaSignature) -> Result<bool, MlDsaError>,
 ) -> u8 {
     let dummy = crate::hybrid::verify_equalizer::hybrid_verify_dummy_material(pk.parameter_set);
 
@@ -789,7 +1175,7 @@ fn verify_ml_dsa_leg(
     let dummy_parsed = dummy.parsed_or_init();
     let ml_dsa_verify_result = match &parse_ok {
         Ok((parsed_pk, parsed_sig)) => {
-            let inner = parsed_pk.verify(message, parsed_sig, scheme_ctx);
+            let inner = real_verify(parsed_pk, parsed_sig);
             match &inner {
                 Ok(_) => inner,
                 // Inner parse failed (structurally-invalid PK reached
@@ -842,7 +1228,8 @@ fn verify_ml_dsa_leg(
 }
 
 /// Ed25519 leg of hybrid verify. Returns `1` iff the caller's signature
-/// parsed AND the real verify passed.
+/// parsed AND the real verify (`real_verify`, which closes over the
+/// mode-specific digest / context) passed.
 ///
 /// The Ed25519 leg has a real verify-time equalizer: parse is a 64-byte
 /// length check while verify is one EC scalar mul (~3 orders of magnitude
@@ -852,28 +1239,20 @@ fn verify_ml_dsa_leg(
 fn verify_ed25519_leg(
     pk: &HybridSigPublicKey,
     sig: &HybridSignature,
-    message: &[u8],
-    scheme_ctx: &[u8],
+    real_verify: &dyn Fn(&[u8], &DalekSignature) -> crate::prelude::error::Result<()>,
 ) -> u8 {
     let ed_dummy = crate::hybrid::verify_equalizer::ed25519_verify_dummy_material();
     let ed_dummy_parsed = ed_dummy.parsed_or_init();
     if let Ok(ed25519_signature) =
         Ed25519SignatureOps::signature_from_bytes(sig.ed25519_sig.as_slice())
     {
-        // Wrong-length PK short-circuits inside
-        // `Ed25519SignatureOps::verify` before any scalar mul runs,
-        // distinguishing "32-byte PK, bad sig" from "wrong-length PK"
-        // by wall-clock. Run the dummy verify against parsed dummy
-        // material on that path so the wall-clock matches the
+        // Wrong-length PK short-circuits inside the real verify before any
+        // scalar mul runs, distinguishing "32-byte PK, bad sig" from
+        // "wrong-length PK" by wall-clock. Run the dummy verify against
+        // parsed dummy material on that path so the wall-clock matches the
         // valid-PK code path.
         let pk_bytes = pk.ed25519_pk.as_slice();
-        // H1 / M1 fix: mirror the sign-side `SHA-512(scheme_ctx || 0x00 ||
-        // message)` construction so the Ed25519 leg verifies against the
-        // same domain-separated digest. Old (pre-fix) hybrid signatures
-        // were Ed25519 signatures over the raw message and will not verify
-        // here — the deliberate wire-format break documented in CHANGELOG.
-        let ed25519_input = hash_with_context(scheme_ctx, message);
-        let result = Ed25519SignatureOps::verify(pk_bytes, &ed25519_input, &ed25519_signature);
+        let result = real_verify(pk_bytes, &ed25519_signature);
         if pk_bytes.len() != 32
             && let Some(parsed) = &ed_dummy_parsed
             && let Ok(parsed_sig) =
@@ -1522,5 +1901,249 @@ mod tests {
         let (pk, _sk) = generate_keypair().unwrap();
         assert_eq!(pk.ml_dsa_pk.len(), 1952); // MlDsa65 public key size
         assert_eq!(pk.ed25519_pk.len(), 32);
+    }
+}
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "tests use unwrap on statically valid inputs")]
+#[expect(clippy::expect_used, reason = "tests use expect for clarity")]
+mod mode_tests {
+    use super::*;
+    use proptest::prelude::*;
+    use sha2::{Digest, Sha512};
+
+    const ALL_SETS: [MlDsaParameterSet; 3] =
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87];
+    const SEED: [u8; 32] = [
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+        0x1e, 0x1f,
+    ];
+
+    fn sha512(m: &[u8]) -> [u8; 64] {
+        Sha512::digest(m).into()
+    }
+
+    #[test]
+    fn with_context_roundtrip_all_parameter_sets() {
+        for set in ALL_SETS {
+            let (pk, sk) = generate_keypair_from_seed(&SEED, set).unwrap();
+            let msg = b"log batch 17";
+            let ctx = b"vault/v1/inbox";
+            let sig = sign_with_context(&sk, msg, ctx).unwrap();
+            assert!(verify_with_context(&pk, msg, &sig, ctx).unwrap(), "{set:?}");
+            assert!(verify_with_context(&pk, msg, &sig, b"vault/v1/transfer").is_err());
+            assert!(verify_with_context(&pk, b"log batch 18", &sig, ctx).is_err());
+            // Never verifies under the plain or pre-hashed modes.
+            assert!(verify(&pk, msg, &sig).is_err());
+            assert!(verify_prehashed(&pk, &sha512(msg), &sig, ctx).is_err());
+            // And a plain signature never verifies under the context mode.
+            let plain = sign(&sk, msg).unwrap();
+            assert!(verify_with_context(&pk, msg, &plain, ctx).is_err());
+        }
+    }
+
+    #[test]
+    fn prehashed_roundtrip_all_parameter_sets() {
+        for set in ALL_SETS {
+            let (pk, sk) = generate_keypair_from_seed(&SEED, set).unwrap();
+            let digest = sha512(b"manifest");
+            let ctx = b"vault/v1/root-sig";
+            let sig = sign_prehashed(&sk, &digest, ctx).unwrap();
+            assert!(verify_prehashed(&pk, &digest, &sig, ctx).unwrap(), "{set:?}");
+            assert!(verify_prehashed(&pk, &digest, &sig, b"vault/v1/inbox").is_err());
+            assert!(verify_prehashed(&pk, &sha512(b"other"), &sig, ctx).is_err());
+            // Never verifies under the plain or context modes, with the
+            // digest or with the original content as "message".
+            assert!(verify(&pk, &digest, &sig).is_err());
+            assert!(verify(&pk, b"manifest", &sig).is_err());
+            assert!(verify_with_context(&pk, &digest, &sig, ctx).is_err());
+            assert!(verify_with_context(&pk, b"manifest", &sig, ctx).is_err());
+            let ctx_sig = sign_with_context(&sk, b"manifest", ctx).unwrap();
+            assert!(verify_prehashed(&pk, &digest, &ctx_sig, ctx).is_err());
+        }
+    }
+
+    #[test]
+    fn prehashed_signs_content_beyond_the_message_cap() {
+        let (pk, sk) = generate_keypair_from_seed(&SEED, MlDsaParameterSet::MlDsa65).unwrap();
+        let big = vec![0xabu8; 1 << 20];
+        let digest = sha512(&big);
+        let sig = sign_prehashed(&sk, &digest, b"vault/v1/root-sig").unwrap();
+        assert!(verify_prehashed(&pk, &digest, &sig, b"vault/v1/root-sig").unwrap());
+        // The plain and context modes still enforce the cap.
+        assert!(sign_with_context(&sk, &big, b"vault/v1/root-sig").is_err());
+        assert!(sign(&sk, &big).is_err());
+    }
+
+    #[test]
+    fn context_entry_points_reject_empty_and_oversized_context() {
+        let (pk, sk) = generate_keypair_from_seed(&SEED, MlDsaParameterSet::MlDsa44).unwrap();
+        let digest = sha512(b"m");
+        let too_long = vec![0x41u8; MAX_HYBRID_SIG_CONTEXT_LEN.saturating_add(1)];
+        for ctx in [&[][..], too_long.as_slice()] {
+            let err = sign_with_context(&sk, b"m", ctx).unwrap_err();
+            assert!(matches!(err, HybridSignatureError::InvalidContext(_)), "{err:?}");
+            let err = sign_prehashed(&sk, &digest, ctx).unwrap_err();
+            assert!(matches!(err, HybridSignatureError::InvalidContext(_)), "{err:?}");
+        }
+        let sig_ctx = sign_with_context(&sk, b"m", b"c").unwrap();
+        let sig_ph = sign_prehashed(&sk, &digest, b"c").unwrap();
+        for ctx in [&[][..], too_long.as_slice()] {
+            let err = verify_with_context(&pk, b"m", &sig_ctx, ctx).unwrap_err();
+            assert!(matches!(err, HybridSignatureError::InvalidContext(_)), "{err:?}");
+            let err = verify_prehashed(&pk, &digest, &sig_ph, ctx).unwrap_err();
+            assert!(matches!(err, HybridSignatureError::InvalidContext(_)), "{err:?}");
+        }
+        // Exactly the budget works in both modes.
+        let max = vec![0x42u8; MAX_HYBRID_SIG_CONTEXT_LEN];
+        let sig = sign_with_context(&sk, b"m", &max).unwrap();
+        assert!(verify_with_context(&pk, b"m", &sig, &max).unwrap());
+        let sig = sign_prehashed(&sk, &digest, &max).unwrap();
+        assert!(verify_prehashed(&pk, &digest, &sig, &max).unwrap());
+    }
+
+    #[test]
+    fn prehashed_rejects_wrong_digest_length() {
+        let (pk, sk) = generate_keypair_from_seed(&SEED, MlDsaParameterSet::MlDsa44).unwrap();
+        let err = sign_prehashed(&sk, &[0u8; 32], b"c").unwrap_err();
+        assert!(matches!(
+            err,
+            HybridSignatureError::InvalidDigestLength { expected: 64, actual: 32 }
+        ));
+        let sig = sign_prehashed(&sk, &sha512(b"m"), b"c").unwrap();
+        let err = verify_prehashed(&pk, &[0u8; 65], &sig, b"c").unwrap_err();
+        assert!(matches!(
+            err,
+            HybridSignatureError::InvalidDigestLength { expected: 64, actual: 65 }
+        ));
+        assert!(err.to_string().contains("64"));
+    }
+
+    #[test]
+    fn mode_entry_points_fold_component_failures_opaquely() {
+        let (pk, _sk) = generate_keypair_from_seed(&SEED, MlDsaParameterSet::MlDsa44).unwrap();
+        // A wrong-length ML-DSA leg fails `MlDsaSecretKey::new` inside the
+        // shared sign body; the public error must stay the opaque fold.
+        let bad_sk = HybridSigSecretKey::new(
+            MlDsaParameterSet::MlDsa44,
+            Zeroizing::new(vec![0u8; 2559]),
+            Zeroizing::new(vec![0u8; 32]),
+        );
+        let err = sign_with_context(&bad_sk, b"m", b"c").unwrap_err();
+        assert!(matches!(err, HybridSignatureError::SigningFailed(_)), "{err:?}");
+        let err = sign_prehashed(&bad_sk, &sha512(b"m"), b"c").unwrap_err();
+        assert!(matches!(err, HybridSignatureError::SigningFailed(_)), "{err:?}");
+        let short_ed = HybridSigSecretKey::new(
+            MlDsaParameterSet::MlDsa44,
+            Zeroizing::new(vec![0u8; 2560]),
+            Zeroizing::new(vec![0u8; 31]),
+        );
+        let err = sign_prehashed(&short_ed, &sha512(b"m"), b"c").unwrap_err();
+        assert!(matches!(err, HybridSignatureError::InvalidKeyMaterial(_)), "{err:?}");
+        let garbage = HybridSignature::new(vec![1u8; 2420], vec![1u8; 64]);
+        let err = verify_with_context(&pk, b"m", &garbage, b"c").unwrap_err();
+        assert!(matches!(err, HybridSignatureError::VerificationFailed(_)), "{err:?}");
+        let err = verify_prehashed(&pk, &sha512(b"m"), &garbage, b"c").unwrap_err();
+        assert!(matches!(err, HybridSignatureError::VerificationFailed(_)), "{err:?}");
+    }
+
+    #[test]
+    fn from_seed_is_deterministic_per_level_and_rejects_zero_seed() {
+        let mut ed_pks = Vec::new();
+        for set in ALL_SETS {
+            let (pk1, sk1) = generate_keypair_from_seed(&SEED, set).unwrap();
+            let (pk2, sk2) = generate_keypair_from_seed(&SEED, set).unwrap();
+            assert_eq!(pk1.ml_dsa_pk(), pk2.ml_dsa_pk());
+            assert_eq!(pk1.ed25519_pk(), pk2.ed25519_pk());
+            assert!(bool::from(sk1.ct_eq(&sk2)));
+            assert_eq!(pk1.parameter_set(), set);
+            assert_eq!(sk1.parameter_set(), set);
+            let mut other = SEED;
+            other[31] ^= 1;
+            let (pk3, _) = generate_keypair_from_seed(&other, set).unwrap();
+            assert_ne!(pk1.ml_dsa_pk(), pk3.ml_dsa_pk());
+            assert_ne!(pk1.ed25519_pk(), pk3.ed25519_pk());
+            // Seed-derived keys work in every mode.
+            let sig = sign(&sk1, b"m").unwrap();
+            assert!(verify(&pk1, b"m", &sig).unwrap());
+            ed_pks.push(pk1.ed25519_pk().to_vec());
+        }
+        // The Ed25519 leg depends only on the seed (its HKDF label carries no
+        // parameter set), so it is shared across levels; the ML-DSA leg is
+        // separated by (k, ℓ) inside FIPS 204 Algorithm 6.
+        assert!(ed_pks.windows(2).all(|w| w.first() == w.last()));
+        assert_eq!(ed_pks.len(), 3);
+        let err = generate_keypair_from_seed(&[0u8; 32], MlDsaParameterSet::MlDsa65).unwrap_err();
+        assert!(matches!(err, HybridSignatureError::InvalidKeyMaterial(_)), "{err:?}");
+    }
+
+    #[test]
+    fn sub_seed_derivation_matches_hkdf_labels_and_separates_legs() {
+        let (xi, ed) = derive_hybrid_sub_seeds(&SEED).unwrap();
+        let xi_ref = hkdf(&SEED, None, Some(HYBRID_SIG_SEED_ML_DSA_INFO), 32).unwrap();
+        let ed_ref = hkdf(&SEED, None, Some(HYBRID_SIG_SEED_ED25519_INFO), 32).unwrap();
+        assert_eq!(xi.as_slice(), xi_ref.expose_secret());
+        assert_eq!(ed.as_slice(), ed_ref.expose_secret());
+        assert_ne!(xi.as_slice(), ed.as_slice());
+        assert_eq!(HYBRID_SIG_SEED_ML_DSA_INFO, b"latticearc/v1/ml-dsa-seed");
+        assert_eq!(HYBRID_SIG_SEED_ED25519_INFO, b"latticearc/v1/ed25519-seed");
+    }
+
+    #[test]
+    fn new_error_variants_display() {
+        let e = HybridSignatureError::InvalidContext("x".to_string());
+        assert!(e.to_string().contains("context"));
+        let e = HybridSignatureError::InvalidDigestLength { expected: 64, actual: 1 };
+        assert!(e.to_string().contains("expected 64"));
+        assert!(format!("{e:?}").contains("InvalidDigestLength"));
+    }
+
+    #[test]
+    fn mode_labels_fit_the_context_budget() {
+        assert_eq!(LONGEST_MODE_LABEL_LEN, 46);
+        assert_eq!(MAX_HYBRID_SIG_CONTEXT_LEN, 208);
+        for set in ALL_SETS {
+            for mode in [HybridTranscriptMode::Context, HybridTranscriptMode::Prehashed] {
+                let label = hybrid_mode_label(set, mode);
+                assert!(label.len() <= LONGEST_MODE_LABEL_LEN);
+                let ctx = build_mode_ctx(label, &[0x55u8; MAX_HYBRID_SIG_CONTEXT_LEN]).unwrap();
+                assert!(ctx.len() <= 255);
+                assert_eq!(ctx.iter().position(|&b| b == 0), Some(label.len()));
+            }
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn sub_seeds_are_deterministic_and_pairwise_distinct(
+            seed1 in proptest::collection::vec(any::<u8>(), 32),
+            seed2 in proptest::collection::vec(any::<u8>(), 32),
+        ) {
+            let s1: [u8; 32] = seed1.as_slice().try_into().expect("32 bytes");
+            let s2: [u8; 32] = seed2.as_slice().try_into().expect("32 bytes");
+            let (xi1, ed1) = derive_hybrid_sub_seeds(&s1).unwrap();
+            let (xi1b, ed1b) = derive_hybrid_sub_seeds(&s1).unwrap();
+            let (xi2, ed2) = derive_hybrid_sub_seeds(&s2).unwrap();
+            prop_assert_eq!(xi1.as_slice(), xi1b.as_slice());
+            prop_assert_eq!(ed1.as_slice(), ed1b.as_slice());
+            prop_assert_ne!(xi1.as_slice(), ed1.as_slice());
+            prop_assert_eq!(xi1.as_slice() == xi2.as_slice(), s1 == s2);
+            prop_assert_eq!(ed1.as_slice() == ed2.as_slice(), s1 == s2);
+        }
+
+        #[test]
+        fn build_mode_ctx_is_injective_in_context(
+            ctx1 in proptest::collection::vec(any::<u8>(), 1..=MAX_HYBRID_SIG_CONTEXT_LEN),
+            ctx2 in proptest::collection::vec(any::<u8>(), 1..=MAX_HYBRID_SIG_CONTEXT_LEN),
+        ) {
+            let label = hybrid_mode_label(MlDsaParameterSet::MlDsa65, HybridTranscriptMode::Context);
+            let a = build_mode_ctx(label, &ctx1).unwrap();
+            let b = build_mode_ctx(label, &ctx2).unwrap();
+            prop_assert_eq!(a == b, ctx1 == ctx2);
+            prop_assert!(a.len() <= 255);
+        }
     }
 }

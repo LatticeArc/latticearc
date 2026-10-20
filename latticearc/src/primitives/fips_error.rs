@@ -649,6 +649,16 @@ impl FipsError for crate::primitives::aead::AeadError {
             AeadError::WeakKey => FipsErrorCode::WeakKeyDetected,
             AeadError::EncryptionFailed(_) => FipsErrorCode::EncryptionFailed,
             AeadError::DecryptionFailed(_) => FipsErrorCode::DecryptionFailed,
+            AeadError::InvalidSegmentSize
+            | AeadError::InvalidSegmentLength
+            | AeadError::EmptyContext
+            | AeadError::InvalidPaddedLength
+            | AeadError::MalformedEncoding => FipsErrorCode::InvalidParameter,
+            // Counter exhaustion and post-final-segment use are caller-state
+            // errors on the AEAD path; they surface as encryption/decryption
+            // failures rather than inventing a new FIPS code.
+            AeadError::SegmentCounterExhausted => FipsErrorCode::EncryptionFailed,
+            AeadError::StreamExhausted => FipsErrorCode::DecryptionFailed,
         }
     }
 }

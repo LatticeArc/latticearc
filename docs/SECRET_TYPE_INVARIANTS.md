@@ -161,15 +161,21 @@ pub fn to_bytes(&self) -> SecretVec { SecretVec::new(self.bytes.expose_secret().
 
 The base invariants above protect against in-process leaks (use-after-free, accidental logging, compiler dead-store elimination). They do NOT protect against swap-to-disk or core-dump exposure of secrets still resident in RAM.
 
-A feature flag `secret-mlock` (off by default) upgrades `SecretBytes<N>` and `SecretVec` storage to OS-locked pages via the `region` crate:
+A feature flag `secret-mlock` (off by default) asks the kernel to keep `SecretVec` storage resident in RAM via the `region` crate:
 
-- Linux: `mlock(2)` on the backing memory
-- macOS: `mlock(2)` (same semantics)
-- Windows: `VirtualLock`
+- Linux, Android, macOS and other Unix targets: `mlock(2)` on every page backing the buffer
+- Windows: no-op (`VirtualLock` is best-effort and `region`'s unlock path asserts on `ERROR_NOT_LOCKED`)
 
-Default-off because `mlock` has kernel-side limits (`RLIMIT_MEMLOCK`) that can make the feature fail in some deployments. High-threat deployments explicitly opt in.
+`SecretBytes<N>` is stack-allocated and not covered. `mlock` prevents swapping; it does not exclude pages from core dumps.
 
-When the feature is enabled, construction may fail if the kernel limit is exceeded; types return `Result` from constructors rather than panicking. When the feature is disabled, locking is a no-op and constructors remain infallible.
+Default-off because `mlock` has kernel-side limits (`RLIMIT_MEMLOCK`) that can make the feature fail in some deployments. Android typically allows only 64 KiB per process, so failures are expected there once several secrets are alive. High-threat deployments explicitly opt in.
+
+Constructors stay infallible. If locking fails, the `SecretVec` falls back to an unlocked buffer (still zeroized on drop) and the outcome is **reported, never hidden**:
+
+- `SecretVec::is_locked()` is `true` only if every page of that buffer is locked; always `false` without the feature or on Windows.
+- `memory_lock_status()` returns a `MemoryLockStatus` with `supported`, `feature_enabled`, `locked_buffers` (live), `failed_buffers` (cumulative) and `last_error` (OS error text). Applications should display it rather than assume success.
+
+Page locks do not nest in the kernel, so locked pages are reference-counted process-wide: a page is unlocked only when the last `SecretVec` using it is dropped. Without the reference count, dropping one buffer would silently unlock a page still used by another.
 
 ---
 

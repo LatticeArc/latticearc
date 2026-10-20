@@ -22,6 +22,8 @@ KAT_FILES=(
     "chacha20_poly1305_kat.rs"
     "hkdf_kat.rs"
     "hmac_kat.rs"
+    "hybrid_sig_seed_kat.rs"
+    "ml_dsa_acvp_kat.rs"
     "ml_dsa_kat.rs"
     "ml_kem_kat.rs"
     "sha2_kat.rs"

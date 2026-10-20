@@ -57,7 +57,7 @@ pub use key_lifecycle::{
     CustodianRole, KeyCustodian, KeyLifecycleRecord, KeyLifecycleState, KeyStateMachine,
     StateTransition,
 };
-pub use secrets::{SecretBytes, SecretVec};
+pub use secrets::{MemoryLockStatus, SecretBytes, SecretVec, memory_lock_status};
 pub use traits::{
     ContinuousVerifiable, DataCharacteristics, PatternType, ProofOfPossession, SchemeSelector,
     VerificationStatus, ZeroTrustAuthenticable,

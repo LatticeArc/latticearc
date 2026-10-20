@@ -36,6 +36,7 @@ use latticearc::primitives::kem::ml_kem::{
 
 // AEAD ciphers (hold the symmetric key in `key_bytes`).
 use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
+use latticearc::primitives::aead::stream::{StreamDecryptor, StreamEncryptor};
 // ChaCha20-Poly1305 is not FIPS-approved; gated off under `--features fips`.
 #[cfg(not(feature = "fips"))]
 use latticearc::primitives::aead::chacha20poly1305::{
@@ -64,6 +65,9 @@ use latticearc::zkp::{DlogEqualityProof, HashOpening, PedersenOpening, SchnorrPr
 
 // Serialization
 use latticearc::unified_api::serialization::SerializableKeyPair;
+
+// KDF outputs
+use latticearc::primitives::kdf::argon2id::Argon2idResult;
 
 // `SigningKeypair` (the unified-API ergonomic wrapper that
 // holds `Zeroizing<Vec<u8>>` for `secret_key`) is `pub` but lives in a
@@ -102,6 +106,9 @@ assert_not_impl_any!(MlKemDecapsulationKeyPair: PartialEq, Eq);
 
 assert_not_impl_any!(AesGcm128: PartialEq, Eq);
 assert_not_impl_any!(AesGcm256: PartialEq, Eq);
+// Streaming AEAD state holds the derived segment key.
+assert_not_impl_any!(StreamEncryptor: PartialEq, Eq);
+assert_not_impl_any!(StreamDecryptor: PartialEq, Eq);
 #[cfg(not(feature = "fips"))]
 assert_not_impl_any!(ChaCha20Poly1305Cipher: PartialEq, Eq);
 #[cfg(not(feature = "fips"))]
@@ -152,3 +159,9 @@ assert_not_impl_any!(PedersenOpening: PartialEq, Eq);
 // ============================================================================
 
 assert_not_impl_any!(SerializableKeyPair: PartialEq, Eq);
+
+// ============================================================================
+// KDF outputs
+// ============================================================================
+
+assert_not_impl_any!(Argon2idResult: PartialEq, Eq);

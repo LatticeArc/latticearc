@@ -153,7 +153,7 @@ while IFS= read -r name; do
   if [ "$UCOUNT" -lt 2 ]; then continue; fi
   # Skip struct-field names we know are documented (not fns).
   case "$name" in
-    max_*_size_bytes|max_key_derivations_per_call) continue ;;
+    max_*_size_bytes|max_key_derivations_per_call|max_argon2_memory_kib) continue ;;
   esac
   # Require `fn NAME(` — the `(` prevents prefix matches like
   # `fn foo_bar` eating `fn foo_bar_extended`.

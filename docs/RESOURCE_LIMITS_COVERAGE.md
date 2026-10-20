@@ -20,6 +20,8 @@ Global defaults (`primitives/resource_limits.rs`):
 | `max_encryption_size_bytes` | 100 MiB |
 | `max_decryption_size_bytes` | 100 MiB |
 | `max_signature_size_bytes` | 64 KiB |
+| `max_aad_size_bytes` | 1 MiB |
+| `max_argon2_memory_kib` | 1 GiB (in KiB) |
 
 Runtime-configurable via `ResourceLimitsManager::update_limits`.
 
@@ -78,6 +80,7 @@ inside the delegated `verify` call, so the cap applies transitively.
 | `primitives::sig::ml_dsa` | `validate_signature_size` is enforced inside `MlDsaSecretKey::sign` on the message-length hot path (see `ml_dsa.rs::sign`). `generate_keypair` and `MlDsaPublicKey::verify` do not call it (keys are fixed-size; verify's cost is verification-only, not message-size-bounded). |
 | `primitives::sig::slh_dsa`, `sig::fn_dsa` | `validate_signature_size` is enforced on both the sign and verify message-length hot paths (see `slh_dsa.rs`, `fndsa.rs`). |
 | `primitives::kdf::pbkdf2::verify_password` | **Gap**: `iterations` argument is attacker-controllable when derived from serialized parameter blocks; `pbkdf2` enforces no upper bound itself. Caps: see `iteration_bounds.md`. |
+| `primitives::kdf::argon2id::argon2id` | `validate_argon2_memory_kib` runs in the shared `argon2id_inner` path before the working memory is allocated. `Argon2Params::validate` caps passes at 1024 and output at 1024 bytes. Password and salt are each hashed once by BLAKE2b in the initial hash, so their length is not an amplification vector. `Argon2Params::calibrate` clamps its memory search to the same limit. |
 | `primitives::kdf::hkdf` | No input-length cap. HKDF-Expand output length is an `OutputLength` type parameter so it cannot exceed the algorithm maximum, but the `info` byte string is uncapped. Real-world attacks here require enormous `info` — not practical DoS, but worth documenting. |
 | `primitives::mac::hmac`, `mac::cmac` | No input-length cap. Tag verify paths use `subtle::ConstantTimeEq` (correct). |
 

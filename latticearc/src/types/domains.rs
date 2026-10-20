@@ -65,6 +65,36 @@ pub const PQ_KEM_AEAD_KEY_INFO: &[u8] = b"LatticeArc-PqKem-AeadKey-v1";
 /// fields), while the convenience API produces a concatenated wire format.
 pub const PQ_ONLY_ENCRYPTION_INFO: &[u8] = b"LatticeArc-PqOnly-Encryption-v1";
 
+/// HMAC-SHA256 label for the streaming-AEAD key-commitment tag.
+///
+/// `primitives::aead::stream` computes
+/// `HMAC-SHA256(stream_key, STREAM_AEAD_COMMITMENT || committed_header_prefix)`
+/// and stores the result in the stream header, so a decryptor can reject a
+/// wrong key before any segment is opened. Distinct from every HKDF label so
+/// the commitment PRF can never collide with a derived segment key.
+pub const STREAM_AEAD_COMMITMENT: &[u8] = b"LatticeArc-v1-StreamAead-Commitment";
+
+/// HMAC-SHA256 label for the committing key-wrap commitment tag.
+///
+/// `primitives::aead::key_wrap` computes
+/// `HMAC-SHA256(kek, KEY_WRAP_COMMITMENT || version || nonce)` and stores the
+/// result inside the wrapped-key encoding so unwrapping under a wrong KEK fails
+/// closed irrespective of the AES-GCM tag.
+pub const KEY_WRAP_COMMITMENT: &[u8] = b"LatticeArc-v1-KeyWrap-Commitment";
+/// HKDF info label for deriving the ML-DSA keygen seed (FIPS 204 Algorithm 6
+/// input `ξ`) from a hybrid signing master seed.
+///
+/// `hybrid::sig_hybrid::generate_keypair_from_seed` expands one 32-byte
+/// master seed into two independent 32-byte sub-seeds with HKDF-SHA256,
+/// one per leg, so that neither leg's key material reveals the other's.
+/// The label spelling is fixed by the 0.13 product spec; changing it
+/// changes every seed-derived keypair.
+pub const HYBRID_SIG_SEED_ML_DSA_INFO: &[u8] = b"latticearc/v1/ml-dsa-seed";
+
+/// HKDF info label for deriving the Ed25519 seed (RFC 8032 §5.1.5 private
+/// key) from a hybrid signing master seed. See [`HYBRID_SIG_SEED_ML_DSA_INFO`].
+pub const HYBRID_SIG_SEED_ED25519_INFO: &[u8] = b"latticearc/v1/ed25519-seed";
+
 // ============================================================================
 // Signature scheme domain-separation contexts (H1 / M1 / M5)
 // ============================================================================
@@ -111,6 +141,38 @@ pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519: &[u8] =
 /// Hybrid ML-DSA-87 + Ed25519 per-scheme context. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519`].
 pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519: &[u8] =
     b"LatticeArc-Sig-hybrid-ml-dsa-87-ed25519-v1";
+/// Hybrid ML-DSA-44 + Ed25519 per-scheme context for the application-context
+/// transcript mode (`sig_hybrid::sign_with_context`).
+///
+/// The ML-DSA leg receives `LABEL || 0x00 || context` as its FIPS 204 context
+/// string; the Ed25519 leg signs `SHA-512(LABEL || 0x00 || |context| || context
+/// || message)`. The `-ctx` infix makes the mode label distinct from the plain
+/// label at a fixed byte offset, so a plain-mode signature can never verify as
+/// a context-mode signature or vice versa, even if one leg is broken.
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_CTX: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-44-ed25519-ctx-v1";
+/// Hybrid ML-DSA-65 + Ed25519 context-mode label. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_CTX`].
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_CTX: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-65-ed25519-ctx-v1";
+/// Hybrid ML-DSA-87 + Ed25519 context-mode label. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_CTX`].
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_CTX: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-87-ed25519-ctx-v1";
+/// Hybrid ML-DSA-44 + Ed25519 per-scheme context for the pre-hashed
+/// transcript mode (`sig_hybrid::sign_prehashed`).
+///
+/// Both legs use their native pre-hash construction: the ML-DSA leg is a
+/// HashML-DSA signature (FIPS 204 Algorithm 4, domain byte `0x01`) and the
+/// Ed25519 leg is Ed25519ph (RFC 8032 §5.1, `dom2` flag `1`), each with
+/// `LABEL || 0x00 || context` as its context string. The `-ph` infix keeps
+/// the mode label distinct from both the plain and the `-ctx` labels.
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_PH: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-44-ed25519-ph-v1";
+/// Hybrid ML-DSA-65 + Ed25519 pre-hash-mode label. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_PH`].
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_PH: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-65-ed25519-ph-v1";
+/// Hybrid ML-DSA-87 + Ed25519 pre-hash-mode label. See [`SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_PH`].
+pub(crate) const SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_PH: &[u8] =
+    b"LatticeArc-Sig-hybrid-ml-dsa-87-ed25519-ph-v1";
 /// Pure Ed25519 per-scheme context. Bound via prefix-padding. cfg-gated to
 /// match the corresponding [`SigSchemeLabel::Ed25519`] variant and the
 /// `unified_api::convenience::api` dispatch arms — non-FIPS only.
@@ -291,6 +353,32 @@ pub(crate) fn hash_with_context(scheme_ctx: &[u8], message: &[u8]) -> [u8; 64] {
     hasher.update([0x00]);
     hasher.update(message);
     hasher.finalize().into()
+}
+
+/// Application-context variant of [`hash_with_context`] for the hybrid
+/// `sign_with_context` transcript: `SHA-512(scheme_ctx || 0x00 ||
+/// IntegerToBytes(|app_ctx|, 1) || app_ctx || message)`.
+///
+/// The one-byte length prefix mirrors the FIPS 204 context encoding used by
+/// the ML-DSA leg (`IntegerToBytes(|ctx|, 1) || ctx`), so the Ed25519 leg's
+/// transcript is unambiguous even when `app_ctx` contains `0x00` bytes.
+/// Returns `None` when `app_ctx` is longer than 255 bytes (not encodable in
+/// the one-byte length field); the hybrid layer enforces a tighter bound
+/// before calling this, so `None` is unreachable from the public API.
+pub(crate) fn hash_with_context_and_app_ctx(
+    scheme_ctx: &[u8],
+    app_ctx: &[u8],
+    message: &[u8],
+) -> Option<[u8; 64]> {
+    use sha2::{Digest, Sha512};
+    let app_ctx_len = u8::try_from(app_ctx.len()).ok()?;
+    let mut hasher = Sha512::new();
+    hasher.update(scheme_ctx);
+    hasher.update([0x00]);
+    hasher.update([app_ctx_len]);
+    hasher.update(app_ctx);
+    hasher.update(message);
+    Some(hasher.finalize().into())
 }
 
 /// Domain-separation label tag for [`hkdf_kem_info_with_pk`].
@@ -553,6 +641,52 @@ mod sig_scheme_label_tests {
         }
     }
 
+    /// Hybrid transcript-mode labels (plain / `-ctx` / `-ph`, per parameter
+    /// set) must be NUL-free, pairwise distinct, distinct from every
+    /// `SigSchemeLabel` context, and prefix-free. The prefix-free property
+    /// is what guarantees that `LABEL || 0x00 || app_ctx` for one mode can
+    /// never equal the same encoding for another mode.
+    #[test]
+    fn hybrid_mode_labels_distinct_and_prefix_free() {
+        let mode_labels: &[&[u8]] = &[
+            SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_CTX,
+            SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_CTX,
+            SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_CTX,
+            SIG_CONTEXT_HYBRID_ML_DSA_44_ED25519_PH,
+            SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_PH,
+            SIG_CONTEXT_HYBRID_ML_DSA_87_ED25519_PH,
+        ];
+        let mut all: Vec<&[u8]> = ALL_LABELS.iter().map(|l| l.as_bytes()).collect();
+        all.extend_from_slice(mode_labels);
+        for &label in mode_labels {
+            assert!(!label.contains(&0u8), "{label:?} must be NUL-free");
+        }
+        for (i, &a) in all.iter().enumerate() {
+            for &b in all.iter().skip(i.saturating_add(1)) {
+                assert_ne!(a, b, "duplicate signature context label");
+                assert!(!a.starts_with(b) && !b.starts_with(a), "labels must be prefix-free");
+            }
+        }
+    }
+
+    #[test]
+    fn hash_with_context_and_app_ctx_encodes_length_and_rejects_oversize() {
+        let scheme = SIG_CONTEXT_HYBRID_ML_DSA_65_ED25519_CTX;
+        let a = hash_with_context_and_app_ctx(scheme, b"vault/v1/inbox", b"m");
+        let b = hash_with_context_and_app_ctx(scheme, b"vault/v1/inbo", b"xm");
+        assert!(a.is_some() && b.is_some(), "255-byte bound not exceeded");
+        let a = a.unwrap_or([0u8; 64]);
+        let b = b.unwrap_or([0u8; 64]);
+        assert_ne!(a, b, "length prefix must prevent context/message boundary shifting");
+        assert_ne!(
+            a,
+            hash_with_context(scheme, b"vault/v1/inboxm"),
+            "app-context transcript must differ from the plain transcript"
+        );
+        assert!(hash_with_context_and_app_ctx(scheme, &[0u8; 256], b"m").is_none());
+        assert!(hash_with_context_and_app_ctx(scheme, &[0u8; 255], b"m").is_some());
+    }
+
     /// Wire-format strings the codebase emits at sign-side must round-trip
     /// through `from_scheme_str`. If `sign_with_key` ever produces a scheme
     /// string that the M5 allowlist rejects, signing and verification would
@@ -655,7 +789,8 @@ mod sig_scheme_label_tests {
 mod kani_proofs {
     use super::*;
 
-    /// Proves all 8 HKDF domain constants are pairwise distinct (C(8,2)=28 pairs).
+    /// Proves all 12 HKDF/HMAC domain constants are pairwise distinct
+    /// (C(12,2)=66 pairs).
     /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
     #[kani::proof]
     fn domain_constants_pairwise_distinct() {
@@ -668,6 +803,10 @@ mod kani_proofs {
             MODULE_INTEGRITY_HMAC_KEY,
             PQ_KEM_AEAD_KEY_INFO,
             PQ_ONLY_ENCRYPTION_INFO,
+            STREAM_AEAD_COMMITMENT,
+            KEY_WRAP_COMMITMENT,
+            HYBRID_SIG_SEED_ML_DSA_INFO,
+            HYBRID_SIG_SEED_ED25519_INFO,
         ];
         let n = constants.len();
         let mut i = 0;

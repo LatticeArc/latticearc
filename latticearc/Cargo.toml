@@ -84,11 +84,16 @@ saw = []
 # that under our release profile.
 #
 # Default-off because `RLIMIT_MEMLOCK` can cause constructor-time lock
-# failures on some Linux/macOS deployments; when the feature is enabled and
-# locking fails, `SecretVec` falls back to an unlocked buffer (the bytes
-# are still zeroized on drop). `SecretBytes<N>` is always stack-allocated
-# and is deliberately NOT covered by this feature — see the `SecretBytes`
-# doc.
+# failures (Android typically allows only 64 KiB per process; older Linux
+# kernels default to 64 KiB too). When the feature is enabled and locking
+# fails, `SecretVec` falls back to an unlocked buffer (the bytes are still
+# zeroized on drop) and records the failure: `SecretVec::is_locked()` reports
+# the per-buffer outcome and `memory_lock_status()` the process-wide counts
+# and last OS error, so applications can display whether locking worked.
+# Locked pages are reference-counted so buffers sharing a page stay locked
+# until the last one drops. `mlock` does not exclude pages from core dumps.
+# `SecretBytes<N>` is always stack-allocated and is deliberately NOT covered
+# by this feature — see the `SecretBytes` doc.
 secret-mlock = ["dep:region"]
 
 # Exposes `AeadCipher::new_allow_weak_key` (and the equivalent inherent
@@ -162,6 +167,7 @@ ed25519-dalek = { workspace = true }
 k256 = { workspace = true, features = ["sha256"] }
 p384 = { workspace = true }
 blake2 = { workspace = true }
+argon2 = { workspace = true }
 ciborium = { workspace = true }
 
 # =============================================================================

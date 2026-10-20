@@ -126,6 +126,20 @@ doc = false
 bench = false
 
 [[bin]]
+name = "hybrid_kem_context_fuzz"
+path = "fuzz_targets/hybrid_kem_context_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hybrid_sign_context_fuzz"
+path = "fuzz_targets/hybrid_sign_context_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "constant_time_fuzz"
 path = "fuzz_targets/constant_time_fuzz.rs"
 test = false
@@ -254,6 +268,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "fuzz_argon2id"
+path = "fuzz_targets/fuzz_argon2id.rs"
+test = false
+doc = false
+bench = false
+
 # ============================================================================
 # Hash Function Fuzzing
 # ============================================================================
@@ -323,6 +344,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "fuzz_wire_decode"
+path = "fuzz_targets/fuzz_wire_decode.rs"
+test = false
+doc = false
+bench = false
+
 # ============================================================================
 # DoS Fuzzing (allocation-bounded adversarial inputs)
 # ============================================================================
@@ -330,6 +358,24 @@ bench = false
 [[bin]]
 name = "fuzz_dos_alloc_bounded"
 path = "fuzz_targets/fuzz_dos_alloc_bounded.rs"
+test = false
+doc = false
+bench = false
+
+# ============================================================================
+# Streaming AEAD and committing key wrap
+# ============================================================================
+
+[[bin]]
+name = "fuzz_stream_aead"
+path = "fuzz_targets/fuzz_stream_aead.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_key_wrap"
+path = "fuzz_targets/fuzz_key_wrap.rs"
 test = false
 doc = false
 bench = false

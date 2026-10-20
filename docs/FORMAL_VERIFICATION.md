@@ -136,7 +136,7 @@ These catch bugs when someone adds a new enum variant but forgets to handle it �
 
 | Proof | What It Guarantees |
 |-------|-------------------|
-| `domain_constants_pairwise_distinct` | All 10 HKDF domain constants are pairwise distinct (includes `PQ_ONLY_ENCRYPTION_INFO` added in 0.6.0) |
+| `domain_constants_pairwise_distinct` | All 12 HKDF/HMAC domain constants are pairwise distinct (includes `PQ_ONLY_ENCRYPTION_INFO` added in 0.6.0, and the `STREAM_AEAD_COMMITMENT` / `KEY_WRAP_COMMITMENT` HMAC labels and `HYBRID_SIG_SEED_ML_DSA_INFO` / `HYBRID_SIG_SEED_ED25519_INFO` HKDF labels added in 0.13) |
 
 This is a critical security property — if any two domain constants collide, different protocol layers derive the same keys, destroying cryptographic isolation (NIST SP 800-108).
 
@@ -152,6 +152,13 @@ This is a critical security property — if any two domain constants collide, di
 |-------|-------------------|
 | `validate_encryption_size_biconditional` | Encryption-size cap passes IFF the input length is at or below the configured limit (closes the DoS path; no oversized input slips through) |
 | `validate_decryption_size_biconditional` | Decryption-size cap passes IFF the ciphertext length is at or below the configured limit (mirror of the encryption invariant) |
+
+#### Streaming AEAD — `primitives/aead/stream.rs` (2 proofs)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `next_segment_index_never_wraps` | The 32-bit segment counter is advanced with checked arithmetic: `u32::MAX` has no successor (returns `SegmentCounterExhausted`) and every other index advances by exactly one, so a nonce is never reused by counter wrap-around |
+| `plaintext_capacity_defined_for_valid_sizes` | For every accepted segment size (64 B–16 MiB) and every segment index, the plaintext capacity arithmetic cannot underflow and is positive |
 
 #### Security Defaults — `types/types.rs` (4 proofs)
 

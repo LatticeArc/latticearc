@@ -164,6 +164,12 @@ pub enum HybridKemError {
     /// (`log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE...)`).
     #[error("Hybrid encapsulation failed")]
     EncapsulationFailed,
+    /// The application context passed to a `*_with_context` entry point is
+    /// empty. Caller-side configuration error (the context is never read
+    /// from the wire), so it stays distinguishable from the opaque
+    /// encapsulation / decapsulation failures.
+    #[error("Invalid KEM context: {0}")]
+    InvalidContext(String),
 }
 
 /// Hybrid public key combining ML-KEM and ECDH public keys.
@@ -765,6 +771,50 @@ pub fn generate_keypair_with_level(
 /// collapse into the same opaque variant — see internal tracing under
 /// `op::HYBRID_KEM_ENCAPSULATE` for per-stage diagnostics.
 pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKemError> {
+    encapsulate_inner(pk, None)
+}
+
+/// Encapsulate with a required application context bound into the shared
+/// secret.
+///
+/// `context` (non-empty, e.g. `b"vault/v1/transfer"`) is appended to the
+/// combiner's HKDF `info` behind a length prefix (see
+/// [`derive_hybrid_shared_secret_with_context`]), so the same `(pk, ct)`
+/// decapsulated under a different context — or under the context-less
+/// [`decapsulate`] — yields an unrelated secret. The recipient must call
+/// [`decapsulate_with_context`] with the same bytes.
+///
+/// Planned deprecation (0.14): the context-less [`encapsulate`] /
+/// [`decapsulate`] pair. Not attributed in 0.13 because the crate's own
+/// unified API still routes through them.
+///
+/// # Errors
+///
+/// Returns `HybridKemError::InvalidContext` if `context` is empty, otherwise
+/// the opaque `EncapsulationFailed` as for [`encapsulate`].
+pub fn encapsulate_with_context(
+    pk: &HybridKemPublicKey,
+    context: &[u8],
+) -> Result<EncapsulatedKey, HybridKemError> {
+    check_kem_context(context)?;
+    encapsulate_inner(pk, Some(context))
+}
+
+/// Reject an empty application context before any key material is touched.
+fn check_kem_context(context: &[u8]) -> Result<(), HybridKemError> {
+    if context.is_empty() {
+        return Err(HybridKemError::InvalidContext(
+            "context must not be empty (domain separation is required)".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Shared body of [`encapsulate`] / [`encapsulate_with_context`].
+fn encapsulate_inner(
+    pk: &HybridKemPublicKey,
+    context: Option<&[u8]>,
+) -> Result<EncapsulatedKey, HybridKemError> {
     // Pattern 6 "encrypt-side defense in depth": symmetric to
     // `decapsulate`. All upstream-Display leaks (`e.to_string()`) collapse
     // to one opaque variant for the caller; per-stage detail goes to the
@@ -817,14 +867,17 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
     })?;
 
     // Derive hybrid shared secret using HPKE-style KDF
-    let shared_secret = derive_hybrid_shared_secret(HybridSharedSecretInputs {
-        ml_kem_ss: ml_kem_ss.expose_secret(),
-        ecdh_ss: &*ecdh_shared_secret,
-        ecdh_static_pk: pk.ecdh_pk.as_slice(),
-        ml_kem_static_pk: pk.ml_kem_pk.as_slice(),
-        ephemeral_pk: &ecdh_ephemeral_public,
-        kem_ct: &ml_kem_ct,
-    })
+    let shared_secret = derive_hybrid_shared_secret_inner(
+        HybridSharedSecretInputs {
+            ml_kem_ss: ml_kem_ss.expose_secret(),
+            ecdh_ss: &*ecdh_shared_secret,
+            ecdh_static_pk: pk.ecdh_pk.as_slice(),
+            ml_kem_static_pk: pk.ml_kem_pk.as_slice(),
+            ephemeral_pk: &ecdh_ephemeral_public,
+            kem_ct: &ml_kem_ct,
+        },
+        context,
+    )
     .map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, "HKDF combiner failed");
         opaque()
@@ -869,6 +922,24 @@ pub fn decapsulate(
     decapsulate_from_parts(sk, ct.ml_kem_ct.as_slice(), ct.ecdh_pk.as_slice())
 }
 
+/// Decapsulate a ciphertext produced by [`encapsulate_with_context`] under
+/// the same `context`.
+///
+/// # Errors
+///
+/// Returns `HybridKemError::InvalidContext` if `context` is empty, otherwise
+/// the opaque `DecapsulationFailed` as for [`decapsulate`]. A context
+/// mismatch is not detectable here — it simply yields a different secret,
+/// which the AEAD layer above rejects.
+pub fn decapsulate_with_context(
+    sk: &HybridKemSecretKey,
+    ct: &EncapsulatedKey,
+    context: &[u8],
+) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
+    check_kem_context(context)?;
+    decapsulate_from_parts_inner(sk, ct.ml_kem_ct.as_slice(), ct.ecdh_pk.as_slice(), Some(context))
+}
+
 /// Hybrid KEM decapsulation from raw ciphertext parts.
 ///
 /// Equivalent to [`decapsulate`] but takes the ML-KEM ciphertext and
@@ -884,6 +955,16 @@ pub fn decapsulate_from_parts(
     sk: &HybridKemSecretKey,
     ml_kem_ct: &[u8],
     ecdh_pk: &[u8],
+) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
+    decapsulate_from_parts_inner(sk, ml_kem_ct, ecdh_pk, None)
+}
+
+/// Shared body of [`decapsulate_from_parts`] / [`decapsulate_with_context`].
+fn decapsulate_from_parts_inner(
+    sk: &HybridKemSecretKey,
+    ml_kem_ct: &[u8],
+    ecdh_pk: &[u8],
+    context: Option<&[u8]>,
 ) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
     // Pattern 6 (opaque return + internal trace): every failure path
     // collapses to `DecapsulationFailed` for the caller (oracle prevention
@@ -922,14 +1003,17 @@ pub fn decapsulate_from_parts(
 
     let static_public = sk.ecdh_public_key_bytes();
     let ml_kem_static_pk = sk.ml_kem_pk_bytes();
-    derive_hybrid_shared_secret(HybridSharedSecretInputs {
-        ml_kem_ss: ml_kem_ss.expose_secret(),
-        ecdh_ss: &*ecdh_shared_secret,
-        ecdh_static_pk: &static_public,
-        ml_kem_static_pk: &ml_kem_static_pk,
-        ephemeral_pk: ecdh_pk,
-        kem_ct: ml_kem_ct,
-    })
+    derive_hybrid_shared_secret_inner(
+        HybridSharedSecretInputs {
+            ml_kem_ss: ml_kem_ss.expose_secret(),
+            ecdh_ss: &*ecdh_shared_secret,
+            ecdh_static_pk: &static_public,
+            ml_kem_static_pk: &ml_kem_static_pk,
+            ephemeral_pk: ecdh_pk,
+            kem_ct: ml_kem_ct,
+        },
+        context,
+    )
     .map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "HKDF combiner failed");
         opaque()
@@ -1007,6 +1091,36 @@ impl std::fmt::Debug for HybridSharedSecretInputs<'_> {
 pub fn derive_hybrid_shared_secret(
     inputs: HybridSharedSecretInputs<'_>,
 ) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
+    derive_hybrid_shared_secret_inner(inputs, None)
+}
+
+/// [`derive_hybrid_shared_secret`] with a required application context.
+///
+/// The HKDF `info` is the context-less layout (domain, both static public
+/// keys, the ephemeral key and the KEM ciphertext, each length-prefixed)
+/// followed by `[context_len: u32 BE][context]`. Every field is
+/// length-prefixed and parsed left to right, so an info string with the
+/// trailing context field can never equal one without it: the two layouts
+/// are injective into distinct byte strings, and a context-bound secret is
+/// unrelated to the context-less secret for the same inputs.
+///
+/// # Errors
+///
+/// Returns `HybridKemError::InvalidContext` if `context` is empty, and the
+/// same errors as [`derive_hybrid_shared_secret`] otherwise.
+pub fn derive_hybrid_shared_secret_with_context(
+    inputs: HybridSharedSecretInputs<'_>,
+    context: &[u8],
+) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
+    check_kem_context(context)?;
+    derive_hybrid_shared_secret_inner(inputs, Some(context))
+}
+
+/// Shared body of the two public combiner entry points.
+fn derive_hybrid_shared_secret_inner(
+    inputs: HybridSharedSecretInputs<'_>,
+    context: Option<&[u8]>,
+) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
     let HybridSharedSecretInputs {
         ml_kem_ss,
         ecdh_ss,
@@ -1047,6 +1161,7 @@ pub fn derive_hybrid_shared_secret(
     //   [ml_kem_static_pk_len: u32 BE][ml_kem_static_pk]
     //   [ephemeral_pk_len: u32 BE][ephemeral_pk]
     //   [kem_ct_len: u32 BE][kem_ct]
+    //   [context_len: u32 BE][context]          (context mode only)
     // The previous layout omitted ml_kem_static_pk; the AEAD-AAD layer
     // bound it but the combiner did not,
     // so a peer-substituted ML-KEM PK with the same X25519 PK would
@@ -1070,6 +1185,12 @@ pub fn derive_hybrid_shared_secret(
     })?;
     let kem_ct_len = u32::try_from(kem_ct.len())
         .map_err(|_e| HybridKemError::KdfError("KEM ciphertext exceeds 2^32 bytes".to_string()))?;
+    let context_len = match context {
+        Some(ctx) => Some(u32::try_from(ctx.len()).map_err(|_e| {
+            HybridKemError::KdfError("KEM context exceeds 2^32 bytes".to_string())
+        })?),
+        None => None,
+    };
     let domain = crate::types::domains::HYBRID_KEM_SS_INFO;
     let total = domain
         .len()
@@ -1080,7 +1201,9 @@ pub fn derive_hybrid_shared_secret(
         .saturating_add(4)
         .saturating_add(ephemeral_pk.len())
         .saturating_add(4)
-        .saturating_add(kem_ct.len());
+        .saturating_add(kem_ct.len())
+        .saturating_add(4)
+        .saturating_add(context.map_or(0, <[u8]>::len));
     let mut info = Vec::with_capacity(total);
     info.extend_from_slice(domain);
     info.extend_from_slice(&ecdh_static_pk_len.to_be_bytes());
@@ -1091,6 +1214,10 @@ pub fn derive_hybrid_shared_secret(
     info.extend_from_slice(ephemeral_pk);
     info.extend_from_slice(&kem_ct_len.to_be_bytes());
     info.extend_from_slice(kem_ct);
+    if let (Some(ctx), Some(ctx_len)) = (context, context_len) {
+        info.extend_from_slice(&ctx_len.to_be_bytes());
+        info.extend_from_slice(ctx);
+    }
 
     // HKDF-SHA256 with zero-length salt (`None`), matching HPKE (RFC 9180 §5.1).
     // RFC 5869 §2.2 permits zero salt when IKM is already uniformly random;
@@ -1904,5 +2031,123 @@ mod tests {
         let (pk, _sk) = generate_keypair().unwrap();
         assert_eq!(pk.ml_kem_pk.len(), 1184);
         assert_eq!(pk.ecdh_pk.len(), 32);
+    }
+}
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "tests use unwrap on statically valid inputs")]
+mod with_context_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
+        bool::from(a.ct_eq(b))
+    }
+
+    #[test]
+    fn encapsulate_decapsulate_with_context_roundtrip_all_levels() {
+        for level in [
+            MlKemSecurityLevel::MlKem512,
+            MlKemSecurityLevel::MlKem768,
+            MlKemSecurityLevel::MlKem1024,
+        ] {
+            let (pk, sk) = generate_keypair_with_level(level).unwrap();
+            let ctx = b"vault/v1/transfer";
+            let enc = encapsulate_with_context(&pk, ctx).unwrap();
+            let ss = decapsulate_with_context(&sk, &enc, ctx).unwrap();
+            assert!(ct_eq_bytes(enc.expose_secret(), ss.expose_secret()), "{level:?}");
+
+            // Wrong context: decapsulation succeeds but yields an unrelated secret.
+            let other = decapsulate_with_context(&sk, &enc, b"vault/v1/inbox").unwrap();
+            assert!(!ct_eq_bytes(enc.expose_secret(), other.expose_secret()));
+            // Context-less decapsulation of a context-bound ciphertext differs too.
+            let plain = decapsulate(&sk, &enc).unwrap();
+            assert!(!ct_eq_bytes(enc.expose_secret(), plain.expose_secret()));
+            // And a context-less encapsulation never matches a context decapsulation.
+            let enc_plain = encapsulate(&pk).unwrap();
+            let ss_ctx = decapsulate_with_context(&sk, &enc_plain, ctx).unwrap();
+            assert!(!ct_eq_bytes(enc_plain.expose_secret(), ss_ctx.expose_secret()));
+        }
+    }
+
+    #[test]
+    fn with_context_entry_points_reject_empty_context() {
+        let (pk, sk) = generate_keypair().unwrap();
+        let enc = encapsulate(&pk).unwrap();
+        let err = encapsulate_with_context(&pk, b"").unwrap_err();
+        assert!(matches!(err, HybridKemError::InvalidContext(_)), "{err:?}");
+        let err = decapsulate_with_context(&sk, &enc, b"").unwrap_err();
+        assert!(matches!(err, HybridKemError::InvalidContext(_)), "{err:?}");
+        let inputs = HybridSharedSecretInputs {
+            ml_kem_ss: &[1u8; 32],
+            ecdh_ss: &[2u8; 32],
+            ecdh_static_pk: &[3u8; 32],
+            ml_kem_static_pk: &[4u8; 1184],
+            ephemeral_pk: &[5u8; 32],
+            kem_ct: &[6u8; 1088],
+        };
+        let err = derive_hybrid_shared_secret_with_context(inputs, b"").unwrap_err();
+        assert!(matches!(err, HybridKemError::InvalidContext(_)), "{err:?}");
+        assert!(err.to_string().contains("context"));
+    }
+
+    #[test]
+    fn with_context_entry_points_keep_opaque_failures() {
+        let (pk, sk) = generate_keypair().unwrap();
+        let bad_pk =
+            HybridKemPublicKey::new(pk.ml_kem_pk().to_vec(), vec![0u8; 31], pk.security_level());
+        let err = encapsulate_with_context(&bad_pk, b"ctx").unwrap_err();
+        assert!(matches!(err, HybridKemError::EncapsulationFailed));
+        let bad_ct = EncapsulatedKey::for_decapsulate(vec![0u8; 10], vec![0u8; 32]);
+        let err = decapsulate_with_context(&sk, &bad_ct, b"ctx").unwrap_err();
+        assert!(matches!(err, HybridKemError::DecapsulationFailed));
+        let inputs = HybridSharedSecretInputs {
+            ml_kem_ss: &[1u8; 31],
+            ecdh_ss: &[2u8; 32],
+            ecdh_static_pk: &[3u8; 32],
+            ml_kem_static_pk: &[4u8; 32],
+            ephemeral_pk: &[5u8; 32],
+            kem_ct: &[6u8; 32],
+        };
+        let err = derive_hybrid_shared_secret_with_context(inputs, b"ctx").unwrap_err();
+        assert!(matches!(err, HybridKemError::InvalidKeyMaterial(_)));
+    }
+
+    fn fixed_inputs() -> HybridSharedSecretInputs<'static> {
+        HybridSharedSecretInputs {
+            ml_kem_ss: &[1u8; 32],
+            ecdh_ss: &[2u8; 32],
+            ecdh_static_pk: &[3u8; 32],
+            ml_kem_static_pk: &[4u8; 32],
+            ephemeral_pk: &[5u8; 32],
+            kem_ct: &[6u8; 32],
+        }
+    }
+
+    #[test]
+    fn derive_with_context_is_deterministic_and_differs_from_plain() {
+        let a = derive_hybrid_shared_secret_with_context(fixed_inputs(), b"ctx").unwrap();
+        let b = derive_hybrid_shared_secret_with_context(fixed_inputs(), b"ctx").unwrap();
+        assert!(ct_eq_bytes(a.expose_secret(), b.expose_secret()));
+        let plain = derive_hybrid_shared_secret(fixed_inputs()).unwrap();
+        assert!(!ct_eq_bytes(a.expose_secret(), plain.expose_secret()));
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn different_contexts_give_different_shared_secrets(
+            ctx1 in proptest::collection::vec(any::<u8>(), 1..=64),
+            ctx2 in proptest::collection::vec(any::<u8>(), 1..=64),
+        ) {
+            let a = derive_hybrid_shared_secret_with_context(fixed_inputs(), &ctx1).unwrap();
+            let b = derive_hybrid_shared_secret_with_context(fixed_inputs(), &ctx2).unwrap();
+            prop_assert_eq!(ct_eq_bytes(a.expose_secret(), b.expose_secret()), ctx1 == ctx2);
+            // A context can never make the bound secret collide with the
+            // context-less secret: the info string is strictly longer.
+            let plain = derive_hybrid_shared_secret(fixed_inputs()).unwrap();
+            prop_assert!(!ct_eq_bytes(a.expose_secret(), plain.expose_secret()));
+        }
     }
 }

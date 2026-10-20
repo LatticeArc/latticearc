@@ -41,6 +41,8 @@ pub mod aes_gcm_kat;
 pub mod chacha20_poly1305_kat;
 pub mod hkdf_kat;
 pub mod hmac_kat;
+pub mod hybrid_sig_seed_kat;
+pub mod ml_dsa_acvp_kat;
 pub mod ml_dsa_kat;
 pub mod ml_kem_kat;
 pub mod runner;

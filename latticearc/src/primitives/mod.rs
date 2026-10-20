@@ -51,6 +51,7 @@
 //!
 //! - **kdf::hkdf**: HKDF (RFC 5869, NIST SP 800-56C)
 //! - **kdf::pbkdf2**: PBKDF2 (NIST SP 800-132)
+//! - **kdf::argon2id**: Argon2id (RFC 9106; not NIST-approved)
 //!
 //! ### Classical Cryptography
 //!

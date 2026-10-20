@@ -16,6 +16,8 @@ mod aes_gcm_vectors;
 #[cfg(not(feature = "fips"))]
 mod chacha_vectors;
 mod common;
+mod hybrid_sig_seed_vectors;
+mod ml_dsa_acvp_vectors;
 mod ml_dsa_vectors;
 mod ml_kem_vectors;
 mod slh_dsa_vectors;

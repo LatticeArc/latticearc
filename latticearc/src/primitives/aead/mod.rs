@@ -19,6 +19,14 @@
 //!   `fips`-enabled builds. Higher-level APIs that select an AEAD
 //!   automatically pick AES-GCM-256 when `fips` is on.
 //!
+//! - **Streaming AEAD** ([`stream`]): AES-256-GCM-HKDF segments (Tink-derived
+//!   core) under a versioned, key-committing header with random-access
+//!   segment decryption. Available in every feature configuration.
+//! - **Committing key wrap** ([`key_wrap`]): AES-256-GCM plus an HMAC-SHA256
+//!   key-commitment tag for wrapping 16/32/64-byte keys under a KEK, with
+//!   optional padding to a fixed total size. Available in every feature
+//!   configuration.
+//!
 //! ## AEAD Security Notes
 //!
 //! - **Nonce Reuse**: NEVER reuse a nonce with the same key - this breaks security
@@ -27,6 +35,8 @@
 //! - **Side Channels**: All tag verification is constant-time to prevent timing attacks
 
 pub mod aes_gcm;
+pub mod key_wrap;
+pub mod stream;
 
 /// ChaCha20-Poly1305 AEAD (RFC 8439). Non-FIPS: not in NIST SP 800-38D.
 #[cfg(not(feature = "fips"))]
@@ -274,6 +284,50 @@ pub enum AeadError {
     /// Decryption failed
     #[error("Decryption failed: {0}")]
     DecryptionFailed(String),
+
+    /// Streaming AEAD segment size outside
+    /// [`stream::MIN_SEGMENT_SIZE`]`..=`[`stream::MAX_SEGMENT_SIZE`].
+    /// Caller-side configuration error, not adversary-reachable.
+    #[error("Streaming AEAD segment size out of range")]
+    InvalidSegmentSize,
+
+    /// A plaintext handed to the streaming encryptor has the wrong length for
+    /// its position: every non-final segment must be exactly the plaintext
+    /// segment size and the final segment must not exceed it. Caller-side
+    /// error on the encrypt path only; decrypt-side length mismatches
+    /// collapse into [`AeadError::DecryptionFailed`].
+    #[error("Streaming AEAD plaintext segment has the wrong length")]
+    InvalidSegmentLength,
+
+    /// The 32-bit segment counter cannot advance past `u32::MAX`. The
+    /// encryptor refuses to seal a non-final segment that could never be
+    /// followed, and the sequential decryptor refuses to advance; the counter
+    /// never wraps.
+    #[error("Streaming AEAD segment counter exhausted")]
+    SegmentCounterExhausted,
+
+    /// The sequential decryptor was asked for another segment after the one
+    /// flagged as final was accepted.
+    #[error("Streaming AEAD stream already finished")]
+    StreamExhausted,
+
+    /// The caller-supplied context / associated data was empty. Every stream
+    /// and every wrapped key must be bound to a non-empty purpose string.
+    #[error("Context must not be empty")]
+    EmptyContext,
+
+    /// `wrap_key_padded` was asked for a total length that cannot hold the
+    /// wrapped key, or one above [`key_wrap::MAX_WRAPPED_LEN`].
+    #[error("Padded key-wrap length out of range")]
+    InvalidPaddedLength,
+
+    /// A byte string handed to `WrappedKey::from_bytes` does not have the
+    /// documented shape (bad version byte or impossible length). This is a
+    /// structural check on public bytes and is deliberately distinct from
+    /// [`AeadError::DecryptionFailed`], which covers every key-dependent
+    /// failure.
+    #[error("Malformed wrapped-key encoding")]
+    MalformedEncoding,
 }
 
 /// Returns `true` when every byte of `key` is zero. Thin re-export of the
@@ -290,6 +344,11 @@ pub(crate) fn is_all_zero_key(key: &[u8]) -> bool {
 // Re-export ChaCha20-Poly1305 cipher types for convenience
 #[cfg(not(feature = "fips"))]
 pub use self::chacha20poly1305::{ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher};
+
+// Re-export the streaming AEAD and committing key-wrap entry points so they sit
+// beside the one-shot ciphers in `primitives::*`.
+pub use self::key_wrap::{WrappedKey, unwrap_key, wrap_key, wrap_key_padded};
+pub use self::stream::{StreamDecryptor, StreamEncryptor};
 
 #[cfg(test)]
 mod tests {
@@ -342,6 +401,29 @@ mod tests {
 
         let err = AeadError::DecryptionFailed("oops".to_string());
         assert_eq!(format!("{err}"), "Decryption failed: oops");
+
+        assert_eq!(
+            format!("{}", AeadError::InvalidSegmentSize),
+            "Streaming AEAD segment size out of range"
+        );
+        assert_eq!(
+            format!("{}", AeadError::InvalidSegmentLength),
+            "Streaming AEAD plaintext segment has the wrong length"
+        );
+        assert_eq!(
+            format!("{}", AeadError::SegmentCounterExhausted),
+            "Streaming AEAD segment counter exhausted"
+        );
+        assert_eq!(
+            format!("{}", AeadError::StreamExhausted),
+            "Streaming AEAD stream already finished"
+        );
+        assert_eq!(format!("{}", AeadError::EmptyContext), "Context must not be empty");
+        assert_eq!(
+            format!("{}", AeadError::InvalidPaddedLength),
+            "Padded key-wrap length out of range"
+        );
+        assert_eq!(format!("{}", AeadError::MalformedEncoding), "Malformed wrapped-key encoding");
 
         // `AeadError::WeakKey` Display — message includes both the diagnosis
         // ("likely uninitialised memory") and a remediation hint pointing

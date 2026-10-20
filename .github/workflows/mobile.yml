@@ -1,0 +1,391 @@
+name: Mobile
+
+# =============================================================================
+# Mobile targets: iOS (device + simulator) and Android (arm64 + x86_64)
+# =============================================================================
+# Builds `latticearc` for the four mobile targets and runs the `latticearc`
+# and `latticearc-tests` (KAT / CAVP) test binaries on an iOS simulator and an
+# Android emulator.
+#
+# Non-FIPS only. aws-lc-rs supports these targets with the non-FIPS
+# `aws-lc-sys` backend and pre-generated bindings (only a C compiler is
+# needed); the FIPS backend is not supported on any of them:
+#   https://aws.github.io/aws-lc-rs/platform_support.html
+# so no job here may pass `--features fips` (or `latticearc/fips`).
+#
+# This workflow is separate from ci.yml because GitHub Actions `needs:` cannot
+# cross workflow files; `mobile-status` below is this workflow's aggregate
+# gate, the counterpart of ci.yml's `status-check`.
+# =============================================================================
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  RUSTFLAGS: "-D warnings"
+  # Minimum iOS version of the app that embeds latticearc. Read by rustc and
+  # by cc-rs when aws-lc-sys compiles its C sources, for both the device and
+  # the simulator target.
+  IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+  # Android minSdk of the app. The NDK's per-API clang wrappers
+  # (`<triple><api>-clang`) bake this level into every C object and the link.
+  ANDROID_API_LEVEL: "28"
+  # Test feature set for the mobile test runs: every non-FIPS runtime
+  # feature of `latticearc` (`fips` and `fips-strict-integrity` excluded per
+  # the header note; `formal-verification` / `kani` / `saw` are verification
+  # markers with no on-device behaviour). `latticearc-tests` runs with its
+  # default (non-FIPS) features, which already pull in `kat-test-vectors`
+  # and `test-utils` on `latticearc`.
+  MOBILE_TEST_FEATURES: >-
+    latticearc/fips-self-test,latticearc/kat-test-vectors,latticearc/test-utils,latticearc/kat-replay,latticearc/secret-mlock,latticearc/perf,latticearc/zkp-serde,latticearc/tracing-init
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Path filter, same shape as ci.yml's `changes` job: skip the expensive
+  # macOS / emulator jobs on PRs that cannot change their outcome.
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-24.04
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+      id: filter
+      with:
+        filters: |
+          code:
+            - 'latticearc/**'
+            - 'tests/**'
+            - 'Cargo.toml'
+            - 'Cargo.lock'
+            - 'rust-toolchain.toml'
+            - '.cargo/**'
+            - '.github/workflows/mobile.yml'
+            - 'scripts/ci/list-test-binaries.py'
+            - 'scripts/ci/ios-simulator-run-tests.sh'
+            - 'scripts/ci/android-emulator-run-tests.sh'
+
+  # ===========================================================================
+  # iOS
+  # ===========================================================================
+  # Runner: `macos-26` (Apple silicon) ships Xcode 26.6 as the default, with
+  # the iOS 26.5 device + simulator SDKs and iPhone simulator runtimes 26.2,
+  # 26.4 and 26.5 preinstalled:
+  #   https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md
+  # `macos-latest` currently resolves to the same image
+  # (https://github.com/actions/runner-images#available-images); the label is
+  # pinned so a future `-latest` migration cannot silently change the Xcode
+  # major under this job.
+  ios-build:
+    name: iOS build (aarch64-apple-ios, aarch64-apple-ios-sim)
+    runs-on: macos-26
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Install Rust 1.99 with iOS targets
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+      with:
+        toolchain: '1.99'
+        targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+    - name: Cache Cargo registry
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # A failed cache save is non-fatal (same rationale as ci.yml): the next
+      # run recompiles from scratch; no build or test result depends on it.
+      continue-on-error: true
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-mobile-ios-build-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Show Xcode and SDKs
+      run: |
+        xcodebuild -version
+        xcrun --sdk iphoneos --show-sdk-path
+        xcrun --sdk iphonesimulator --show-sdk-path
+
+    - name: Build latticearc for aarch64-apple-ios
+      run: cargo build --locked -p latticearc --release --target aarch64-apple-ios
+
+    - name: Build latticearc for aarch64-apple-ios-sim
+      run: cargo build --locked -p latticearc --release --target aarch64-apple-ios-sim
+
+    - name: Build test binaries for aarch64-apple-ios (device, link check only)
+      # Device binaries cannot run on a hosted runner. Building them proves
+      # the test suite links against the iphoneos SDK; the simulator target
+      # is built and executed by `ios-simulator-test`.
+      run: |
+        cargo test --locked -p latticearc -p latticearc-tests --release \
+          --target aarch64-apple-ios --features "$MOBILE_TEST_FEATURES" --no-run
+
+    - name: Print library sizes (informational)
+      # Size budget: the 9 MB per-architecture budget applies to the final
+      # downstream application cdylib, which does not exist yet, so this step only
+      # prints sizes and enforces nothing. `latticearc` is an rlib (no
+      # staticlib/cdylib crate-type); the release profile already builds
+      # with `debug = false`, so there is no debug info to strip, and its
+      # `strip = true` only takes effect when a final binary is linked. The
+      # rlib also carries crate metadata and LTO bitcode, so it overstates
+      # what the linked library will contribute.
+      run: |
+        for t in aarch64-apple-ios aarch64-apple-ios-sim; do
+          f="target/$t/release/liblatticearc.rlib"
+          bytes=$(wc -c < "$f" | tr -d ' ')
+          echo "$t: $f = $bytes bytes ($((bytes / 1024)) KiB)"
+          echo "- \`$t\` liblatticearc.rlib: $((bytes / 1024)) KiB" >> "$GITHUB_STEP_SUMMARY"
+        done
+
+  ios-simulator-test:
+    name: iOS simulator tests (aarch64-apple-ios-sim)
+    runs-on: macos-26
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    timeout-minutes: 120
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Install Rust 1.99 with the iOS simulator target
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+      with:
+        toolchain: '1.99'
+        targets: aarch64-apple-ios-sim
+
+    - name: Cache Cargo registry
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      continue-on-error: true
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-mobile-ios-sim-test-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build test binaries for aarch64-apple-ios-sim
+      run: |
+        cargo test --locked -p latticearc -p latticearc-tests --release \
+          --target aarch64-apple-ios-sim --features "$MOBILE_TEST_FEATURES" \
+          --no-run --message-format=json-render-diagnostics \
+          | python3 -I scripts/ci/list-test-binaries.py > "$RUNNER_TEMP/ios-test-bins.txt"
+        echo "Test binaries:"
+        cat "$RUNNER_TEMP/ios-test-bins.txt"
+
+    - name: Run tests on the iOS simulator
+      # Creates and boots a fresh iPhone simulator, then runs each bare test
+      # executable with `xcrun simctl spawn`. Sources for the approach are in
+      # the script header (rustc-dev-guide "Testing on emulators" and
+      # cargo-apple-runner's simctl runner).
+      run: scripts/ci/ios-simulator-run-tests.sh "$RUNNER_TEMP/ios-test-bins.txt"
+
+  # ===========================================================================
+  # Android
+  # ===========================================================================
+  # Runner: `ubuntu-24.04` ships NDK 27.3.13750724 as the default
+  # (`ANDROID_NDK_HOME` / `ANDROID_NDK_ROOT`), plus 29 and 30
+  # (`ANDROID_NDK_LATEST_HOME` = 30):
+  #   https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
+  # We use the default r27 NDK because docs/MOBILE.md documents r27 for local
+  # builds. Compiler wiring (CC_/AR_ per target, NDK
+  # `toolchains/llvm/prebuilt/linux-x86_64/bin/<triple><api>-clang`) follows
+  # aws-lc-rs's own Android CI job `aws-lc-rs-android-old-api`:
+  #   https://github.com/aws/aws-lc-rs/blob/main/.github/workflows/cross.yml
+  android-build:
+    name: Android build (aarch64-linux-android, x86_64-linux-android)
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Install Rust 1.99 with Android targets
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+      with:
+        toolchain: '1.99'
+        targets: aarch64-linux-android,x86_64-linux-android
+
+    - name: Cache Cargo registry
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      continue-on-error: true
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-mobile-android-build-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Configure the NDK toolchain
+      run: |
+        NDK_BIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+        test -x "$NDK_BIN/aarch64-linux-android${ANDROID_API_LEVEL}-clang"
+        test -x "$NDK_BIN/x86_64-linux-android${ANDROID_API_LEVEL}-clang"
+        echo "NDK_BIN=$NDK_BIN" >> "$GITHUB_ENV"
+        for triple in aarch64-linux-android x86_64-linux-android; do
+          var="${triple//-/_}"
+          upper="${var^^}"
+          {
+            echo "CC_${var}=$NDK_BIN/${triple}${ANDROID_API_LEVEL}-clang"
+            echo "CXX_${var}=$NDK_BIN/${triple}${ANDROID_API_LEVEL}-clang++"
+            echo "AR_${var}=$NDK_BIN/llvm-ar"
+            echo "RANLIB_${var}=$NDK_BIN/llvm-ranlib"
+            echo "CARGO_TARGET_${upper}_LINKER=$NDK_BIN/${triple}${ANDROID_API_LEVEL}-clang"
+          } >> "$GITHUB_ENV"
+        done
+        cat "$ANDROID_NDK_HOME/source.properties"
+
+    - name: Build latticearc for aarch64-linux-android
+      run: cargo build --locked -p latticearc --release --target aarch64-linux-android
+
+    - name: Build latticearc for x86_64-linux-android
+      run: cargo build --locked -p latticearc --release --target x86_64-linux-android
+
+    - name: Build test binaries for aarch64-linux-android (link check only)
+      # Hosted runners have no arm64 Android emulator with KVM; building the
+      # arm64 test binaries proves they link against bionic for API 28. The
+      # x86_64 test binaries are built and executed by
+      # `android-emulator-test`.
+      run: |
+        cargo test --locked -p latticearc -p latticearc-tests --release \
+          --target aarch64-linux-android --features "$MOBILE_TEST_FEATURES" --no-run
+
+    - name: Print library sizes (informational)
+      # See the matching iOS step: the 9 MB per-arch budget is for the future
+      # downstream application cdylib, so this only prints the rlib sizes.
+      run: |
+        for t in aarch64-linux-android x86_64-linux-android; do
+          f="target/$t/release/liblatticearc.rlib"
+          bytes=$(wc -c < "$f" | tr -d ' ')
+          echo "$t: $f = $bytes bytes ($((bytes / 1024)) KiB)"
+          echo "- \`$t\` liblatticearc.rlib: $((bytes / 1024)) KiB" >> "$GITHUB_STEP_SUMMARY"
+        done
+
+  android-emulator-test:
+    name: Android emulator tests (x86_64-linux-android, API 28)
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    timeout-minutes: 120
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Install Rust 1.99 with the Android x86_64 target
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+      with:
+        toolchain: '1.99'
+        targets: x86_64-linux-android
+
+    - name: Cache Cargo registry
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      continue-on-error: true
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-mobile-android-emulator-test-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Configure the NDK toolchain
+      # Same wiring as `android-build`, x86_64 only.
+      run: |
+        NDK_BIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+        test -x "$NDK_BIN/x86_64-linux-android${ANDROID_API_LEVEL}-clang"
+        {
+          echo "CC_x86_64_linux_android=$NDK_BIN/x86_64-linux-android${ANDROID_API_LEVEL}-clang"
+          echo "CXX_x86_64_linux_android=$NDK_BIN/x86_64-linux-android${ANDROID_API_LEVEL}-clang++"
+          echo "AR_x86_64_linux_android=$NDK_BIN/llvm-ar"
+          echo "RANLIB_x86_64_linux_android=$NDK_BIN/llvm-ranlib"
+          echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$NDK_BIN/x86_64-linux-android${ANDROID_API_LEVEL}-clang"
+        } >> "$GITHUB_ENV"
+
+    # Build before booting the emulator so the emulator's lifetime (and the
+    # action's boot timeout) only covers the test run.
+    - name: Build test binaries for x86_64-linux-android
+      run: |
+        cargo test --locked -p latticearc -p latticearc-tests --release \
+          --target x86_64-linux-android --features "$MOBILE_TEST_FEATURES" \
+          --no-run --message-format=json-render-diagnostics \
+          | python3 -I scripts/ci/list-test-binaries.py > "$RUNNER_TEMP/android-test-bins.txt"
+        echo "Test binaries:"
+        cat "$RUNNER_TEMP/android-test-bins.txt"
+
+    - name: Enable KVM
+      # Verbatim from the android-emulator-runner README (v2.38.0): hosted
+      # Ubuntu runners support hardware-accelerated emulators once the kvm
+      # device is opened up to the runner user.
+      # https://github.com/ReactiveCircus/android-emulator-runner/blob/v2.38.0/README.md
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+
+    - name: Run tests on the Android emulator
+      # Inputs used are all declared in the action's action.yml at v2.38.0:
+      # https://github.com/ReactiveCircus/android-emulator-runner/blob/v2.38.0/action.yml
+      # API 28 = the app's minSdk, so the binaries (built against API 28) run
+      # on the oldest Android version the app supports.
+      uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+      with:
+        api-level: ${{ env.ANDROID_API_LEVEL }}
+        target: default
+        arch: x86_64
+        ram-size: 4096M
+        disk-size: 4096M
+        emulator-boot-timeout: 900
+        # The action runs each `script` line in its own `sh -c`, so the loop
+        # lives in a script file.
+        script: bash scripts/ci/android-emulator-run-tests.sh "$RUNNER_TEMP/android-test-bins.txt"
+
+  # ===========================================================================
+  # Aggregate gate
+  # ===========================================================================
+  # Mirrors ci.yml's `status-check`: one check name to mark as required in
+  # branch protection. A skipped job (path filter on a PR) is not a failure;
+  # a failed or cancelled one is.
+  mobile-status:
+    name: Mobile Status
+    runs-on: ubuntu-24.04
+    needs: [changes, ios-build, ios-simulator-test, android-build, android-emulator-test]
+    if: always()
+    steps:
+    - name: Check all job statuses
+      run: |
+        failed_jobs=""
+        [[ "${{ needs.changes.result }}" != "success" ]] && failed_jobs="$failed_jobs changes"
+        for pair in \
+          "ios-build=${{ needs.ios-build.result }}" \
+          "ios-simulator-test=${{ needs.ios-simulator-test.result }}" \
+          "android-build=${{ needs.android-build.result }}" \
+          "android-emulator-test=${{ needs.android-emulator-test.result }}"; do
+          job="${pair%%=*}"
+          result="${pair#*=}"
+          echo "$job: $result"
+          if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
+            failed_jobs="$failed_jobs $job"
+          fi
+        done
+        if [ -n "$failed_jobs" ]; then
+          echo "Mobile jobs failed:$failed_jobs"
+          exit 1
+        fi
+        echo "All mobile checks passed (or were skipped by the path filter)."

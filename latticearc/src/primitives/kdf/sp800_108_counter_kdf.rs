@@ -293,6 +293,42 @@ pub fn counter_kdf(
     Ok(CounterKdfResult { key: derived_key })
 }
 
+/// SP 800-108 counter-mode KDF with a required, non-empty `label` and
+/// `context`.
+///
+/// Equivalent to `counter_kdf(ki, &CounterKdfParams::new(label)
+/// .with_context(context), key_length)` except that an empty label or an
+/// empty context is rejected, so every key derived through this entry point
+/// carries both a purpose label (SP 800-108 §4 "Label") and an application
+/// context (§4 "Context"). The label must be NUL-free, as for
+/// [`counter_kdf`].
+///
+/// Planned deprecation (0.14): [`counter_kdf`] with an empty context. Not
+/// attributed in 0.13 because crate-internal call sites still use it.
+///
+/// # Errors
+/// Returns `InvalidParameter` if `label` or `context` is empty, and the same
+/// errors as [`counter_kdf`] otherwise.
+pub fn counter_kdf_with_context(
+    ki: &[u8],
+    label: &[u8],
+    context: &[u8],
+    key_length: usize,
+) -> Result<CounterKdfResult> {
+    if label.is_empty() {
+        return Err(LatticeArcError::InvalidParameter(
+            "SP 800-108 label must not be empty".to_string(),
+        ));
+    }
+    if context.is_empty() {
+        return Err(LatticeArcError::InvalidParameter(
+            "SP 800-108 context must not be empty (domain separation is required)".to_string(),
+        ));
+    }
+    let params = CounterKdfParams::new(label).with_context(context);
+    counter_kdf(ki, &params, key_length)
+}
+
 /// Derive multiple keys using counter KDF
 ///
 /// Convenience function to derive multiple keys of different lengths
@@ -734,5 +770,52 @@ mod tests {
         let params = CounterKdfParams::new(b"Label");
         let result = counter_kdf(ki, &params, 33).unwrap();
         assert_eq!(result.key.len(), 33);
+    }
+}
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "tests use unwrap on statically valid inputs")]
+mod with_context_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    #[test]
+    fn counter_kdf_with_context_equals_params_form() {
+        let a = counter_kdf_with_context(b"ki", b"Encryption Key", b"vault/v1/inbox", 40).unwrap();
+        let params = CounterKdfParams::new(b"Encryption Key").with_context(b"vault/v1/inbox");
+        let b = counter_kdf(b"ki", &params, 40).unwrap();
+        assert!(bool::from(a.ct_eq(&b)));
+        assert_eq!(a.key_length(), 40);
+    }
+
+    #[test]
+    fn counter_kdf_with_context_rejects_empty_label_or_context() {
+        let err = counter_kdf_with_context(b"ki", b"", b"ctx", 32).unwrap_err();
+        assert!(matches!(err, LatticeArcError::InvalidParameter(_)), "{err:?}");
+        let err = counter_kdf_with_context(b"ki", b"label", b"", 32).unwrap_err();
+        assert!(matches!(err, LatticeArcError::InvalidParameter(_)), "{err:?}");
+    }
+
+    #[test]
+    fn counter_kdf_with_context_propagates_other_argument_errors() {
+        assert!(counter_kdf_with_context(b"", b"label", b"ctx", 32).is_err());
+        assert!(counter_kdf_with_context(b"ki", b"la\x00bel", b"ctx", 32).is_err());
+        assert!(counter_kdf_with_context(b"ki", b"label", b"ctx", 0).is_err());
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn different_contexts_give_different_keys(
+            ctx1 in proptest::collection::vec(any::<u8>(), 1..=64),
+            ctx2 in proptest::collection::vec(any::<u8>(), 1..=64),
+        ) {
+            let a = counter_kdf_with_context(b"ki", b"label", &ctx1, 32).unwrap();
+            let b = counter_kdf_with_context(b"ki", b"label", &ctx2, 32).unwrap();
+            let again = counter_kdf_with_context(b"ki", b"label", &ctx1, 32).unwrap();
+            prop_assert!(bool::from(a.ct_eq(&again)));
+            prop_assert_eq!(bool::from(a.ct_eq(&b)), ctx1 == ctx2);
+        }
     }
 }

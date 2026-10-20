@@ -21,6 +21,7 @@
 //! | No `PartialEq` / `Eq` | Enforced at `tests/no_partial_eq_on_secret_types.rs` |
 //! | No `Clone` | Explicit `clone_for_transmission(&self) -> Self` |
 //! | Sealed accessor | `expose_secret()` only — no `AsRef`, no `Deref` |
+//! | Swap protection (opt-in, `SecretVec` only) | `secret-mlock` feature; outcome via [`SecretVec::is_locked`] and [`memory_lock_status`] |
 //!
 //! ## When to use which
 //!
@@ -205,14 +206,35 @@ impl<const N: usize> ConstantTimeEq for SecretBytes<N> {
 ///
 /// # OS-level memory locking (`secret-mlock` feature)
 ///
-/// With the `secret-mlock` feature enabled, each `SecretVec` locks its backing
-/// buffer into RAM via `mlock(2)` (Linux/macOS) or `VirtualLock` (Windows) so
-/// the bytes cannot be swapped to disk or captured in a core dump. This
-/// implements invariant I-10. If locking fails at construction time (e.g.,
-/// `RLIMIT_MEMLOCK` exceeded), the `SecretVec` is still returned with an
-/// unlocked backing — the bytes remain zeroized on drop, but OS-level leakage
-/// protection is not active. Without the feature, `mlock` is not called and
-/// the type has no dependency on the `region` crate.
+/// With the `secret-mlock` feature enabled on Linux, macOS, Android and other
+/// Unix targets, each non-empty `SecretVec` asks the kernel to keep the pages
+/// backing its buffer resident in RAM via `mlock(2)`, so the bytes are not
+/// written to swap. This implements invariant I-10. `mlock` does not exclude
+/// the pages from core dumps; disable core dumps at the process level if that
+/// matters for your deployment.
+///
+/// Locking is best-effort and its outcome is reported, not hidden:
+///
+/// - [`SecretVec::is_locked`] says whether this buffer's pages are locked.
+/// - [`memory_lock_status`] returns a process-wide [`MemoryLockStatus`] with
+///   the number of currently locked buffers, the number of failed attempts and
+///   the most recent OS error.
+///
+/// If locking fails (for example `RLIMIT_MEMLOCK` exceeded — Android
+/// typically allows only 64 KiB per process), the `SecretVec` is still
+/// returned with an unlocked backing. The bytes remain zeroized on drop; only
+/// the swap protection is missing. Applications should surface
+/// [`memory_lock_status`] to the user or operator instead of assuming success.
+///
+/// Page locks do not nest in the kernel: unlocking a page unlocks it for every
+/// buffer on it. The crate therefore reference-counts locked pages process-wide
+/// and only unlocks a page when the last `SecretVec` using it is dropped, so
+/// [`SecretVec::is_locked`] stays accurate while neighbouring buffers come and
+/// go. Each newly locked page costs one `mlock` call.
+///
+/// On Windows the feature is a no-op (see [`MemoryLockStatus::supported`]):
+/// `is_locked` is always `false`. Without the feature, `mlock` is never called
+/// and the crate does not depend on `region`.
 ///
 /// `SecretBytes<N>` is deliberately NOT covered by this feature: its `[u8; N]`
 /// backing is stack-allocated, so mlocking it would require per-instance
@@ -224,11 +246,16 @@ impl<const N: usize> ConstantTimeEq for SecretBytes<N> {
 /// # Example
 ///
 /// ```
-/// use latticearc::types::SecretVec;
+/// use latticearc::types::{SecretVec, memory_lock_status};
 ///
 /// let key = SecretVec::new(vec![0x42u8; 48]);
 /// assert_eq!(key.len(), 48);
 /// assert_eq!(key.expose_secret()[0], 0x42);
+///
+/// // Without the `secret-mlock` feature this is always `false`.
+/// let _locked: bool = key.is_locked();
+/// let status = memory_lock_status();
+/// assert_eq!(status.feature_enabled, cfg!(feature = "secret-mlock"));
 ///
 /// let debug = format!("{:?}", key);
 /// assert!(debug.contains("[REDACTED]"));
@@ -237,103 +264,265 @@ impl<const N: usize> ConstantTimeEq for SecretBytes<N> {
 pub struct SecretVec {
     // Drop order when `secret-mlock` is enabled:
     //   1. `ZeroizeOnDrop`'s generated `Drop` runs first, calling `.zeroize()`
-    //      on `bytes` while the region is still mlocked.
-    //   2. Fields drop in declaration order: `_lock` first (unlocks the
-    //      region via `MlockGuard`'s panic-tolerant Drop), then `bytes`
+    //      on `bytes` while the pages are still locked.
+    //   2. Fields drop in declaration order: `lock` first (releases this
+    //      buffer's page references via `MlockGuard`'s Drop), then `bytes`
     //      (returns the zeroed buffer to the allocator).
     // `#[zeroize(skip)]` is required because the lock holder does not
     // implement `Zeroize` and there's nothing secret inside it — it only
-    // holds a handle to an OS lock.
+    // holds page addresses.
     #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[zeroize(skip)]
-    _lock: Option<MlockGuard>,
+    lock: Option<mlock::MlockGuard>,
     bytes: Vec<u8>,
 }
 
-/// Panic-tolerant wrapper around [`region::LockGuard`] (Unix only).
+/// Process-wide snapshot of OS memory locking for [`SecretVec`] buffers.
 ///
-/// # Platform scope
+/// Returned by [`memory_lock_status`]. Intended for display: a vault app can
+/// show "secrets pinned in RAM" or "memory locking unavailable (limit
+/// reached)" instead of silently running without swap protection.
 ///
-/// This struct (and the `_lock` field it backs in [`SecretVec`]) is
-/// `#[cfg(not(target_os = "windows"))]`. On Windows, the `secret-mlock`
-/// feature is currently a no-op: `_lock` does not exist, no
-/// `VirtualLock` is attempted, and no `MlockGuard` is constructed. The
-/// rest of `SecretVec`'s protections (`ZeroizeOnDrop`, redacted `Debug`,
-/// constant-time compare) still apply on Windows; only the in-RAM
-/// pinning is absent. See the "Why Windows is excluded" section below.
+/// On Android, `RLIMIT_MEMLOCK` is typically 64 KiB per process, so
+/// `failed_buffers > 0` is an expected state there once enough secrets are
+/// alive at the same time; show it rather than hide it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct MemoryLockStatus {
+    /// `true` when this build attempts to lock `SecretVec` buffers: the
+    /// `secret-mlock` feature is enabled and the target is not Windows.
+    pub supported: bool,
+    /// `true` when the crate was built with the `secret-mlock` feature
+    /// (including Windows builds, where locking is still not attempted).
+    pub feature_enabled: bool,
+    /// Number of currently alive `SecretVec` buffers whose pages are locked.
+    /// Increases on each successful lock and decreases when such a buffer is
+    /// dropped.
+    pub locked_buffers: usize,
+    /// Number of lock attempts that failed since process start. Never
+    /// decreases; a non-zero value means at least one `SecretVec` ran
+    /// without swap protection.
+    pub failed_buffers: usize,
+    /// Operating-system error text of the most recent failed lock attempt,
+    /// or `None` if no attempt has failed.
+    pub last_error: Option<String>,
+}
+
+/// Return the process-wide [`MemoryLockStatus`].
 ///
-/// # Why this wrapper exists (Unix)
+/// Cheap: two atomic loads and one short mutex acquisition. Without the
+/// `secret-mlock` feature, or on Windows, every counter is zero and
+/// `supported` is `false`.
+#[must_use]
+pub fn memory_lock_status() -> MemoryLockStatus {
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
+    {
+        mlock::status()
+    }
+    #[cfg(not(all(feature = "secret-mlock", not(target_os = "windows"))))]
+    {
+        MemoryLockStatus {
+            supported: false,
+            feature_enabled: cfg!(feature = "secret-mlock"),
+            locked_buffers: 0,
+            failed_buffers: 0,
+            last_error: None,
+        }
+    }
+}
+
+/// Reference-counted page locking for [`SecretVec`] (Unix only).
 ///
-/// `region::LockGuard::drop` calls `munlock` and panics on any error.
-/// Panicking inside `Drop` is a soundness hazard — a secret container
-/// can drop while unwinding from another panic, and a Drop-time
-/// double-panic aborts the process. The wrapper hands the inner drop to
-/// [`std::panic::catch_unwind`] so any error raised by the unlock
-/// syscall is caught at the wrapper boundary instead of escaping the
-/// surrounding Drop chain. On Unix the `munlock` syscall reliably
-/// succeeds for any region we successfully locked, so `catch_unwind`
-/// should never fire in practice — the wrapper is defence-in-depth.
+/// # Why reference counting
+///
+/// `mlock` / `munlock` operate on whole pages and do not nest: two buffers on
+/// the same page share one lock, and `munlock` from the first buffer's drop
+/// would silently unlock the page under the second. The registry below keeps
+/// one [`region::LockGuard`] per locked page plus a count of the `SecretVec`
+/// buffers using it, and only drops the guard (unlocking the page) when the
+/// count reaches zero.
 ///
 /// # Why Windows is excluded
 ///
-/// `region`'s Windows `Drop` panics on `VirtualUnlock` returning
-/// `ERROR_NOT_LOCKED` (158). Per Microsoft's documentation `VirtualLock`
-/// is *best-effort*: pages can be implicitly unlocked when the working
-/// set is trimmed under memory pressure, and a subsequent
-/// `VirtualUnlock` returning `ERROR_NOT_LOCKED` is documented behaviour,
-/// not a logic error. With `region`'s current `Drop` policy, a routine
-/// working-set trim turns into a Drop-time panic — exactly the
-/// soundness hazard above. Disabling the lock on Windows trades the
-/// pinning protection for a sound Drop chain. The bytes are still
-/// zeroized at Drop via `ZeroizeOnDrop`.
+/// `VirtualLock` is documented as best-effort: pages can be implicitly
+/// unlocked when the working set is trimmed, and a later `VirtualUnlock`
+/// returns `ERROR_NOT_LOCKED`. `region` asserts on that error in its `Drop`,
+/// so a routine working-set trim would turn into a Drop-time panic. The bytes
+/// are still zeroized at Drop via `ZeroizeOnDrop` on Windows.
 ///
-/// # Why `catch_unwind` and not direct FFI (Unix)
+/// # Drop-time panics
 ///
-/// A direct unlock FFI call would also work but requires `unsafe_code`
-/// (the workspace-wide deny gate would need a targeted `#[allow]` with
-/// justification). Catching the panic at the Rust boundary keeps the
-/// safe-code guarantee. The runtime cost on the success path (no panic
-/// raised) is a single `catch_unwind` setup, which is a stack-only
-/// operation — negligible compared to the syscall.
-///
-/// # Security guarantee
-///
-/// Memory pinning is documented as best-effort on every platform; a
-/// working-set trim or swap activity could already have copied the page
-/// to disk *before* our drop. Whether we explicitly unlock at drop or
-/// not has no effect on whether the secret was resident while it
-/// mattered. The bytes are zeroized by `ZeroizeOnDrop` regardless.
-///
-/// # Caveat
-///
-/// `catch_unwind` is a no-op when the binary is built with
-/// `panic = "abort"`; in that mode the original `LockGuard::drop` panic
-/// would still abort the process. The workspace defaults to
-/// `panic = "unwind"` and `catch_unwind` works as expected.
-///
-/// # Upstream
-///
-/// If `region` ever changes its `Drop` to tolerate `ERROR_NOT_LOCKED` on
-/// Windows, this wrapper can be deleted and the field reverted to
-/// `Option<region::LockGuard>` with `not(target_os = "windows")` lifted.
+/// `region::LockGuard::drop` contains a `debug_assert!` on the unlock result.
+/// Each page guard is dropped inside [`std::panic::catch_unwind`] so a failed
+/// `munlock` in a debug build cannot escape a `SecretVec` Drop chain (which
+/// may run while already unwinding). `catch_unwind` is a no-op under
+/// `panic = "abort"`; release builds compile the `debug_assert!` out.
 #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
-struct MlockGuard(Option<region::LockGuard>);
+mod mlock {
+    use std::collections::BTreeMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
-impl Drop for MlockGuard {
-    fn drop(&mut self) {
-        let Some(guard) = self.0.take() else { return };
-        // Run the inner `LockGuard::drop` (which calls `munlock` /
-        // `VirtualUnlock`) inside `catch_unwind` so that any panic — most
-        // notably Windows `ERROR_NOT_LOCKED` after a working-set trim —
-        // is contained at this wrapper boundary instead of cascading into
-        // a Drop-time double-panic that would abort the process.
-        // `AssertUnwindSafe` is sound here because we discard `guard` on
-        // either path; nothing observed by other code can be left in an
-        // inconsistent state.
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            drop(guard);
-        }));
+    use parking_lot::Mutex;
+
+    use super::MemoryLockStatus;
+
+    /// One locked page and the number of live buffers that use it.
+    struct PageLock {
+        refs: usize,
+        guard: region::LockGuard,
+    }
+
+    /// Locked pages keyed by page base address.
+    static PAGES: Mutex<BTreeMap<usize, PageLock>> = Mutex::new(BTreeMap::new());
+    /// Live `SecretVec` buffers whose pages are all locked.
+    static LOCKED_BUFFERS: AtomicUsize = AtomicUsize::new(0);
+    /// Failed lock attempts since process start.
+    static FAILED_BUFFERS: AtomicUsize = AtomicUsize::new(0);
+    /// OS error text of the most recent failure.
+    static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+    /// Proof that one buffer holds a reference on every page in
+    /// `first_page .. first_page + page_count * page_size`.
+    pub(super) struct MlockGuard {
+        first_page: usize,
+        page_count: usize,
+        page_size: usize,
+    }
+
+    impl Drop for MlockGuard {
+        fn drop(&mut self) {
+            release_pages(self.first_page, self.page_count, self.page_size);
+            // Checked decrement: the counter was incremented when this guard
+            // was created, so it cannot be zero here; `try_update` leaves it
+            // at zero instead of wrapping if that invariant were ever broken.
+            let _ = LOCKED_BUFFERS
+                .try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1));
+        }
+    }
+
+    /// Lock every page overlapping `bytes`. Returns `None` for an empty
+    /// buffer (no attempt is made) or when the OS refuses the lock; the
+    /// failure case is recorded in the process-wide status.
+    pub(super) fn lock(bytes: &[u8]) -> Option<MlockGuard> {
+        if bytes.is_empty() {
+            return None;
+        }
+        match lock_pages(bytes) {
+            Ok(guard) => {
+                LOCKED_BUFFERS.fetch_add(1, Ordering::AcqRel);
+                Some(guard)
+            }
+            Err(message) => {
+                record_lock_failure(message);
+                None
+            }
+        }
+    }
+
+    /// Record a failed lock attempt. Crate-private so the bookkeeping can be
+    /// unit-tested without lowering `RLIMIT_MEMLOCK` in the test process.
+    pub(super) fn record_lock_failure(message: String) {
+        FAILED_BUFFERS.fetch_add(1, Ordering::AcqRel);
+        *LAST_ERROR.lock() = Some(message);
+    }
+
+    /// Snapshot of the counters.
+    pub(super) fn status() -> MemoryLockStatus {
+        MemoryLockStatus {
+            supported: true,
+            feature_enabled: true,
+            locked_buffers: LOCKED_BUFFERS.load(Ordering::Acquire),
+            failed_buffers: FAILED_BUFFERS.load(Ordering::Acquire),
+            last_error: LAST_ERROR.lock().clone(),
+        }
+    }
+
+    /// Page range `(first_page, page_count, page_size)` covering `bytes`.
+    fn page_range(bytes: &[u8]) -> Option<(usize, usize, usize)> {
+        let page_size = region::page::size();
+        let start = bytes.as_ptr().addr();
+        let last = start.checked_add(bytes.len())?.checked_sub(1)?;
+        let first_page = start.checked_sub(start.checked_rem(page_size)?)?;
+        let last_page = last.checked_sub(last.checked_rem(page_size)?)?;
+        let page_count =
+            last_page.checked_sub(first_page)?.checked_div(page_size)?.checked_add(1)?;
+        Some((first_page, page_count, page_size))
+    }
+
+    fn lock_pages(bytes: &[u8]) -> Result<MlockGuard, String> {
+        let (first_page, page_count, page_size) =
+            page_range(bytes).ok_or_else(|| "buffer address range overflows".to_string())?;
+        // Pointer to the first page, derived from the buffer pointer so the
+        // address handed to the OS keeps the allocation's provenance.
+        let offset = bytes.as_ptr().addr().saturating_sub(first_page);
+        let base = bytes.as_ptr().wrapping_sub(offset);
+
+        let mut pages = PAGES.lock();
+        for index in 0..page_count {
+            let delta = index.checked_mul(page_size);
+            let page = delta.and_then(|d| first_page.checked_add(d));
+            let (Some(delta), Some(page)) = (delta, page) else {
+                drop(pages);
+                release_pages(first_page, index, page_size);
+                return Err("buffer address range overflows".to_string());
+            };
+            if let Some(entry) = pages.get_mut(&page) {
+                entry.refs = entry.refs.saturating_add(1);
+                continue;
+            }
+            match region::lock(base.wrapping_add(delta), page_size) {
+                Ok(guard) => {
+                    pages.insert(page, PageLock { refs: 1, guard });
+                }
+                Err(err) => {
+                    drop(pages);
+                    // Roll back the references this call already took.
+                    release_pages(first_page, index, page_size);
+                    return Err(err.to_string());
+                }
+            }
+        }
+        Ok(MlockGuard { first_page, page_count, page_size })
+    }
+
+    /// Drop one reference on each of `page_count` pages starting at
+    /// `first_page`, unlocking pages whose count reaches zero.
+    fn release_pages(first_page: usize, page_count: usize, page_size: usize) {
+        let mut unlocked: Vec<region::LockGuard> = Vec::new();
+        {
+            let mut pages = PAGES.lock();
+            for index in 0..page_count {
+                let Some(page) =
+                    index.checked_mul(page_size).and_then(|d| first_page.checked_add(d))
+                else {
+                    break;
+                };
+                let remove = match pages.get_mut(&page) {
+                    Some(entry) => {
+                        entry.refs = entry.refs.saturating_sub(1);
+                        entry.refs == 0
+                    }
+                    None => false,
+                };
+                if remove && let Some(entry) = pages.remove(&page) {
+                    unlocked.push(entry.guard);
+                }
+            }
+        }
+        // `munlock` runs outside the registry mutex.
+        for guard in unlocked {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                drop(guard);
+            }));
+        }
+    }
+
+    /// Reference count of the page containing `addr`, for tests.
+    #[cfg(test)]
+    pub(super) fn page_refs(addr: usize) -> Option<usize> {
+        let page_size = region::page::size();
+        let page = addr.checked_sub(addr.checked_rem(page_size)?)?;
+        PAGES.lock().get(&page).map(|entry| entry.refs)
     }
 }
 
@@ -397,30 +586,34 @@ impl SecretVec {
         drop(bytes);
 
         #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
-        let _lock = Self::try_lock(&owned);
+        let lock = mlock::lock(&owned);
         Self {
             #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
-            _lock,
+            lock,
             bytes: owned,
         }
     }
 
-    /// Attempt to lock the backing buffer into RAM. Returns `None` on empty
-    /// buffers (locking a dangling pointer is UB) or on `mlock` failure
-    /// (e.g. `RLIMIT_MEMLOCK` exceeded, or Windows working-set quota
-    /// exceeded). Failures are swallowed: the bytes are still zeroized on
-    /// drop, we simply lose OS-level leakage protection.
+    /// Returns `true` if this buffer's pages are locked into RAM.
     ///
-    /// The successful lock is returned wrapped in [`MlockGuard`] so its Drop
-    /// is panic-tolerant — see the type-level docs there for the Windows
-    /// `VirtualUnlock` rationale.
-    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
+    /// `true` only when the `secret-mlock` feature is enabled, the target is
+    /// not Windows, the buffer is non-empty and `mlock` succeeded for every
+    /// page it occupies. Locked pages stay locked until this `SecretVec` is
+    /// dropped (see the reference-counting note on the type). A `false`
+    /// result means the bytes may be written to swap; they are still
+    /// zeroized on drop. Use [`memory_lock_status`] for the process-wide
+    /// picture.
+    #[must_use]
     #[inline]
-    fn try_lock(bytes: &[u8]) -> Option<MlockGuard> {
-        if bytes.is_empty() {
-            return None;
+    pub fn is_locked(&self) -> bool {
+        #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
+        {
+            self.lock.is_some()
         }
-        region::lock(bytes.as_ptr(), bytes.len()).ok().map(|g| MlockGuard(Some(g)))
+        #[cfg(not(all(feature = "secret-mlock", not(target_os = "windows"))))]
+        {
+            false
+        }
     }
 
     /// Length in bytes.
@@ -645,10 +838,33 @@ mod tests {
     // -------- secret-mlock feature --------
     //
     // When the `secret-mlock` feature is enabled, `SecretVec` constructors
-    // additionally lock their backing buffer into RAM. These tests only
-    // exercise the observable behavior (successful construction and byte
-    // access); the lock itself is an OS-level property that we cannot inspect
-    // from safe Rust.
+    // additionally lock their backing pages into RAM and record the outcome.
+    // Other tests in this binary create `SecretVec`s concurrently, so the
+    // process-wide counters are asserted with lower bounds here; the exact
+    // create/drop accounting is checked in the single-test integration binary
+    // `tests/secrets_memory_lock_status.rs`.
+
+    #[test]
+    fn secrets_memory_lock_status_reports_feature_flag() {
+        let status = memory_lock_status();
+        assert_eq!(status.feature_enabled, cfg!(feature = "secret-mlock"));
+        assert_eq!(
+            status.supported,
+            cfg!(all(feature = "secret-mlock", not(target_os = "windows")))
+        );
+    }
+
+    #[cfg(not(all(feature = "secret-mlock", not(target_os = "windows"))))]
+    #[test]
+    fn secrets_is_locked_false_without_lock_support() {
+        let sv = SecretVec::new(vec![0x42u8; 1024]);
+        assert!(!sv.is_locked());
+        let status = memory_lock_status();
+        assert_eq!(status.locked_buffers, 0);
+        assert_eq!(status.failed_buffers, 0);
+        assert_eq!(status.last_error, None);
+        assert!(!status.supported);
+    }
 
     #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
@@ -662,6 +878,66 @@ mod tests {
 
     #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
+    fn secrets_locked_buffer_is_counted_while_alive() {
+        let alive: Vec<SecretVec> = (0..8).map(|_| SecretVec::new(vec![0x11u8; 64])).collect();
+        let locked_here = alive.iter().filter(|sv| sv.is_locked()).count();
+        let status = memory_lock_status();
+        assert!(status.supported);
+        assert!(status.feature_enabled);
+        // Other threads can only add their own live buffers, never remove ours.
+        assert!(status.locked_buffers >= locked_here);
+        if locked_here < alive.len() {
+            assert!(status.failed_buffers >= alive.len() - locked_here);
+            assert!(status.last_error.is_some());
+        }
+    }
+
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
+    #[test]
+    fn secrets_injected_lock_failure_is_reported() {
+        // Exercising a real `mlock` failure needs a lowered RLIMIT_MEMLOCK,
+        // which is environment-dependent. Inject the outcome through the
+        // same crate-private hook the production failure path calls.
+        let before = memory_lock_status().failed_buffers;
+        mlock::record_lock_failure("injected: Cannot allocate memory (os error 12)".to_string());
+        let status = memory_lock_status();
+        assert!(status.failed_buffers > before);
+        assert!(status.last_error.is_some());
+
+        // A buffer whose lock attempt failed reports `is_locked() == false`
+        // while keeping its bytes and redacted Debug.
+        let unlocked = SecretVec { lock: None, bytes: vec![0x5Au8; 32] };
+        assert!(!unlocked.is_locked());
+        assert_eq!(unlocked.expose_secret(), &[0x5Au8; 32]);
+        assert!(format!("{unlocked:?}").contains("[REDACTED]"));
+    }
+
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
+    #[test]
+    fn secrets_shared_pages_are_reference_counted() {
+        // Three pages of our own: the middle page cannot be shared with any
+        // other allocation, so its reference count is ours alone.
+        let page = region::page::size();
+        let buffer = vec![0u8; page.saturating_mul(3)];
+        let middle = buffer.as_ptr().addr().saturating_add(page.saturating_add(page / 2));
+        let Some(first) = mlock::lock(&buffer) else {
+            // Environment refused the lock; the bookkeeping must say so.
+            assert!(memory_lock_status().failed_buffers > 0);
+            return;
+        };
+        assert_eq!(mlock::page_refs(middle), Some(1));
+        let second = mlock::lock(&buffer);
+        assert!(second.is_some());
+        assert_eq!(mlock::page_refs(middle), Some(2));
+        // Dropping one holder must not unlock the page for the other.
+        drop(first);
+        assert_eq!(mlock::page_refs(middle), Some(1));
+        drop(second);
+        assert_eq!(mlock::page_refs(middle), None);
+    }
+
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
+    #[test]
     fn secret_vec_mlock_zero_succeeds() {
         let sv = SecretVec::zero(256);
         assert_eq!(sv.len(), 256);
@@ -671,43 +947,44 @@ mod tests {
     #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn secret_vec_mlock_empty_does_not_lock() {
-        // Empty buffers have no valid base pointer to lock; `try_lock` must
-        // return `None` without calling into the OS.
+        // Empty buffers have no valid base pointer to lock; `mlock::lock`
+        // must return `None` without calling into the OS.
         let sv = SecretVec::zero(0);
         assert_eq!(sv.len(), 0);
         assert!(sv.is_empty());
+        assert!(!sv.is_locked());
     }
 
     #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn secret_vec_mlock_clone_is_independent() {
         // Cloning must lock the new buffer independently — the original's
-        // `LockGuard` does not transfer.
+        // page references do not transfer.
         let original = SecretVec::new(vec![0x77u8; 512]);
         let copy = original.clone_for_transmission();
         assert_eq!(copy.len(), 512);
         assert_eq!(copy.expose_secret().first().copied(), Some(0x77));
+        let original_locked = original.is_locked();
         // Drop the copy first — the original's lock must remain valid.
         drop(copy);
         assert_eq!(original.expose_secret().first().copied(), Some(0x77));
+        assert_eq!(original.is_locked(), original_locked);
     }
 
     #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn mlock_guard_drop_does_not_panic_under_repeated_lock_unlock() {
         // Regression test for the Drop-time double-panic hazard described
-        // on `MlockGuard`. Allocate, lock, and drop many `SecretVec`s in
-        // sequence. If `region::LockGuard::drop` ever raises a panic (e.g.
-        // Windows working-set trim → `ERROR_NOT_LOCKED`) the wrapper's
-        // `catch_unwind` must contain it; this test would otherwise abort
-        // the process. Success is reaching the final assertion.
+        // on the `mlock` module. Allocate, lock, and drop many `SecretVec`s
+        // in sequence; each page guard is dropped inside `catch_unwind`, so
+        // a failed `munlock` cannot abort the process. Success is reaching
+        // the end of the loop.
         for _ in 0..32 {
             let sv = SecretVec::new(vec![0xA5u8; 4096]);
             assert_eq!(sv.expose_secret().len(), 4096);
-            // explicit drop forces `_lock` then `bytes` to drop in order.
+            // explicit drop forces `lock` then `bytes` to drop in order.
             drop(sv);
         }
-        // Reached if no panic escaped any `MlockGuard::drop`.
     }
 
     #[test]

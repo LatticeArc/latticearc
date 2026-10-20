@@ -10,6 +10,8 @@ used in `tests/src/validation/nist_kat/`.
 | `aes_gcm_kat.rs` | AES-128-GCM, AES-256-GCM | NIST SP 800-38D | FIPS 197 + SP 800-38D | Test Cases 1-3 (128-bit), 13-15 (256-bit) from Appendix C |
 | `ml_kem_kat.rs` | ML-KEM-512/768/1024 | NIST CAVP ML-KEM | FIPS 203 | Deterministic keygen KAT vectors, Count=0,1 per security level |
 | `ml_dsa_kat.rs` | ML-DSA-44/65/87 | NIST CAVP ML-DSA | FIPS 204 | Deterministic signing KAT vectors |
+| `ml_dsa_acvp_kat.rs` | ML-DSA-44/65/87 keyGen, HashML-DSA sigGen/sigVer | NIST ACVP-Server `gen-val/json-files/ML-DSA-{keyGen,sigGen,sigVer}-FIPS204/internalProjection.json` at commit `2972def23bf9f3680c2c531561ed9bdd0f1086ad` | FIPS 204 Algorithms 4, 5, 6 | 3 keyGen + 11 external/preHash sigGen + 6 sigVer cases; file SHA-256s recorded in the module docs |
+| `hybrid_sig_seed_kat.rs` | Hybrid ML-DSA + Ed25519 seed keygen | **Self-generated** by LatticeArc 0.13 (no external reference exists for the HKDF label derivation) | FIPS 204 Alg. 6 + RFC 8032 §5.1.5 | 2 seeds × 3 parameter sets; cross-platform determinism check |
 | `sha2_kat.rs` | SHA-224/256/384/512 | NIST FIPS 180-4 | FIPS 180-4 | Examples B.1-B.3 (short/long message tests) |
 | `hmac_kat.rs` | HMAC-SHA-224/256/384/512 | RFC 4231 | RFC 4231 | Test Cases 1-2 (Section 4.2-4.3) |
 | `hkdf_kat.rs` | HKDF-SHA-256 | RFC 5869 | RFC 5869 | Test vectors from Section A |

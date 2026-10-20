@@ -312,6 +312,8 @@ chacha20poly1305 = { version = "0.11.0", features = ["alloc"] }
 sha2 = { version = "=0.11.0" }
 pbkdf2 = { version = "=0.13.0" }
 hmac = { version = "=0.13.0" }
+# Argon2id (RFC 9106) password KDF; raw-hash API only, no PHC string format.
+argon2 = { version = "=0.6.0", default-features = false, features = ["zeroize"] }
 # Low-level primitives
 aes = { version = "=0.9.3" }
 # Held at 0.11: `sha3 0.12` removed the XOF surface entirely — `Shake128`,
@@ -335,7 +337,7 @@ libfuzzer-sys = { version = "0.4.8" }
 # features they need themselves).
 p384 = { version = "0.14.0", features = ["ecdsa", "std"] }
 k256 = { version = "0.14.0", features = ["ecdsa", "std"] }
-ed25519-dalek = { version = "3.0.0", features = ["rand_core", "zeroize"] }
+ed25519-dalek = { version = "3.0.0", features = ["rand_core", "zeroize", "digest"] }
 # X25519 needed for CAVP test vector validation (deterministic key generation).
 # exact-pin per the same rationale as the rest of
 # the RustCrypto stack above.

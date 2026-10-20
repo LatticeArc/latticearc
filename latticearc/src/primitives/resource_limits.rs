@@ -3,22 +3,25 @@
 //! Provides configurable limits on encryption size, signature size, and
 //! decryption size to prevent denial-of-service via oversized inputs. The
 //! limits are enforced by `aead::aes_gcm`, `aead::chacha20poly1305`,
-//! `hybrid::encrypt_hybrid`, and the signature primitives before any
-//! cryptographic work is performed.
+//! `hybrid::encrypt_hybrid`, the signature primitives and `kdf::argon2id`
+//! before any cryptographic work is performed.
 //!
 //! # Default limits
 //!
 //! | Field | Default | Rationale |
 //! |---|---|---|
-//! | `max_encryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | One-shot AEAD path; stream beyond this size |
+//! | `max_encryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | One-shot AEAD path; use `aead::stream` beyond this size |
 //! | `max_signature_size_bytes` | `64 KiB` (`64 * 1024`) | Pre-hash signature input cap |
 //! | `max_decryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | Symmetric to encryption cap |
 //! | `max_aad_size_bytes` | `1 MiB` (`1024 * 1024`) | AEAD additional-authenticated-data cap |
+//! | `max_argon2_memory_kib` | `1 GiB` (`1024 * 1024` KiB) | Argon2id working-memory cap |
 //!
 //! Override at runtime via [`ResourceLimitsManager::with_limits`] /
 //! [`ResourceLimitsManager::update_limits`]. The `100 MiB` AEAD cap is a
 //! conservative one-shot ceiling — applications that need to seal larger
-//! payloads should chunk into framed records or raise the limit explicitly.
+//! payloads should use the streaming AEAD
+//! ([`crate::primitives::aead::stream::StreamEncryptor`], segments of up to
+//! 16 MiB with random-access decryption) or raise the limit explicitly.
 
 use std::sync::{Arc, LazyLock, RwLock};
 
@@ -46,7 +49,22 @@ pub struct ResourceLimits {
     /// AADs (rare; most protocols cap AAD in the kilobytes) should raise
     /// the limit explicitly.
     pub max_aad_size_bytes: usize,
+    /// Maximum Argon2id memory cost, in KiB. Default: `1024 * 1024`
+    /// (1 GiB).
+    ///
+    /// Argon2id allocates `memory_kib` KiB of working memory per call, and
+    /// its parameters often arrive from stored or deserialized records. An
+    /// unchecked `memory_kib` lets such a record force an allocation of up
+    /// to 4 TiB. The 1 GiB default admits the RFC 9106 §4 server profile
+    /// (1 GiB) and its second recommended option (64 MiB). The first
+    /// recommended option (2 GiB) needs this limit raised explicitly.
+    ///
+    /// Consumer: argon2id(), Argon2Params::calibrate()
+    pub max_argon2_memory_kib: u32,
 }
+
+/// Default Argon2id memory cap in KiB (1 GiB).
+const DEFAULT_MAX_ARGON2_MEMORY_KIB: u32 = 1024 * 1024;
 
 impl Default for ResourceLimits {
     /// Returns the default limits documented on each field of
@@ -57,12 +75,14 @@ impl Default for ResourceLimits {
             max_signature_size_bytes: 64 * 1024,
             max_decryption_size_bytes: 100 * 1024 * 1024,
             max_aad_size_bytes: 1024 * 1024,
+            max_argon2_memory_kib: DEFAULT_MAX_ARGON2_MEMORY_KIB,
         }
     }
 }
 
 impl ResourceLimits {
-    /// Creates a new `ResourceLimits` with the specified values.
+    /// Creates a new `ResourceLimits` with the specified values. The AAD
+    /// and Argon2id memory caps take their defaults.
     #[must_use]
     pub fn new(
         max_encryption_size: usize,
@@ -74,12 +94,14 @@ impl ResourceLimits {
             max_signature_size_bytes: max_signature_size,
             max_decryption_size_bytes: max_decryption_size,
             max_aad_size_bytes: 1024 * 1024,
+            max_argon2_memory_kib: DEFAULT_MAX_ARGON2_MEMORY_KIB,
         }
     }
 
-    /// Creates a new `ResourceLimits` with all four fields specified
-    /// explicitly. Use this when the caller cares about the AAD cap;
-    /// use [`Self::new`] when the default 1 MiB AAD cap is acceptable.
+    /// Creates a new `ResourceLimits` with the four size fields specified
+    /// explicitly; the Argon2id memory cap takes its default. Use this when
+    /// the caller cares about the AAD cap; use [`Self::new`] when the default
+    /// 1 MiB AAD cap is acceptable.
     #[must_use]
     pub fn with_aad_limit(
         max_encryption_size: usize,
@@ -92,6 +114,7 @@ impl ResourceLimits {
             max_signature_size_bytes: max_signature_size,
             max_decryption_size_bytes: max_decryption_size,
             max_aad_size_bytes: max_aad_size,
+            max_argon2_memory_kib: DEFAULT_MAX_ARGON2_MEMORY_KIB,
         }
     }
 }
@@ -197,6 +220,27 @@ impl ResourceLimitsManager {
         }
         Ok(())
     }
+
+    /// Validates that an Argon2id memory cost (in KiB) does not exceed the
+    /// configured limit.
+    ///
+    /// `kdf::argon2id` calls this before allocating its working memory, so a
+    /// stored or deserialized parameter block cannot force an oversized
+    /// allocation.
+    ///
+    /// # Errors
+    /// Returns an error if `memory_kib` exceeds the maximum allowed Argon2id
+    /// memory cost.
+    pub fn validate_argon2_memory_kib(&self, memory_kib: u32) -> Result<()> {
+        let limits = self.get_limits()?;
+        if memory_kib > limits.max_argon2_memory_kib {
+            return Err(ResourceError::Argon2MemoryLimitExceeded {
+                requested_kib: memory_kib,
+                limit_kib: limits.max_argon2_memory_kib,
+            });
+        }
+        Ok(())
+    }
 }
 
 impl Default for ResourceLimitsManager {
@@ -254,6 +298,15 @@ pub enum ResourceError {
         limit: usize,
     },
 
+    /// Argon2id memory cost exceeds configured limit.
+    #[error("Argon2id memory limit exceeded: requested {requested_kib} KiB, limit {limit_kib} KiB")]
+    Argon2MemoryLimitExceeded {
+        /// Memory cost requested, in KiB.
+        requested_kib: u32,
+        /// Maximum allowed memory cost, in KiB.
+        limit_kib: u32,
+    },
+
     /// Internal lock was poisoned by a panicked thread.
     #[error("Resource limits lock poisoned — a thread panicked while holding the lock")]
     LockPoisoned,
@@ -303,6 +356,15 @@ pub fn validate_decryption_size(size: usize) -> Result<()> {
 /// Returns an error if the size exceeds the maximum allowed AAD size in bytes.
 pub fn validate_aad_size(size: usize) -> Result<()> {
     get_global_resource_limits().validate_aad_size(size)
+}
+
+/// Validates an Argon2id memory cost (in KiB) against global resource limits.
+///
+/// # Errors
+/// Returns an error if `memory_kib` exceeds the maximum allowed Argon2id
+/// memory cost.
+pub fn validate_argon2_memory_kib(memory_kib: u32) -> Result<()> {
+    get_global_resource_limits().validate_argon2_memory_kib(memory_kib)
 }
 
 #[cfg(kani)]
@@ -355,6 +417,25 @@ mod kani_proofs {
             kani::assert(result.is_ok(), "decryption size ≤ limit must Ok");
         }
     }
+
+    /// Same property for the Argon2id memory cap: no `memory_kib > limit`
+    /// reaches the Argon2id allocation.
+    #[kani::proof]
+    #[kani::unwind(3)]
+    fn validate_argon2_memory_kib_biconditional() {
+        let memory_kib: u32 = kani::any();
+        let limit: u32 = kani::any();
+
+        let limits = ResourceLimits { max_argon2_memory_kib: limit, ..ResourceLimits::default() };
+        let manager = ResourceLimitsManager::with_limits(limits);
+        let result = manager.validate_argon2_memory_kib(memory_kib);
+
+        if memory_kib > limit {
+            kani::assert(result.is_err(), "Argon2id memory > limit must Err");
+        } else {
+            kani::assert(result.is_ok(), "Argon2id memory ≤ limit must Ok");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -373,6 +454,7 @@ mod tests {
         assert_eq!(limits.max_encryption_size_bytes, 100 * 1024 * 1024);
         assert_eq!(limits.max_signature_size_bytes, 64 * 1024);
         assert_eq!(limits.max_decryption_size_bytes, 100 * 1024 * 1024);
+        assert_eq!(limits.max_argon2_memory_kib, 1024 * 1024);
     }
 
     #[test]
@@ -381,6 +463,9 @@ mod tests {
         assert_eq!(limits.max_encryption_size_bytes, 50 * 1024 * 1024);
         assert_eq!(limits.max_signature_size_bytes, 32 * 1024);
         assert_eq!(limits.max_decryption_size_bytes, 50 * 1024 * 1024);
+        assert_eq!(limits.max_argon2_memory_kib, DEFAULT_MAX_ARGON2_MEMORY_KIB);
+        let with_aad = ResourceLimits::with_aad_limit(1, 2, 3, 4);
+        assert_eq!(with_aad.max_argon2_memory_kib, DEFAULT_MAX_ARGON2_MEMORY_KIB);
     }
 
     #[test]
@@ -442,6 +527,31 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_argon2_memory_kib_oversized_returns_argon2_limit_exceeded() {
+        let manager = ResourceLimitsManager::with_limits(ResourceLimits {
+            max_argon2_memory_kib: 64,
+            ..ResourceLimits::default()
+        });
+        assert!(manager.validate_argon2_memory_kib(64).is_ok(), "exact-limit memory must accept");
+        let err = manager.validate_argon2_memory_kib(65).expect_err("memory over limit must fail");
+        match err {
+            ResourceError::Argon2MemoryLimitExceeded { requested_kib, limit_kib } => {
+                assert_eq!(requested_kib, 65);
+                assert_eq!(limit_kib, 64);
+            }
+            other => panic!("expected Argon2MemoryLimitExceeded, got {other:?}"),
+        }
+        let msg = format!("{}", manager.validate_argon2_memory_kib(u32::MAX).unwrap_err());
+        assert!(msg.contains("KiB"));
+    }
+
+    #[test]
+    fn test_global_validate_argon2_memory_kib_uses_default_cap() {
+        assert!(validate_argon2_memory_kib(DEFAULT_MAX_ARGON2_MEMORY_KIB).is_ok());
+        assert!(validate_argon2_memory_kib(DEFAULT_MAX_ARGON2_MEMORY_KIB + 1).is_err());
+    }
+
+    #[test]
     fn test_resource_error_display_fails() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
         let msg = format!("{err}");
@@ -496,6 +606,10 @@ mod tests {
         match manager.validate_decryption_size(1) {
             Err(ResourceError::LockPoisoned) => {}
             other => panic!("validate_decryption_size expected LockPoisoned, got {other:?}"),
+        }
+        match manager.validate_argon2_memory_kib(1) {
+            Err(ResourceError::LockPoisoned) => {}
+            other => panic!("validate_argon2_memory_kib expected LockPoisoned, got {other:?}"),
         }
     }
 }
