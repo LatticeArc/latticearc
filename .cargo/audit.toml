@@ -54,6 +54,13 @@ ignore = [
     "RUSTSEC-2026-0166", # pqcrypto-mldsa
     "RUSTSEC-2026-0160", # pqcrypto-sphincsplus
     "RUSTSEC-2026-0162", # pqcrypto-traits
+    # basic-toml 0.1.10 — unmaintained. Pulled in by askama_derive 0.16.1,
+    # the template engine of uniffi_bindgen, which `latticearc-ffi` only
+    # depends on behind its optional `bindgen` feature (the `uniffi-bindgen`
+    # binaries that generate Swift and Kotlin sources). Nothing from it is
+    # linked into the published crate or the shipped FFI library. Revisit
+    # when askama moves off basic-toml or UniFFI ships a newer bindgen.
+    "RUSTSEC-2026-0374",
 ]
 
 # Treat informational advisories as warnings (not errors). Combined with

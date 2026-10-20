@@ -68,6 +68,7 @@ ignore = [
     "RUSTSEC-2026-0166", # pqcrypto-mldsa
     "RUSTSEC-2026-0160", # pqcrypto-sphincsplus
     "RUSTSEC-2026-0162", # pqcrypto-traits
+    "RUSTSEC-2026-0374", # basic-toml via askama_derive, bindgen feature only
 ]
 
 [bans]

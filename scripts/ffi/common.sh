@@ -26,8 +26,14 @@ ffi_host_cdylib() {
     esac
 }
 
+# The host library is both the input for binding generation and the library
+# the samples load. UniFFI's library mode reads its metadata from the symbol
+# table, which the workspace release profile strips (`strip = true`): on
+# Linux that leaves "No UniFFI metadata found", on macOS the exported symbols
+# happen to survive. The host build therefore keeps its symbols; the shipped
+# iOS and Android libraries are built separately and stay stripped.
 ffi_build_host() {
-    (cd "$FFI_REPO_ROOT" && cargo build --locked -p latticearc-ffi --release)
+    (cd "$FFI_REPO_ROOT" && CARGO_PROFILE_RELEASE_STRIP=none cargo build --locked -p latticearc-ffi --release)
 }
 
 # Runs the crate's own `uniffi-bindgen` (generic, Swift + Kotlin).

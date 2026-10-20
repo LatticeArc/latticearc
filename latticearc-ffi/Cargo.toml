@@ -11,6 +11,10 @@ homepage.workspace = true
 readme = "README.md"
 keywords = ["post-quantum", "cryptography", "uniffi", "swift", "kotlin"]
 categories = ["cryptography", "external-ffi-bindings"]
+# Shipped as an XCFramework and Android libraries built by scripts/ffi/, not
+# as a crates.io package: the release pipeline publishes `latticearc` only,
+# and cargo-semver-checks would otherwise look for this crate on crates.io.
+publish = false
 
 [lib]
 name = "latticearc_ffi"

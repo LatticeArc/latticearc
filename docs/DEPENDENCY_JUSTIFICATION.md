@@ -426,7 +426,7 @@ The workspace contains 4 crates (consolidated from 11 in v0.1.0; `latticearc-ffi
 - **License**: Apache-2.0
 - **Usage**: CI/CD, development only
 
-#### latticearc-ffi (v0.13.0) — Swift and Kotlin bindings (not published by the release pipeline)
+#### latticearc-ffi (v0.13.0) — Swift and Kotlin bindings (publish = false)
 - **Purpose**: UniFFI-generated C ABI over the mobile core; shipped as an XCFramework and Android `jniLibs` built by `scripts/ffi/`
 - **Added dependencies**: `uniffi` 0.32.2 (MPL-2.0, pinned) at runtime; `uniffi_bindgen` and its template engine only behind the optional `bindgen` feature (brings the allowed informational advisory RUSTSEC-2026-0374, `basic-toml`)
 - **License**: Apache-2.0
