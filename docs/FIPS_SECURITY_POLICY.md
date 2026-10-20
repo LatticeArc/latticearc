@@ -1,7 +1,7 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.12.1
+**Module Version**: 0.13.0
 
 > CI gate `fips-policy-version` (`lint-extras.yml`) enforces that this
 > stamp matches `[workspace.package].version` in `Cargo.toml` exactly.
@@ -30,7 +30,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.12.1 |
+| Module Version | 0.13.0 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.99) |
@@ -317,6 +317,7 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.13.0 | 2026-10-20 | **No change to the cryptographic boundary or the power-up self-tests.** The mobile-core additions compose approved primitives already inside the boundary (AES-256-GCM, HKDF-SHA256, HMAC-SHA256, ML-DSA) for the streaming AEAD, the committing key wrap and HashML-DSA / seed-based ML-DSA key generation (FIPS 204 Algorithms 4 and 6, ACVP vectors checked in). Argon2id (RustCrypto `argon2`, not NIST-approved) and the Swift/Kotlin FFI crate sit outside the boundary. MSRV raised to 1.99. |
 | 0.12.0 | 2026-08-16 | **§9.6 error-state enforcement widened; two breaking API changes.** The operational latch was previously consulted by only 8 convenience entry points; the AEAD, hash/KDF/MAC, PQ-KEM, PQ-signature, Ed25519, hybrid-signature and ECDSA-P384 modules call `primitives::*` directly and so continued to provide cryptographic services after the module entered the error state — including the `fips-strict-integrity` case where no `PRODUCTION_HMAC.txt` is provisioned. Every such module now consults the latch at its internal chokepoint. Consequently `hash_data` returns `Result<[u8; 32]>` (SHA-3 is an approved algorithm inside the boundary, so §9.6 must be able to refuse the call), and `unified_api::self_tests_passed()` now reports the conjunction of the power-up flag and the operational latch rather than a stale `init()`-time flag — `init()` and every gated operation now share a single `Once`-guarded power-up run. Also: the configured-`SecurityLevel` minimum-strength gate no longer skips the `pq-`-prefixed and `-hybrid-ed25519`-suffixed scheme spellings on `decrypt`/`verify`, and `PortableKey` expiry is enforced by all twelve typed-key extractors rather than only the four hybrid ones. |
 | 0.9.0 | 2026-05-31 | **Security-audit followup wave.** Wire-format breaks: every signature path binds a per-scheme domain-separation context into the signed transcript (H1 / M1 — `SigSchemeLabel` closed enum, FIPS 204 §5.2 ctx for ML-DSA, FIPS 205 §10.2 ctx for SLH-DSA, SHA-512 prefix-hash for Ed25519 and FN-DSA); `pq_only` ciphertexts now bind AAD into the HKDF info segment (M3). New library APIs: `verify_with_anchor(signed, expected_pk, expected_scheme, config)` for operator-pinned trust-anchor verification (H2), `PortableKey::validate_with_expiry(now)` for explicit "safe to use right now" gate (M4). New CLI flags: `verify --allow-embedded-key` (H2 opt-out), `decrypt --print-to-tty` / `kdf --print-to-tty` (L9 hard-fail otherwise). New CLI env-gate: `LATTICEARC_ALLOW_UNSAFE_CLI=1` required for `--allow-weak-iterations` / `--allow-argv-secret` (L8). Closed allowlist for signature scheme strings at deserialization (M5); `KeyType::Public` guards on `to_hybrid_public_key` / `to_hybrid_sig_public_key` (M2); `EncryptedOutput.version` validated against `=2` at parse (L7); secp256k1 keygen routed through crate `secure_rng()` with scalar-validity retry (L1); PBKDF2 salt all-zero check, P-256/P-384/P-521 zero-coord check, and P-curve agreement all-zero-shared-secret check use CT helpers (L2/L3/L4); `validate_composite_lengths` dispatches per-algorithm classical-leg length (L6); `ConstantTimeEq` impls added on X25519PublicKey / P-curve public keys alongside derived `PartialEq` (L5). Design-pattern cleanup: `#[non_exhaustive]` added to 16 remaining public enums, `HybridSignatureError::SigningFailed` opaque variant (Pattern 6), sp800_108 KDF labels moved into `types::domains` registry (Pattern 2), `#[must_use]` on random-bytes / FN-DSA keygen, P-curve agreement adds defense-in-depth all-zero-shared-secret check. M6 (k256 `SigningKey` zeroize) verified closed via source inspection of `ecdsa 0.16.9::Drop` impl. |
 | 0.8.4 | 2026-05-27 | Additive: `KeyAlgorithm::Secp256k1` enum tag for downstream secp256k1 key material (`nist_security_level()` reports `Standard`, ~128-bit classical, quantum-vulnerable; no signing primitive in the `latticearc` crate). `PortableKey::not_after: Option<DateTime<Utc>>` informational lifecycle field with `not_after()` / `set_not_after()` / `is_expired_at()` / `is_expired()` accessors — `validate()` does NOT enforce expiry (callers must check `is_expired()` themselves; `not_after` is not in `encryption_aad`). `ConstantTimeEq` updated to distinguish keys differing only in `not_after`. Wire format unchanged when `not_after` is `None`. |

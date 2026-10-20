@@ -34,8 +34,9 @@ You can also report via [GitHub Security Advisory](https://github.com/latticearc
 
 | Version | Status | Security Updates Until |
 |---------|--------|------------------------|
-| 0.12.x | Supported | Current |
-| 0.11.x | Supported | Security fixes only |
+| 0.13.x | Supported | Current |
+| 0.12.x | Supported | Security fixes only |
+| 0.11.x | End of life | Superseded by 0.12.0 |
 | 0.10.x | End of life | Superseded by 0.11.0 |
 | 0.9.x | End of life | Superseded by 0.10.0 |
 | 0.7.x | End of life | Superseded by 0.8.0 |
