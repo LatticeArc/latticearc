@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   release newer than 0.68.0 ships.
 
 ### Fixed
+- Lockfile: `rustls-webpki` 0.103.16 and `webpki-root-certs` 1.0.10 (RUSTSEC-2026-0382, RUSTSEC-2026-0383; both reach the workspace only through `reqwest` in the CLI and tests, never the published library).
 
 - Fix a stack overflow on Windows when the first FIPS-gated call (for example
   `generate_hybrid_keypair` or `encrypt`) ran on a 1 MiB main-thread stack. The
