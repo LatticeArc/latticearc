@@ -87,6 +87,7 @@ inside the delegated `verify` call, so the cap applies transitively.
 | `primitives::ec::p256` | `verify_ecdsa_p256_sha256`, `verify_ecdsa_p256_sha256_fixed` call `validate_signature_size(message.len())` (in the shared `ec::nist_ecdsa::verify` core) after the key and signature-length checks. `verify_ecdsa_p256_sha256_prehash`, `verify_ecdsa_p256_sha256_prehash_fixed` take a `&[u8; 32]` digest, no message. Every function requires a 65-byte public key and a 64-byte fixed or 1–72-byte DER signature before any parsing. Status: covered. |
 | `primitives::ec::p384` | Same shape as `p256`: `verify_ecdsa_p384_sha384`, `verify_ecdsa_p384_sha384_fixed` cap the message; `verify_ecdsa_p384_sha384_prehash`, `verify_ecdsa_p384_sha384_prehash_fixed` take a `&[u8; 48]` digest. 97-byte key, 96-byte fixed or 1–104-byte DER signature. Status: covered. |
 | `primitives::ec` (hash-to-curve module) | `p256_xmd_sha256_sswu_ro` rejects a `dst` outside 1–255 bytes and calls `validate_signature_size(msg.len())`, so the message hashed by RFC 9380 expand_message_xmd is capped at `max_signature_size_bytes`. Output is a fixed 65 bytes. Status: covered. |
+| `primitives::sig::rsa_legacy` | `verify_rsa_pkcs1_sha1` caps the public key DER at 2048 bytes before parsing, requires a 2048–8192-bit modulus and a signature of exactly the modulus length, and calls `validate_signature_size(message.len())` before SHA-1 hashes the message. Non-FIPS builds only. Status: covered. |
 
 ### Hybrid layer
 

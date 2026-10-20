@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not verify is `Ok(false)`. Wycheproof `ecdsa_secp256r1_sha256{,_p1363}`
   and `ecdsa_secp384r1_sha384{,_p1363}` (1,530 cases) pass through both the
   message and the digest entry points. A `fuzz_ecdsa_verify` target is added.
+- `primitives::sig::rsa_legacy::verify_rsa_pkcs1_sha1`: verify-only RSA
+  PKCS#1 v1.5 / SHA-1 for legacy third-party formats such as RSA-SHA1 signed
+  receipts. The key is passed as PKCS#1 `RSAPublicKey` or
+  `SubjectPublicKeyInfo` DER through `RsaPublicKeyEncoding`, the modulus must
+  be 2048 to 8192 bits, and errors are a typed `RsaLegacyError`. Not
+  FIPS-approved and compiled out of `--features fips` builds. The NIST CAVP
+  `SigGen15_186-2` and `SigVer15_186-3` 2048-bit SHA-1 vectors (28 cases)
+  pass through both key encodings. A `fuzz_rsa_legacy_verify` target is
+  added.
 - `primitives::ec::hash_to_curve::p256_xmd_sha256_sswu_ro`: RFC 9380 suite
   `P256_XMD:SHA-256_SSWU_RO_`, returning uncompressed SEC1. The DST must be 1
   to 255 bytes and the message is capped by the signature resource limit.

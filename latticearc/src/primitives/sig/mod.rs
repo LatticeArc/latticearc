@@ -79,6 +79,8 @@
 //! - ECDSA P-256 / SHA-256 and P-384 / SHA-384, DER or fixed-width, over a
 //!   message or a digest: [`primitives::ec::p256`](crate::primitives::ec::p256)
 //!   and [`primitives::ec::p384`](crate::primitives::ec::p384).
+//! - RSA PKCS#1 v1.5 / SHA-1 for legacy signed formats: `rsa_legacy`
+//!   (non-FIPS builds only).
 //!
 //! ## Security Properties
 //!
@@ -183,9 +185,17 @@
 //! - [`ml_dsa`]: ML-DSA (FIPS 204) lattice-based signatures
 //! - [`slh_dsa`]: SLH-DSA (FIPS 205) hash-based signatures
 //! - [`fndsa`]: FN-DSA (draft FIPS 206) compact lattice signatures
+//! - `rsa_legacy`: RSA PKCS#1 v1.5 / SHA-1 verification for legacy formats
+//!   (not FIPS-approved; compiled out of `--features fips` builds)
 
 pub mod fndsa;
 pub mod ml_dsa;
+/// Legacy RSA PKCS#1 v1.5 / SHA-1 signature verification (verify only).
+///
+/// Not FIPS-approved (SHA-1 signatures are disallowed by SP 800-131A), so
+/// the module is compiled out of `--features fips` builds.
+#[cfg(not(feature = "fips"))]
+pub mod rsa_legacy;
 pub mod slh_dsa;
 
 // Every algorithm-specific type is now uniquely named
@@ -195,4 +205,6 @@ pub mod slh_dsa;
 // picking up whatever each submodule happens to make `pub`.
 pub use fndsa::{FnDsaKeyPair, FnDsaSignature, FnDsaSigningKey, FnDsaVerifyingKey};
 pub use ml_dsa::{MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature};
+#[cfg(not(feature = "fips"))]
+pub use rsa_legacy::{RsaLegacyError, RsaPublicKeyEncoding, verify_rsa_pkcs1_sha1};
 pub use slh_dsa::{SlhDsaSignature, SlhDsaSigningKey, SlhDsaVerifyingKey};

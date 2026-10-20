@@ -573,6 +573,7 @@ oversized message is an `Err`; a signature that does not verify is
 | `primitives::ec::p256::verify_ecdsa_p256_sha256_fixed` | ECDSA P-256 / SHA-256, `r \|\| s` | JWS `ES256`, COSE | yes |
 | `primitives::ec::p256::verify_ecdsa_p256_sha256_prehash{,_fixed}` | as above, over a SHA-256 digest | certificate TBS hash | yes (non-approved service) |
 | `primitives::ec::p384::verify_ecdsa_p384_sha384{,_fixed,_prehash,_prehash_fixed}` | ECDSA P-384 / SHA-384 | X.509, JWS `ES384`, COSE | yes |
+| `primitives::sig::rsa_legacy::verify_rsa_pkcs1_sha1` | RSA PKCS#1 v1.5 / SHA-1, 2048–8192-bit | legacy signed receipts | no (compiled out) |
 
 ```rust
 use latticearc::primitives::ec::p256::verify_ecdsa_p256_sha256_fixed;
@@ -581,6 +582,13 @@ use latticearc::primitives::ec::p256::verify_ecdsa_p256_sha256_fixed;
 // from the JWK; `signing_input` is `base64url(header) "." base64url(payload)`;
 // `sig` is the decoded 64-byte JWS signature.
 let ok = verify_ecdsa_p256_sha256_fixed(&jwk_point, signing_input, &sig)?;
+```
+
+```rust
+use latticearc::primitives::sig::rsa_legacy::{RsaPublicKeyEncoding, verify_rsa_pkcs1_sha1};
+
+// `cert_spki` is the SubjectPublicKeyInfo DER taken from the signer's certificate.
+let ok = verify_rsa_pkcs1_sha1(RsaPublicKeyEncoding::SpkiDer(&cert_spki), &signed_data, &sig)?;
 ```
 
 ### Hash-to-curve (RFC 9380)

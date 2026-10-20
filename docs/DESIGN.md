@@ -386,7 +386,7 @@ Low-level cryptographic primitives:
 | Module | Algorithms |
 |--------|-----------|
 | `kem/` | ML-KEM-512/768/1024 (FIPS 203), X25519 (ECDH) |
-| `sig/` | ML-DSA-44/65/87 (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (draft FIPS 206) |
+| `sig/` | ML-DSA-44/65/87 (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (draft FIPS 206); RSA PKCS#1 v1.5 / SHA-1 verify-only for legacy formats (non-FIPS builds) |
 | `aead/` | AES-256-GCM, ChaCha20-Poly1305 |
 | `kdf/` | HKDF-SHA256, PBKDF2, SP800-108 Counter KDF |
 | `hash/` | SHA-2, SHA-3 |

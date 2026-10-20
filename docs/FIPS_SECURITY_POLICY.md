@@ -72,6 +72,7 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 - **Excluded**: Non-approved algorithms gated by `#[cfg(not(feature = "fips"))]`:
   - Ed25519 (not FIPS-approved)
   - Secp256k1 (not FIPS-approved)
+  - RSA PKCS#1 v1.5 with SHA-1 signature verification (`primitives::sig::rsa_legacy`; SHA-1 signatures are disallowed by SP 800-131A)
   - ChaCha20-Poly1305 (not FIPS-approved)
   - X25519 ECDH (not FIPS-approved)
   - ZKP operations (not FIPS-approved)
@@ -115,6 +116,7 @@ The following algorithms are available in the default (non-FIPS) build but are n
 | Secp256k1 ECDSA | k256 | Runtime: `ComplianceMode` rejects in `Fips140_3`/`Cnsa2_0` |
 | X25519 ECDH | aws-lc-rs | Runtime: `ComplianceMode` rejects in `Cnsa2_0` (allowed in hybrid for `Fips140_3`) |
 | ChaCha20-Poly1305 | chacha20poly1305 | Runtime: `ComplianceMode` rejects in `Fips140_3`/`Cnsa2_0` |
+| RSA PKCS#1 v1.5 / SHA-1 verification (2048–8192-bit keys) | aws-lc-rs `RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY` | Compile time: `primitives::sig::rsa_legacy` is `#[cfg(not(feature = "fips"))]`. Verify-only, for third-party legacy formats |
 | ECDSA P-256 / P-384 verification over a caller-supplied digest (`*_prehash*` functions) | aws-lc-rs `verify_digest_sig` | Documentation: aws-lc-rs does not list digest verification as an approved service; the functions are compiled in both builds |
 | RFC 9380 hash-to-curve, `P256_XMD:SHA-256_SSWU_RO_` | RustCrypto `p256` (`hash2curve`) | Documentation: not an approved algorithm and outside the aws-lc-rs module; compiled in both builds |
 

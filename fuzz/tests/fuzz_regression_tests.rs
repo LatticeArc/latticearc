@@ -597,13 +597,14 @@ pub mod corpus_helpers {
 }
 
 // ============================================================================
-// Verify-only interoperability primitives (ECDSA P-256/P-384, RFC 9380
-// hash-to-curve)
+// Verify-only interoperability primitives (ECDSA P-256/P-384, RSA-SHA1,
+// RFC 9380 hash-to-curve)
 // ============================================================================
 
 mod verify_primitives_regression {
     use latticearc::primitives::ec::hash_to_curve::p256_xmd_sha256_sswu_ro;
     use latticearc::primitives::ec::{p256, p384};
+    use latticearc::primitives::sig::rsa_legacy::{RsaPublicKeyEncoding, verify_rsa_pkcs1_sha1};
 
     /// Empty and truncated inputs are errors, never panics.
     #[test]
@@ -625,6 +626,23 @@ mod verify_primitives_regression {
         assert_eq!(p256::verify_ecdsa_p256_sha256(&key, b"m", &[0x30, 0x00]).ok(), Some(false));
         assert_eq!(p256::verify_ecdsa_p256_sha256(&key, b"m", &[0xff; 72]).ok(), Some(false));
         assert_eq!(p256::verify_ecdsa_p256_sha256_fixed(&key, b"m", &[0xff; 64]).ok(), Some(false));
+    }
+
+    /// Truncated or oddly framed RSA key DER is an error under both labels.
+    #[test]
+    fn test_rsa_legacy_malformed_der_is_error() {
+        let inputs: [&[u8]; 5] =
+            [&[], &[0x30], &[0x30, 0x81], &[0x30, 0x82, 0xff, 0xff], &[0x30, 0x80, 0x00, 0x00]];
+        for der in inputs {
+            assert!(
+                verify_rsa_pkcs1_sha1(RsaPublicKeyEncoding::Pkcs1Der(der), b"m", &[0u8; 256])
+                    .is_err()
+            );
+            assert!(
+                verify_rsa_pkcs1_sha1(RsaPublicKeyEncoding::SpkiDer(der), b"m", &[0u8; 256])
+                    .is_err()
+            );
+        }
     }
 
     /// The DST bounds are enforced and an empty message is accepted.

@@ -403,6 +403,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "fuzz_rsa_legacy_verify"
+path = "fuzz_targets/fuzz_rsa_legacy_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "fuzz_hash_to_curve"
 path = "fuzz_targets/fuzz_hash_to_curve.rs"
 test = false
