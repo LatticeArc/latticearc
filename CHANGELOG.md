@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** Minimum supported Rust version raised from 1.93 to 1.99, and
   the development toolchain now tracks 1.99. The MSRV-aware resolver no
   longer holds dependencies back to 1.93-compatible releases.
+- The Kani CI jobs build Kani from a pinned post-fix commit
+  (`model-checking/kani@9461e07`) instead of installing a release: 0.67.0
+  bundles a nightly older than the 1.99 MSRV and 0.68.0 ICEs on crates that
+  reach `catch_unwind` (model-checking/kani#4813). The 32-proof suite verifies
+  with that build; the workflow returns to `cargo install kani-verifier` once a
+  release newer than 0.68.0 ships.
 
 ### Fixed
 

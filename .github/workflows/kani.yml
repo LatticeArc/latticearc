@@ -1,7 +1,7 @@
 # Kani - Bounded Model Checking
 # Proves absence of panics, overflow, and out-of-bounds access in pure Rust code.
 #
-# latticearc contains 30 proofs covering:
+# latticearc contains 32 proofs covering:
 #   - Key lifecycle state machine (SP 800-57 compliance)
 #   - Crypto policy engine exhaustiveness (all enum variants handled)
 #   - Trust level ordering invariants
@@ -35,38 +35,41 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # Pinned: kani 0.68.0 ICEs on any crate reaching `catch_unwind`
-  # (intrinsics.rs:243 i32 assertion; model-checking/kani#4813). Unpin once a
-  # fixed release ships. The version is part of the cache keys below so a
-  # cached binary of another version is never restored.
-  KANI_VERSION: "0.67.0"
+  # Kani is built from source at a pinned commit instead of installed from
+  # crates.io. The newest release, 0.68.0, ICEs on any crate reaching
+  # `catch_unwind` (model-checking/kani#4813, fixed by #4819), and 0.67.0
+  # bundles a nightly older than this workspace's 1.99 MSRV. The commit below
+  # is the first toolchain upgrade after the fix; it builds this crate and
+  # verifies every harness. Switch back to `cargo install kani-verifier` once a
+  # release newer than 0.68.0 ships. The commit is part of the cache keys so a
+  # cached build of another revision is never restored.
+  KANI_GIT_REV: "9461e07af7ec929f050aa4192f29363c9be07779"
 
 jobs:
-  # PR-blocking fast subset — runs on every pull request, must complete in ≤10 min.
+  # PR-blocking fast subset — runs on every pull request. The proofs themselves
+  # complete in ≤10 min; the budget below also covers a cold source build of
+  # Kani (about 20 min) when the cache misses.
   # Covers the cheap enum-exhaustiveness + type default proofs; state-machine and
   # biconditional proofs run only in the nightly/weekly full suite below.
   kani-pr-subset:
     name: Kani PR Subset (fast)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Cache MUST precede Install so restored ~/.cargo/bin/kani* skips rebuild.
+      # Cache MUST precede the build so a restored kani/target/kani skips rebuild.
       - name: Cache Kani
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ~/.cargo/bin/kani
-            ~/.cargo/bin/cargo-kani
-            ~/.cargo/bin/kani-compiler
-            ~/.cargo/bin/kani-driver
-            ~/.kani
-          key: ${{ runner.os }}-kani-pr-${{ env.KANI_VERSION }}-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
+            kani/target/kani
+            kani/target/tools
+          key: ${{ runner.os }}-kani-pr-${{ env.KANI_GIT_REV }}-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
           # scope cache restore to the same
           # branch/ref so a PR cache cannot contaminate main-branch
           # runs (the Kani binary is the verification authority — a
@@ -74,14 +77,32 @@ jobs:
           # the original `kani-pr-` prefix any branch's cache could
           # be restored on main.
           restore-keys: |
-            ${{ runner.os }}-kani-pr-${{ env.KANI_VERSION }}-${{ github.ref_name }}-
+            ${{ runner.os }}-kani-pr-${{ env.KANI_GIT_REV }}-${{ github.ref_name }}-
 
-      - name: Install Kani
+      - name: Checkout Kani at the pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: model-checking/kani
+          ref: ${{ env.KANI_GIT_REV }}
+          path: kani
+
+      # Mirrors Kani's own CI (.github/actions/setup): the ubuntu script
+      # installs the build dependencies, the pinned CBMC .deb and kissat.
+      # `cargo build-dev` builds kani-driver, kani-compiler and the Kani
+      # sysroot with the nightly named in kani/rust-toolchain.toml, which
+      # rustup installs on first use. The `kani/scripts` directory holds
+      # `cargo-kani` and `kani` wrappers that run that development build.
+      - name: Install Kani dependencies
+        run: cd kani && ./scripts/setup/ubuntu/install_deps.sh
+
+      - name: Build Kani
         run: |
-          if ! command -v kani >/dev/null 2>&1; then
-            cargo install --locked kani-verifier --version "$KANI_VERSION"
+          cd kani
+          if [ ! -x target/kani/bin/kani-driver ]; then
+            cargo build-dev -- --release
           fi
-          kani setup
+          echo "$GITHUB_WORKSPACE/kani/scripts" >> "$GITHUB_PATH"
+          ./scripts/kani --version
 
       - name: Run fast Kani subset
         shell: bash
@@ -146,30 +167,49 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Cache MUST precede Install so restored ~/.cargo/bin/kani* skips rebuild.
+      # Cache MUST precede the build so a restored kani/target/kani skips rebuild.
       - name: Cache Kani
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ~/.cargo/bin/kani
-            ~/.cargo/bin/cargo-kani
-            ~/.cargo/bin/kani-compiler
-            ~/.cargo/bin/kani-driver
-            ~/.kani
-          key: ${{ runner.os }}-kani-verified-${{ env.KANI_VERSION }}-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
+            kani/target/kani
+            kani/target/tools
+          key: ${{ runner.os }}-kani-verified-${{ env.KANI_GIT_REV }}-${{ github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
           # scope cache restore to the same
-          # branch/ref. See the kani-pr- block above for rationale.
+          # branch/ref so a PR cache cannot contaminate main-branch
+          # runs (the Kani binary is the verification authority — a
+          # poisoned binary produces false SUCCESSFUL proofs). With
+          # the original `kani-pr-` prefix any branch's cache could
+          # be restored on main.
           restore-keys: |
-            ${{ runner.os }}-kani-verified-${{ env.KANI_VERSION }}-${{ github.ref_name }}-
+            ${{ runner.os }}-kani-verified-${{ env.KANI_GIT_REV }}-${{ github.ref_name }}-
 
-      - name: Install Kani
+      - name: Checkout Kani at the pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: model-checking/kani
+          ref: ${{ env.KANI_GIT_REV }}
+          path: kani
+
+      # Mirrors Kani's own CI (.github/actions/setup): the ubuntu script
+      # installs the build dependencies, the pinned CBMC .deb and kissat.
+      # `cargo build-dev` builds kani-driver, kani-compiler and the Kani
+      # sysroot with the nightly named in kani/rust-toolchain.toml, which
+      # rustup installs on first use. The `kani/scripts` directory holds
+      # `cargo-kani` and `kani` wrappers that run that development build.
+      - name: Install Kani dependencies
+        run: cd kani && ./scripts/setup/ubuntu/install_deps.sh
+
+      - name: Build Kani
         run: |
-          if ! command -v kani >/dev/null 2>&1; then
-            cargo install --locked kani-verifier --version "$KANI_VERSION"
+          cd kani
+          if [ ! -x target/kani/bin/kani-driver ]; then
+            cargo build-dev -- --release
           fi
-          kani setup
+          echo "$GITHUB_WORKSPACE/kani/scripts" >> "$GITHUB_PATH"
+          ./scripts/kani --version
 
       - name: Run verified Kani proofs (latticearc)
         run: |
@@ -188,7 +228,7 @@ jobs:
       - name: Verified Proofs Summary
         if: always()
         run: |
-          echo "## Kani Proofs (latticearc) — 30 proofs (full suite)" >> $GITHUB_STEP_SUMMARY
+          echo "## Kani Proofs (latticearc) — 32 proofs (full suite)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ ! -f kani-output.txt ]; then
             echo "⚠️ No Kani output file — step may have been skipped" >> $GITHUB_STEP_SUMMARY
@@ -241,7 +281,7 @@ jobs:
           echo "- Out-of-bounds array access" >> $GITHUB_STEP_SUMMARY
           echo "- Invalid memory access" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## latticearc (30 proofs, pure Rust)" >> $GITHUB_STEP_SUMMARY
+          echo "## latticearc (32 proofs, pure Rust)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Category | Proofs | What they verify |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|--------|------------------|" >> $GITHUB_STEP_SUMMARY

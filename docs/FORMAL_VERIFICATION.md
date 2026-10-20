@@ -193,10 +193,19 @@ This is a critical security property — if any two domain constants collide, di
 ### Kani (local)
 
 ```bash
-cargo install --locked kani-verifier
-cargo kani setup
+# Until a Kani release newer than 0.68.0 ships, build Kani from the commit CI
+# pins (`KANI_GIT_REV` in .github/workflows/kani.yml): 0.67.0 bundles a nightly
+# older than the 1.99 MSRV and 0.68.0 ICEs on crates that reach `catch_unwind`
+# (model-checking/kani#4813). Afterwards `cargo install --locked kani-verifier`
+# and `cargo kani setup` are enough again.
+git clone https://github.com/model-checking/kani /path/to/kani
+(cd /path/to/kani \
+  && git checkout 9461e07af7ec929f050aa4192f29363c9be07779 \
+  && ./scripts/setup/ubuntu/install_deps.sh \
+  && cargo build-dev -- --release)      # macOS: scripts/setup/macos/install_deps.sh
+export PATH="/path/to/kani/scripts:$PATH"  # provides `cargo kani` and `kani`
 
-# Run all 30 proofs
+# Run all 32 proofs
 cargo kani -p latticearc
 
 # Run a specific proof
@@ -217,7 +226,7 @@ cargo test --package latticearc-tests --release -- proptest
 |------|------------------|----------|------|
 | **SAW** | Primitive correctness (via aws-lc-rs) | AES-GCM, HMAC, HKDF, SHA-2, ECDSA, ECDH (see [aws-lc-verification](https://github.com/awslabs/aws-lc-verification) for the up-to-date inventory) | Inherited |
 | **Proptest** | API crypto correctness (256 random cases/property) | 40+ properties, 6 files | ~60s (release) |
-| **Kani** | Type invariants (all possible inputs) | 30 proofs across 8 files (latticearc::types + primitives::resource_limits) | ~15 min |
+| **Kani** | Type invariants (all possible inputs) | 32 proofs across 9 files (latticearc::types, primitives::resource_limits, primitives::aead::stream) | ~15 min |
 | **Unit tests** | Specific test cases | 8,500+ tests | ~120s (release) |
 | **Fuzzing** | Edge cases via randomness | 29 fuzz targets | 5 min/day |
 
