@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="RFC 9106: Argon2id memory-hard password-based key derivation"><title>latticearc::primitives::kdf::argon2id - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="latticearc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module argon2id</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../../latticearc/index.html">latticearc</a><span class="version">0.12.1</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module argon2id</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#threat-model" title="Threat model">Threat model</a></li><li><a href="#not-exposed" title="Not exposed">Not exposed</a></li><li><a href="#fips-140-3" title="FIPS 140-3">FIPS 140-3</a></li><li><a href="#lanes" title="Lanes">Lanes</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In latticearc::<wbr>primitives::<wbr>kdf</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">latticearc</a>::<wbr><a href="../../index.html">primitives</a>::<wbr><a href="../index.html">kdf</a></div><h1>Module <span>argon2id</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/latticearc/primitives/kdf/argon2id.rs.html#1-939">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>RFC 9106: Argon2id memory-hard password-based key derivation</p>
+<p>Argon2id derives a key from a password and a salt while forcing every
+guess to fill and revisit a configurable amount of memory. It is the
+variant RFC 9106 §4 recommends when the deployment does not know which
+Argon2 type to pick.</p>
+<p>This module wraps the RustCrypto <code>argon2</code> crate (raw-hash API only, no PHC
+string format) with:</p>
+<ul>
+<li>Parameter validation against RFC 9106 §3.1 plus library floors
+(<a href="struct.Argon2Params.html#method.validate" title="method latticearc::primitives::kdf::argon2id::Argon2Params::validate"><code>Argon2Params::validate</code></a>)</li>
+<li>A memory cap enforced through
+<a href="../../resource_limits/struct.ResourceLimits.html" title="struct latticearc::primitives::resource_limits::ResourceLimits"><code>ResourceLimits::max_argon2_memory_kib</code></a>
+before any allocation</li>
+<li>Zeroized working memory and output (<a href="struct.Argon2idResult.html" title="struct latticearc::primitives::kdf::argon2id::Argon2idResult"><code>Argon2idResult</code></a>)</li>
+<li>Machine-local cost calibration (<a href="struct.Argon2Params.html#method.calibrate" title="associated function latticearc::primitives::kdf::argon2id::Argon2Params::calibrate"><code>Argon2Params::calibrate</code></a>)</li>
+</ul>
+<h2 id="threat-model"><a class="doc-anchor" href="#threat-model">§</a>Threat model</h2>
+<ul>
+<li><strong>Offline guessing.</strong> An attacker who obtains the salt, the parameters
+and anything derived from the key (a ciphertext, a verifier) can test
+password guesses offline. Argon2id does not stop this; it makes each
+guess cost <code>memory_kib</code> KiB of memory for the full duration of
+<code>iterations</code> passes. Low-entropy passwords remain guessable; the
+parameters set the price per guess.</li>
+<li><strong>Memory hardness.</strong> Fast hashes such as PBKDF2 parallelise cheaply on
+GPUs and ASICs because each guess needs almost no memory. Argon2id
+binds cost to memory bandwidth and capacity, where attacker hardware has
+far less advantage. RFC 9106 §7.2 bounds the best known time-memory
+trade-off against multi-pass Argon2id to a factor of about 1.33.</li>
+<li><strong>Salt length.</strong> The salt makes precomputed tables useless and forces
+the attacker to attack each password record separately. RFC 9106 §3.1
+recommends 16 bytes; §4 step 7 allows 64 bits (8 bytes) where space is
+short. This module rejects salts shorter than 8 bytes and rejects
+all-zero salts, which indicate uninitialised buffers.</li>
+<li><strong>Side channels.</strong> Argon2d indexes memory by password-dependent values,
+which leaks through cache timing to a co-located attacker. Argon2i uses
+data-independent indexing but is weaker against trade-off attacks.
+Argon2id runs the first half of the first pass data-independently and
+the rest data-dependently, so a cache-timing observer learns less than
+with Argon2d while trade-off resistance stays close to Argon2d. It is
+not fully constant-time: an attacker who can observe memory access
+patterns during the data-dependent phase still learns something.</li>
+<li><strong>Denial of service.</strong> Argon2 parameters often come from stored or
+deserialized records. The memory cap, the iteration cap and the output
+length cap bound the work any single call can be made to do.</li>
+</ul>
+<h2 id="not-exposed"><a class="doc-anchor" href="#not-exposed">§</a>Not exposed</h2>
+<p>RFC 9106 also defines an optional secret value <code>K</code> and associated data
+<code>X</code>. The public API exposes neither: Argon2id takes no domain-separation
+context in this library. The crate-internal path that feeds them is used
+only to replay the RFC 9106 §5.3 test vector. The underlying crate caps
+associated data at 32 bytes, while the RFC allows up to <code>2^32 - 1</code>.</p>
+<h2 id="fips-140-3"><a class="doc-anchor" href="#fips-140-3">§</a>FIPS 140-3</h2>
+<p>Argon2id is not a NIST-approved KDF. Like BLAKE2, it stays compiled under
+the <code>fips</code> feature so callers can reach it explicitly, but no policy-engine
+path selects it. Deployments that must stay in an approved mode should use
+<a href="../pbkdf2/fn.pbkdf2.html" title="fn latticearc::primitives::kdf::pbkdf2::pbkdf2"><code>pbkdf2</code></a>.</p>
+<h2 id="lanes"><a class="doc-anchor" href="#lanes">§</a>Lanes</h2>
+<p>This build does not enable the <code>argon2</code> crate’s <code>parallel</code> feature, so
+lanes (<code>parallelism</code>) are computed one after another on a single thread.
+<code>parallelism</code> still changes the output, as RFC 9106 requires.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Argon2Params.html" title="struct latticearc::primitives::kdf::argon2id::Argon2Params">Argon2<wbr>Params</a></dt><dd>Argon2id cost parameters.</dd><dt><a class="struct" href="struct.Argon2idResult.html" title="struct latticearc::primitives::kdf::argon2id::Argon2idResult">Argon2id<wbr>Result</a></dt><dd>Argon2id key derivation result.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.argon2id.html" title="fn latticearc::primitives::kdf::argon2id::argon2id">argon2id</a></dt><dd>Derive a key from a password with Argon2id (RFC 9106, version 0x13).</dd></dl></section></div></main></body></html>

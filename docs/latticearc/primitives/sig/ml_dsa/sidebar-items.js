@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["MlDsaError","MlDsaParameterSet"],"fn":["generate_keypair"],"struct":["MlDsaPublicKey","MlDsaSecretKey","MlDsaSignature"]};
+window.SIDEBAR_ITEMS = {"enum":["MlDsaError","MlDsaParameterSet","PrehashAlgorithm"],"fn":["generate_keypair","generate_keypair_from_seed"],"struct":["MlDsaPublicKey","MlDsaSecretKey","MlDsaSignature"]};
