@@ -1,0 +1,10 @@
+# Per-crate UniFFI configuration. scripts/ffi/uniffi-android.toml layers the
+# Android-only Kotlin settings on top of this when building for Android.
+[bindings.swift]
+module_name = "LatticeArc"
+ffi_module_name = "LatticeArcFFI"
+generate_module_map = true
+
+[bindings.kotlin]
+package_name = "com.latticearc.ffi"
+cdylib_name = "latticearc_ffi"

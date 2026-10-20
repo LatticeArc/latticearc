@@ -107,11 +107,20 @@ starts. See `setrlimit memlock 65536 65536` in [`system/core/rootdir/init.rc`][i
 later ones fall back to unlocked memory. Do not rely on `secret-mlock` for protection on
 Android.
 
+## Swift and Kotlin bindings
+
+`latticearc-ffi` is the app-facing library. `scripts/ffi/build-xcframework.sh` produces
+`LatticeArcFFI.xcframework` plus `LatticeArc.swift`, and `scripts/ffi/build-android.sh` produces
+`jniLibs/{arm64-v8a,x86_64}/liblatticearc_ffi.so` plus the Kotlin source; the `ios-build` and
+`android-build` CI jobs upload both as artifacts. The API, the secret-handling rules and the
+integration steps are in [FFI.md](FFI.md).
+
 ## Size
 
-The CI jobs print the size of `liblatticearc.rlib` for each target. They do not enforce a
-budget yet. The planned 9 MB per-architecture budget applies to the final app-facing cdylib,
-which does not exist yet. An rlib also contains crate metadata and LTO bitcode, so it overstates
-what the linked library will add.
+The CI jobs print the size of `liblatticearc.rlib` for each target and `scripts/ffi/build-android.sh`
+prints the size of each `liblatticearc_ffi.so`. Neither enforces a budget yet. The planned 9 MB
+per-architecture budget applies to the shared library an app links, which is `liblatticearc_ffi`
+or the app's own cdylib built on top of `latticearc`. An rlib also contains crate metadata and
+LTO bitcode, so it overstates what the linked library will add.
 
 [init-rc]: https://android.googlesource.com/platform/system/core/+/refs/heads/main/rootdir/init.rc

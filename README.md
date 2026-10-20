@@ -104,6 +104,22 @@ latticearc-cli encrypt --use-case healthcare-records \
 
 > 22 use cases · 12 algorithms · hybrid + PQ-only modes. Full reference: [`latticearc-cli/README.md`](latticearc-cli/README.md).
 
+### Swift and Kotlin
+
+`latticearc-ffi` ships the mobile core (Argon2id, streaming AEAD, committing key wrap, hybrid KEM and signatures, wire format) to iOS and Android through UniFFI-generated bindings. Secrets stay in Rust as opaque handles, every failure is a typed error, and every context is mandatory:
+
+```swift
+let key = try argon2id(password: SecretBytes.import(bytes: pw), salt: salt, params: argon2DefaultParams())
+let enc = try StreamEncryptor(key: key, aad: Data("app/v1/file".utf8), segmentSize: 1 << 20)
+```
+
+```kotlin
+val signer = HybridSigningKey.fromSeed(seed, MlDsaParameterSet.ML_DSA65)   // same key on every platform
+val sig = signer.sign(manifest, "app/v1/manifest".toByteArray())
+```
+
+> `scripts/ffi/build-xcframework.sh` produces the XCFramework, `scripts/ffi/build-android.sh` the `jniLibs` layout. Guide: [`docs/FFI.md`](docs/FFI.md).
+
 ---
 
 ## When to Use
@@ -119,7 +135,7 @@ latticearc-cli encrypt --use-case healthcare-records \
 
 - A single low-level primitive — use `aws-lc-rs`, `fips204`, `fips205`, or `fn-dsa` directly
 - End-to-end CMVP-certified module — no CMVP backend exists for PQ signatures yet
-- Cross-language bindings — `liboqs` covers C, Python, Go, Java
+- Bindings beyond Swift and Kotlin — `liboqs` covers C, Python, Go, Java
 - `no_std` / embedded — `wolfCrypt` leads for embedded PQ
 - A TLS stack — use `rustls`, OpenSSL 3.5, or wolfSSL
 
@@ -274,7 +290,7 @@ Multi-layered — each tier catches what the tier below cannot.
 ### DoS, fuzz, sanitizers
 
 - **Allocation budgets** — per-API-call ceiling on every crypto op, regression-gated via `stats_alloc`
-- **35 libfuzzer targets** — AEAD, KEM, signatures, KDF, serialization, DoS; weekly matrix; OSS-Fuzz scaffold in [`fuzz/oss-fuzz/`](fuzz/oss-fuzz/)
+- **36 libfuzzer targets** — AEAD, KEM, signatures, KDF, serialization, the FFI surface, DoS; weekly matrix; OSS-Fuzz scaffold in [`fuzz/oss-fuzz/`](fuzz/oss-fuzz/)
 - **`cargo-mutants --in-diff`** — 80% score floor, PR-blocking on changed crypto files
 - **Sanitizers** — ASan / TSan / LSan run weekly (Rust-side coverage); C-side uninitialized-read coverage for `aws-lc` lives in the upstream library's own CI, matching aws-lc-rs / ring / rustls / RustCrypto practice
 - **`#![forbid(unsafe_code)]`** enforced at workspace level
@@ -363,6 +379,7 @@ LatticeArc is pre-1.0; each minor version may ship breaking changes. See [CHANGE
 | [Design & Architecture](docs/DESIGN.md) | Crate structure, module boundaries, design decisions |
 | [Design Patterns](docs/DESIGN_PATTERNS.md) | Config, crypto safety, and testing patterns |
 | [CLI Reference](latticearc-cli/README.md) | Full `latticearc-cli` command reference |
+| [Swift and Kotlin Bindings](docs/FFI.md) | `latticearc-ffi` API map, XCFramework and Android packaging, API freeze |
 
 ## License & Contributing
 

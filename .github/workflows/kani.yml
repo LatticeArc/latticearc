@@ -99,6 +99,10 @@ jobs:
         run: |
           cd kani
           if [ ! -x target/kani/bin/kani-driver ]; then
+            # kani-compiler depends on the `charon` submodule by path; the
+            # other submodules (firecracker, s2n-quic) only feed Kani's own
+            # perf tests and are left out.
+            git submodule update --init --depth 1 charon
             cargo build-dev -- --release
           fi
           echo "$GITHUB_WORKSPACE/kani/scripts" >> "$GITHUB_PATH"
@@ -206,6 +210,10 @@ jobs:
         run: |
           cd kani
           if [ ! -x target/kani/bin/kani-driver ]; then
+            # kani-compiler depends on the `charon` submodule by path; the
+            # other submodules (firecracker, s2n-quic) only feed Kani's own
+            # perf tests and are left out.
+            git submodule update --init --depth 1 charon
             cargo build-dev -- --release
           fi
           echo "$GITHUB_WORKSPACE/kani/scripts" >> "$GITHUB_PATH"

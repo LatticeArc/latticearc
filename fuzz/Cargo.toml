@@ -85,6 +85,10 @@ stats_alloc = "0.1"
 path = "../latticearc"
 features = ["test-utils", "kat-replay"]
 
+# The UniFFI surface; `fuzz_ffi_surface` drives every exported function.
+[dependencies.latticearc-ffi]
+path = "../latticearc-ffi"
+
 # ============================================================================
 # Existing Fuzz Targets
 # ============================================================================
@@ -376,6 +380,13 @@ bench = false
 [[bin]]
 name = "fuzz_key_wrap"
 path = "fuzz_targets/fuzz_key_wrap.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_ffi_surface"
+path = "fuzz_targets/fuzz_ffi_surface.rs"
 test = false
 doc = false
 bench = false

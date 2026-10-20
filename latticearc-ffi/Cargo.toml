@@ -1,0 +1,59 @@
+[package]
+name = "latticearc-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "UniFFI bindings for LatticeArc: Swift and Kotlin access to Argon2id, committing key wrap, streaming AEAD, hybrid KEM and hybrid signatures"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["post-quantum", "cryptography", "uniffi", "swift", "kotlin"]
+categories = ["cryptography", "external-ffi-bindings"]
+
+[lib]
+name = "latticearc_ffi"
+# `lib` for Rust consumers and the fuzz crate, `cdylib` for Android (JNA) and
+# host-side binding tests, `staticlib` for the iOS XCFramework.
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[[bin]]
+name = "uniffi-bindgen-swift"
+path = "src/bin/uniffi-bindgen-swift.rs"
+required-features = ["bindgen"]
+
+[features]
+default = ["secret-mlock"]
+# Lock secret buffers in memory where the OS allows it; `memory_lock_status`
+# reports whether it worked.
+secret-mlock = ["latticearc/secret-mlock"]
+# Builds the `uniffi-bindgen` binaries used by scripts/ffi/ to generate the
+# Swift and Kotlin sources. Never needed by consumers of the library. This is
+# the only feature that pulls in `uniffi_bindgen` and its template engine
+# (askama -> basic-toml, RUSTSEC-2026-0374 "unmaintained", an allowed
+# informational advisory): nothing from it is linked into the cdylib.
+bindgen = ["uniffi/cli"]
+
+[dependencies]
+latticearc = { path = "../latticearc", version = "0.12", default-features = false }
+# UniFFI generates the C ABI and the foreign-language bindings. Pinned with `=`
+# like the other security-adjacent crates: the generated boundary is part of
+# the audited surface and a silent minor bump could change buffer handling.
+uniffi = { version = "=0.32.2" }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
+subtle = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+[lints]
+workspace = true

@@ -2,6 +2,7 @@
 members = [
     "latticearc",
     "latticearc-cli",
+    "latticearc-ffi",
     "tests",
 ]
 # Exclude fuzz crate from workspace builds (uses libfuzzer-sys which requires nightly)

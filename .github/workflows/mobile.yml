@@ -72,6 +72,8 @@ jobs:
         filters: |
           code:
             - 'latticearc/**'
+            - 'latticearc-ffi/**'
+            - 'scripts/ffi/**'
             - 'tests/**'
             - 'Cargo.toml'
             - 'Cargo.lock'
@@ -131,6 +133,20 @@ jobs:
 
     - name: Build latticearc for aarch64-apple-ios-sim
       run: cargo build --locked -p latticearc --release --target aarch64-apple-ios-sim
+
+    # latticearc-ffi as static libraries for both targets, the UniFFI header
+    # and module map, and the Swift source, packaged by scripts/ffi.
+    - name: Build the LatticeArcFFI XCFramework
+      run: scripts/ffi/build-xcframework.sh
+
+    - name: Upload the XCFramework
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: LatticeArcFFI-xcframework
+        path: |
+          target/ffi/xcframework/LatticeArcFFI.xcframework
+          target/ffi/xcframework/swift
+        retention-days: 14
 
     - name: Build test binaries for aarch64-apple-ios (device, link check only)
       # Device binaries cannot run on a hosted runner. Building them proves
@@ -260,6 +276,18 @@ jobs:
     - name: Build latticearc for x86_64-linux-android
       run: cargo build --locked -p latticearc --release --target x86_64-linux-android
 
+    # latticearc-ffi shared libraries in jniLibs layout plus the Android
+    # flavour of the Kotlin bindings, packaged by scripts/ffi.
+    - name: Build the Android libraries and Kotlin bindings
+      run: scripts/ffi/build-android.sh
+
+    - name: Upload the Android libraries
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: latticearc-ffi-android
+        path: target/ffi/android
+        retention-days: 14
+
     - name: Build test binaries for aarch64-linux-android (link check only)
       # Hosted runners have no arm64 Android emulator with KVM; building the
       # arm64 test binaries proves they link against bionic for API 28. The
@@ -357,6 +385,86 @@ jobs:
         script: bash scripts/ci/android-emulator-run-tests.sh "$RUNNER_TEMP/android-test-bins.txt"
 
   # ===========================================================================
+  # FFI samples on the host (Swift on macOS, Kotlin on the JVM)
+  # ===========================================================================
+  # The samples under latticearc-ffi/samples round-trip every exported API
+  # through the generated bindings against the host cdylib. They are the
+  # binding tests; the device builds above only prove the packaging links.
+  ffi-swift-sample:
+    name: FFI Swift sample (macOS host)
+    runs-on: macos-26
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Install Rust 1.99
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+      with:
+        toolchain: '1.99'
+
+    - name: Cache Cargo registry
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      continue-on-error: true
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-mobile-ffi-swift-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build, generate the Swift bindings and run the sample
+      run: scripts/ffi/run-swift-sample.sh
+
+  ffi-kotlin-sample:
+    name: FFI Kotlin sample (JVM host)
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    timeout-minutes: 45
+    env:
+      KOTLIN_VERSION: "2.4.21"
+      KOTLIN_SHA256: "7cc140e76daf416a0424a5557f99afd7ca89ebd463ea1101261e3e01c33e75cd"
+      JNA_VERSION: "5.19.1"
+      JNA_SHA256: "4fb141dd8ef6b0585ffceea4bc49602fbc6312fa977e2c488794ea3e6aafecae"
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Install Rust 1.99
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+      with:
+        toolchain: '1.99'
+
+    - name: Cache Cargo registry
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      continue-on-error: true
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-mobile-ffi-kotlin-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    # Pinned by version and SHA-256; the runner's preinstalled JDK runs both.
+    - name: Install the Kotlin compiler and JNA
+      run: |
+        set -euo pipefail
+        curl -sSL -o "$RUNNER_TEMP/kotlin-compiler.zip" \
+          "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"
+        echo "${KOTLIN_SHA256}  $RUNNER_TEMP/kotlin-compiler.zip" | sha256sum -c -
+        unzip -q "$RUNNER_TEMP/kotlin-compiler.zip" -d "$RUNNER_TEMP/kotlin"
+        curl -sSL -o "$RUNNER_TEMP/jna.jar" \
+          "https://repo1.maven.org/maven2/net/java/dev/jna/jna/${JNA_VERSION}/jna-${JNA_VERSION}.jar"
+        echo "${JNA_SHA256}  $RUNNER_TEMP/jna.jar" | sha256sum -c -
+        echo "KOTLINC=$RUNNER_TEMP/kotlin/kotlinc/bin/kotlinc" >> "$GITHUB_ENV"
+        echo "JNA_JAR=$RUNNER_TEMP/jna.jar" >> "$GITHUB_ENV"
+        java -version
+
+    - name: Build, generate the Kotlin bindings and run the sample
+      run: scripts/ffi/run-kotlin-sample.sh
+
+  # ===========================================================================
   # Aggregate gate
   # ===========================================================================
   # Mirrors ci.yml's `status-check`: one check name to mark as required in
@@ -365,7 +473,7 @@ jobs:
   mobile-status:
     name: Mobile Status
     runs-on: ubuntu-24.04
-    needs: [changes, ios-build, ios-simulator-test, android-build, android-emulator-test]
+    needs: [changes, ios-build, ios-simulator-test, android-build, android-emulator-test, ffi-swift-sample, ffi-kotlin-sample]
     if: always()
     steps:
     - name: Check all job statuses
@@ -376,7 +484,9 @@ jobs:
           "ios-build=${{ needs.ios-build.result }}" \
           "ios-simulator-test=${{ needs.ios-simulator-test.result }}" \
           "android-build=${{ needs.android-build.result }}" \
-          "android-emulator-test=${{ needs.android-emulator-test.result }}"; do
+          "android-emulator-test=${{ needs.android-emulator-test.result }}" \
+          "ffi-swift-sample=${{ needs.ffi-swift-sample.result }}" \
+          "ffi-kotlin-sample=${{ needs.ffi-kotlin-sample.result }}"; do
           job="${pair%%=*}"
           result="${pair#*=}"
           echo "$job: $result"

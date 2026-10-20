@@ -1,0 +1,6 @@
+# Global UniFFI config layered over latticearc-ffi/uniffi.toml when the Kotlin
+# bindings are generated for Android (scripts/ffi/build-android.sh). The
+# Android flavour registers objects with android.system.SystemCleaner, which
+# does not exist on a plain JVM, so the host sample uses the default flavour.
+[crates.latticearc_ffi.bindings.kotlin]
+android = true

@@ -31,6 +31,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `latticearc-ffi`: Swift and Kotlin bindings for the mobile core, generated
+  with UniFFI 0.32.2 (pinned) from the crate's own `uniffi-bindgen`. The
+  surface covers Argon2id, HKDF and SP 800-108 with required contexts,
+  committing key wrap, streaming AEAD, hybrid ML-KEM + X25519 encapsulation and
+  encryption, hybrid ML-DSA + Ed25519 and plain ML-DSA signatures
+  (context-bound, pre-hashed, seed-derived), the wire format for public values
+  and `memory_lock_status`. Secrets are opaque handles that leave Rust only
+  through `export*` methods; every failure is a typed `LatticeArcError`;
+  verification mismatches return `false`. `scripts/ffi/` builds the host
+  library and bindings, the iOS XCFramework and the Android `jniLibs` layout;
+  `samples/swift` and `samples/kotlin` round-trip every function (85 checks
+  each) and run in CI on macOS and the JVM. `docs/FFI.md` carries the API map
+  and the API freeze for the 0.13 line. A `fuzz_ffi_surface` target drives
+  the whole surface with arbitrary bytes.
 - Argon2id password-based key derivation (RFC 9106) in
   `primitives::kdf::argon2id`: `argon2id(password, salt, &Argon2Params)`
   returns a zeroizing `Argon2idResult`, and `Argon2Params::calibrate(target_ms,
