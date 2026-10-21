@@ -45,7 +45,7 @@ secret-mlock = ["latticearc/secret-mlock"]
 bindgen = ["uniffi/cli"]
 
 [dependencies]
-latticearc = { path = "../latticearc", version = "0.13", default-features = false }
+latticearc = { path = "../latticearc", version = "0.14", default-features = false }
 # UniFFI generates the C ABI and the foreign-language bindings. Pinned with `=`
 # like the other security-adjacent crates: the generated boundary is part of
 # the audited surface and a silent minor bump could change buffer handling.
