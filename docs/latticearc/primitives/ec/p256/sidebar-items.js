@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["P256_DIGEST_LEN","P256_FIXED_SIGNATURE_LEN","P256_MAX_DER_SIGNATURE_LEN","P256_PUBLIC_KEY_LEN"],"fn":["verify_ecdsa_p256_sha256","verify_ecdsa_p256_sha256_fixed","verify_ecdsa_p256_sha256_prehash","verify_ecdsa_p256_sha256_prehash_fixed"]};
