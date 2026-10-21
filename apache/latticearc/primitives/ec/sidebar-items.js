@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["ed25519","traits"]};
+window.SIDEBAR_ITEMS = {"mod":["ed25519","hash_to_curve","p256","p384","traits"]};
