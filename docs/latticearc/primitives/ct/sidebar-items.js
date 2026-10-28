@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["is_all_zero","is_all_zero_bytes"]};
+window.SIDEBAR_ITEMS = {"fn":["ct_eq","ct_eq_array","is_all_zero","is_all_zero_bytes"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["random_bytes","random_u32","random_u64"]};
+window.SIDEBAR_ITEMS = {"fn":["random_bytes","random_u32","random_u64","try_fill_bytes","try_random_bytes"],"struct":["RngError"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["GENERATION_LEN","MAX_PLAINTEXT_LEN","OBJECT_ID_LEN","PAYLOAD_LEN","RECORD_LEN","SECRET_LEN"],"fn":["derive_object_id"],"struct":["SegmentedContext","SegmentedDecryptor","SegmentedEncryptor","SegmentedLabels"]};
