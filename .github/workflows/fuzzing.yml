@@ -82,6 +82,7 @@ jobs:
           - fuzz_wire_decode
           - fuzz_argon2id
           - fuzz_stream_aead
+          - fuzz_segmented_aead
           - fuzz_key_wrap
           - fuzz_ffi_surface
           # Other
@@ -170,6 +171,7 @@ jobs:
           - fuzz_wire_decode
           - fuzz_argon2id
           - fuzz_stream_aead
+          - fuzz_segmented_aead
           - fuzz_key_wrap
           - fuzz_ffi_surface
           - fuzz_aes_gcm
