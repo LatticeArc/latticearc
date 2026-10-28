@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `primitives::ct::ct_eq` and `ct_eq_array`: constant-time equality for byte
+  slices (a length mismatch returns `false`; lengths are treated as public) and
+  for fixed-length arrays, built on `subtle`.
+- `primitives::hash::sha2::Sha256Hasher` and `Sha512Hasher`: incremental
+  `new`/`update`/`finalize` hashers (`finalize` consumes the hasher) with the
+  same 1 GB total-input bound as the one-shot functions.
+- `primitives::rand::try_fill_bytes` and `try_random_bytes`, returning
+  `RngError` instead of panicking when the OS entropy source fails. There is
+  no fallback generator. `secure_rng()` is documented as fail-stop.
+
 ## [0.14.0] - 2026-10-20
 
 ### Added

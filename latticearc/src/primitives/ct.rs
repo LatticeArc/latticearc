@@ -1,11 +1,44 @@
 //! Constant-time helpers usable across primitive modules.
 //!
 //! Centralises CT predicates that several primitives share (AEAD weak-key
-//! check, KDF salt validation, ...) so each call site cannot accidentally
+//! check, KDF salt validation, tag/MAC comparison, ...) so each call site cannot accidentally
 //! reach for the early-exiting `iter().all()` form. All functions here use
 //! [`subtle::ConstantTimeEq`] under the hood.
 
 use subtle::ConstantTimeEq;
+
+/// Constant-time equality of two byte slices.
+///
+/// Use this for comparing secret or attacker-influenced values (MAC tags,
+/// derived keys, hashes of secrets) instead of `==`, which exits at the
+/// first differing byte.
+///
+/// Slices of different lengths compare unequal and return `false`
+/// immediately: lengths are treated as public, so this early return is
+/// not a timing leak for fixed-size values. For slices of equal length the
+/// running time is independent of the contents and of the position of any
+/// difference. Two empty slices are equal.
+///
+/// When the length is known at compile time, prefer [`ct_eq_array`].
+#[inline]
+#[must_use]
+pub fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    bool::from(a.ct_eq(b))
+}
+
+/// Constant-time equality of two fixed-length byte arrays.
+///
+/// Like [`ct_eq`], but the shared length `N` is enforced by the type
+/// system, so a length mismatch cannot occur and no length branch is taken.
+/// Two zero-length arrays are equal.
+#[inline]
+#[must_use]
+pub fn ct_eq_array<const N: usize>(a: &[u8; N], b: &[u8; N]) -> bool {
+    bool::from(a.as_slice().ct_eq(b.as_slice()))
+}
 
 /// Constant-time all-zero check for fixed-length byte arrays.
 ///
@@ -71,7 +104,7 @@ pub fn is_all_zero_bytes(bytes: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_all_zero_bytes;
+    use super::{ct_eq, ct_eq_array, is_all_zero_bytes};
 
     #[test]
     fn test_all_zero_returns_true() {
@@ -111,5 +144,53 @@ mod tests {
         let mut bytes = [0u8; 65];
         bytes[64] = 1;
         assert!(!is_all_zero_bytes(&bytes));
+    }
+
+    #[test]
+    fn test_ct_eq_equal_slices() {
+        assert!(ct_eq(b"abcdef", b"abcdef"));
+        assert!(ct_eq(&[0u8; 100], &[0u8; 100]));
+    }
+
+    #[test]
+    fn test_ct_eq_empty_slices_are_equal() {
+        assert!(ct_eq(&[], &[]));
+    }
+
+    #[test]
+    fn test_ct_eq_detects_difference_at_every_position() {
+        let base = [0x5au8; 65];
+        for i in 0..base.len() {
+            let mut other = base;
+            if let Some(byte) = other.get_mut(i) {
+                *byte ^= 0x01;
+            }
+            assert!(!ct_eq(&base, &other), "difference at {i} not detected");
+        }
+    }
+
+    #[test]
+    fn test_ct_eq_length_mismatch_is_false() {
+        assert!(!ct_eq(b"abc", b"abcd"));
+        assert!(!ct_eq(b"abcd", b"abc"));
+        assert!(!ct_eq(&[], &[0u8]));
+        // A shared prefix must not make a shorter slice compare equal.
+        assert!(!ct_eq(&[0u8; 32], &[0u8; 33]));
+    }
+
+    #[test]
+    fn test_ct_eq_array_equal_and_different() {
+        assert!(ct_eq_array(&[7u8; 32], &[7u8; 32]));
+        let mut other = [7u8; 32];
+        other[31] = 8;
+        assert!(!ct_eq_array(&[7u8; 32], &other));
+        other = [7u8; 32];
+        other[0] = 0;
+        assert!(!ct_eq_array(&[7u8; 32], &other));
+    }
+
+    #[test]
+    fn test_ct_eq_array_zero_length_is_equal() {
+        assert!(ct_eq_array(&[], &[]));
     }
 }

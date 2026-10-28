@@ -82,6 +82,110 @@ pub fn sha512(data: &[u8]) -> Result<[u8; 64], Sha2Error> {
     Ok(hasher.finalize().into())
 }
 
+/// Incremental SHA-256 hasher.
+///
+/// Feed data with [`update`](Self::update) in any chunking and obtain the digest
+/// with [`finalize`](Self::finalize), which consumes the hasher. The total input
+/// is bounded by the same 1 GB limit as [`sha256`].
+#[derive(Clone)]
+pub struct Sha256Hasher {
+    inner: Sha256,
+    total_len: usize,
+}
+
+impl Default for Sha256Hasher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Sha256Hasher {
+    /// Creates a hasher with an empty input.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { inner: Sha256::new(), total_len: 0 }
+    }
+
+    /// Absorbs `data` into the running hash.
+    ///
+    /// # Errors
+    /// Returns `Sha2Error::ResourceExceeded` if the total input fed so far
+    /// would exceed 1 GB; the hasher is left unchanged in that case.
+    pub fn update(&mut self, data: &[u8]) -> Result<(), Sha2Error> {
+        let new_len = self
+            .total_len
+            .checked_add(data.len())
+            .filter(|len| *len <= MAX_HASH_INPUT_SIZE)
+            .ok_or_else(|| {
+                Sha2Error::ResourceExceeded(format!(
+                    "Hash input too large: more than {} bytes",
+                    MAX_HASH_INPUT_SIZE
+                ))
+            })?;
+        self.inner.update(data);
+        self.total_len = new_len;
+        Ok(())
+    }
+
+    /// Consumes the hasher and returns the 32-byte digest.
+    #[must_use]
+    pub fn finalize(self) -> [u8; 32] {
+        self.inner.finalize().into()
+    }
+}
+
+/// Incremental SHA-512 hasher.
+///
+/// Feed data with [`update`](Self::update) in any chunking and obtain the digest
+/// with [`finalize`](Self::finalize), which consumes the hasher. The total input
+/// is bounded by the same 1 GB limit as [`sha512`].
+#[derive(Clone)]
+pub struct Sha512Hasher {
+    inner: Sha512,
+    total_len: usize,
+}
+
+impl Default for Sha512Hasher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Sha512Hasher {
+    /// Creates a hasher with an empty input.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { inner: Sha512::new(), total_len: 0 }
+    }
+
+    /// Absorbs `data` into the running hash.
+    ///
+    /// # Errors
+    /// Returns `Sha2Error::ResourceExceeded` if the total input fed so far
+    /// would exceed 1 GB; the hasher is left unchanged in that case.
+    pub fn update(&mut self, data: &[u8]) -> Result<(), Sha2Error> {
+        let new_len = self
+            .total_len
+            .checked_add(data.len())
+            .filter(|len| *len <= MAX_HASH_INPUT_SIZE)
+            .ok_or_else(|| {
+                Sha2Error::ResourceExceeded(format!(
+                    "Hash input too large: more than {} bytes",
+                    MAX_HASH_INPUT_SIZE
+                ))
+            })?;
+        self.inner.update(data);
+        self.total_len = new_len;
+        Ok(())
+    }
+
+    /// Consumes the hasher and returns the 64-byte digest.
+    #[must_use]
+    pub fn finalize(self) -> [u8; 64] {
+        self.inner.finalize().into()
+    }
+}
+
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
 mod tests {
@@ -284,5 +388,125 @@ mod tests {
         assert_eq!(sha256(input).unwrap(), sha256_result);
         assert_eq!(sha384(input).unwrap(), sha384_result);
         assert_eq!(sha512(input).unwrap(), sha512_result);
+    }
+
+    /// Hex-encode a digest for comparison against published vectors.
+    fn to_hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    /// FIPS 180-2 Appendix B.2 (SHA-256, 448-bit two-block message).
+    const SHA256_TWO_BLOCK_MSG: &[u8] = b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
+    const SHA256_TWO_BLOCK_HEX: &str =
+        "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1";
+
+    /// FIPS 180-2 Appendix C.2 (SHA-512, 896-bit two-block message).
+    const SHA512_TWO_BLOCK_MSG: &[u8] = b"abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu";
+    const SHA512_TWO_BLOCK_HEX: &str = "8e959b75dae313da8cf4f72814fc143f8f7779c6eb9f7fa17299aeadb6889018501d289e4900f7e4331b99dec4b5433ac7d329eeb6dd26545e96e55b874be909";
+
+    fn sha256_chunked(msg: &[u8], chunk: usize) -> [u8; 32] {
+        let mut h = Sha256Hasher::new();
+        for c in msg.chunks(chunk) {
+            h.update(c).unwrap();
+        }
+        h.finalize()
+    }
+
+    fn sha512_chunked(msg: &[u8], chunk: usize) -> [u8; 64] {
+        let mut h = Sha512Hasher::new();
+        for c in msg.chunks(chunk) {
+            h.update(c).unwrap();
+        }
+        h.finalize()
+    }
+
+    #[test]
+    fn test_sha256_hasher_empty_matches_nist_vector_matches_expected() {
+        let expected = sha256(b"").unwrap();
+        assert_eq!(Sha256Hasher::new().finalize(), expected);
+        assert_eq!(
+            to_hex(&expected),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn test_sha256_hasher_abc_chunked_matches_nist_vector_matches_expected() {
+        let expected = sha256(b"abc").unwrap();
+        for chunk in [1, 64, 3] {
+            assert_eq!(sha256_chunked(b"abc", chunk), expected, "chunk {chunk}");
+        }
+        assert_eq!(
+            to_hex(&expected),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
+    fn test_sha256_hasher_two_block_chunked_matches_nist_vector_matches_expected() {
+        for chunk in [1, 64, SHA256_TWO_BLOCK_MSG.len()] {
+            let got = sha256_chunked(SHA256_TWO_BLOCK_MSG, chunk);
+            assert_eq!(to_hex(&got), SHA256_TWO_BLOCK_HEX, "chunk {chunk}");
+        }
+    }
+
+    #[test]
+    fn test_sha256_hasher_large_input_chunked_matches_one_shot_matches_expected() {
+        let input = vec![0x42u8; 1024 * 1024];
+        let expected = sha256(&input).unwrap();
+        for chunk in [1000, 64, input.len()] {
+            assert_eq!(sha256_chunked(&input, chunk), expected, "chunk {chunk}");
+        }
+    }
+
+    #[test]
+    fn test_sha512_hasher_empty_matches_nist_vector_matches_expected() {
+        let expected = sha512(b"").unwrap();
+        assert_eq!(Sha512Hasher::new().finalize(), expected);
+        assert_eq!(
+            to_hex(&expected),
+            "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+        );
+    }
+
+    #[test]
+    fn test_sha512_hasher_abc_chunked_matches_nist_vector_matches_expected() {
+        let expected = sha512(b"abc").unwrap();
+        for chunk in [1, 64, 3] {
+            assert_eq!(sha512_chunked(b"abc", chunk), expected, "chunk {chunk}");
+        }
+    }
+
+    #[test]
+    fn test_sha512_hasher_two_block_chunked_matches_nist_vector_matches_expected() {
+        for chunk in [1, 64, SHA512_TWO_BLOCK_MSG.len()] {
+            let got = sha512_chunked(SHA512_TWO_BLOCK_MSG, chunk);
+            assert_eq!(to_hex(&got), SHA512_TWO_BLOCK_HEX, "chunk {chunk}");
+        }
+    }
+
+    #[test]
+    fn test_sha512_hasher_large_input_chunked_matches_one_shot_matches_expected() {
+        let input = vec![0x42u8; 1024 * 1024];
+        let expected = sha512(&input).unwrap();
+        for chunk in [1000, 64, input.len()] {
+            assert_eq!(sha512_chunked(&input, chunk), expected, "chunk {chunk}");
+        }
+    }
+
+    #[test]
+    fn test_sha256_hasher_total_size_limit_returns_error_when_exceeded_fails() {
+        let mut h = Sha256Hasher::new();
+        h.total_len = MAX_HASH_INPUT_SIZE;
+        h.update(&[]).unwrap();
+        assert!(matches!(h.update(b"x"), Err(Sha2Error::ResourceExceeded(_))));
+    }
+
+    #[test]
+    fn test_sha512_hasher_total_size_limit_returns_error_when_exceeded_fails() {
+        let mut h = Sha512Hasher::new();
+        h.total_len = MAX_HASH_INPUT_SIZE;
+        h.update(&[]).unwrap();
+        assert!(matches!(h.update(b"x"), Err(Sha2Error::ResourceExceeded(_))));
     }
 }

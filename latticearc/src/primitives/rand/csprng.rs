@@ -16,6 +16,10 @@
 //!   collapse `TryRng` errors via `expect("OS RNG failure")` and
 //!   **panic, aborting the process** if the OS RNG returns an error. Use
 //!   when an OS RNG failure should be treated as fatal.
+//! - **`csprng::try_fill_bytes` / `try_random_bytes`** (this module): return
+//!   `Result<(), RngError>` and never panic. Use when the caller must handle
+//!   entropy failure itself. There is no fallback generator: on error the
+//!   caller gets the error and no random output.
 //! - **`security::RngHandle::fill_bytes`** (sibling module): returns
 //!   `Result<()>`. Use when the calling code must surface entropy failure
 //!   gracefully (e.g. FIPS deployments, restricted-entropy CI sandboxes).
@@ -38,12 +42,54 @@
 
 use rand::{CryptoRng, TryRng, rngs::SysRng};
 
+/// The OS entropy source failed to produce random bytes.
+///
+/// Carries no source detail: the caller's only safe response is to treat the
+/// operation as failed. No fallback generator is ever used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("OS random number generator failure")]
+pub struct RngError;
+
+/// Fill `dst` from `rng`, mapping any source error to [`RngError`].
+fn fill_from<R: TryRng>(rng: &mut R, dst: &mut [u8]) -> Result<(), RngError> {
+    rng.try_fill_bytes(dst).map_err(|_e| RngError)
+}
+
+/// Fill `dst` with random bytes from the OS entropy source, returning an error
+/// instead of panicking if the OS RNG fails.
+///
+/// There is no fallback RNG. On `Err`, the contents of `dst` are unspecified
+/// and must not be used as random data.
+///
+/// # Errors
+///
+/// Returns [`RngError`] if the OS entropy source returns an error.
+pub fn try_fill_bytes(dst: &mut [u8]) -> Result<(), RngError> {
+    fill_from(&mut SysRng, dst)
+}
+
+/// Generate `count` random bytes, returning an error instead of panicking if
+/// the OS RNG fails. There is no fallback RNG.
+///
+/// # Errors
+///
+/// Returns [`RngError`] if the OS entropy source returns an error.
+pub fn try_random_bytes(count: usize) -> Result<Vec<u8>, RngError> {
+    let mut bytes = vec![0u8; count];
+    try_fill_bytes(&mut bytes)?;
+    Ok(bytes)
+}
+
 /// Returns an infallible CSPRNG suitable as an `Rng + CryptoRng` argument.
 ///
 /// Internally, this wraps `rand::rngs::SysRng` (which is `TryRng` in
 /// `rand` 0.10) in `rand_core::UnwrapErr`, panicking on OS-RNG failure. See
 /// the module-level docs for why panicking is the right semantic for
 /// `getrandom`/`/dev/urandom` failure on modern systems.
+///
+/// This RNG is **fail-stop**: it never falls back to another generator and
+/// never returns degraded output. Callers that must handle OS-RNG failure
+/// gracefully should use [`try_fill_bytes`] / [`try_random_bytes`] instead.
 ///
 /// # Panics
 ///
@@ -306,5 +352,79 @@ mod tests {
             "Monobit test failed: ones ratio = {}",
             ones_ratio
         );
+    }
+
+    /// Test RNG whose every call fails, standing in for a broken OS entropy source.
+    #[derive(Debug)]
+    struct FailingRng;
+
+    #[derive(Debug)]
+    struct FailingRngError;
+
+    impl core::fmt::Display for FailingRngError {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.write_str("injected failure")
+        }
+    }
+
+    impl core::error::Error for FailingRngError {}
+
+    impl TryRng for FailingRng {
+        type Error = FailingRngError;
+
+        fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+            Err(FailingRngError)
+        }
+
+        fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+            Err(FailingRngError)
+        }
+
+        fn try_fill_bytes(&mut self, _dst: &mut [u8]) -> Result<(), Self::Error> {
+            Err(FailingRngError)
+        }
+    }
+
+    #[test]
+    fn test_fill_from_failing_source_returns_error_fails() {
+        let mut buf = [0xAAu8; 32];
+        let result = fill_from(&mut FailingRng, &mut buf);
+        assert_eq!(result, Err(RngError));
+    }
+
+    #[test]
+    fn test_fill_from_failing_source_does_not_fall_back_fails() {
+        // No fallback RNG: on failure the buffer must not be filled with other data.
+        let mut buf = [0u8; 32];
+        assert!(fill_from(&mut FailingRng, &mut buf).is_err());
+        assert!(buf.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_try_fill_bytes_fills_buffer_succeeds() {
+        let mut buf = [0u8; 64];
+        assert!(try_fill_bytes(&mut buf).is_ok());
+        assert!(!buf.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_try_fill_bytes_empty_buffer_succeeds() {
+        assert!(try_fill_bytes(&mut []).is_ok());
+    }
+
+    #[test]
+    fn test_try_random_bytes_has_correct_length_succeeds() {
+        assert_eq!(try_random_bytes(48).map(|b| b.len()), Ok(48));
+        assert_eq!(try_random_bytes(0).map(|b| b.len()), Ok(0));
+    }
+
+    #[test]
+    fn test_try_random_bytes_no_repetition_are_unique() {
+        assert_ne!(try_random_bytes(32), try_random_bytes(32));
+    }
+
+    #[test]
+    fn test_rng_error_display_is_stable() {
+        assert_eq!(RngError.to_string(), "OS random number generator failure");
     }
 }
