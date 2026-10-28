@@ -20,6 +20,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `primitives::rand::try_fill_bytes` and `try_random_bytes`, returning
   `RngError` instead of panicking when the OS entropy source fails. There is
   no fallback generator. `secure_rng()` is documented as fail-stop.
+- `primitives::aead::segmented`: fixed-geometry segmented AEAD. An object of
+  known length becomes fixed 65,536-byte records (65,508 plaintext bytes, the
+  last zero padded), each sealed with AES-256-GCM under an HKDF-SHA256 key
+  derived from the secret, a generation salt and the record's canonical
+  context. Each record's key and associated data bind caller-supplied labels,
+  a caller binding, an object id, the generation, the length, the record
+  count, the index and a final-record flag. Truncated, reordered, extended or
+  re-labelled streams are rejected, and any error retires the handle. The
+  crate defines no labels; `SegmentedContext::new` rejects labels that are
+  equal or prefix one another (new `AeadError::AmbiguousLabels`) and an
+  all-zero generation (new `AeadError::WeakGeneration`), both mapped to
+  `FipsErrorCode::InvalidParameter`. Reusing a generation under the same
+  secret and dimensions allows record substitution and rollback between
+  object versions; use `with_random_generation`. `derive_object_id` hashes a
+  caller prefix and a locator. Known-answer vectors in `tests/fixtures/segmented-v1.json` come from
+  an independent Python HKDF-SHA256/AES-256-GCM reference implementation
+  (`scripts/generate-segmented-fixtures.py`). Adds the
+  `fuzz_segmented_aead` fuzz target and two Kani geometry harnesses.
 
 ## [0.14.0] - 2026-10-20
 

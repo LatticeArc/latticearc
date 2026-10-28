@@ -26,6 +26,9 @@
 //!   key-commitment tag for wrapping 16/32/64-byte keys under a KEK, with
 //!   optional padding to a fixed total size. Available in every feature
 //!   configuration.
+//! - **Segmented AEAD** ([`segmented`]): fixed 64 KiB records, each under an
+//!   HKDF-SHA256-derived AES-256-GCM key bound to caller-supplied labels and
+//!   the object's dimensions. Available in every feature configuration.
 //!
 //! ## AEAD Security Notes
 //!
@@ -36,6 +39,7 @@
 
 pub mod aes_gcm;
 pub mod key_wrap;
+pub mod segmented;
 pub mod stream;
 
 /// ChaCha20-Poly1305 AEAD (RFC 8439). Non-FIPS: not in NIST SP 800-38D.
@@ -316,6 +320,18 @@ pub enum AeadError {
     #[error("Context must not be empty")]
     EmptyContext,
 
+    /// The segmented AEAD's record-key and record-AAD labels are equal or one
+    /// is a prefix of the other, so a key-derivation `info` could equal a
+    /// record's associated data. Caller-side configuration error.
+    #[error("Segmented AEAD labels must differ and neither may prefix the other")]
+    AmbiguousLabels,
+
+    /// The segmented AEAD generation is all zero, which indicates an unset
+    /// value rather than a fresh per-version salt. Caller-side configuration
+    /// error.
+    #[error("Segmented AEAD generation must not be all zero")]
+    WeakGeneration,
+
     /// `wrap_key_padded` was asked for a total length that cannot hold the
     /// wrapped key, or one above [`key_wrap::MAX_WRAPPED_LEN`].
     #[error("Padded key-wrap length out of range")]
@@ -348,6 +364,9 @@ pub use self::chacha20poly1305::{ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher
 // Re-export the streaming AEAD and committing key-wrap entry points so they sit
 // beside the one-shot ciphers in `primitives::*`.
 pub use self::key_wrap::{WrappedKey, unwrap_key, wrap_key, wrap_key_padded};
+pub use self::segmented::{
+    SegmentedContext, SegmentedDecryptor, SegmentedEncryptor, SegmentedLabels,
+};
 pub use self::stream::{StreamDecryptor, StreamEncryptor};
 
 #[cfg(test)]

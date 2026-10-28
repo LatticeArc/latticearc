@@ -652,6 +652,8 @@ impl FipsError for crate::primitives::aead::AeadError {
             AeadError::InvalidSegmentSize
             | AeadError::InvalidSegmentLength
             | AeadError::EmptyContext
+            | AeadError::AmbiguousLabels
+            | AeadError::WeakGeneration
             | AeadError::InvalidPaddedLength
             | AeadError::MalformedEncoding => FipsErrorCode::InvalidParameter,
             // Counter exhaustion and post-final-segment use are caller-state

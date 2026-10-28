@@ -415,3 +415,10 @@ path = "fuzz_targets/fuzz_hash_to_curve.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_segmented_aead"
+path = "fuzz_targets/fuzz_segmented_aead.rs"
+test = false
+doc = false
+bench = false

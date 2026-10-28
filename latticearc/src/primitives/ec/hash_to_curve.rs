@@ -18,6 +18,33 @@
 //! audited (its README says so); it aims to be constant time but that is
 //! unverified, so treat hashing *secret* inputs to the curve accordingly.
 //!
+//! ## Secret messages and timing
+//!
+//! This function makes **no constant-time guarantee**. This module adds no
+//! branch on message bytes: its early returns depend only on `dst.len()` and
+//! `msg.len()`, which are treated as public, and on the identity-point case.
+//! The secret-dependent work is in the `hash2curve` 0.14.0 /
+//! `primeorder` 0.14.0 / `p256` 0.14.0 code: SHA-256 `expand_message_xmd`,
+//! the 48-byte field reduction, the simplified SWU map and the affine
+//! conversion. A source reading of those versions finds `subtle`
+//! conditional selects in the SWU map, a fixed addition chain for the square
+//! root, the non-`vartime` field inversion, and `vartime` helpers used only
+//! with public exponents; it does not establish that the compiled code or
+//! the CPU's multiply instructions are data-independent.
+//!
+//! The timing evidence is bounded and empirical. The
+//! `bench_h2c_p256_secret_msg` bench in `tests/examples/dudect_ct.rs`
+//! (Welch's t-test, fixed vs random 32-byte message, 100 000 samples) is
+//! gated at `|t| > 10` by `.github/workflows/dudect.yml` on x86_64 and
+//! aarch64 Linux runners. On an Apple M4 (aarch64 macOS, rustc 1.99.1, 2026-10)
+//! six runs gave `|t|` at most 2.8, while a deliberate early-exit compare
+//! of a few nanoseconds reached `|t|` of 20 or more on the same setup.
+//! That covers wall-clock timing on the measured CPUs with these dependency
+//! versions and toolchain only. It is not a proof, says nothing about cache
+//! or other microarchitectural channels, and must be repeated after a
+//! `p256`, compiler or target change. The Valgrind (`ctgrind`) harness does
+//! not cover this path.
+//!
 //! ## Inputs
 //!
 //! - `dst`, the domain separation tag, must be 1 to 255 bytes (RFC 9380
