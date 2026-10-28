@@ -1,7 +1,7 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.14.0
+**Module Version**: 0.15.0
 
 > CI gate `fips-policy-version` (`lint-extras.yml`) enforces that this
 > stamp matches `[workspace.package].version` in `Cargo.toml` exactly.
@@ -30,7 +30,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.14.0 |
+| Module Version | 0.15.0 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.99) |
@@ -322,6 +322,7 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.15.0 | 2026-10-28 | **No change to the power-up self-tests; no new algorithm.** Adds a segmented AEAD (`primitives::aead::segmented`) composed from the existing AES-256-GCM and HKDF-SHA256 primitives, constant-time equality helpers (`primitives::ct`), incremental SHA-256/SHA-512 hashers, and a fallible RNG fill that returns an error instead of panicking when the OS entropy source fails. |
 | 0.14.0 | 2026-10-20 | **No change to the power-up self-tests; the approved-algorithm set gains verification only.** P-256/SHA-256 and P-384/SHA-384 ECDSA signature verification over a message (`primitives::ec::{p256, p384}`) is backed by aws-lc-rs inside the boundary; verification over a caller-supplied digest is listed as non-approved documentation because aws-lc-rs does not list digest verification as an approved service. RFC 9380 hash-to-curve for P-256 (`P256_XMD:SHA-256_SSWU_RO_`) uses the RustCrypto `p256` crate, which sits outside the FIPS boundary and is not an approved algorithm. Legacy RSA PKCS#1 v1.5 SHA-1 signature verification (`primitives::sig::rsa_legacy`) is verify-only, for interoperability with legacy signed formats; SHA-1 is not approved for new signatures (SP 800-131A), no RSA or SHA-1 signing is added, and the module is compiled out of `--features fips` builds. Under `--features fips` the AWS-LC FIPS module rejects two valid Wycheproof P-256 cases (`s = 2^128`, `s = n - 2^128`) that the non-FIPS backend accepts; these are documented backend false rejects (never false accepts) and are recorded in the test suite. |
 | 0.13.0 | 2026-10-20 | **No change to the cryptographic boundary or the power-up self-tests.** The mobile-core additions compose approved primitives already inside the boundary (AES-256-GCM, HKDF-SHA256, HMAC-SHA256, ML-DSA) for the streaming AEAD, the committing key wrap and HashML-DSA / seed-based ML-DSA key generation (FIPS 204 Algorithms 4 and 6, ACVP vectors checked in). Argon2id (RustCrypto `argon2`, not NIST-approved) and the Swift/Kotlin FFI crate sit outside the boundary. MSRV raised to 1.99. |
 | 0.12.0 | 2026-08-16 | **§9.6 error-state enforcement widened; two breaking API changes.** The operational latch was previously consulted by only 8 convenience entry points; the AEAD, hash/KDF/MAC, PQ-KEM, PQ-signature, Ed25519, hybrid-signature and ECDSA-P384 modules call `primitives::*` directly and so continued to provide cryptographic services after the module entered the error state — including the `fips-strict-integrity` case where no `PRODUCTION_HMAC.txt` is provisioned. Every such module now consults the latch at its internal chokepoint. Consequently `hash_data` returns `Result<[u8; 32]>` (SHA-3 is an approved algorithm inside the boundary, so §9.6 must be able to refuse the call), and `unified_api::self_tests_passed()` now reports the conjunction of the power-up flag and the operational latch rather than a stale `init()`-time flag — `init()` and every gated operation now share a single `Once`-guarded power-up run. Also: the configured-`SecurityLevel` minimum-strength gate no longer skips the `pq-`-prefixed and `-hybrid-ed25519`-suffixed scheme spellings on `decrypt`/`verify`, and `PortableKey` expiry is enforced by all twelve typed-key extractors rather than only the four hybrid ones. |
