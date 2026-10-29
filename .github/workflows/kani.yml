@@ -54,7 +54,10 @@ jobs:
   kani-pr-subset:
     name: Kani PR Subset (fast)
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to Ubuntu 26.04 (first failing run 2026-10-23); Kani's
+    # install_cbmc.sh fetches ubuntu-<release>-cbmc-<ver>-Linux.deb, which
+    # CBMC 6.11.0 does not publish for 26.04 (404). Unpin once it does.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout repository
@@ -166,7 +169,10 @@ jobs:
   kani-verified:
     name: Verified Proofs (latticearc)
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to Ubuntu 26.04 (first failing run 2026-10-23); Kani's
+    # install_cbmc.sh fetches ubuntu-<release>-cbmc-<ver>-Linux.deb, which
+    # CBMC 6.11.0 does not publish for 26.04 (404). Unpin once it does.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
