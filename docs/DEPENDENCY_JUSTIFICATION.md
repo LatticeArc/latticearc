@@ -1,7 +1,7 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Post-Quantum Cryptography Library
-**Version:** 0.15.0
+**Version:** 0.15.1
 **Date:** 2026-10-20 (release tag)
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
@@ -12,7 +12,7 @@ All dependencies vetted for security (audits, memory safety), licensing (Apache/
 ```mermaid
 flowchart TB
     subgraph "latticearc"
-        LA[LatticeArc 0.15.0 target]
+        LA[LatticeArc 0.15.1 target]
     end
 
     subgraph "FIPS-Validated"
@@ -442,23 +442,23 @@ via aws-lc-rs) and upstream fips205/blake2 releases.
 
 The workspace contains 4 crates (consolidated from 11 in v0.1.0; `latticearc-ffi` added in 0.13.0):
 
-#### latticearc (v0.15.0) — Single publishable crate
+#### latticearc (v0.15.1) — Single publishable crate
 - **Purpose**: All cryptographic functionality in one crate
 - **Modules**: `types`, `prelude`, `primitives`, `hybrid`, `unified_api`, `zkp`, `perf`
 - **License**: Apache-2.0
 - **Published to**: crates.io as `latticearc`
 
-#### latticearc-cli (v0.15.0) — CLI binary (publish = false)
+#### latticearc-cli (v0.15.1) — CLI binary (publish = false)
 - **Purpose**: Command-line tool for key generation, signing, encryption, hashing
 - **License**: Apache-2.0
 - **Usage**: End-user binary, CI/CD pipelines
 
-#### latticearc-tests (v0.15.0) — Test-only crate (publish = false)
+#### latticearc-tests (v0.15.1) — Test-only crate (publish = false)
 - **Purpose**: CAVP validation, NIST KAT vectors, integration tests, FIPS compliance
 - **License**: Apache-2.0
 - **Usage**: CI/CD, development only
 
-#### latticearc-ffi (v0.15.0) — Swift and Kotlin bindings (publish = false)
+#### latticearc-ffi (v0.15.1) — Swift and Kotlin bindings (publish = false)
 - **Purpose**: UniFFI-generated C ABI over the mobile core; shipped as an XCFramework and Android `jniLibs` built by `scripts/ffi/`
 - **Added dependencies**: `uniffi` 0.32.2 (MPL-2.0, pinned) at runtime; `uniffi_bindgen` and its template engine only behind the optional `bindgen` feature (brings the allowed informational advisory RUSTSEC-2026-0374, `basic-toml`)
 - **License**: Apache-2.0
