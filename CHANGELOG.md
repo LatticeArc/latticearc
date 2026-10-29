@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Incremental SHA-256/SHA-512 hashers no longer refuse inputs whose total
+  exceeds 1 GB; the one-shot limits are unchanged. `Sha256Hasher::update` and
+  `Sha512Hasher::update` keep their `Result` signature but no longer fail, so
+  files larger than 1 GB can be streamed through them.
+
 ## [0.15.0] - 2026-10-28
 
 ### Added

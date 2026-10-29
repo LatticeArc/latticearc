@@ -11,8 +11,9 @@ use sha2::{Digest, Sha256, Sha384, Sha512};
 use thiserror::Error;
 use tracing::instrument;
 
-/// Maximum input size for hash functions (1 GB)
-/// This prevents DoS attacks via excessive memory usage
+/// Maximum input size for the one-shot hash functions (1 GB)
+/// This prevents DoS attacks via excessive memory usage. The incremental
+/// hashers hold constant-size state and are not bounded by it.
 const MAX_HASH_INPUT_SIZE: usize = 1_000_000_000;
 
 /// Errors from the SHA-2 hash functions.
@@ -85,12 +86,12 @@ pub fn sha512(data: &[u8]) -> Result<[u8; 64], Sha2Error> {
 /// Incremental SHA-256 hasher.
 ///
 /// Feed data with [`update`](Self::update) in any chunking and obtain the digest
-/// with [`finalize`](Self::finalize), which consumes the hasher. The total input
-/// is bounded by the same 1 GB limit as [`sha256`].
+/// with [`finalize`](Self::finalize), which consumes the hasher. The hasher
+/// keeps constant-size state, so unlike the one-shot [`sha256`] it places no
+/// bound on the total input; streaming inputs larger than 1 GB is supported.
 #[derive(Clone)]
 pub struct Sha256Hasher {
     inner: Sha256,
-    total_len: usize,
 }
 
 impl Default for Sha256Hasher {
@@ -103,27 +104,16 @@ impl Sha256Hasher {
     /// Creates a hasher with an empty input.
     #[must_use]
     pub fn new() -> Self {
-        Self { inner: Sha256::new(), total_len: 0 }
+        Self { inner: Sha256::new() }
     }
 
     /// Absorbs `data` into the running hash.
     ///
     /// # Errors
-    /// Returns `Sha2Error::ResourceExceeded` if the total input fed so far
-    /// would exceed 1 GB; the hasher is left unchanged in that case.
+    /// Never returns an error: there is no limit on the total input. The
+    /// `Result` is kept so the signature stays compatible within 0.15.x.
     pub fn update(&mut self, data: &[u8]) -> Result<(), Sha2Error> {
-        let new_len = self
-            .total_len
-            .checked_add(data.len())
-            .filter(|len| *len <= MAX_HASH_INPUT_SIZE)
-            .ok_or_else(|| {
-                Sha2Error::ResourceExceeded(format!(
-                    "Hash input too large: more than {} bytes",
-                    MAX_HASH_INPUT_SIZE
-                ))
-            })?;
         self.inner.update(data);
-        self.total_len = new_len;
         Ok(())
     }
 
@@ -137,12 +127,12 @@ impl Sha256Hasher {
 /// Incremental SHA-512 hasher.
 ///
 /// Feed data with [`update`](Self::update) in any chunking and obtain the digest
-/// with [`finalize`](Self::finalize), which consumes the hasher. The total input
-/// is bounded by the same 1 GB limit as [`sha512`].
+/// with [`finalize`](Self::finalize), which consumes the hasher. The hasher
+/// keeps constant-size state, so unlike the one-shot [`sha512`] it places no
+/// bound on the total input; streaming inputs larger than 1 GB is supported.
 #[derive(Clone)]
 pub struct Sha512Hasher {
     inner: Sha512,
-    total_len: usize,
 }
 
 impl Default for Sha512Hasher {
@@ -155,27 +145,16 @@ impl Sha512Hasher {
     /// Creates a hasher with an empty input.
     #[must_use]
     pub fn new() -> Self {
-        Self { inner: Sha512::new(), total_len: 0 }
+        Self { inner: Sha512::new() }
     }
 
     /// Absorbs `data` into the running hash.
     ///
     /// # Errors
-    /// Returns `Sha2Error::ResourceExceeded` if the total input fed so far
-    /// would exceed 1 GB; the hasher is left unchanged in that case.
+    /// Never returns an error: there is no limit on the total input. The
+    /// `Result` is kept so the signature stays compatible within 0.15.x.
     pub fn update(&mut self, data: &[u8]) -> Result<(), Sha2Error> {
-        let new_len = self
-            .total_len
-            .checked_add(data.len())
-            .filter(|len| *len <= MAX_HASH_INPUT_SIZE)
-            .ok_or_else(|| {
-                Sha2Error::ResourceExceeded(format!(
-                    "Hash input too large: more than {} bytes",
-                    MAX_HASH_INPUT_SIZE
-                ))
-            })?;
         self.inner.update(data);
-        self.total_len = new_len;
         Ok(())
     }
 
@@ -494,19 +473,62 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_sha256_hasher_total_size_limit_returns_error_when_exceeded_fails() {
-        let mut h = Sha256Hasher::new();
-        h.total_len = MAX_HASH_INPUT_SIZE;
-        h.update(&[]).unwrap();
-        assert!(matches!(h.update(b"x"), Err(Sha2Error::ResourceExceeded(_))));
+    /// Total fed by the streaming tests: past the one-shot 1 GB bound, which
+    /// must not apply to the incremental hashers.
+    const STREAM_TOTAL: usize = 1_100_000_000;
+    const STREAM_CHUNK: usize = 1024 * 1024;
+    const _: () = assert!(STREAM_TOTAL > MAX_HASH_INPUT_SIZE);
+
+    /// `head -c 1100000000 /dev/zero | shasum -a 256`.
+    const SHA256_STREAM_ZEROS_HEX: &str =
+        "76bf918a180820670b86c23a9320f4c1df1ec8ff46f427e747ee5fce7f67ef67";
+    /// `head -c 1100000000 /dev/zero | shasum -a 512`.
+    const SHA512_STREAM_ZEROS_HEX: &str = "6d3124b4a1a6201a0410ccf2ad999a970ab89cfd1cc7ea889b350fe04657f5d168670e31655c1f66ee51142bdcc9682f5514dc255bb2d19d28ff8d12ef3b0507";
+
+    /// Feeds `STREAM_TOTAL` zero bytes to `update` in `STREAM_CHUNK` pieces.
+    fn feed_stream_zeros(mut update: impl FnMut(&[u8])) {
+        let chunk = vec![0u8; STREAM_CHUNK];
+        let mut remaining = STREAM_TOTAL;
+        while remaining > 0 {
+            let n = remaining.min(STREAM_CHUNK);
+            update(chunk.get(..n).unwrap());
+            remaining = remaining.checked_sub(n).unwrap();
+        }
     }
 
     #[test]
-    fn test_sha512_hasher_total_size_limit_returns_error_when_exceeded_fails() {
-        let mut h = Sha512Hasher::new();
-        h.total_len = MAX_HASH_INPUT_SIZE;
-        h.update(&[]).unwrap();
-        assert!(matches!(h.update(b"x"), Err(Sha2Error::ResourceExceeded(_))));
+    #[cfg_attr(
+        debug_assertions,
+        ignore = "hashes 2.2 GB; about 1 minute unoptimised, runs in release test passes"
+    )]
+    fn test_sha256_hasher_streams_past_one_shot_bound_matches_expected() {
+        let mut ours = Sha256Hasher::new();
+        let mut reference = Sha256::new();
+        feed_stream_zeros(|c| {
+            ours.update(c).unwrap();
+            reference.update(c);
+        });
+        let expected: [u8; 32] = reference.finalize().into();
+        let got = ours.finalize();
+        assert_eq!(got, expected);
+        assert_eq!(to_hex(&got), SHA256_STREAM_ZEROS_HEX);
+    }
+
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        ignore = "hashes 2.2 GB; about 1 minute unoptimised, runs in release test passes"
+    )]
+    fn test_sha512_hasher_streams_past_one_shot_bound_matches_expected() {
+        let mut ours = Sha512Hasher::new();
+        let mut reference = Sha512::new();
+        feed_stream_zeros(|c| {
+            ours.update(c).unwrap();
+            reference.update(c);
+        });
+        let expected: [u8; 64] = reference.finalize().into();
+        let got = ours.finalize();
+        assert_eq!(got, expected);
+        assert_eq!(to_hex(&got), SHA512_STREAM_ZEROS_HEX);
     }
 }
