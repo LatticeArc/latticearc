@@ -1,0 +1,73 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Fixed-geometry segmented AEAD: an object of known length is split into 64 KiB records, each sealed under its own HKDF-SHA256-derived AES-256-GCM key and authenticated against the whole object’s dimensions."><title>latticearc::primitives::aead::segmented - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="latticearc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module segmented</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../../latticearc/index.html">latticearc</a><span class="version">0.15.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module segmented</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#threat-model" title="Threat model">Threat model</a></li><li><a href="#construction" title="Construction">Construction</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In latticearc::<wbr>primitives::<wbr>aead</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">latticearc</a>::<wbr><a href="../../index.html">primitives</a>::<wbr><a href="../index.html">aead</a></div><h1>Module <span>segmented</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/latticearc/primitives/aead/segmented.rs.html#1-1022">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Fixed-geometry segmented AEAD: an object of known length is split into
+64 KiB records, each sealed under its own HKDF-SHA256-derived AES-256-GCM
+key and authenticated against the whole object’s dimensions.</p>
+<h2 id="threat-model"><a class="doc-anchor" href="#threat-model">§</a>Threat model</h2>
+<p>The adversary controls every record byte the decryptor reads. The
+object’s dimensions (<a href="struct.SegmentedContext.html" title="struct latticearc::primitives::aead::segmented::SegmentedContext"><code>SegmentedContext</code></a>) come from caller metadata that
+is already authenticated by other means; they are never read from the
+records. The guarantees are:</p>
+<ul>
+<li><strong>Fixed size.</strong> Every record is exactly <a href="constant.RECORD_LEN.html" title="constant latticearc::primitives::aead::segmented::RECORD_LEN"><code>RECORD_LEN</code></a> bytes and an
+object is exactly <a href="struct.SegmentedContext.html#method.ciphertext_len" title="method latticearc::primitives::aead::segmented::SegmentedContext::ciphertext_len"><code>SegmentedContext::ciphertext_len</code></a> bytes, so the
+ciphertext reveals only the record count. The last record’s plaintext is
+zero padded under the AEAD; the decryptor rejects nonzero padding.</li>
+<li><strong>Truncation, reordering, splicing and extension are detected.</strong> Each
+record’s key and associated data bind the object binding, object id,
+generation, plaintext length, record count, the record’s index and a
+final-record flag. A record moved to another index or object, or a
+stream cut short or extended, fails; <a href="struct.SegmentedDecryptor.html#method.finish" title="method latticearc::primitives::aead::segmented::SegmentedDecryptor::finish"><code>SegmentedDecryptor::finish</code></a>
+succeeds only after exactly every record was accepted.</li>
+<li><strong>One failure retires the handle.</strong> Any error drops (and zeroizes) the
+secret the encryptor or decryptor holds; it cannot be retried.</li>
+<li><strong>Errors are opaque on the decrypt path.</strong> A wrong length, wrong index,
+tag failure or bad padding all surface as the same
+<a href="../enum.AeadError.html#variant.DecryptionFailed" title="variant latticearc::primitives::aead::AeadError::DecryptionFailed"><code>AeadError::DecryptionFailed</code></a> string. After that first failure the
+retired decryptor answers every call with <a href="../enum.AeadError.html#variant.StreamExhausted" title="variant latticearc::primitives::aead::AeadError::StreamExhausted"><code>AeadError::StreamExhausted</code></a>;
+that reports the caller’s own handle state after a failure it was
+already told about, so it carries no information about any record.</li>
+</ul>
+<p>Out of scope: confidentiality of the record count, and nonce-misuse
+resistance. Each record nonce is 96 random bits under a key that is unique
+per (secret, generation, record index), so a key never seals two records
+unless the caller reuses a generation; draw a fresh generation (see
+<a href="struct.SegmentedContext.html#method.with_random_generation" title="associated function latticearc::primitives::aead::segmented::SegmentedContext::with_random_generation"><code>SegmentedContext::with_random_generation</code></a>) for every object version.</p>
+<p><strong>Generation reuse breaks version separation.</strong> Two object versions sealed
+under the same secret, generation and dimensions (labels, binding, object
+id and plaintext length) share every record key and associated data, so a
+record of one version opens as the same-index record of the other: an
+adversary can substitute records between the versions or roll the whole
+object back. The all-zero generation is rejected as an unset value.</p>
+<p>The decryptor releases each record’s plaintext as soon as it
+authenticates; callers must not act on the object until
+<a href="struct.SegmentedDecryptor.html#method.finish" title="method latticearc::primitives::aead::segmented::SegmentedDecryptor::finish"><code>SegmentedDecryptor::finish</code></a> succeeds and their input has ended.</p>
+<h2 id="construction"><a class="doc-anchor" href="#construction">§</a>Construction</h2>
+<p>All labels are caller parameters; this module defines none.</p>
+<div class="example-wrap"><pre class="language-text"><code>records     = max(1, ceil(plaintext_len / 65508))
+canonical_L(i) = L || binding || object_id (32) || generation (32)
+              || plaintext_len (u64 BE) || records (u64 BE) || i (u64 BE)
+              || final (1: 0x01 iff i == records - 1, else 0x00)
+key_i       = HKDF-SHA256(ikm = secret, salt = generation,
+                          info = canonical_{record_key label}(i), L = 32)
+aad_i       = canonical_{record_aad label}(i)
+record_i    = nonce_i (12, random) || AES-256-GCM(key_i, nonce_i, aad_i,
+                                         M_i || zeros to 65508 bytes) || tag (16)</code></pre></div>
+<p>The two labels must differ and neither may be a prefix of the other, so a
+record-key <code>info</code> never equals a record’s associated data whatever the
+bindings; <a href="struct.SegmentedContext.html#method.new" title="associated function latticearc::primitives::aead::segmented::SegmentedContext::new"><code>SegmentedContext::new</code></a> rejects any other pair.
+<code>binding</code> is caller-defined bytes (for example a format version, a purpose
+code and a key identity) and is not length-prefixed: a caller must keep
+each (label, binding) pair unambiguous, for instance by giving every label
+a binding of one fixed length. <a href="fn.derive_object_id.html" title="fn latticearc::primitives::aead::segmented::derive_object_id"><code>derive_object_id</code></a> computes
+<code>SHA-256(prefix || locator)</code> for callers that name objects by a locator.</p>
+<p>The layout is pinned by <code>latticearc/tests/fixtures/segmented-v1.json</code>,
+generated by an independent Python HKDF-SHA256/AES-256-GCM reference
+implementation (<code>scripts/generate-segmented-fixtures.py</code>).</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.SegmentedContext.html" title="struct latticearc::primitives::aead::segmented::SegmentedContext">Segmented<wbr>Context</a></dt><dd>Dimensions and identity of one object, from caller metadata that is
+already authenticated. It contains no key material.</dd><dt><a class="struct" href="struct.SegmentedDecryptor.html" title="struct latticearc::primitives::aead::segmented::SegmentedDecryptor">Segmented<wbr>Decryptor</a></dt><dd>Sequential authenticating decryptor: call <a href="struct.SegmentedDecryptor.html#method.open_next" title="method latticearc::primitives::aead::segmented::SegmentedDecryptor::open_next"><code>open_next</code></a>
+once per record in order, then <a href="struct.SegmentedDecryptor.html#method.finish" title="method latticearc::primitives::aead::segmented::SegmentedDecryptor::finish"><code>finish</code></a>. Any error retires
+it and zeroizes the secret it holds. Plaintext returned before <code>finish</code>
+succeeds belongs to an object that is not yet known to be complete.</dd><dt><a class="struct" href="struct.SegmentedEncryptor.html" title="struct latticearc::primitives::aead::segmented::SegmentedEncryptor">Segmented<wbr>Encryptor</a></dt><dd>Sequential one-use encryptor: call <a href="struct.SegmentedEncryptor.html#method.seal_next" title="method latticearc::primitives::aead::segmented::SegmentedEncryptor::seal_next"><code>seal_next</code></a> once per
+record in order, then <a href="struct.SegmentedEncryptor.html#method.finish" title="method latticearc::primitives::aead::segmented::SegmentedEncryptor::finish"><code>finish</code></a>. Any error retires it and
+zeroizes the secret it holds.</dd><dt><a class="struct" href="struct.SegmentedLabels.html" title="struct latticearc::primitives::aead::segmented::SegmentedLabels">Segmented<wbr>Labels</a></dt><dd>Caller-defined domain labels; both must be non-empty.</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.GENERATION_LEN.html" title="constant latticearc::primitives::aead::segmented::GENERATION_LEN">GENERATION_<wbr>LEN</a></dt><dd>Length of the generation (HKDF salt, unique per object version).</dd><dt><a class="constant" href="constant.MAX_PLAINTEXT_LEN.html" title="constant latticearc::primitives::aead::segmented::MAX_PLAINTEXT_LEN">MAX_<wbr>PLAINTEXT_<wbr>LEN</a></dt><dd>Largest accepted object plaintext length (2 GiB).</dd><dt><a class="constant" href="constant.OBJECT_ID_LEN.html" title="constant latticearc::primitives::aead::segmented::OBJECT_ID_LEN">OBJECT_<wbr>ID_<wbr>LEN</a></dt><dd>Length of the object id.</dd><dt><a class="constant" href="constant.PAYLOAD_LEN.html" title="constant latticearc::primitives::aead::segmented::PAYLOAD_LEN">PAYLOAD_<wbr>LEN</a></dt><dd>Plaintext bytes per record (<code>RECORD_LEN - 12 - 16</code>); the last record is
+zero padded to this length before encryption.</dd><dt><a class="constant" href="constant.RECORD_LEN.html" title="constant latticearc::primitives::aead::segmented::RECORD_LEN">RECORD_<wbr>LEN</a></dt><dd>Length of every ciphertext record: nonce (12) || ciphertext || tag (16).</dd><dt><a class="constant" href="constant.SECRET_LEN.html" title="constant latticearc::primitives::aead::segmented::SECRET_LEN">SECRET_<wbr>LEN</a></dt><dd>Length of the secret input keying material.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.derive_object_id.html" title="fn latticearc::primitives::aead::segmented::derive_object_id">derive_<wbr>object_<wbr>id</a></dt><dd>Object id <code>SHA-256(prefix || locator)</code> for a caller-defined, non-empty
+domain <code>prefix</code>.</dd></dl></section></div></main></body></html>
