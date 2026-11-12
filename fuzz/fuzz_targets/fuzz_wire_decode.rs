@@ -7,8 +7,14 @@
 //! and canonical: a successful decode re-encodes to the identical bytes. The
 //! first input byte optionally selects a type so that a valid header is
 //! prepended, letting the fuzzer reach the body parsers quickly.
+//!
+//! The level-pinned public-key decoders (`from_wire_with_policy`) must agree
+//! with `from_wire`: they succeed exactly when `from_wire` succeeds with an
+//! allowed level, and then yield the same value.
 
 use latticearc::hybrid::wire::{WIRE_MAGIC, WIRE_VERSION};
+use latticearc::primitives::kem::MlKemSecurityLevel;
+use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 use latticearc::{
     EncapsulatedKey, HybridCiphertext, HybridKemPublicKey, HybridSigPublicKey, HybridSignature,
     WireEncode,
@@ -22,7 +28,38 @@ fn check<T: WireEncode>(data: &[u8]) {
     }
 }
 
+fn check_level_pinned(data: &[u8]) {
+    let kem_allowed = [MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024];
+    let kem_plain = HybridKemPublicKey::from_wire(data);
+    let kem_pinned = HybridKemPublicKey::from_wire_with_policy(data, &kem_allowed);
+    match (&kem_plain, &kem_pinned) {
+        (Ok(plain), Ok(pinned)) => {
+            assert!(kem_allowed.contains(&plain.security_level()));
+            assert_eq!(plain.to_wire().unwrap(), pinned.to_wire().unwrap());
+        }
+        (Ok(plain), Err(_)) => assert!(!kem_allowed.contains(&plain.security_level())),
+        (Err(_), Ok(_)) => panic!("pinned KEM decode accepted what from_wire rejects"),
+        (Err(_), Err(_)) => {}
+    }
+    assert!(HybridKemPublicKey::from_wire_with_policy(data, &[]).is_err());
+
+    let dsa_allowed = [MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87];
+    let sig_plain = HybridSigPublicKey::from_wire(data);
+    let sig_pinned = HybridSigPublicKey::from_wire_with_policy(data, &dsa_allowed);
+    match (&sig_plain, &sig_pinned) {
+        (Ok(plain), Ok(pinned)) => {
+            assert!(dsa_allowed.contains(&plain.parameter_set()));
+            assert_eq!(plain.to_wire().unwrap(), pinned.to_wire().unwrap());
+        }
+        (Ok(plain), Err(_)) => assert!(!dsa_allowed.contains(&plain.parameter_set())),
+        (Err(_), Ok(_)) => panic!("pinned signature-key decode accepted what from_wire rejects"),
+        (Err(_), Err(_)) => {}
+    }
+    assert!(HybridSigPublicKey::from_wire_with_policy(data, &[]).is_err());
+}
+
 fn check_all(data: &[u8]) {
+    check_level_pinned(data);
     check::<HybridKemPublicKey>(data);
     check::<EncapsulatedKey>(data);
     check::<HybridCiphertext>(data);

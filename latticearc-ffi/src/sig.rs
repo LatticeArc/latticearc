@@ -181,6 +181,22 @@ impl HybridSigPublicKey {
         Self::wrap(CoreSigPublicKey::from_wire(&bytes)?)
     }
 
+    /// Like [`Self::from_wire`], but requires the key to use exactly the
+    /// ML-DSA parameter set `parameter_set`. `from_wire` accepts every set,
+    /// including ML-DSA-44; use this when the application enforces a level.
+    ///
+    /// # Errors
+    ///
+    /// `WireFormat` for anything that is not a well-formed public key with
+    /// `parameter_set`.
+    #[uniffi::constructor]
+    pub fn from_wire_expecting(
+        bytes: Vec<u8>,
+        parameter_set: MlDsaParameterSet,
+    ) -> Result<Arc<Self>, LatticeArcError> {
+        Self::wrap(CoreSigPublicKey::from_wire_expecting(&bytes, parameter_set.into())?)
+    }
+
     /// The versioned wire encoding.
     ///
     /// # Errors
@@ -608,6 +624,18 @@ mod tests {
             sk.sign(b"m".to_vec(), vec![]),
             Err(LatticeArcError::InvalidContext { .. })
         ));
+    }
+
+    #[test]
+    fn hybrid_public_key_level_pinned_decode() {
+        let sk = HybridSigningKey::generate(MlDsaParameterSet::MlDsa44).unwrap();
+        let wire = sk.public_key().to_wire().unwrap();
+        assert!(matches!(
+            HybridSigPublicKey::from_wire_expecting(wire.clone(), MlDsaParameterSet::MlDsa65),
+            Err(LatticeArcError::WireFormat { .. })
+        ));
+        let pk = HybridSigPublicKey::from_wire_expecting(wire, MlDsaParameterSet::MlDsa44).unwrap();
+        assert_eq!(pk.parameter_set(), MlDsaParameterSet::MlDsa44);
     }
 
     #[test]

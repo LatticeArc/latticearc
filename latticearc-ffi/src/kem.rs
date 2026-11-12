@@ -80,6 +80,22 @@ impl HybridKemPublicKey {
         Self::wrap(CoreKemPublicKey::from_wire(&bytes)?)
     }
 
+    /// Like [`Self::from_wire`], but requires the key to be at exactly
+    /// `level`. `from_wire` accepts every level, including ML-KEM-512; use
+    /// this when the application enforces a level.
+    ///
+    /// # Errors
+    ///
+    /// `WireFormat` for anything that is not a well-formed public key at
+    /// `level`.
+    #[uniffi::constructor]
+    pub fn from_wire_expecting(
+        bytes: Vec<u8>,
+        level: MlKemSecurityLevel,
+    ) -> Result<Arc<Self>, LatticeArcError> {
+        Self::wrap(CoreKemPublicKey::from_wire_expecting(&bytes, level.into())?)
+    }
+
     /// The versioned wire encoding (see `docs/WIRE_FORMAT.md`).
     ///
     /// # Errors
@@ -378,6 +394,19 @@ mod tests {
         ));
         let no_aad = encrypt_hybrid(&pk, vec![], None).unwrap();
         assert_eq!(decrypt_hybrid(&sk, no_aad, None).unwrap(), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn public_key_level_pinned_decode() {
+        let sk = HybridKemSecretKey::generate(MlKemSecurityLevel::MlKem512).unwrap();
+        let wire = sk.public_key().to_wire().unwrap();
+        assert!(matches!(
+            HybridKemPublicKey::from_wire_expecting(wire.clone(), MlKemSecurityLevel::MlKem768),
+            Err(LatticeArcError::WireFormat { .. })
+        ));
+        let pk =
+            HybridKemPublicKey::from_wire_expecting(wire, MlKemSecurityLevel::MlKem512).unwrap();
+        assert_eq!(pk.security_level(), MlKemSecurityLevel::MlKem512);
     }
 
     #[test]

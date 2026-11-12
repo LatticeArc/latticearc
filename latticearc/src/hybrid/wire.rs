@@ -41,6 +41,14 @@
 //! - Structural only: component bytes are not validated cryptographically
 //!   (point/modulus checks happen at first use, as with
 //!   [`HybridKemPublicKey::from_bytes`]).
+//! - Level-agnostic: [`WireEncode::from_wire`] accepts every defined
+//!   parameter set, including the category-1/2 ones (ML-KEM-512,
+//!   ML-DSA-44). To enforce a minimum, decode public keys with
+//!   [`HybridKemPublicKey::from_wire_expecting`] /
+//!   [`HybridKemPublicKey::from_wire_with_policy`] and
+//!   [`HybridSigPublicKey::from_wire_expecting`] /
+//!   [`HybridSigPublicKey::from_wire_with_policy`], which reject other levels
+//!   with [`WireError::DisallowedAlgorithm`] before the body is parsed.
 //!
 //! ## Error detail
 //!
@@ -152,6 +160,11 @@ pub enum WireError {
     /// describes (for example a hand-built key of the wrong size).
     #[error("cannot encode: invalid {0} length")]
     InvalidComponent(&'static str),
+    /// The algorithm id is defined for this type but is not one the caller
+    /// allowed (`from_wire_expecting` / `from_wire_with_policy`), for example
+    /// an ML-KEM-512 key where ML-KEM-768 or stronger is required.
+    #[error("algorithm id {0} is not allowed by the caller's level policy")]
+    DisallowedAlgorithm(u8),
 }
 
 mod sealed {
@@ -180,6 +193,12 @@ pub trait WireEncode: sealed::Sealed + Sized {
     fn to_wire(&self) -> Result<Vec<u8>, WireError>;
 
     /// Decode a value previously produced by [`Self::to_wire`].
+    ///
+    /// Accepts every algorithm id defined for the type; it does not enforce
+    /// a minimum security level. For public keys use
+    /// `HybridKemPublicKey::from_wire_expecting` /
+    /// `HybridSigPublicKey::from_wire_expecting` (or their `_with_policy`
+    /// forms) when the caller requires particular levels.
     ///
     /// # Errors
     ///
@@ -498,6 +517,85 @@ impl WireEncode for HybridSigPublicKey {
 }
 
 // ----------------------------------------------------------------------------
+// Level-pinned decoding of public keys
+// ----------------------------------------------------------------------------
+
+impl HybridKemPublicKey {
+    /// Decodes a wire-format hybrid KEM public key and requires it to be at
+    /// exactly `level`.
+    ///
+    /// Plain [`WireEncode::from_wire`] is level-agnostic: it accepts every
+    /// defined ML-KEM level, including ML-KEM-512 (NIST category 1). A caller
+    /// that enforces a level should decode through this function (or
+    /// [`Self::from_wire_with_policy`]) so a downgraded key never reaches
+    /// encapsulation.
+    ///
+    /// # Errors
+    /// Every structural [`WireError`] that `from_wire` returns, and
+    /// [`WireError::DisallowedAlgorithm`] if the encoded level is not
+    /// `level`. The level is checked from the header before the body is read.
+    pub fn from_wire_expecting(bytes: &[u8], level: MlKemSecurityLevel) -> Result<Self, WireError> {
+        Self::from_wire_with_policy(bytes, &[level])
+    }
+
+    /// Decodes a wire-format hybrid KEM public key and requires its level to
+    /// be one of `allowed` (for example `[MlKem768, MlKem1024]` during a
+    /// migration). An empty `allowed` rejects every key.
+    ///
+    /// # Errors
+    /// As [`Self::from_wire_expecting`].
+    pub fn from_wire_with_policy(
+        bytes: &[u8],
+        allowed: &[MlKemSecurityLevel],
+    ) -> Result<Self, WireError> {
+        let (alg_id, _body) = parse_header(bytes, Self::TYPE_TAG, Self::MAX_WIRE_LEN)?;
+        let level = kem_level_from_id(alg_id)?;
+        if !allowed.contains(&level) {
+            return Err(WireError::DisallowedAlgorithm(alg_id));
+        }
+        Self::from_wire(bytes)
+    }
+}
+
+impl HybridSigPublicKey {
+    /// Decodes a wire-format hybrid signature public key and requires it to
+    /// use exactly the ML-DSA parameter set `set`.
+    ///
+    /// Plain [`WireEncode::from_wire`] is level-agnostic: it accepts every
+    /// defined ML-DSA parameter set, including ML-DSA-44 (NIST category 2).
+    /// A caller that enforces a level should decode through this function (or
+    /// [`Self::from_wire_with_policy`]) so signatures are never verified
+    /// under a downgraded key.
+    ///
+    /// # Errors
+    /// Every structural [`WireError`] that `from_wire` returns, and
+    /// [`WireError::DisallowedAlgorithm`] if the encoded parameter set is not
+    /// `set`. The parameter set is checked from the header before the body
+    /// is read.
+    pub fn from_wire_expecting(bytes: &[u8], set: MlDsaParameterSet) -> Result<Self, WireError> {
+        Self::from_wire_with_policy(bytes, &[set])
+    }
+
+    /// Decodes a wire-format hybrid signature public key and requires its
+    /// ML-DSA parameter set to be one of `allowed`. An empty `allowed`
+    /// rejects every key.
+    ///
+    /// # Errors
+    /// As [`Self::from_wire_expecting`].
+    pub fn from_wire_with_policy(
+        bytes: &[u8],
+        allowed: &[MlDsaParameterSet],
+    ) -> Result<Self, WireError> {
+        let (alg_id, _body) = parse_header(bytes, Self::TYPE_TAG, Self::MAX_WIRE_LEN)?;
+        let set = dsa_set_from_id(alg_id)?;
+        if !allowed.contains(&set) {
+            return Err(WireError::DisallowedAlgorithm(alg_id));
+        }
+        Self::from_wire(bytes)
+    }
+}
+
+// ----------------------------------------------------------------------------
 // HybridSignature (0x05)
 // ----------------------------------------------------------------------------
 
@@ -579,6 +677,84 @@ mod tests {
 
     fn sig_pk(set: MlDsaParameterSet) -> HybridSigPublicKey {
         HybridSigPublicKey::new(set, filled(set.public_key_size(), 10), filled(32, 11)).unwrap()
+    }
+
+    /// Level-pinned KEM public-key decode: only the expected / allowed
+    /// levels decode; anything else is `DisallowedAlgorithm` with the id.
+    #[test]
+    fn kem_public_key_level_pinned_decode() {
+        for &encoded in &KEM_LEVELS {
+            let bytes = kem_pk(encoded).to_wire().unwrap();
+            for &expected in &KEM_LEVELS {
+                let got = HybridKemPublicKey::from_wire_expecting(&bytes, expected);
+                if encoded == expected {
+                    assert_eq!(got.unwrap().security_level(), encoded);
+                } else {
+                    assert!(matches!(
+                        got,
+                        Err(WireError::DisallowedAlgorithm(id)) if id == kem_level_id(encoded)
+                    ));
+                }
+            }
+            let at_least_cat3 = [MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024];
+            let policy = HybridKemPublicKey::from_wire_with_policy(&bytes, &at_least_cat3);
+            assert_eq!(policy.is_ok(), encoded != MlKemSecurityLevel::MlKem512);
+            assert!(matches!(
+                HybridKemPublicKey::from_wire_with_policy(&bytes, &[]),
+                Err(WireError::DisallowedAlgorithm(_))
+            ));
+        }
+        // Structural errors still take precedence over the policy.
+        let mut bad = kem_pk(MlKemSecurityLevel::MlKem768).to_wire().unwrap();
+        bad.push(0);
+        assert!(matches!(
+            HybridKemPublicKey::from_wire_expecting(&bad, MlKemSecurityLevel::MlKem768),
+            Err(WireError::TrailingBytes)
+        ));
+        assert!(matches!(
+            HybridKemPublicKey::from_wire_expecting(&[], MlKemSecurityLevel::MlKem768),
+            Err(WireError::Truncated)
+        ));
+    }
+
+    /// Level-pinned signature public-key decode.
+    #[test]
+    fn sig_public_key_level_pinned_decode() {
+        for &encoded in &DSA_SETS {
+            let bytes = sig_pk(encoded).to_wire().unwrap();
+            for &expected in &DSA_SETS {
+                let got = HybridSigPublicKey::from_wire_expecting(&bytes, expected);
+                if encoded == expected {
+                    assert_eq!(got.unwrap().parameter_set(), encoded);
+                } else {
+                    assert!(matches!(
+                        got,
+                        Err(WireError::DisallowedAlgorithm(id)) if id == dsa_set_id(encoded)
+                    ));
+                }
+            }
+            let at_least_cat3 = [MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87];
+            let policy = HybridSigPublicKey::from_wire_with_policy(&bytes, &at_least_cat3);
+            assert_eq!(policy.is_ok(), encoded != MlDsaParameterSet::MlDsa44);
+            assert!(matches!(
+                HybridSigPublicKey::from_wire_with_policy(&bytes, &[]),
+                Err(WireError::DisallowedAlgorithm(_))
+            ));
+        }
+        let mut bad = sig_pk(MlDsaParameterSet::MlDsa65).to_wire().unwrap();
+        bad.truncate(bad.len() - 1);
+        assert!(matches!(
+            HybridSigPublicKey::from_wire_expecting(&bad, MlDsaParameterSet::MlDsa65),
+            Err(WireError::Truncated)
+        ));
+    }
+
+    #[test]
+    fn disallowed_algorithm_display() {
+        assert_eq!(
+            WireError::DisallowedAlgorithm(1).to_string(),
+            "algorithm id 1 is not allowed by the caller's level policy"
+        );
     }
 
     fn signature(set: MlDsaParameterSet) -> HybridSignature {

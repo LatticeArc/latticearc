@@ -172,6 +172,20 @@ A v1 decoder rejects, in this order:
 8. a ciphertext length prefix above its cap: `WireError::TooLarge`;
 9. any byte after the last field: `WireError::TrailingBytes`.
 
+### Level-pinned public-key decoding
+
+`from_wire` accepts every algorithm id listed for the type, including
+ML-KEM-512 and ML-DSA-44. It does not enforce a minimum security level. An
+application that requires particular levels decodes public keys with
+`HybridKemPublicKey::from_wire_expecting(bytes, level)` /
+`from_wire_with_policy(bytes, &[levels])` and
+`HybridSigPublicKey::from_wire_expecting(bytes, set)` /
+`from_wire_with_policy(bytes, &[sets])` (FFI: `from_wire_expecting`). These
+run checks 1–6 above, then reject an algorithm id outside the allowed set with
+`WireError::DisallowedAlgorithm(id)` before the body is read, then decode
+exactly like `from_wire`. An empty allowed set rejects every key. This is an
+API-level check: the encoding itself is unchanged.
+
 Decoding is structural only. Component bytes are not checked cryptographically
 (no point or modulus validation); that happens when the value is used. The
 error variants are distinguishable because every check reads only the public
@@ -219,7 +233,8 @@ has exactly one encoding: `from_wire(x)` succeeding implies `to_wire()` returns
   level, every truncation point, trailing bytes, wrong magic, version, type tag
   and algorithm id, oversized inputs, and property tests.
 - `fuzz/fuzz_targets/fuzz_wire_decode.rs`: totality and canonical re-encoding
-  for every decoder.
+  for every decoder, and agreement between the level-pinned public-key
+  decoders and `from_wire`.
 
 ## Version history
 

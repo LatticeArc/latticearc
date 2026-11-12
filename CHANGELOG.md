@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   version byte; every key- or context-dependent failure stays
   `DecryptionFailed`.
 - `stream::STREAM_FORMAT_VERSION_V1` and `key_wrap::KEY_WRAP_VERSION_V1` (= 1).
+- Level-pinned public-key decoding:
+  `HybridKemPublicKey::from_wire_expecting(bytes, level)` /
+  `from_wire_with_policy(bytes, &[levels])` and
+  `HybridSigPublicKey::from_wire_expecting(bytes, set)` /
+  `from_wire_with_policy(bytes, &[sets])`, plus `WireError::DisallowedAlgorithm`.
+  Plain `from_wire` stays level-agnostic (it accepts ML-KEM-512 and ML-DSA-44)
+  and is now documented as such; callers that enforce a minimum level no
+  longer have to re-check `security_level()` / `parameter_set()` at every
+  site. FFI: `HybridKemPublicKey::from_wire_expecting` and
+  `HybridSigPublicKey::from_wire_expecting`.
 - `latticearc-ffi`: `unwrap_key_allowing_v1`, `StreamDecryptor::new_allowing_v1`
   and `StreamDecryptor::format_version`.
 - Known-answer tests for both formats through the public API
