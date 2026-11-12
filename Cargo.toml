@@ -310,7 +310,7 @@ chacha20poly1305 = { version = "0.11.0", features = ["alloc"] }
 # `cargo update` could splinter the digest 0.11 trait bounds across the
 # workspace. Bump intentionally and re-run the trait-resolution sanity
 # tests when updating.
-sha2 = { version = "=0.11.0" }
+sha2 = { version = "=0.11.1" }
 pbkdf2 = { version = "=0.13.0" }
 hmac = { version = "=0.13.0" }
 # Argon2id (RFC 9106) password KDF; raw-hash API only, no PHC string format.
@@ -362,7 +362,7 @@ x25519-dalek = { version = "=3.0.0", features = ["static_secrets"] }
 # The previous 3.x module line holds issued certificates #5314 (static) /
 # #5298 (dynamic) and ships with aws-lc-rs <1.18. See docs/FIPS_SECURITY_POLICY.md.
 # Note: FIPS mode requires cmake and go build tools
-aws-lc-rs = { version = "1.18.1" }
+aws-lc-rs = { version = "1.19.0" }
 
 # Post-quantum signatures - aws-lc-rs ML-DSA is stable as of 1.18.0,
 # including FIPS builds. Keep fips204 for FIPS 204 context-string support:

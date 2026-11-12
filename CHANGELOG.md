@@ -71,6 +71,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before under that policy.
 - `WrappedKey::from_bytes` accepts version bytes 1 and 2.
 
+### Dependencies
+
+- `aws-lc-rs` 1.18.1 → 1.19.0 (minimum requirement raised to 1.19.0): `aws-lc-sys`
+  0.45 → 0.47 (AWS-LC 5.7 → 5.12; includes 5.11's ChaCha20-Poly1305
+  key-material zeroization, the ML-KEM CPU-feature detection fix and canonical
+  Ed25519 public-key decoding), `aws-lc-fips-sys` 0.14.2 → 0.14.4 (still the
+  AWS-LC FIPS 4.x line, bundled 4.2.0 snapshot with backports). API additions
+  only; no LatticeArc code change.
+- `sha2` `=0.11.0` → `=0.11.1`: AArch64 round-constant loads fixed for the
+  Stacked Borrows model; no API or output change; still one `digest` 0.11
+  generation across the RustCrypto pins.
+- `rustix` 1.1.5 → 1.1.6 (RUSTSEC-2026-0486, see Security).
+- Every other dependency moved to its newest semver-compatible release in
+  `Cargo.lock` and `fuzz/Cargo.lock` (`cargo update`; for example `uuid`
+  1.29.2, `rpassword` 7.5.5, `libfuzzer-sys` 0.4.13). The fuzz lockfile no
+  longer carries the crypto-bigint, ctutils, anyhow and keccak advisories.
+- Kept deliberately for this release: `aes` `=0.9.3` (0.9.4 rewrites the
+  software fixslice round-key layout, no security fix), and `fips203` /
+  `fips204` / `fips205` 0.4.x (0.5.0 is a minor release with API changes for
+  pre-hash signing and MSRV 1.85; it is a candidate for 0.17). `parking_lot`
+  0.13 and `crabgrind` 0.5 (test-only) are semver-incompatible and deferred.
+
 ### Documentation
 
 - `hybrid::sig_hybrid`: the docs said both signature legs are deterministic.
