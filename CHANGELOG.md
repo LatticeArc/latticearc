@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A stream opened with a wrong `aad` now fails in `StreamDecryptor::new`,
   before any key derivation or AES-GCM work. Adversaries without the key were
   never affected.
+- `rustix` 1.1.5 → 1.1.6 (RUSTSEC-2026-0486, unsound xattr buffer handling;
+  reached through `tempfile`).
 
 ### Added
 
