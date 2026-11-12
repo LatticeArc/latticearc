@@ -123,7 +123,8 @@
 //! // Generate hybrid keypair
 //! let (pk, sk) = generate_keypair()?;
 //!
-//! // Sign a message (deterministic - no RNG needed)
+//! // Sign a message (hedged: the ML-DSA leg draws fresh randomness, so two
+//! // signatures of the same message differ; the Ed25519 leg is deterministic)
 //! let message = b"Hello, hybrid signatures!";
 //! let signature = sign(&sk, message)?;
 //!
@@ -790,7 +791,12 @@ pub fn generate_keypair_from_seed(
 
 /// Sign using hybrid signature scheme
 ///
-/// Both ML-DSA and Ed25519 signing are deterministic, so no RNG is required.
+/// The ML-DSA leg uses FIPS 204 *hedged* signing: it draws a fresh 32-byte
+/// `rnd` from the operating-system RNG for every signature, so signing the
+/// same message twice yields different ML-DSA signatures (both verify). Only
+/// the Ed25519 leg (RFC 8032) is deterministic. Do not rely on signature
+/// bytes being reproducible (for deduplication or fixed test vectors). An
+/// RNG failure surfaces as an error, never a panic.
 ///
 /// Planned deprecation (0.14): prefer [`sign_with_context`], which binds a
 /// required application context into both legs. The attribute is not applied
@@ -1750,9 +1756,15 @@ mod tests {
 
         // Ed25519 signing is deterministic (RFC 8032)
         assert_eq!(sig1.ed25519_sig, sig2.ed25519_sig, "Ed25519 sig should be deterministic");
-        // ML-DSA uses hedged randomness — signatures may differ but both verify
+        // ML-DSA uses hedged randomness (fresh 32-byte rnd per signature), so
+        // two signatures of the same message differ except with probability
+        // about 2^-256; both verify. This pins the documented behaviour.
         assert!(!sig1.ml_dsa_sig.is_empty());
         assert!(!sig2.ml_dsa_sig.is_empty());
+        assert_ne!(
+            sig1.ml_dsa_sig, sig2.ml_dsa_sig,
+            "ML-DSA leg must be hedged, not deterministic"
+        );
     }
 
     #[test]

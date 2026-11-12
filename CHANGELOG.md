@@ -67,6 +67,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before under that policy.
 - `WrappedKey::from_bytes` accepts version bytes 1 and 2.
 
+### Documentation
+
+- `hybrid::sig_hybrid`: the docs said both signature legs are deterministic.
+  The ML-DSA leg uses FIPS 204 hedged signing (fresh 32-byte `rnd` from the OS
+  RNG per signature; pre-hash mode from `secure_rng`), so repeated signatures
+  of one message differ; only the Ed25519 leg is deterministic. A unit test
+  now pins this.
+
 ## [0.15.1] - 2026-10-29
 
 ### Fixed
