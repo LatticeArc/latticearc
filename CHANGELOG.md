@@ -74,6 +74,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RNG per signature; pre-hash mode from `secure_rng`), so repeated signatures
   of one message differ; only the Ed25519 leg is deterministic. A unit test
   now pins this.
+- `secret-mlock`: the docs now list exactly what is locked (`SecretVec`
+  buffers only) and which secret holders are zeroized but not locked
+  (`HkdfResult`, AES-GCM cipher keys, `HybridSigSecretKey`,
+  `HybridKemSecretKey` including its comparison copy, `SecretBytes<N>`).
+
+### Fixed
+
+- `hybrid::sig_hybrid::generate_keypair_from_seed` checks for an all-zero seed
+  in constant time (`ct::is_all_zero`) instead of a short-circuiting
+  iterator, like every other weak-key check in the crate.
 
 ## [0.15.1] - 2026-10-29
 

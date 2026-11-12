@@ -243,6 +243,20 @@ impl<const N: usize> ConstantTimeEq for SecretBytes<N> {
 /// protection for small fixed-size secrets should wrap them in `SecretVec` at
 /// a boundary where the sensitive bytes leave the stack.
 ///
+/// **Only `SecretVec` buffers are locked.** Other secret holders are
+/// zeroized on drop but are not `mlock`ed, even with the feature enabled:
+///
+/// - `primitives::kdf::hkdf::HkdfResult` (a `Zeroizing<Vec<u8>>`);
+/// - the AES-GCM cipher structs (`AesGcm128`, `AesGcm256`), which keep the
+///   key as a `[u8; N]` field;
+/// - `hybrid::sig_hybrid::HybridSigSecretKey` (`Zeroizing<Vec<u8>>` for both
+///   legs);
+/// - `hybrid::kem_hybrid::HybridKemSecretKey`: its ML-KEM and X25519 keys
+///   live inside aws-lc-rs, and it also holds a `Zeroizing<Vec<u8>>` copy of
+///   the decapsulation key and X25519 seed for the lifetime of the key, used
+///   only by its constant-time equality;
+/// - every `SecretBytes<N>`, including shared secrets.
+///
 /// # Example
 ///
 /// ```
