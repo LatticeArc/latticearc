@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Streaming AEAD and key wrap now commit to the context (CMT-4).** The
+  format-1 commitments covered the key only: the stream header committed to
+  `HMAC(key, label || header[..46])` while the caller's `aad` reached only the
+  segment-key HKDF, and the key wrap committed to `HMAC(kek, label || version
+  || nonce)` while the context reached only the AES-GCM associated data. Since
+  AES-GCM is not key-committing, someone holding the key could build one
+  ciphertext that opens under two different contexts (Albertini et al., USENIX
+  Security 2022). Format 2 adds `SHA-256(aad)` / `SHA-256(context)` to the
+  commitment under new labels (`LatticeArc-v2-StreamAead-Commitment`,
+  `LatticeArc-v2-KeyWrap-Commitment`), the CTX transform of Bellare and Hoang.
+  A stream opened with a wrong `aad` now fails in `StreamDecryptor::new`,
+  before any key derivation or AES-GCM work. Adversaries without the key were
+  never affected.
+
+### Added
+
+- `primitives::aead::FormatPolicy` (`RequireV2`, the default, and `AllowV1`),
+  re-exported at the crate root.
+- `StreamDecryptor::new_with_policy` and `StreamDecryptor::format_version`.
+- `key_wrap::unwrap_key_with_policy` (re-exported at the crate root) and
+  `WrappedKey::version`.
+- `AeadError::LegacyFormatRejected`: a well-formed format-1 stream header or
+  wrapped key refused by `FormatPolicy::RequireV2`. It reports only the public
+  version byte; every key- or context-dependent failure stays
+  `DecryptionFailed`.
+- `stream::STREAM_FORMAT_VERSION_V1` and `key_wrap::KEY_WRAP_VERSION_V1` (= 1).
+- `latticearc-ffi`: `unwrap_key_allowing_v1`, `StreamDecryptor::new_allowing_v1`
+  and `StreamDecryptor::format_version`.
+- Known-answer tests for both formats through the public API
+  (`tests/tests/committing_aead_kat.rs`); the format-2 commitment tags were
+  cross-checked against an independent HMAC-SHA256 implementation.
+
+### Changed
+
+- **Breaking (format):** `StreamEncryptor::new`, `wrap_key` and
+  `wrap_key_padded` write format 2 (version byte `0x02`).
+  `STREAM_FORMAT_VERSION` and `KEY_WRAP_VERSION` are now 2. LatticeArc 0.15
+  and earlier cannot read format 2. Layout and sizes are unchanged.
+- **Breaking (behaviour):** `StreamDecryptor::new` and `unwrap_key` (and the
+  FFI `StreamDecryptor` constructor and `unwrap_key`) accept format 2 only. To
+  read data written by 0.13–0.15, call `new_with_policy` /
+  `unwrap_key_with_policy` with `FormatPolicy::AllowV1` (FFI:
+  `*_allowing_v1`), then re-encrypt. Format-1 bytes still decode exactly as
+  before under that policy.
+- `WrappedKey::from_bytes` accepts version bytes 1 and 2.
+
 ## [0.15.1] - 2026-10-29
 
 ### Fixed

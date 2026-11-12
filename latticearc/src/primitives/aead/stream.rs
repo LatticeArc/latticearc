@@ -4,17 +4,21 @@
 #![deny(clippy::panic)]
 
 //! Streaming AEAD: AES-256-GCM-HKDF segments (Tink-derived core) under a
-//! versioned, key-committing LatticeArc header.
+//! versioned, key- and context-committing LatticeArc header.
 //!
 //! # Threat model
 //!
 //! The adversary controls every byte the decryptor reads: the header and any
 //! segment, in any order, from any stream. The guarantees are:
 //!
-//! - **Wrong key fails before any plaintext is released.** The header carries
-//!   a key-commitment tag that [`StreamDecryptor::new`] verifies before a
-//!   segment cipher is even derived, so a stream cannot be opened under two
-//!   different keys and a wrong key never reaches AES-GCM.
+//! - **Wrong key or wrong context fails before any plaintext is released.**
+//!   The format-2 header carries a commitment tag over the key *and* the
+//!   caller's associated data (CMT-4) that [`StreamDecryptor::new`] verifies
+//!   before a segment cipher is even derived, so a stream cannot be opened
+//!   under two different keys, nor under two different contexts by someone
+//!   who holds the key, and a wrong key or context never reaches AES-GCM.
+//!   Legacy format-1 headers commit to the key only (CMT-1); they are read
+//!   only under [`FormatPolicy::AllowV1`] (see [Format versions](#format-versions)).
 //! - **Truncation, reordering, splicing and tampering are detected.** Every
 //!   segment is sealed under a nonce that encodes its index and a
 //!   last-segment flag, and under per-segment associated data that binds the
@@ -28,7 +32,10 @@
 //! - **Errors are opaque on the decrypt path.** Header parse failures,
 //!   commitment mismatch and AES-GCM tag failure all surface as the same
 //!   [`AeadError::DecryptionFailed`] string, so a remote caller cannot tell
-//!   which check rejected the input (design pattern 6).
+//!   which check rejected the input (design pattern 6). The one exception is
+//!   [`AeadError::LegacyFormatRejected`], which reports only the public
+//!   version byte of a well-formed format-1 header that the caller's
+//!   [`FormatPolicy`] does not accept.
 //!
 //! Out of scope: nonce-misuse resistance (a stream key must not be reused
 //! with the same salt and nonce prefix, which the random header material
@@ -62,26 +69,49 @@
 //! layers sit on top of that core:
 //!
 //! ```text
-//! header = version (1, = 0x01) || flags (1, = 0x00) || segment_size (u32 BE)
+//! header = version (1, = 0x02) || flags (1, = 0x00) || segment_size (u32 BE)
 //!       || tink_header (40) || commitment (32)                      = 78 bytes
-//! commitment = HMAC-SHA256(stream key, STREAM_AEAD_COMMITMENT || header[..46])
+//! commitment = HMAC-SHA256(stream key,
+//!                          STREAM_AEAD_COMMITMENT_V2 || header[..46] || SHA-256(aad))
 //! aad_i      = SHA-256(header) (32) || i as u32 BE (4) || last_flag (1)
 //! ```
 //!
 //! - The **commitment** follows the "UtC" shape of Bellare and Hoang,
 //!   *Efficient Schemes for Committing Authenticated Encryption*
-//!   (EUROCRYPT 2022): a PRF of the key over the public header material is
-//!   stored alongside the ciphertext and checked before decryption, which
-//!   turns a non-committing AEAD (AES-GCM; see Albertini et al., *How to
-//!   Abuse and Fix Authenticated Encryption with Key Commitment*, USENIX
-//!   Security 2022) into a key-committing one. HMAC-SHA256 with a 32-byte key
-//!   is collision resistant in the key, so no two keys verify the same
-//!   header.
+//!   (EUROCRYPT 2022), extended to the associated data by their "CTX"
+//!   transform (and Chan and Rogaway, *On Committing Authenticated
+//!   Encryption*, ESORICS 2022): a PRF of the key over the public header
+//!   material and a hash of the caller's associated data is stored alongside
+//!   the ciphertext and checked before decryption. That turns a
+//!   non-committing AEAD (AES-GCM; see Albertini et al., *How to Abuse and
+//!   Fix Authenticated Encryption with Key Commitment*, USENIX Security 2022)
+//!   into one that commits to the key and the context (CMT-4). The HMAC
+//!   message has a fixed length (label, 46-byte prefix, 32-byte hash), so it
+//!   encodes `(header prefix, aad)` injectively, and HMAC-SHA256 with a
+//!   32-byte key is collision resistant in `(key, message)`: two different
+//!   `(key, aad)` pairs that verify the same header would yield a SHA-256
+//!   collision.
 //! - The **per-segment associated data** follows the STREAM construction of
 //!   Hoang, Reyhanitabar, Rogaway and Vizár, *Online Authenticated-Encryption
 //!   and its Nonce-Reuse Misuse-Resistance* (CCS 2015): each segment is bound
 //!   to the stream it belongs to and to its position in it, in addition to
 //!   Tink's nonce-level binding.
+//!
+//! # Format versions
+//!
+//! | Version | Commitment input | Commits to | Written by |
+//! |---|---|---|---|
+//! | `0x02` | `STREAM_AEAD_COMMITMENT_V2 \|\| header[..46] \|\| SHA-256(aad)` | key and aad (CMT-4) | every encoder since 0.16.0 |
+//! | `0x01` | `STREAM_AEAD_COMMITMENT \|\| header[..46]` | key only (CMT-1) | 0.13.0 – 0.15.x |
+//!
+//! Everything else (layout, Tink core, per-segment AAD) is identical. In
+//! format 1 the associated data reaches only the segment-key HKDF, so a key
+//! holder can build one segment that authenticates under two segment keys
+//! derived from two different contexts. [`StreamDecryptor::new`] accepts
+//! format 2 only; [`StreamDecryptor::new_with_policy`] with
+//! [`FormatPolicy::AllowV1`] also opens format 1 so existing data can be
+//! read and re-encrypted, and [`StreamDecryptor::format_version`] reports
+//! which one was opened.
 //!
 //! # Random access
 //!
@@ -95,19 +125,26 @@
 //! `is_last` for the final one.
 
 use crate::primitives::aead::aes_gcm::AesGcm256;
-use crate::primitives::aead::{AeadCipher, AeadError, Nonce, TAG_LEN, is_all_zero_key};
+use crate::primitives::aead::{
+    AeadCipher, AeadError, FormatPolicy, Nonce, TAG_LEN, is_all_zero_key,
+};
 use crate::primitives::hash::sha2::sha256;
 use crate::primitives::kdf::hkdf::hkdf;
 use crate::primitives::mac::hmac::hmac_sha256;
 use crate::primitives::rand::secure_rng;
 use crate::primitives::resource_limits::validate_aad_size;
-use crate::types::domains::STREAM_AEAD_COMMITMENT;
+use crate::types::domains::{STREAM_AEAD_COMMITMENT, STREAM_AEAD_COMMITMENT_V2};
 use rand::Rng;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
-/// Version byte at offset 0 of every stream header produced by this module.
-pub const STREAM_FORMAT_VERSION: u8 = 1;
+/// Version byte at offset 0 of every stream header produced by this module
+/// (format 2: key- and context-committing).
+pub const STREAM_FORMAT_VERSION: u8 = 2;
+
+/// Version byte of the legacy format-1 header (key-committing only). Read
+/// under [`FormatPolicy::AllowV1`]; never written.
+pub const STREAM_FORMAT_VERSION_V1: u8 = 1;
 
 /// Length of the stream key in bytes (AES-256-GCM-HKDF).
 pub const STREAM_KEY_LEN: usize = 32;
@@ -127,15 +164,15 @@ pub const MAX_SEGMENT_SIZE: u32 = 16 * 1024 * 1024;
 /// Length of the Tink-layout header: `header_length || salt || nonce_prefix`.
 pub const TINK_HEADER_LEN: usize = 1 + STREAM_KEY_LEN + NONCE_PREFIX_LEN;
 
-/// Length of the HMAC-SHA256 key-commitment tag.
+/// Length of the HMAC-SHA256 commitment tag.
 pub const COMMITMENT_LEN: usize = 32;
 
 /// Length of the full LatticeArc stream header returned by
 /// [`StreamEncryptor::header`] and consumed by [`StreamDecryptor::new`].
 pub const HEADER_LEN: usize = 1 + 1 + 4 + TINK_HEADER_LEN + COMMITMENT_LEN;
 
-/// Flags byte. No flag is defined for version 1; decryptors reject any other
-/// value so the byte is available to a future version.
+/// Flags byte. No flag is defined for versions 1 and 2; decryptors reject any
+/// other value so the byte is available to a future version.
 const FLAGS_V1: u8 = 0;
 
 /// Bytes of the header covered by the commitment (everything before it).
@@ -255,12 +292,36 @@ fn plaintext_capacity(segment_size: u32, index: u32) -> Option<usize> {
     ciphertext_capacity.checked_sub(TAG_LEN)
 }
 
-/// Key-commitment tag over the public header prefix.
-fn commitment(key: &[u8; STREAM_KEY_LEN], committed_prefix: &[u8]) -> Option<[u8; COMMITMENT_LEN]> {
-    let mut message =
-        Vec::with_capacity(STREAM_AEAD_COMMITMENT.len().saturating_add(committed_prefix.len()));
-    message.extend_from_slice(STREAM_AEAD_COMMITMENT);
-    message.extend_from_slice(committed_prefix);
+/// Commitment tag for header format `version`.
+///
+/// - Format 2: `HMAC(key, STREAM_AEAD_COMMITMENT_V2 || prefix || SHA-256(aad))`
+///   commits to the key and the associated data (CMT-4).
+/// - Format 1: `HMAC(key, STREAM_AEAD_COMMITMENT || prefix)` commits to the
+///   key only (CMT-1); `aad` is ignored.
+///
+/// `None` for any other version or on HMAC/hash failure.
+fn commitment(
+    key: &[u8; STREAM_KEY_LEN],
+    version: u8,
+    committed_prefix: &[u8],
+    aad: &[u8],
+) -> Option<[u8; COMMITMENT_LEN]> {
+    let mut message = Vec::with_capacity(
+        STREAM_AEAD_COMMITMENT_V2.len().saturating_add(committed_prefix.len()).saturating_add(32),
+    );
+    match version {
+        STREAM_FORMAT_VERSION => {
+            let aad_hash = sha256(aad).ok()?;
+            message.extend_from_slice(STREAM_AEAD_COMMITMENT_V2);
+            message.extend_from_slice(committed_prefix);
+            message.extend_from_slice(&aad_hash);
+        }
+        STREAM_FORMAT_VERSION_V1 => {
+            message.extend_from_slice(STREAM_AEAD_COMMITMENT);
+            message.extend_from_slice(committed_prefix);
+        }
+        _ => return None,
+    }
     hmac_sha256(key, &message).ok()
 }
 
@@ -326,10 +387,11 @@ impl std::fmt::Debug for StreamEncryptor {
 }
 
 impl StreamEncryptor {
-    /// Starts a new stream under `key`, bound to the caller's non-empty `aad`
-    /// (a purpose string such as `vault/v1/file`), with ciphertext segments
-    /// of exactly `segment_size` bytes. Salt and nonce prefix are drawn from
-    /// the OS CSPRNG.
+    /// Starts a new format-2 stream under `key`, bound to the caller's
+    /// non-empty `aad` (a purpose string such as `app/v1/file`), with
+    /// ciphertext segments of exactly `segment_size` bytes. Salt and nonce
+    /// prefix are drawn from the OS CSPRNG. The header commits to both `key`
+    /// and `aad`.
     ///
     /// # Errors
     /// - [`AeadError::InvalidSegmentSize`] unless
@@ -347,23 +409,27 @@ impl StreamEncryptor {
         secure_rng().fill_bytes(&mut *salt);
         let mut nonce_prefix = [0u8; NONCE_PREFIX_LEN];
         secure_rng().fill_bytes(&mut nonce_prefix);
-        Self::build(key, aad, segment_size, &salt, nonce_prefix)
+        Self::build(STREAM_FORMAT_VERSION, key, aad, segment_size, &salt, nonce_prefix)
     }
 
-    /// Deterministic constructor for the pinned-output test; production code
-    /// must go through [`Self::new`], which draws fresh header material.
+    /// Deterministic constructor for the pinned-output tests; production code
+    /// must go through [`Self::new`], which draws fresh header material and
+    /// always writes the current format. `version` may be the legacy format
+    /// 1 here only so its known-answer bytes stay pinned.
     #[cfg(test)]
     pub(crate) fn new_with_material(
+        version: u8,
         key: &[u8; STREAM_KEY_LEN],
         aad: &[u8],
         segment_size: u32,
         salt: &[u8; STREAM_KEY_LEN],
         nonce_prefix: [u8; NONCE_PREFIX_LEN],
     ) -> Result<Self, AeadError> {
-        Self::build(key, aad, segment_size, salt, nonce_prefix)
+        Self::build(version, key, aad, segment_size, salt, nonce_prefix)
     }
 
     fn build(
+        version: u8,
         key: &[u8; STREAM_KEY_LEN],
         aad: &[u8],
         segment_size: u32,
@@ -379,13 +445,13 @@ impl StreamEncryptor {
 
         let tink_header_len = u8::try_from(TINK_HEADER_LEN).map_err(|_e| opaque())?;
         let mut header = Vec::with_capacity(HEADER_LEN);
-        header.push(STREAM_FORMAT_VERSION);
+        header.push(version);
         header.push(FLAGS_V1);
         header.extend_from_slice(&segment_size.to_be_bytes());
         header.push(tink_header_len);
         header.extend_from_slice(salt.as_slice());
         header.extend_from_slice(&nonce_prefix);
-        let tag = commitment(key, &header).ok_or_else(opaque)?;
+        let tag = commitment(key, version, &header, aad).ok_or_else(opaque)?;
         header.extend_from_slice(&tag);
         let header: [u8; HEADER_LEN] = header.try_into().map_err(|_e| opaque())?;
         let header_hash = sha256(&header).map_err(|_e| opaque())?;
@@ -503,13 +569,15 @@ impl StreamEncryptor {
 
 /// Streaming decryptor with random access.
 ///
-/// [`new`](Self::new) parses the header and verifies the key commitment; it
-/// fails under a wrong key before any segment can be opened. After that,
+/// [`new`](Self::new) parses the header and verifies the commitment; it
+/// fails under a wrong key or (format 2) a wrong `aad` before any segment can
+/// be opened. After that,
 /// [`open_segment`](Self::open_segment) decrypts any segment by index and
 /// [`open_next`](Self::open_next) walks the stream sequentially.
 pub struct StreamDecryptor {
     cipher: AesGcm256,
     nonce_prefix: [u8; NONCE_PREFIX_LEN],
+    format_version: u8,
     header_hash: [u8; 32],
     segment_size: u32,
     first_plaintext_segment_size: usize,
@@ -522,6 +590,7 @@ impl std::fmt::Debug for StreamDecryptor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StreamDecryptor")
             .field("cipher", &"[REDACTED]")
+            .field("format_version", &self.format_version)
             .field("segment_size", &self.segment_size)
             .field("next_index", &self.next_index)
             .field("finished", &self.finished)
@@ -530,23 +599,52 @@ impl std::fmt::Debug for StreamDecryptor {
 }
 
 impl StreamDecryptor {
-    /// Parses `header`, verifies the key commitment under `key` and derives
-    /// the segment cipher bound to `aad`.
+    /// Parses a format-2 `header`, verifies its commitment under `key` and
+    /// `aad`, and derives the segment cipher bound to `aad`. Equivalent to
+    /// [`new_with_policy`](Self::new_with_policy) with
+    /// [`FormatPolicy::RequireV2`]: a legacy format-1 header is refused.
+    ///
+    /// # Errors
+    /// As [`new_with_policy`](Self::new_with_policy); a well-formed format-1
+    /// header yields [`AeadError::LegacyFormatRejected`].
+    pub fn new(key: &[u8; STREAM_KEY_LEN], aad: &[u8], header: &[u8]) -> Result<Self, AeadError> {
+        Self::new_with_policy(key, aad, header, FormatPolicy::RequireV2)
+    }
+
+    /// Parses `header`, checks its format version against `policy`, verifies
+    /// the commitment under `key` (and, for format 2, `aad`) and derives the
+    /// segment cipher bound to `aad`.
+    ///
+    /// Under format 2 a wrong `aad` fails here, at the constant-time
+    /// commitment check, before any key derivation or AES-GCM work. Under
+    /// format 1 (only with [`FormatPolicy::AllowV1`]) a wrong `aad` still
+    /// fails, but only when a segment is opened, and the stream is not
+    /// context-committing.
     ///
     /// # Errors
     /// - [`AeadError::EmptyContext`] if `aad` is empty.
     /// - [`AeadError::WeakKey`] if `key` is all zero.
+    /// - [`AeadError::LegacyFormatRejected`] if `header` is a well-formed
+    ///   format-1 header and `policy` does not accept format 1.
     /// - [`AeadError::DecryptionFailed`] for every other failure: wrong
     ///   header length, unknown version or flags, segment size out of range,
-    ///   commitment mismatch (wrong key or tampered header), oversize `aad`
-    ///   or key-derivation failure. These are deliberately
+    ///   commitment mismatch (wrong key, wrong `aad` or tampered header),
+    ///   oversize `aad` or key-derivation failure. These are deliberately
     ///   indistinguishable.
-    pub fn new(key: &[u8; STREAM_KEY_LEN], aad: &[u8], header: &[u8]) -> Result<Self, AeadError> {
+    pub fn new_with_policy(
+        key: &[u8; STREAM_KEY_LEN],
+        aad: &[u8],
+        header: &[u8],
+        policy: FormatPolicy,
+    ) -> Result<Self, AeadError> {
         let opaque = || AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string());
         validate_key_and_aad(key, aad, opaque)?;
         let header: &[u8; HEADER_LEN] = header.try_into().map_err(|_e| opaque())?;
 
-        if header[0] != STREAM_FORMAT_VERSION || header[OFFSET_FLAGS] != FLAGS_V1 {
+        let version = header[0];
+        if (version != STREAM_FORMAT_VERSION && version != STREAM_FORMAT_VERSION_V1)
+            || header[OFFSET_FLAGS] != FLAGS_V1
+        {
             return Err(opaque());
         }
         let segment_size_bytes: [u8; 4] = header
@@ -558,6 +656,11 @@ impl StreamDecryptor {
         if usize::from(header[OFFSET_TINK_HEADER]) != TINK_HEADER_LEN {
             return Err(opaque());
         }
+        // Only the public version byte decides this, after the structural
+        // checks, so it reveals nothing beyond what the caller supplied.
+        if !policy.accepts(version) {
+            return Err(AeadError::LegacyFormatRejected);
+        }
         let salt: &[u8] = header.get(OFFSET_SALT..OFFSET_NONCE_PREFIX).ok_or_else(opaque)?;
         let nonce_prefix: [u8; NONCE_PREFIX_LEN] = header
             .get(OFFSET_NONCE_PREFIX..OFFSET_COMMITMENT)
@@ -566,7 +669,7 @@ impl StreamDecryptor {
 
         let committed_prefix = header.get(..COMMITTED_PREFIX_LEN).ok_or_else(opaque)?;
         let stored = header.get(OFFSET_COMMITMENT..).ok_or_else(opaque)?;
-        let expected = commitment(key, committed_prefix).ok_or_else(opaque)?;
+        let expected = commitment(key, version, committed_prefix, aad).ok_or_else(opaque)?;
         if !bool::from(expected.as_slice().ct_eq(stored)) {
             return Err(opaque());
         }
@@ -579,6 +682,7 @@ impl StreamDecryptor {
         Ok(Self {
             cipher,
             nonce_prefix,
+            format_version: version,
             header_hash,
             segment_size,
             first_plaintext_segment_size,
@@ -586,6 +690,14 @@ impl StreamDecryptor {
             next_index: 0,
             finished: false,
         })
+    }
+
+    /// Format version of the opened header: [`STREAM_FORMAT_VERSION`] (2) or,
+    /// only under [`FormatPolicy::AllowV1`], [`STREAM_FORMAT_VERSION_V1`] (1).
+    /// A caller that opened format 1 should re-encrypt the data.
+    #[must_use]
+    pub const fn format_version(&self) -> u8 {
+        self.format_version
     }
 
     /// Ciphertext segment size recorded in the header.
@@ -818,14 +930,22 @@ mod tests {
         );
     }
 
-    /// Pins this module's own AES-256 output for a fixed key, salt and nonce
-    /// prefix so any drift in the header layout, commitment, per-segment AAD
-    /// or nonce construction is caught.
+    /// Pins the legacy format-1 AES-256 output for a fixed key, salt and
+    /// nonce prefix. These bytes are unchanged since 0.13.0; format-1 decode
+    /// must keep accepting them under [`FormatPolicy::AllowV1`].
     #[test]
     fn pinned_aes256_output_bytes() {
         let salt: [u8; 32] = core::array::from_fn(|i| u8::try_from(i).unwrap());
         let prefix: [u8; NONCE_PREFIX_LEN] = [0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6];
-        let mut enc = StreamEncryptor::new_with_material(&KEY, AAD, 64, &salt, prefix).unwrap();
+        let mut enc = StreamEncryptor::new_with_material(
+            STREAM_FORMAT_VERSION_V1,
+            &KEY,
+            AAD,
+            64,
+            &salt,
+            prefix,
+        )
+        .unwrap();
         let header = enc.header().to_vec();
         let seg0 = enc.seal_segment(&[0x11u8; 8]).unwrap();
         let seg1 = enc.finish(b"final").unwrap();
@@ -843,6 +963,141 @@ mod tests {
         );
         assert_eq!(hex(&seg0), "dbdda4765e7e4c118f921e8a02f7739b6d026f8c5a024b01");
         assert_eq!(hex(&seg1), "25bdbf2236555c1ca4dc1ba1fe416a17519a10b5d8");
+
+        let mut dec =
+            StreamDecryptor::new_with_policy(&KEY, AAD, &header, FormatPolicy::AllowV1).unwrap();
+        assert_eq!(dec.format_version(), STREAM_FORMAT_VERSION_V1);
+        assert_eq!(dec.open_next(&seg0, false).unwrap().as_slice(), &[0x11u8; 8]);
+        assert_eq!(dec.open_next(&seg1, true).unwrap().as_slice(), b"final");
+        assert!(matches!(
+            StreamDecryptor::new(&KEY, AAD, &header),
+            Err(AeadError::LegacyFormatRejected)
+        ));
+    }
+
+    /// Pins the format-2 (CMT-4) AES-256 output for the same fixed key, salt
+    /// and nonce prefix, so any drift in the v2 commitment input, header
+    /// layout, per-segment AAD or nonce construction is caught.
+    #[test]
+    fn pinned_aes256_output_bytes_v2() {
+        let salt: [u8; 32] = core::array::from_fn(|i| u8::try_from(i).unwrap());
+        let prefix: [u8; NONCE_PREFIX_LEN] = [0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6];
+        let mut enc =
+            StreamEncryptor::new_with_material(STREAM_FORMAT_VERSION, &KEY, AAD, 64, &salt, prefix)
+                .unwrap();
+        let header = enc.header().to_vec();
+        let seg0 = enc.seal_segment(&[0x11u8; 8]).unwrap();
+        let seg1 = enc.finish(b"final").unwrap();
+
+        assert_eq!(
+            hex(&header),
+            concat!(
+                "0200",
+                "00000040",
+                "28",
+                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+                "a0a1a2a3a4a5a6",
+                "bd2173d22265991580f0be34cb2eaf5eac45ad2c756e3a4132998126b9047432",
+            )
+        );
+        assert_eq!(hex(&seg0), "dbdda4765e7e4c11a2cb1a599a6527dc5ecd139035a1c98a");
+        assert_eq!(hex(&seg1), "25bdbf2236780518774489f5b972a56b4df5b33753");
+
+        let mut dec = StreamDecryptor::new(&KEY, AAD, &header).unwrap();
+        assert_eq!(dec.format_version(), STREAM_FORMAT_VERSION);
+        assert_eq!(dec.open_next(&seg0, false).unwrap().as_slice(), &[0x11u8; 8]);
+        assert_eq!(dec.open_next(&seg1, true).unwrap().as_slice(), b"final");
+    }
+
+    /// The format-2 commitment depends on the associated data; the format-1
+    /// commitment does not (that is the CMT-1 gap format 2 closes).
+    #[test]
+    fn commitment_covers_aad_only_in_v2() {
+        let prefix = [0x5au8; COMMITTED_PREFIX_LEN];
+        let a = commitment(&KEY, STREAM_FORMAT_VERSION, &prefix, b"ctx-a").unwrap();
+        let b = commitment(&KEY, STREAM_FORMAT_VERSION, &prefix, b"ctx-b").unwrap();
+        assert_ne!(a, b);
+        let a1 = commitment(&KEY, STREAM_FORMAT_VERSION_V1, &prefix, b"ctx-a").unwrap();
+        let b1 = commitment(&KEY, STREAM_FORMAT_VERSION_V1, &prefix, b"ctx-b").unwrap();
+        assert_eq!(a1, b1);
+        assert_ne!(a, a1);
+        assert!(commitment(&KEY, 0, &prefix, b"ctx-a").is_none());
+        assert!(commitment(&KEY, 3, &prefix, b"ctx-a").is_none());
+    }
+
+    /// Format policy: v2 always opens; v1 opens only under `AllowV1` and is
+    /// otherwise refused with the distinct `LegacyFormatRejected`.
+    #[test]
+    fn format_policy_matrix() {
+        let salt = [7u8; 32];
+        let prefix = [9u8; NONCE_PREFIX_LEN];
+        let v1 = StreamEncryptor::new_with_material(
+            STREAM_FORMAT_VERSION_V1,
+            &KEY,
+            AAD,
+            64,
+            &salt,
+            prefix,
+        )
+        .unwrap();
+        let (h1, s1) = seal_all(v1, b"legacy payload");
+        let v2 = StreamEncryptor::new(&KEY, AAD, 64).unwrap();
+        let (h2, s2) = seal_all(v2, b"current payload");
+
+        for policy in [FormatPolicy::RequireV2, FormatPolicy::AllowV1] {
+            let mut dec = StreamDecryptor::new_with_policy(&KEY, AAD, &h2, policy).unwrap();
+            assert_eq!(dec.format_version(), 2);
+            assert_eq!(open_all(&mut dec, &s2).unwrap(), b"current payload");
+        }
+        assert!(matches!(
+            StreamDecryptor::new_with_policy(&KEY, AAD, &h1, FormatPolicy::RequireV2),
+            Err(AeadError::LegacyFormatRejected)
+        ));
+        assert!(matches!(
+            StreamDecryptor::new(&KEY, AAD, &h1),
+            Err(AeadError::LegacyFormatRejected)
+        ));
+        let mut dec =
+            StreamDecryptor::new_with_policy(&KEY, AAD, &h1, FormatPolicy::AllowV1).unwrap();
+        assert_eq!(dec.format_version(), 1);
+        assert_eq!(open_all(&mut dec, &s1).unwrap(), b"legacy payload");
+        assert_eq!(FormatPolicy::default(), FormatPolicy::RequireV2);
+    }
+
+    /// Relabelling a header's version byte (1 <-> 2) breaks its commitment,
+    /// so a format-1 header cannot be passed off as format 2 or vice versa.
+    #[test]
+    fn version_byte_swap_fails() {
+        let salt = [3u8; 32];
+        let prefix = [4u8; NONCE_PREFIX_LEN];
+        for (from, to) in [(STREAM_FORMAT_VERSION_V1, 2u8), (STREAM_FORMAT_VERSION, 1u8)] {
+            let enc =
+                StreamEncryptor::new_with_material(from, &KEY, AAD, 64, &salt, prefix).unwrap();
+            let mut header = enc.header().to_vec();
+            header[0] = to;
+            assert!(matches!(
+                StreamDecryptor::new_with_policy(&KEY, AAD, &header, FormatPolicy::AllowV1),
+                Err(AeadError::DecryptionFailed(_))
+            ));
+        }
+    }
+
+    /// A v1 header under `RequireV2` reports `LegacyFormatRejected` only once
+    /// the header is structurally valid; malformed v1-looking input stays
+    /// opaque.
+    #[test]
+    fn legacy_rejection_only_for_well_formed_v1() {
+        let mut junk = [0u8; HEADER_LEN];
+        junk[0] = STREAM_FORMAT_VERSION_V1;
+        // segment size 0 is out of range
+        assert!(matches!(
+            StreamDecryptor::new(&KEY, AAD, &junk),
+            Err(AeadError::DecryptionFailed(_))
+        ));
+        assert!(matches!(
+            StreamDecryptor::new(&KEY, AAD, &junk[..HEADER_LEN - 1]),
+            Err(AeadError::DecryptionFailed(_))
+        ));
     }
 
     #[test]
@@ -979,10 +1234,41 @@ mod tests {
 
     #[test]
     fn wrong_aad_fails() {
+        // Format 2: rejected at the header (CMT-4), see
+        // `v2_wrong_context_rejected_at_header`.
         let enc = StreamEncryptor::new(&KEY, AAD, 64).unwrap();
-        let (header, segments) = seal_all(enc, b"payload");
-        let dec = StreamDecryptor::new(&KEY, b"vault/v1/other", &header).unwrap();
+        let header = enc.header().to_vec();
+        assert!(StreamDecryptor::new(&KEY, b"app/v1/other", &header).is_err());
+
+        // Legacy format 1: the header verifies under any aad (CMT-1 only),
+        // but the segment, keyed by HKDF over the aad, still fails.
+        let v1 = StreamEncryptor::new_with_material(
+            STREAM_FORMAT_VERSION_V1,
+            &KEY,
+            AAD,
+            64,
+            &[1u8; 32],
+            [2u8; NONCE_PREFIX_LEN],
+        )
+        .unwrap();
+        let (header, segments) = seal_all(v1, b"payload");
+        let dec =
+            StreamDecryptor::new_with_policy(&KEY, b"app/v1/other", &header, FormatPolicy::AllowV1)
+                .unwrap();
         assert!(dec.open_segment(0, &segments[0], true).is_err());
+    }
+
+    /// CMT-4 (red-first for format v2): a header must not verify under a
+    /// different caller context, so a wrong context fails in `new` before
+    /// any segment key is derived or any AES-GCM work is done.
+    #[test]
+    fn v2_wrong_context_rejected_at_header() {
+        let enc = StreamEncryptor::new(&KEY, AAD, 64).unwrap();
+        let header = enc.header().to_vec();
+        assert!(matches!(
+            StreamDecryptor::new(&KEY, b"vault/v1/other", &header),
+            Err(AeadError::DecryptionFailed(_))
+        ));
     }
 
     #[test]
@@ -1024,15 +1310,29 @@ mod tests {
 
     #[test]
     fn truncation_reordering_and_splicing_fail() {
+        truncation_reordering_and_splicing_fail_for(STREAM_FORMAT_VERSION);
+        truncation_reordering_and_splicing_fail_for(STREAM_FORMAT_VERSION_V1);
+    }
+
+    fn truncation_reordering_and_splicing_fail_for(version: u8) {
         let plaintext = vec![0x5au8; 8 + 48 + 48 + 10];
-        let enc = StreamEncryptor::new(&KEY, AAD, 64).unwrap();
+        let enc = StreamEncryptor::new_with_material(
+            version,
+            &KEY,
+            AAD,
+            64,
+            &[0x31u8; 32],
+            [0x32u8; NONCE_PREFIX_LEN],
+        )
+        .unwrap();
         let (header, segments) = seal_all(enc, &plaintext);
         assert_eq!(segments.len(), 4);
-        let dec = StreamDecryptor::new(&KEY, AAD, &header).unwrap();
+        let policy = FormatPolicy::AllowV1;
+        let dec = StreamDecryptor::new_with_policy(&KEY, AAD, &header, policy).unwrap();
 
         // Truncation: presenting a non-final segment as the end of the stream.
         assert!(dec.open_segment(2, &segments[2], true).is_err());
-        let mut seq = StreamDecryptor::new(&KEY, AAD, &header).unwrap();
+        let mut seq = StreamDecryptor::new_with_policy(&KEY, AAD, &header, policy).unwrap();
         seq.open_next(&segments[0], false).unwrap();
         seq.open_next(&segments[1], false).unwrap();
         assert!(seq.open_next(&segments[2], true).is_err());

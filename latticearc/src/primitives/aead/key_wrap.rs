@@ -3,8 +3,9 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-//! Committing key wrap: AES-256-GCM plus an HMAC-SHA256 key-commitment tag,
-//! with optional padding to a fixed total size.
+//! Committing key wrap: AES-256-GCM plus an HMAC-SHA256 commitment tag over
+//! the KEK and the context (CMT-4), with optional padding to a fixed total
+//! size.
 //!
 //! # Threat model
 //!
@@ -14,17 +15,25 @@
 //! - **A wrong KEK always fails.** AES-GCM alone is not key-committing (a
 //!   ciphertext can be crafted to decrypt validly under two keys; Albertini
 //!   et al., *How to Abuse and Fix Authenticated Encryption with Key
-//!   Commitment*, USENIX Security 2022). Every wrapped key therefore carries
-//!   `HMAC-SHA256(kek, KEY_WRAP_COMMITMENT || version || nonce)`, the "UtC"
-//!   shape of Bellare and Hoang, *Efficient Schemes for Committing
-//!   Authenticated Encryption* (EUROCRYPT 2022): a PRF of the key over the
-//!   public header, verified in constant time before the payload is
-//!   accepted. HMAC-SHA256 with a 32-byte key is collision resistant in the
-//!   key, so no two KEKs verify the same record.
-//! - **Context is binding.** The caller's non-empty context (for example
-//!   `vault/v1/root/epoch-3/locator-xyz`) is authenticated as AES-GCM
-//!   associated data together with the version byte and the payload length,
-//!   so a record wrapped for one purpose cannot be unwrapped for another.
+//!   Commitment*, USENIX Security 2022). Every format-2 wrapped key therefore
+//!   carries `HMAC-SHA256(kek, KEY_WRAP_COMMITMENT_V2 || version || nonce ||
+//!   SHA-256(context))`, the "UtC" shape of Bellare and Hoang, *Efficient
+//!   Schemes for Committing Authenticated Encryption* (EUROCRYPT 2022)
+//!   extended to the context by their "CTX" transform: a PRF of the key over
+//!   the public header and a hash of the context, verified in constant time
+//!   before the payload is accepted. The HMAC message has a fixed length and
+//!   HMAC-SHA256 with a 32-byte key is collision resistant in
+//!   `(key, message)`, so no two `(KEK, context)` pairs verify the same
+//!   record without a SHA-256 collision (CMT-4).
+//! - **Context is binding and committed.** The caller's non-empty context
+//!   (for example `app/v1/root/epoch-3/locator-xyz`) enters the commitment
+//!   and is also authenticated as AES-GCM associated data together with the
+//!   version byte and the payload length, so a record wrapped for one purpose
+//!   cannot be unwrapped for another, even by someone who holds the KEK.
+//!   Legacy format-1 records commit to the KEK only (CMT-1); the context is
+//!   then bound by AES-GCM alone, which a KEK holder can defeat. They are
+//!   read only under [`FormatPolicy::AllowV1`] (see
+//!   [Format versions](#format-versions)).
 //! - **Fixed size, random-looking output.** For a given key length every
 //!   output has the same length; [`wrap_key_padded`] pads *under* the AEAD
 //!   so any record can be made exactly `total_len` bytes with the true key
@@ -38,18 +47,20 @@
 //!   AES-GCM decryption is always attempted so the two checks cannot be
 //!   told apart by timing either. Structural checks on public bytes
 //!   (version byte, impossible length) report
-//!   [`AeadError::MalformedEncoding`].
+//!   [`AeadError::MalformedEncoding`], and a format-1 record refused by the
+//!   caller's [`FormatPolicy`] reports [`AeadError::LegacyFormatRejected`].
 //!
 //! Out of scope: hiding the *existence* of a wrapped record of a given size
 //! (callers choose `total_len` to match their cover traffic) and protecting
 //! the KEK itself.
 //!
-//! # Wire format (version 1)
+//! # Wire format (version 2)
 //!
 //! ```text
-//! WrappedKey = version (1, = 0x01)
+//! WrappedKey = version (1, = 0x02)
 //!           || nonce (12, CSPRNG)
-//!           || commitment (32) = HMAC-SHA256(kek, KEY_WRAP_COMMITMENT || version || nonce)
+//!           || commitment (32) = HMAC-SHA256(kek, KEY_WRAP_COMMITMENT_V2 || version
+//!                                                  || nonce || SHA-256(context))
 //!           || AES-256-GCM(kek, nonce, aad, payload) || tag (16)
 //! payload   = key_len (1) || key (16 | 32 | 64) || zero padding
 //! aad       = version (1) || payload_len (u32 BE) || context
@@ -57,23 +68,43 @@
 //!
 //! Total length is `62 + key_len + padding`; [`wrap_key`] uses no padding and
 //! [`wrap_key_padded`] chooses the padding so the total equals `total_len`.
+//!
+//! # Format versions
+//!
+//! | Version | Commitment input | Commits to | Written by |
+//! |---|---|---|---|
+//! | `0x02` | `KEY_WRAP_COMMITMENT_V2 \|\| 0x02 \|\| nonce \|\| SHA-256(context)` | KEK and context (CMT-4) | every wrap since 0.16.0 |
+//! | `0x01` | `KEY_WRAP_COMMITMENT \|\| 0x01 \|\| nonce` | KEK only (CMT-1) | 0.13.0 – 0.15.x |
+//!
+//! The layout, payload and AES-GCM associated data are otherwise identical.
+//! [`WrappedKey::from_bytes`] parses both; [`unwrap_key`] accepts format 2
+//! only, and [`unwrap_key_with_policy`] with [`FormatPolicy::AllowV1`] also
+//! accepts format 1 so existing records can be read and re-wrapped
+//! ([`WrappedKey::version`] tells which one a record is).
 
 use crate::primitives::aead::aes_gcm::AesGcm256;
-use crate::primitives::aead::{AeadCipher, AeadError, NONCE_LEN, Nonce, TAG_LEN};
+use crate::primitives::aead::{AeadCipher, AeadError, FormatPolicy, NONCE_LEN, Nonce, TAG_LEN};
 use crate::primitives::ct::is_all_zero_bytes;
+use crate::primitives::hash::sha2::sha256;
 use crate::primitives::mac::hmac::hmac_sha256;
 use crate::primitives::resource_limits::validate_aad_size;
-use crate::types::domains::KEY_WRAP_COMMITMENT;
+use crate::types::domains::{KEY_WRAP_COMMITMENT, KEY_WRAP_COMMITMENT_V2};
 use subtle::{Choice, ConstantTimeEq};
 use zeroize::Zeroizing;
 
-/// Version byte at offset 0 of every wrapped key produced by this module.
-pub const KEY_WRAP_VERSION: u8 = 1;
+/// Version byte at offset 0 of every wrapped key produced by this module
+/// (format 2: KEK- and context-committing).
+pub const KEY_WRAP_VERSION: u8 = 2;
+
+/// Version byte of the legacy format-1 encoding (KEK-committing only). Parsed
+/// by [`WrappedKey::from_bytes`] and unwrapped only under
+/// [`FormatPolicy::AllowV1`]; never written.
+pub const KEY_WRAP_VERSION_V1: u8 = 1;
 
 /// Length of the KEK in bytes (AES-256-GCM).
 pub const KEK_LEN: usize = 32;
 
-/// Length of the HMAC-SHA256 key-commitment tag.
+/// Length of the HMAC-SHA256 commitment tag.
 pub const COMMITMENT_LEN: usize = 32;
 
 /// Length of the inner key-length prefix inside the encrypted payload.
@@ -124,9 +155,10 @@ impl WrappedKey {
     /// Parses an encoding produced by [`WrappedKey::to_bytes`].
     ///
     /// Only the public structure is checked here: the version byte must be
-    /// [`KEY_WRAP_VERSION`] and the length must lie in
-    /// `MIN_WRAPPED_LEN..=MAX_WRAPPED_LEN`. Everything key-dependent is
-    /// verified by [`unwrap_key`].
+    /// [`KEY_WRAP_VERSION`] (2) or the legacy [`KEY_WRAP_VERSION_V1`] (1) and
+    /// the length must lie in `MIN_WRAPPED_LEN..=MAX_WRAPPED_LEN`. Which
+    /// versions are *accepted* is the [`FormatPolicy`] of
+    /// [`unwrap_key_with_policy`]; everything key-dependent is verified there.
     ///
     /// # Errors
     /// [`AeadError::MalformedEncoding`] if the version byte or length is wrong.
@@ -135,9 +167,18 @@ impl WrappedKey {
             return Err(AeadError::MalformedEncoding);
         }
         match bytes.first() {
-            Some(&KEY_WRAP_VERSION) => Ok(Self { bytes: bytes.to_vec() }),
+            Some(&KEY_WRAP_VERSION | &KEY_WRAP_VERSION_V1) => Ok(Self { bytes: bytes.to_vec() }),
             _ => Err(AeadError::MalformedEncoding),
         }
+    }
+
+    /// Format version of this record: [`KEY_WRAP_VERSION`] (2) or the legacy
+    /// [`KEY_WRAP_VERSION_V1`] (1). A format-1 record should be re-wrapped.
+    #[must_use]
+    pub fn version(&self) -> u8 {
+        // `from_bytes` and the wrap functions guarantee a non-empty encoding;
+        // 0 (never a valid version) is returned defensively otherwise.
+        self.bytes.first().copied().unwrap_or(0)
     }
 
     /// The encoding, `version || nonce || commitment || ciphertext || tag`.
@@ -165,20 +206,45 @@ impl WrappedKey {
     }
 }
 
-/// `HMAC-SHA256(kek, KEY_WRAP_COMMITMENT || version || nonce)`.
-fn commitment(kek: &[u8; KEK_LEN], nonce: &Nonce) -> Option<[u8; COMMITMENT_LEN]> {
-    let mut message = Vec::with_capacity(KEY_WRAP_COMMITMENT.len().saturating_add(1 + NONCE_LEN));
-    message.extend_from_slice(KEY_WRAP_COMMITMENT);
-    message.push(KEY_WRAP_VERSION);
-    message.extend_from_slice(nonce);
+/// Commitment tag for format `version`:
+///
+/// - format 2: `HMAC-SHA256(kek, KEY_WRAP_COMMITMENT_V2 || 0x02 || nonce || SHA-256(context))`
+///   (CMT-4);
+/// - format 1: `HMAC-SHA256(kek, KEY_WRAP_COMMITMENT || 0x01 || nonce)`
+///   (CMT-1; `context` is ignored).
+///
+/// `None` for any other version or on HMAC/hash failure.
+fn commitment(
+    kek: &[u8; KEK_LEN],
+    version: u8,
+    nonce: &Nonce,
+    context: &[u8],
+) -> Option<[u8; COMMITMENT_LEN]> {
+    let mut message =
+        Vec::with_capacity(KEY_WRAP_COMMITMENT_V2.len().saturating_add(1 + NONCE_LEN + 32));
+    match version {
+        KEY_WRAP_VERSION => {
+            let context_hash = sha256(context).ok()?;
+            message.extend_from_slice(KEY_WRAP_COMMITMENT_V2);
+            message.push(KEY_WRAP_VERSION);
+            message.extend_from_slice(nonce);
+            message.extend_from_slice(&context_hash);
+        }
+        KEY_WRAP_VERSION_V1 => {
+            message.extend_from_slice(KEY_WRAP_COMMITMENT);
+            message.push(KEY_WRAP_VERSION_V1);
+            message.extend_from_slice(nonce);
+        }
+        _ => return None,
+    }
     hmac_sha256(kek, &message).ok()
 }
 
 /// `version || payload_len (u32 BE) || context`.
-fn associated_data(payload_len: usize, context: &[u8]) -> Option<Vec<u8>> {
+fn associated_data(version: u8, payload_len: usize, context: &[u8]) -> Option<Vec<u8>> {
     let len = u32::try_from(payload_len).ok()?;
     let mut aad = Vec::with_capacity(context.len().saturating_add(5));
-    aad.push(KEY_WRAP_VERSION);
+    aad.push(version);
     aad.extend_from_slice(&len.to_be_bytes());
     aad.extend_from_slice(context);
     Some(aad)
@@ -191,8 +257,9 @@ fn validate_context(context: &[u8], size_error: impl Fn() -> AeadError) -> Resul
     validate_aad_size(context.len()).map_err(|_e| size_error())
 }
 
-/// Wraps `key` (16, 32 or 64 bytes) under `kek`, bound to the non-empty
-/// `context`. The output is `KEY_WRAP_OVERHEAD + key.len()` bytes.
+/// Wraps `key` (16, 32 or 64 bytes) under `kek`, bound to and committed to
+/// the non-empty `context` (format 2). The output is
+/// `KEY_WRAP_OVERHEAD + key.len()` bytes.
 ///
 /// # Errors
 /// - [`AeadError::InvalidKeyLength`] unless `key.len()` is 16, 32 or 64.
@@ -222,12 +289,14 @@ pub fn wrap_key_padded(
     total_len: usize,
 ) -> Result<WrappedKey, AeadError> {
     let nonce = AesGcm256::generate_nonce();
-    wrap_key_with_nonce(kek, key, context, total_len, &nonce)
+    wrap_key_with_nonce(KEY_WRAP_VERSION, kek, key, context, total_len, &nonce)
 }
 
 /// Deterministic core shared by every wrap entry point. Public callers never
-/// choose the nonce; it is exposed to tests only, to pin the output bytes.
+/// choose the nonce or the version (always [`KEY_WRAP_VERSION`]); both are
+/// parameters only so tests can pin the output bytes of each format.
 fn wrap_key_with_nonce(
+    version: u8,
     kek: &[u8; KEK_LEN],
     key: &[u8],
     context: &[u8],
@@ -259,12 +328,12 @@ fn wrap_key_with_nonce(
     payload.extend_from_slice(key);
     payload.resize(payload_len, 0);
 
-    let tag_commit = commitment(kek, nonce).ok_or_else(opaque)?;
-    let aad = associated_data(payload_len, context).ok_or_else(opaque)?;
+    let tag_commit = commitment(kek, version, nonce, context).ok_or_else(opaque)?;
+    let aad = associated_data(version, payload_len, context).ok_or_else(opaque)?;
     let (ciphertext, tag) = cipher.encrypt(nonce, &payload, Some(&aad))?;
 
     let mut bytes = Vec::with_capacity(total_len);
-    bytes.push(KEY_WRAP_VERSION);
+    bytes.push(version);
     bytes.extend_from_slice(nonce);
     bytes.extend_from_slice(&tag_commit);
     bytes.extend_from_slice(&ciphertext);
@@ -275,23 +344,52 @@ fn wrap_key_with_nonce(
     Ok(WrappedKey { bytes })
 }
 
-/// Unwraps `wrapped` under `kek` and `context`, returning the original key
-/// with any padding removed.
+/// Unwraps a format-2 `wrapped` under `kek` and `context`, returning the
+/// original key with any padding removed. Equivalent to
+/// [`unwrap_key_with_policy`] with [`FormatPolicy::RequireV2`]: a legacy
+/// format-1 record is refused.
 ///
 /// # Errors
-/// - [`AeadError::EmptyContext`] if `context` is empty.
-/// - [`AeadError::WeakKey`] if `kek` is all zero.
-/// - [`AeadError::DecryptionFailed`] for every key-dependent failure: wrong
-///   KEK, wrong context, any modified byte, an impossible inner key length or
-///   non-zero padding. These are deliberately indistinguishable.
+/// As [`unwrap_key_with_policy`]; a format-1 record yields
+/// [`AeadError::LegacyFormatRejected`].
 pub fn unwrap_key(
     kek: &[u8; KEK_LEN],
     wrapped: &WrappedKey,
     context: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
+    unwrap_key_with_policy(kek, wrapped, context, FormatPolicy::RequireV2)
+}
+
+/// Unwraps `wrapped` under `kek` and `context` if its format version is
+/// accepted by `policy`, returning the original key with any padding removed.
+///
+/// The commitment and the AES-GCM decryption are both always computed and
+/// combined in constant time, so a commitment mismatch (wrong KEK, or for
+/// format 2 wrong context) and a tag failure take the same path.
+///
+/// # Errors
+/// - [`AeadError::EmptyContext`] if `context` is empty.
+/// - [`AeadError::WeakKey`] if `kek` is all zero.
+/// - [`AeadError::LegacyFormatRejected`] if `wrapped` is a format-1 record
+///   and `policy` does not accept format 1.
+/// - [`AeadError::DecryptionFailed`] for every key-dependent failure: wrong
+///   KEK, wrong context, any modified byte, an impossible inner key length or
+///   non-zero padding. These are deliberately indistinguishable.
+pub fn unwrap_key_with_policy(
+    kek: &[u8; KEK_LEN],
+    wrapped: &WrappedKey,
+    context: &[u8],
+    policy: FormatPolicy,
+) -> Result<Zeroizing<Vec<u8>>, AeadError> {
     let opaque = || AeadError::DecryptionFailed(DECRYPTION_FAILED.to_string());
     validate_context(context, opaque)?;
     let cipher = AesGcm256::new(kek)?;
+
+    // The version byte is public and was validated by `from_bytes`.
+    let version = wrapped.version();
+    if !policy.accepts(version) {
+        return Err(AeadError::LegacyFormatRejected);
+    }
 
     let bytes = wrapped.as_bytes();
     let nonce: Nonce = bytes
@@ -306,11 +404,11 @@ pub fn unwrap_key(
 
     // Verify the commitment and run the AEAD unconditionally, then combine,
     // so a commitment mismatch and a tag failure take the same path.
-    let commitment_ok: Choice = match commitment(kek, &nonce) {
+    let commitment_ok: Choice = match commitment(kek, version, &nonce, context) {
         Some(expected) => expected.as_slice().ct_eq(stored_commitment),
         None => Choice::from(0u8),
     };
-    let aad = associated_data(ciphertext.len(), context).ok_or_else(opaque)?;
+    let aad = associated_data(version, ciphertext.len(), context).ok_or_else(opaque)?;
     let payload = cipher.decrypt(&nonce, ciphertext, &tag, Some(&aad));
     let (payload, aead_ok) = match payload {
         Ok(p) => (p, Choice::from(1u8)),
@@ -438,12 +536,17 @@ mod tests {
             WrappedKey::from_bytes(&bytes[..MIN_WRAPPED_LEN - 1]),
             Err(AeadError::MalformedEncoding)
         ));
-        let mut wrong_version = bytes;
-        wrong_version[0] = 2;
-        assert!(matches!(
-            WrappedKey::from_bytes(&wrong_version),
-            Err(AeadError::MalformedEncoding)
-        ));
+        for bad in [0u8, 3, 0xff] {
+            let mut wrong_version = bytes.clone();
+            wrong_version[0] = bad;
+            assert!(matches!(
+                WrappedKey::from_bytes(&wrong_version),
+                Err(AeadError::MalformedEncoding)
+            ));
+        }
+        let mut legacy = bytes;
+        legacy[0] = KEY_WRAP_VERSION_V1;
+        assert_eq!(WrappedKey::from_bytes(&legacy).unwrap().version(), KEY_WRAP_VERSION_V1);
         let too_long = vec![KEY_WRAP_VERSION; MAX_WRAPPED_LEN + 1];
         assert!(matches!(WrappedKey::from_bytes(&too_long), Err(AeadError::MalformedEncoding)));
         // A structurally valid but unauthenticated blob parses and then
@@ -475,6 +578,14 @@ mod tests {
         for ctx in [&b"vault/v1/root/epoch-2/locator-a"[..], b"vault/v1/file", b"x"] {
             assert!(matches!(unwrap_key(&KEK, &wrapped, ctx), Err(AeadError::DecryptionFailed(_))));
         }
+    }
+
+    /// Format v2 (red-first): new wraps carry version byte 2, whose
+    /// commitment also covers the context.
+    #[test]
+    fn new_wraps_are_version_2() {
+        let wrapped = wrap_key(&KEK, &sample_key(32), CONTEXT).unwrap();
+        assert_eq!(wrapped.as_bytes()[0], 2);
     }
 
     #[test]
@@ -574,14 +685,22 @@ mod tests {
         }
     }
 
-    /// Pins this module's output for a fixed KEK, key, context and nonce so
-    /// any drift in the commitment, AAD or payload layout is caught.
+    /// Pins the legacy format-1 output for a fixed KEK, key, context and
+    /// nonce. These bytes are unchanged since 0.13.0; format-1 unwrap must
+    /// keep accepting them under [`FormatPolicy::AllowV1`].
     #[test]
     fn pinned_output_bytes() {
         let nonce: Nonce = [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b];
         let key = sample_key(16);
-        let wrapped =
-            wrap_key_with_nonce(&KEK, &key, CONTEXT, KEY_WRAP_OVERHEAD + 16 + 4, &nonce).unwrap();
+        let wrapped = wrap_key_with_nonce(
+            KEY_WRAP_VERSION_V1,
+            &KEK,
+            &key,
+            CONTEXT,
+            KEY_WRAP_OVERHEAD + 16 + 4,
+            &nonce,
+        )
+        .unwrap();
         assert_eq!(
             hex(wrapped.as_bytes()),
             concat!(
@@ -591,7 +710,111 @@ mod tests {
                 "05ab72831248119c2ae1784865d1856d1fb95c9f595d6add6342181646c1b428d8abcd7dbd",
             )
         );
+        assert_eq!(wrapped.version(), KEY_WRAP_VERSION_V1);
+        assert_eq!(
+            unwrap_key_with_policy(&KEK, &wrapped, CONTEXT, FormatPolicy::AllowV1)
+                .unwrap()
+                .as_slice(),
+            key.as_slice()
+        );
+        assert!(matches!(
+            unwrap_key(&KEK, &wrapped, CONTEXT),
+            Err(AeadError::LegacyFormatRejected)
+        ));
+    }
+
+    /// Pins the format-2 (CMT-4) output for the same KEK, key, context and
+    /// nonce, so any drift in the v2 commitment input, AAD or payload layout
+    /// is caught.
+    #[test]
+    fn pinned_output_bytes_v2() {
+        let nonce: Nonce = [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b];
+        let key = sample_key(16);
+        let wrapped = wrap_key_with_nonce(
+            KEY_WRAP_VERSION,
+            &KEK,
+            &key,
+            CONTEXT,
+            KEY_WRAP_OVERHEAD + 16 + 4,
+            &nonce,
+        )
+        .unwrap();
+        assert_eq!(
+            hex(wrapped.as_bytes()),
+            concat!(
+                "02",
+                "101112131415161718191a1b",
+                "bb79fb8f6d65172f9e0b18e8f61a352abb29c3209359abdfb48e4b7c82c136a1",
+                "05ab72831248119c2ae1784865d1856d1fb95c9f59da0e8dc0b22f62dd3c9942e986edd53d",
+            )
+        );
+        assert_eq!(wrapped.version(), KEY_WRAP_VERSION);
         assert_eq!(unwrap_key(&KEK, &wrapped, CONTEXT).unwrap().as_slice(), key.as_slice());
+    }
+
+    /// The format-2 commitment depends on the context; the format-1
+    /// commitment does not (that is the CMT-1 gap format 2 closes).
+    #[test]
+    fn commitment_covers_context_only_in_v2() {
+        let nonce: Nonce = [0x42; NONCE_LEN];
+        let a = commitment(&KEK, KEY_WRAP_VERSION, &nonce, b"ctx-a").unwrap();
+        let b = commitment(&KEK, KEY_WRAP_VERSION, &nonce, b"ctx-b").unwrap();
+        assert_ne!(a, b);
+        let a1 = commitment(&KEK, KEY_WRAP_VERSION_V1, &nonce, b"ctx-a").unwrap();
+        let b1 = commitment(&KEK, KEY_WRAP_VERSION_V1, &nonce, b"ctx-b").unwrap();
+        assert_eq!(a1, b1);
+        assert_ne!(a, a1);
+        assert!(commitment(&KEK, 0, &nonce, b"ctx-a").is_none());
+        assert!(commitment(&KEK, 3, &nonce, b"ctx-a").is_none());
+    }
+
+    #[test]
+    fn format_policy_matrix() {
+        let key = sample_key(32);
+        let nonce: Nonce = [0x24; NONCE_LEN];
+        let total = KEY_WRAP_OVERHEAD + 32;
+        let v1 =
+            wrap_key_with_nonce(KEY_WRAP_VERSION_V1, &KEK, &key, CONTEXT, total, &nonce).unwrap();
+        let v2 = wrap_key(&KEK, &key, CONTEXT).unwrap();
+        assert_eq!(v2.version(), KEY_WRAP_VERSION);
+        for policy in [FormatPolicy::RequireV2, FormatPolicy::AllowV1] {
+            assert_eq!(
+                unwrap_key_with_policy(&KEK, &v2, CONTEXT, policy).unwrap().as_slice(),
+                key.as_slice()
+            );
+        }
+        assert!(matches!(
+            unwrap_key_with_policy(&KEK, &v1, CONTEXT, FormatPolicy::RequireV2),
+            Err(AeadError::LegacyFormatRejected)
+        ));
+        assert_eq!(
+            unwrap_key_with_policy(&KEK, &v1, CONTEXT, FormatPolicy::AllowV1).unwrap().as_slice(),
+            key.as_slice()
+        );
+        // Legacy wrong context still fails (through AES-GCM), opaquely.
+        assert!(matches!(
+            unwrap_key_with_policy(&KEK, &v1, b"other", FormatPolicy::AllowV1),
+            Err(AeadError::DecryptionFailed(_))
+        ));
+    }
+
+    /// Relabelling the version byte (1 <-> 2) breaks the commitment and the
+    /// AES-GCM associated data, so neither format can pose as the other.
+    #[test]
+    fn version_byte_swap_fails() {
+        let key = sample_key(32);
+        let nonce: Nonce = [0x33; NONCE_LEN];
+        let total = KEY_WRAP_OVERHEAD + 32;
+        for (from, to) in [(KEY_WRAP_VERSION_V1, KEY_WRAP_VERSION), (KEY_WRAP_VERSION, 1u8)] {
+            let mut bytes =
+                wrap_key_with_nonce(from, &KEK, &key, CONTEXT, total, &nonce).unwrap().to_bytes();
+            bytes[0] = to;
+            let parsed = WrappedKey::from_bytes(&bytes).unwrap();
+            assert!(matches!(
+                unwrap_key_with_policy(&KEK, &parsed, CONTEXT, FormatPolicy::AllowV1),
+                Err(AeadError::DecryptionFailed(_))
+            ));
+        }
     }
 
     #[test]

@@ -104,8 +104,8 @@ fun main() {
     check(dec.isFinished(), "decryptor finished")
     expect<LatticeArcException.AuthenticationFailed>("segment misdescribed as last") { dec.openSegment(1u, s1, true) }
     expect<LatticeArcException.AuthenticationFailed>("wrong stream key") { StreamDecryptor(random, utf8("app/v1/file/7"), header) }
-    val wrongAad = StreamDecryptor(streamKey, utf8("app/v1/file/8"), header)
-    expect<LatticeArcException.AuthenticationFailed>("wrong aad") { wrongAad.openSegment(0u, s0, false) }
+    // Format 2 commits to the aad too, so a wrong aad fails in the constructor.
+    expect<LatticeArcException.AuthenticationFailed>("wrong aad") { StreamDecryptor(streamKey, utf8("app/v1/file/8"), header) }
 
     // --- Hybrid KEM and encryption -----------------------------------------
     for (level in listOf(MlKemSecurityLevel.ML_KEM512, MlKemSecurityLevel.ML_KEM768, MlKemSecurityLevel.ML_KEM1024)) {

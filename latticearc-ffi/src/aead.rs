@@ -3,10 +3,12 @@
 use std::sync::{Arc, Mutex, PoisonError};
 
 use latticearc::primitives::aead::key_wrap::{
-    WrappedKey, unwrap_key as core_unwrap_key, wrap_key as core_wrap_key,
+    WrappedKey, unwrap_key_with_policy as core_unwrap_key_with_policy, wrap_key as core_wrap_key,
     wrap_key_padded as core_wrap_key_padded,
 };
-use latticearc::{StreamDecryptor as CoreStreamDecryptor, StreamEncryptor as CoreStreamEncryptor};
+use latticearc::{
+    FormatPolicy, StreamDecryptor as CoreStreamDecryptor, StreamEncryptor as CoreStreamEncryptor,
+};
 
 use crate::error::LatticeArcError;
 use crate::secrets::{SecretBytes, take_zeroizing};
@@ -20,9 +22,9 @@ fn usize_to_u32(n: usize) -> u32 {
 // ---------------------------------------------------------------------------
 
 /// Wraps a 16-, 32- or 64-byte `key` under a 32-byte `kek` with AES-256-GCM
-/// plus an HMAC-SHA256 key commitment. `context` is required, non-empty and
-/// bound as associated data; the same context must be given to
-/// [`unwrap_key`].
+/// plus an HMAC-SHA256 commitment to the KEK and the context (format 2).
+/// `context` is required, non-empty, committed and bound as associated data;
+/// the same context must be given to [`unwrap_key`].
 ///
 /// # Errors
 ///
@@ -56,22 +58,50 @@ pub fn wrap_key_padded(
     Ok(core_wrap_key_padded(&kek, key.expose(), &context, total_len as usize)?.to_bytes())
 }
 
-/// Recovers a key wrapped by [`wrap_key`] or [`wrap_key_padded`].
+/// Recovers a key wrapped by [`wrap_key`] or [`wrap_key_padded`] (format 2
+/// only).
 ///
 /// # Errors
 ///
 /// `AuthenticationFailed` for a wrong KEK, wrong context or tampered bytes;
-/// `InvalidInput` for a KEK that is not 32 bytes or an encoding that is not
-/// even the right shape.
+/// `InvalidInput` for a KEK that is not 32 bytes, an encoding that is not
+/// even the right shape, or a legacy format-1 record (read those with
+/// [`unwrap_key_allowing_v1`] and re-wrap them).
 #[uniffi::export]
 pub fn unwrap_key(
     kek: &SecretBytes,
     wrapped: Vec<u8>,
     context: Vec<u8>,
 ) -> Result<Arc<SecretBytes>, LatticeArcError> {
+    unwrap_with_policy(kek, &wrapped, &context, FormatPolicy::RequireV2)
+}
+
+/// Like [`unwrap_key`], but also accepts a legacy format-1 record written by
+/// LatticeArc 0.13–0.15, whose commitment covers the KEK but not the
+/// context. Use only to migrate old records: unwrap, then re-wrap with
+/// [`wrap_key`].
+///
+/// # Errors
+///
+/// As [`unwrap_key`], except that a format-1 record is accepted.
+#[uniffi::export]
+pub fn unwrap_key_allowing_v1(
+    kek: &SecretBytes,
+    wrapped: Vec<u8>,
+    context: Vec<u8>,
+) -> Result<Arc<SecretBytes>, LatticeArcError> {
+    unwrap_with_policy(kek, &wrapped, &context, FormatPolicy::AllowV1)
+}
+
+fn unwrap_with_policy(
+    kek: &SecretBytes,
+    wrapped: &[u8],
+    context: &[u8],
+    policy: FormatPolicy,
+) -> Result<Arc<SecretBytes>, LatticeArcError> {
     let kek = kek.key32("key-encryption key")?;
-    let wrapped = WrappedKey::from_bytes(&wrapped)?;
-    let key = core_unwrap_key(&kek, &wrapped, &context)?;
+    let wrapped = WrappedKey::from_bytes(wrapped)?;
+    let key = core_unwrap_key_with_policy(&kek, &wrapped, context, policy)?;
     Ok(SecretBytes::from_vec(take_zeroizing(key)))
 }
 
@@ -199,9 +229,11 @@ impl StreamEncryptor {
 
 /// Decrypts segments produced by [`StreamEncryptor`], in order or by index.
 ///
-/// A wrong key fails in the constructor, before any segment is touched,
-/// thanks to the key commitment in the header. A wrong `aad` fails on the
-/// first segment opened.
+/// A wrong key or a wrong `aad` fails in the constructor, before any segment
+/// is touched, thanks to the key- and context-commitment in the format-2
+/// header. (A legacy format-1 header opened with
+/// [`StreamDecryptor::new_allowing_v1`] commits to the key only; there a
+/// wrong `aad` fails on the first segment opened.)
 #[derive(uniffi::Object)]
 pub struct StreamDecryptor {
     inner: Mutex<CoreStreamDecryptor>,
@@ -212,27 +244,45 @@ pub struct StreamDecryptor {
 
 #[uniffi::export]
 impl StreamDecryptor {
-    /// Opens a stream from its `header`.
+    /// Opens a format-2 stream from its `header`.
     ///
     /// # Errors
     ///
-    /// `AuthenticationFailed` for a wrong key or tampered header;
-    /// `InvalidInput` for a key that is not 32 bytes; `InvalidContext` for
-    /// an empty `aad`.
+    /// `AuthenticationFailed` for a wrong key, wrong `aad` or tampered
+    /// header; `InvalidInput` for a key that is not 32 bytes or a legacy
+    /// format-1 header (open those with [`Self::new_allowing_v1`] and
+    /// re-encrypt); `InvalidContext` for an empty `aad`.
     #[uniffi::constructor]
     pub fn new(
         key: &SecretBytes,
         aad: Vec<u8>,
         header: Vec<u8>,
     ) -> Result<Arc<Self>, LatticeArcError> {
-        let key = key.key32("stream key")?;
-        let dec = CoreStreamDecryptor::new(&key, &aad, &header)?;
-        Ok(Arc::new(Self {
-            segment_size: dec.segment_size(),
-            plaintext_segment_size: usize_to_u32(dec.plaintext_segment_size()),
-            first_plaintext_segment_size: usize_to_u32(dec.first_plaintext_segment_size()),
-            inner: Mutex::new(dec),
-        }))
+        Self::open_with_policy(key, &aad, &header, FormatPolicy::RequireV2)
+    }
+
+    /// Like [`Self::new`], but also opens a legacy format-1 header written by
+    /// LatticeArc 0.13–0.15, which commits to the key but not to `aad`. Use
+    /// only to migrate old streams: decrypt, then re-encrypt with
+    /// [`StreamEncryptor`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::new`], except that a format-1 header is accepted.
+    #[uniffi::constructor]
+    pub fn new_allowing_v1(
+        key: &SecretBytes,
+        aad: Vec<u8>,
+        header: Vec<u8>,
+    ) -> Result<Arc<Self>, LatticeArcError> {
+        Self::open_with_policy(key, &aad, &header, FormatPolicy::AllowV1)
+    }
+
+    /// Format version of the opened header: 2, or 1 for a legacy header
+    /// opened with [`Self::new_allowing_v1`].
+    #[must_use]
+    pub fn format_version(&self) -> u8 {
+        self.inner.lock().unwrap_or_else(PoisonError::into_inner).format_version()
     }
 
     /// Ciphertext segment size in bytes.
@@ -294,9 +344,28 @@ impl StreamDecryptor {
     }
 }
 
+impl StreamDecryptor {
+    fn open_with_policy(
+        key: &SecretBytes,
+        aad: &[u8],
+        header: &[u8],
+        policy: FormatPolicy,
+    ) -> Result<Arc<Self>, LatticeArcError> {
+        let key = key.key32("stream key")?;
+        let dec = CoreStreamDecryptor::new_with_policy(&key, aad, header, policy)?;
+        Ok(Arc::new(Self {
+            segment_size: dec.segment_size(),
+            plaintext_segment_size: usize_to_u32(dec.plaintext_segment_size()),
+            first_plaintext_segment_size: usize_to_u32(dec.first_plaintext_segment_size()),
+            inner: Mutex::new(dec),
+        }))
+    }
+}
+
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "Tests use unwrap for simplicity")]
 #[expect(clippy::indexing_slicing, reason = "Tests index into buffers of known length")]
+#[expect(clippy::arithmetic_side_effects, reason = "Tests use plain arithmetic on known sizes")]
 mod tests {
     use super::*;
 
@@ -402,7 +471,7 @@ mod tests {
     }
 
     #[test]
-    fn stream_wrong_key_fails_at_open_and_wrong_aad_at_first_segment() {
+    fn stream_wrong_key_or_wrong_aad_fails_at_open() {
         let key = SecretBytes::import(vec![0x44; 32]);
         let enc = StreamEncryptor::new(&key, b"aad".to_vec(), 128).unwrap();
         let header = enc.header();
@@ -412,11 +481,59 @@ mod tests {
             StreamDecryptor::new(&other, b"aad".to_vec(), header.clone()).err().unwrap(),
             LatticeArcError::AuthenticationFailed
         );
-        let dec = StreamDecryptor::new(&key, b"other".to_vec(), header).unwrap();
         assert_eq!(
-            dec.open_segment(0, only, true).unwrap_err(),
+            StreamDecryptor::new(&key, b"other".to_vec(), header.clone()).err().unwrap(),
             LatticeArcError::AuthenticationFailed
         );
+        let dec = StreamDecryptor::new(&key, b"aad".to_vec(), header).unwrap();
+        assert_eq!(dec.format_version(), 2);
+        assert_eq!(dec.open_segment(0, only, true).unwrap(), b"payload".to_vec());
+    }
+
+    fn unhex(s: &str) -> Vec<u8> {
+        (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
+    }
+
+    /// Legacy format-1 records (pinned bytes from the core known-answer
+    /// tests) are refused by the default entry points and opened by the
+    /// `_allowing_v1` ones.
+    #[test]
+    fn legacy_v1_records_need_the_allowing_v1_entry_points() {
+        let kek = SecretBytes::import(b"kek-latticearc-test-000000000001".to_vec());
+        let ctx = b"vault/v1/root/epoch-1/locator-a".to_vec();
+        let wrapped = unhex(concat!(
+            "01",
+            "101112131415161718191a1b",
+            "bed2627fea9623063f851490043a881ebe485661df3ad9871a02f53901d60461",
+            "05ab72831248119c2ae1784865d1856d1fb95c9f595d6add6342181646c1b428d8abcd7dbd",
+        ));
+        assert!(matches!(
+            unwrap_key(&kek, wrapped.clone(), ctx.clone()),
+            Err(LatticeArcError::InvalidInput { .. })
+        ));
+        let key: Vec<u8> = (0..16usize).map(|i| u8::try_from(i * 7 % 256).unwrap()).collect();
+        assert_eq!(unwrap_key_allowing_v1(&kek, wrapped, ctx).unwrap().export_bytes(), key);
+
+        let stream_key = SecretBytes::import(b"LatticeArc-stream-test-key-00001".to_vec());
+        let header = unhex(concat!(
+            "0100",
+            "00000040",
+            "28",
+            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+            "a0a1a2a3a4a5a6",
+            "bb8df52093b77bbc644b8def8409f4803449e9075139ad25f1dd35737b3cf0e6",
+        ));
+        let aad = b"vault/v1/file".to_vec();
+        assert!(matches!(
+            StreamDecryptor::new(&stream_key, aad.clone(), header.clone()).err().unwrap(),
+            LatticeArcError::InvalidInput { .. }
+        ));
+        let dec = StreamDecryptor::new_allowing_v1(&stream_key, aad, header).unwrap();
+        assert_eq!(dec.format_version(), 1);
+        let seg0 = unhex("dbdda4765e7e4c118f921e8a02f7739b6d026f8c5a024b01");
+        let seg1 = unhex("25bdbf2236555c1ca4dc1ba1fe416a17519a10b5d8");
+        assert_eq!(dec.open_next(seg0, false).unwrap(), vec![0x11u8; 8]);
+        assert_eq!(dec.open_next(seg1, true).unwrap(), b"final".to_vec());
     }
 
     #[test]

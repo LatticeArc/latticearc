@@ -63,8 +63,8 @@ stand for `Vec<u8>`.
 | Secrets | `SecretBytes::{import, random}`, `.len/.is_empty/.is_locked/.export_bytes` | `SecretBytes.import(bytes:)`, `.random(len:)`, `.exportBytes()` | `SecretBytes.import(bytes)`, `.random(len)`, `.exportBytes()` |
 | Argon2id | `argon2_default_params`, `argon2_calibrate(target_ms, max_memory_kib)`, `argon2id(password, salt, params)` | `argon2DefaultParams()`, `argon2Calibrate(targetMs:maxMemoryKib:)`, `argon2id(password:salt:params:)` | `argon2DefaultParams()`, `argon2Calibrate(targetMs, maxMemoryKib)`, `argon2id(password, salt, params)` |
 | KDF | `hkdf(ikm, salt?, context, length)`, `counter_kdf(key, label, context, length)` | `hkdf(ikm:salt:context:length:)`, `counterKdf(key:label:context:length:)` | `hkdf(ikm, salt, context, length)`, `counterKdf(key, label, context, length)` |
-| Key wrap | `wrap_key(kek, key, context)`, `wrap_key_padded(.., total_len)`, `unwrap_key(kek, wrapped, context)` | `wrapKey(kek:key:context:)`, `wrapKeyPadded(..totalLen:)`, `unwrapKey(kek:wrapped:context:)` | `wrapKey(kek, key, context)`, `wrapKeyPadded(.., totalLen)`, `unwrapKey(kek, wrapped, context)` |
-| Streaming AEAD | `StreamEncryptor::new(key, aad, segment_size)`: `header`, `seal_segment`, `finish`, sizes; `StreamDecryptor::new(key, aad, header)`: `open_segment(index, segment, is_last)`, `open_next`, `is_finished` | `StreamEncryptor(key:aad:segmentSize:)`, `StreamDecryptor(key:aad:header:)` | `StreamEncryptor(key, aad, segmentSize)`, `StreamDecryptor(key, aad, header)` |
+| Key wrap | `wrap_key(kek, key, context)`, `wrap_key_padded(.., total_len)`, `unwrap_key(kek, wrapped, context)`, `unwrap_key_allowing_v1(..)` | `wrapKey(kek:key:context:)`, `wrapKeyPadded(..totalLen:)`, `unwrapKey(kek:wrapped:context:)`, `unwrapKeyAllowingV1(..)` | `wrapKey(kek, key, context)`, `wrapKeyPadded(.., totalLen)`, `unwrapKey(kek, wrapped, context)`, `unwrapKeyAllowingV1(..)` |
+| Streaming AEAD | `StreamEncryptor::new(key, aad, segment_size)`: `header`, `seal_segment`, `finish`, sizes; `StreamDecryptor::new(key, aad, header)`, `StreamDecryptor::new_allowing_v1(..)`: `open_segment(index, segment, is_last)`, `open_next`, `is_finished`, `format_version` | `StreamEncryptor(key:aad:segmentSize:)`, `StreamDecryptor(key:aad:header:)`, `StreamDecryptor.newAllowingV1(..)` | `StreamEncryptor(key, aad, segmentSize)`, `StreamDecryptor(key, aad, header)`, `StreamDecryptor.newAllowingV1(..)` |
 | Hybrid KEM | `HybridKemSecretKey::{generate(level), from_parts}`, `.public_key/.export_parts`; `HybridKemPublicKey::{from_wire}`, `.to_wire`; `encapsulate(pk, context)` → `Encapsulation{encapsulated_key, shared_secret}`; `decapsulate(sk, encapsulated_key, context)` | `HybridKemSecretKey.generate(level:)`, `encapsulate(publicKey:context:)`, `decapsulate(secretKey:encapsulatedKey:context:)` | `HybridKemSecretKey.generate(level)`, `encapsulate(publicKey, context)`, `decapsulate(secretKey, encapsulatedKey, context)` |
 | Hybrid encryption | `encrypt_hybrid(pk, plaintext, aad?)`, `decrypt_hybrid(sk, ciphertext, aad?)` | `encryptHybrid(publicKey:plaintext:aad:)`, `decryptHybrid(secretKey:ciphertext:aad:)` | `encryptHybrid(publicKey, plaintext, aad)`, `decryptHybrid(secretKey, ciphertext, aad)` |
 | Hybrid signatures | `HybridSigningKey::{generate(set), from_seed(seed, set), from_parts}`, `.sign(message, context)`, `.sign_prehashed(sha512_digest, context)`, `.public_key/.export_parts`; `HybridSigPublicKey::{from_wire}`, `.to_wire`; `verify(pk, message, signature, context)`, `verify_prehashed(pk, digest, signature, context)` | `HybridSigningKey.fromSeed(seed:parameterSet:)`, `verify(publicKey:message:signature:context:)`, `verifyPrehashed(...)` | `HybridSigningKey.fromSeed(seed, parameterSet)`, `verify(publicKey, message, signature, context)`, `verifyPrehashed(...)` |
@@ -73,6 +73,14 @@ stand for `Vec<u8>`.
 | Records | `Argon2Params`, `MemoryLockStatus`, `Encapsulation`, `HybridKemSecretKeyParts`, `HybridSigningKeyParts` | structs | data classes |
 
 Notes that trip people up:
+
+- Since 0.16.0 wrapped keys and stream headers are written in **format 2**,
+  whose commitment covers the key *and* the context / `aad`, so a wrong
+  `aad` fails already in the `StreamDecryptor` constructor. `unwrapKey` and
+  the `StreamDecryptor` constructor accept format 2 only and raise
+  `InvalidInput` for a format-1 record written by 0.13–0.15; read those with
+  `unwrapKeyAllowingV1` / `StreamDecryptor.newAllowingV1` and re-encrypt
+  them.
 
 - The first streaming segment carries `firstPlaintextSegmentSize` bytes of
   plaintext and is 40 bytes shorter on the wire than `segmentSize`; every

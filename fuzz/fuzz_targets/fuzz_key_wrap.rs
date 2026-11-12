@@ -3,13 +3,17 @@
 
 //! Fuzz testing for the committing key wrap (`primitives::aead::key_wrap`).
 //!
-//! Exercises `WrappedKey::from_bytes` and `unwrap_key` on arbitrary bytes
-//! (never panic, never accept a non-genuine record), plus a genuine
-//! wrap/unwrap roundtrip for every supported key length with fuzz-chosen KEK,
-//! context and padded total length.
+//! Exercises `WrappedKey::from_bytes` and `unwrap_key` /
+//! `unwrap_key_with_policy` (both format policies) on arbitrary bytes (never
+//! panic, never accept a non-genuine record), plus a genuine wrap/unwrap
+//! roundtrip for every supported key length with fuzz-chosen KEK, context and
+//! padded total length. Genuine records are format 2, so a wrong context must
+//! fail under either policy.
 
+use latticearc::primitives::aead::FormatPolicy;
 use latticearc::primitives::aead::key_wrap::{
-    KEY_WRAP_OVERHEAD, MAX_WRAPPED_LEN, WrappedKey, unwrap_key, wrap_key, wrap_key_padded,
+    KEY_WRAP_OVERHEAD, KEY_WRAP_VERSION, MAX_WRAPPED_LEN, WrappedKey, unwrap_key,
+    unwrap_key_with_policy, wrap_key, wrap_key_padded,
 };
 use libfuzzer_sys::fuzz_target;
 
@@ -36,6 +40,10 @@ fuzz_target!(|data: &[u8]| {
                 unwrap_key(&kek, &parsed, context).is_err(),
                 "arbitrary bytes must never unwrap"
             );
+            assert!(
+                unwrap_key_with_policy(&kek, &parsed, context, FormatPolicy::AllowV1).is_err(),
+                "arbitrary bytes must never unwrap, in either format"
+            );
         }
     }
 
@@ -53,6 +61,7 @@ fuzz_target!(|data: &[u8]| {
         let wrapped = wrap_key(&kek, &key, context).expect("valid parameters must wrap");
         assert_eq!(wrapped.len(), KEY_WRAP_OVERHEAD + key_len);
         let bytes = wrapped.to_bytes();
+        assert_eq!(bytes[0], KEY_WRAP_VERSION);
         let parsed = WrappedKey::from_bytes(&bytes).expect("genuine encoding must parse");
         let unwrapped = unwrap_key(&kek, &parsed, context).expect("genuine record must unwrap");
         assert_eq!(unwrapped.as_slice(), key.as_slice());
@@ -70,6 +79,12 @@ fuzz_target!(|data: &[u8]| {
         let mut other_ctx = context.to_vec();
         other_ctx.push(0);
         assert!(unwrap_key(&kek, &parsed, &other_ctx).is_err());
+        assert!(unwrap_key_with_policy(&kek, &parsed, &other_ctx, FormatPolicy::AllowV1).is_err());
+        // Relabelling a format-2 record as format 1 must not unwrap.
+        let mut relabelled = bytes.clone();
+        relabelled[0] = 1;
+        let relabelled = WrappedKey::from_bytes(&relabelled).unwrap();
+        assert!(unwrap_key_with_policy(&kek, &relabelled, context, FormatPolicy::AllowV1).is_err());
         let mut bad = bytes.clone();
         bad[1 + (extra_padding % (bytes.len() - 1))] ^= 0x01;
         let bad = WrappedKey::from_bytes(&bad).unwrap();

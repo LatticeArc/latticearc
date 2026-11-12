@@ -97,7 +97,8 @@ impl From<AeadError> for LatticeArcError {
             | AeadError::InvalidSegmentSize
             | AeadError::InvalidSegmentLength
             | AeadError::InvalidPaddedLength
-            | AeadError::MalformedEncoding => Self::InvalidInput { reason: e.to_string() },
+            | AeadError::MalformedEncoding
+            | AeadError::LegacyFormatRejected => Self::InvalidInput { reason: e.to_string() },
             _ => Self::Internal { reason: e.to_string() },
         }
     }

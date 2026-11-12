@@ -655,7 +655,8 @@ impl FipsError for crate::primitives::aead::AeadError {
             | AeadError::AmbiguousLabels
             | AeadError::WeakGeneration
             | AeadError::InvalidPaddedLength
-            | AeadError::MalformedEncoding => FipsErrorCode::InvalidParameter,
+            | AeadError::MalformedEncoding
+            | AeadError::LegacyFormatRejected => FipsErrorCode::InvalidParameter,
             // Counter exhaustion and post-final-segment use are caller-state
             // errors on the AEAD path; they surface as encryption/decryption
             // failures rather than inventing a new FIPS code.

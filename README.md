@@ -202,8 +202,8 @@ Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-r
 | **Classical Key Exchange** | X25519 | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
 | **Symmetric Encryption** | AES-256-GCM | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |
 | **Symmetric Encryption** | ChaCha20-Poly1305 | chacha20poly1305 — non-FIPS |
-| **Streaming AEAD** | AES-256-GCM-HKDF segments (Tink layout) + HMAC-SHA256 key commitment | aws-lc-rs — same backend as AES-GCM; LatticeArc header, not Tink-interoperable |
-| **Key Wrap** | AES-256-GCM + HMAC-SHA256 key commitment, fixed-size padded output | aws-lc-rs — same backend as AES-GCM |
+| **Streaming AEAD** | AES-256-GCM-HKDF segments (Tink layout) + HMAC-SHA256 key-and-context commitment (CMT-4) | aws-lc-rs — same backend as AES-GCM; LatticeArc header, not Tink-interoperable |
+| **Key Wrap** | AES-256-GCM + HMAC-SHA256 key-and-context commitment (CMT-4), fixed-size padded output | aws-lc-rs — same backend as AES-GCM |
 | **Hash** | SHA-2 (256/384/512) | RustCrypto `sha2` — widely reviewed, NOT CMVP-validated. `--features fips` does NOT swap SHA-2 to aws-lc-rs. |
 | **Hash** | SHA-3, BLAKE2 | sha3 / blake2 crates — non-FIPS |
 | **KDF** | HKDF-SHA256 | aws-lc-rs — FIPS backend with `--features fips`; validation depends on module version |

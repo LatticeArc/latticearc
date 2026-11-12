@@ -126,8 +126,10 @@ expectError(.AuthenticationFailed, "segment misdescribed as last") { _ = try dec
 expectError(.AuthenticationFailed, "wrong stream key") {
     _ = try StreamDecryptor(key: random, aad: utf8("app/v1/file/7"), header: header)
 }
-let wrongAad = try StreamDecryptor(key: streamKey, aad: utf8("app/v1/file/8"), header: header)
-expectError(.AuthenticationFailed, "wrong aad") { _ = try wrongAad.openSegment(index: 0, segment: s0, isLast: false) }
+// Format 2 commits to the aad too, so a wrong aad fails in the constructor.
+expectError(.AuthenticationFailed, "wrong aad") {
+    _ = try StreamDecryptor(key: streamKey, aad: utf8("app/v1/file/8"), header: header)
+}
 
 // --- Hybrid KEM and encryption ---------------------------------------------
 for level in [MlKemSecurityLevel.mlKem512, .mlKem768, .mlKem1024] {

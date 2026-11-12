@@ -41,7 +41,9 @@ mod kem;
 mod secrets;
 mod sig;
 
-pub use aead::{StreamDecryptor, StreamEncryptor, unwrap_key, wrap_key, wrap_key_padded};
+pub use aead::{
+    StreamDecryptor, StreamEncryptor, unwrap_key, unwrap_key_allowing_v1, wrap_key, wrap_key_padded,
+};
 pub use error::LatticeArcError;
 pub use kdf::{Argon2Params, argon2_calibrate, argon2_default_params, argon2id, counter_kdf, hkdf};
 pub use kem::{

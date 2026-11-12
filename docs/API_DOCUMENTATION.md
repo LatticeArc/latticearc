@@ -521,10 +521,16 @@ let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
 ### Streaming AEAD
 
 AES-256-GCM-HKDF segments (Tink's nonce and HKDF layout) under a 78-byte
-LatticeArc header that carries an HMAC-SHA256 key commitment. Segment sizes
-run from 64 bytes to 16 MiB; the first segment carries 40 fewer plaintext
-bytes than the rest. A wrong key fails in `StreamDecryptor::new`, before any
-segment is opened.
+LatticeArc header that carries an HMAC-SHA256 commitment to the key and the
+associated data (format 2, CMT-4). Segment sizes run from 64 bytes to 16 MiB;
+the first segment carries 40 fewer plaintext bytes than the rest. A wrong key
+or a wrong `aad` fails in `StreamDecryptor::new`, before any segment is
+opened.
+
+`StreamDecryptor::new` accepts format 2 only. Headers written by 0.13–0.15
+(format 1, key-committing only) fail with `AeadError::LegacyFormatRejected`;
+open them with `StreamDecryptor::new_with_policy(.., FormatPolicy::AllowV1)`,
+check `format_version()`, and re-encrypt.
 
 ```rust
 use latticearc::{StreamDecryptor, StreamEncryptor};
@@ -538,12 +544,18 @@ let seg2 = enc.finish(&tail)?;               // any length up to the segment cap
 let dec = StreamDecryptor::new(&key, b"vault/v1/file", &header)?;
 let chunk1 = dec.open_segment(1, &seg1, false)?;   // random access
 let tail = dec.open_segment(2, &seg2, true)?;
+
+// Migrating a stream written before 0.16.0:
+use latticearc::FormatPolicy;
+let old = StreamDecryptor::new_with_policy(&key, b"vault/v1/file", &old_header, FormatPolicy::AllowV1)?;
+assert_eq!(old.format_version(), 1);         // re-encrypt with StreamEncryptor
 ```
 
 ### Committing Key Wrap
 
-AES-256-GCM plus an HMAC-SHA256 key commitment for 16/32/64-byte keys under a
-32-byte KEK. The non-empty context is bound as associated data;
+AES-256-GCM plus an HMAC-SHA256 commitment to the KEK and the context
+(format 2, CMT-4) for 16/32/64-byte keys under a 32-byte KEK. The non-empty
+context is committed and also bound as associated data;
 `wrap_key_padded` pads under the AEAD so the encoding is exactly `total_len`
 bytes and looks random apart from the leading version byte.
 
@@ -556,6 +568,13 @@ let key = unwrap_key(&kek, &WrappedKey::from_bytes(&bytes)?, b"vault/v1/file-key
 
 let root = wrap_key_padded(&kek, &master_key, b"vault/v1/root/epoch-1", 4096)?;
 assert_eq!(root.len(), 4096);
+
+// `unwrap_key` accepts format 2 only; a record wrapped by 0.13–0.15 (format 1)
+// fails with `AeadError::LegacyFormatRejected`. Read it once and re-wrap it:
+use latticearc::{FormatPolicy, unwrap_key_with_policy};
+let old = WrappedKey::from_bytes(&old_bytes)?;
+let key = unwrap_key_with_policy(&kek, &old, b"vault/v1/file-key/locator-42", FormatPolicy::AllowV1)?;
+let rewrapped = wrap_key(&kek, &key, b"vault/v1/file-key/locator-42")?;
 ```
 
 ---

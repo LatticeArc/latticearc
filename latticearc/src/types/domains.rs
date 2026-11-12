@@ -81,6 +81,25 @@ pub const STREAM_AEAD_COMMITMENT: &[u8] = b"LatticeArc-v1-StreamAead-Commitment"
 /// result inside the wrapped-key encoding so unwrapping under a wrong KEK fails
 /// closed irrespective of the AES-GCM tag.
 pub const KEY_WRAP_COMMITMENT: &[u8] = b"LatticeArc-v1-KeyWrap-Commitment";
+
+/// HMAC-SHA256 label for the format-2 (context-committing) streaming-AEAD
+/// commitment tag.
+///
+/// `primitives::aead::stream` computes
+/// `HMAC-SHA256(stream_key, STREAM_AEAD_COMMITMENT_V2 || committed_header_prefix || SHA-256(aad))`,
+/// so a format-2 header verifies only under the key *and* the associated data
+/// it was written for (CMT-4). Distinct from the format-1 label so the two
+/// commitments can never be confused even apart from the version byte.
+pub const STREAM_AEAD_COMMITMENT_V2: &[u8] = b"LatticeArc-v2-StreamAead-Commitment";
+
+/// HMAC-SHA256 label for the format-2 (context-committing) key-wrap
+/// commitment tag.
+///
+/// `primitives::aead::key_wrap` computes
+/// `HMAC-SHA256(kek, KEY_WRAP_COMMITMENT_V2 || version || nonce || SHA-256(context))`,
+/// so a format-2 wrapped key verifies only under the KEK *and* the context it
+/// was wrapped for (CMT-4).
+pub const KEY_WRAP_COMMITMENT_V2: &[u8] = b"LatticeArc-v2-KeyWrap-Commitment";
 /// HKDF info label for deriving the ML-DSA keygen seed (FIPS 204 Algorithm 6
 /// input `ξ`) from a hybrid signing master seed.
 ///
@@ -789,8 +808,8 @@ mod sig_scheme_label_tests {
 mod kani_proofs {
     use super::*;
 
-    /// Proves all 12 HKDF/HMAC domain constants are pairwise distinct
-    /// (C(12,2)=66 pairs).
+    /// Proves all 14 HKDF/HMAC domain constants are pairwise distinct
+    /// (C(14,2)=91 pairs).
     /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
     #[kani::proof]
     fn domain_constants_pairwise_distinct() {
@@ -805,6 +824,8 @@ mod kani_proofs {
             PQ_ONLY_ENCRYPTION_INFO,
             STREAM_AEAD_COMMITMENT,
             KEY_WRAP_COMMITMENT,
+            STREAM_AEAD_COMMITMENT_V2,
+            KEY_WRAP_COMMITMENT_V2,
             HYBRID_SIG_SEED_ML_DSA_INFO,
             HYBRID_SIG_SEED_ED25519_INFO,
         ];

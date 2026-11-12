@@ -20,10 +20,12 @@
 //!   automatically pick AES-GCM-256 when `fips` is on.
 //!
 //! - **Streaming AEAD** ([`stream`]): AES-256-GCM-HKDF segments (Tink-derived
-//!   core) under a versioned, key-committing header with random-access
-//!   segment decryption. Available in every feature configuration.
+//!   core) under a versioned header that commits to the key and the
+//!   associated data (format 2, CMT-4), with random-access segment
+//!   decryption. Available in every feature configuration.
 //! - **Committing key wrap** ([`key_wrap`]): AES-256-GCM plus an HMAC-SHA256
-//!   key-commitment tag for wrapping 16/32/64-byte keys under a KEK, with
+//!   commitment to the KEK and the context (format 2, CMT-4) for wrapping
+//!   16/32/64-byte keys under a KEK, with
 //!   optional padding to a fixed total size. Available in every feature
 //!   configuration.
 //! - **Segmented AEAD** ([`segmented`]): fixed 64 KiB records, each under an
@@ -344,6 +346,47 @@ pub enum AeadError {
     /// failure.
     #[error("Malformed wrapped-key encoding")]
     MalformedEncoding,
+
+    /// The input is a well-formed format-1 stream header or wrapped key, but
+    /// the caller asked for [`FormatPolicy::RequireV2`]. Format 1 commits to
+    /// the key only, not to the context; read it with
+    /// [`FormatPolicy::AllowV1`] and re-encrypt it to format 2.
+    ///
+    /// Distinct from [`AeadError::DecryptionFailed`] on purpose: it reports
+    /// only the public version byte the caller supplied, so it tells an
+    /// attacker nothing, and it gives the application a migration signal.
+    #[error("Legacy format version 1 rejected by policy; format 2 is required")]
+    LegacyFormatRejected,
+}
+
+/// Which on-disk format versions a streaming-AEAD or key-wrap decoder accepts.
+///
+/// Format 2 (written by every encoder in this crate since 0.16.0) commits to
+/// the key **and** the caller's context (CMT-4). Format 1 commits to the key
+/// only (CMT-1): someone who holds the key could craft one ciphertext that
+/// opens under two different contexts. Decoders default to
+/// [`FormatPolicy::RequireV2`]; pass [`FormatPolicy::AllowV1`] only while
+/// migrating data written before 0.16.0.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FormatPolicy {
+    /// Accept format 2 only. Format-1 input fails with
+    /// [`AeadError::LegacyFormatRejected`].
+    #[default]
+    RequireV2,
+    /// Accept format 2 and the legacy format 1.
+    AllowV1,
+}
+
+impl FormatPolicy {
+    /// `true` if this policy accepts format version `version` (1 or 2).
+    #[must_use]
+    pub const fn accepts(self, version: u8) -> bool {
+        match self {
+            Self::RequireV2 => version == 2,
+            Self::AllowV1 => version == 1 || version == 2,
+        }
+    }
 }
 
 /// Returns `true` when every byte of `key` is zero. Thin re-export of the
@@ -363,7 +406,9 @@ pub use self::chacha20poly1305::{ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher
 
 // Re-export the streaming AEAD and committing key-wrap entry points so they sit
 // beside the one-shot ciphers in `primitives::*`.
-pub use self::key_wrap::{WrappedKey, unwrap_key, wrap_key, wrap_key_padded};
+pub use self::key_wrap::{
+    WrappedKey, unwrap_key, unwrap_key_with_policy, wrap_key, wrap_key_padded,
+};
 pub use self::segmented::{
     SegmentedContext, SegmentedDecryptor, SegmentedEncryptor, SegmentedLabels,
 };
@@ -396,6 +441,19 @@ mod tests {
         assert!(!constant_time_eq(b"hello", b"world"));
         assert!(!constant_time_eq(b"short", b"longer"));
         assert!(!constant_time_eq(b"a", b""));
+    }
+
+    #[test]
+    fn test_format_policy_accepts() {
+        assert_eq!(FormatPolicy::default(), FormatPolicy::RequireV2);
+        assert!(FormatPolicy::RequireV2.accepts(2));
+        assert!(!FormatPolicy::RequireV2.accepts(1));
+        assert!(FormatPolicy::AllowV1.accepts(1));
+        assert!(FormatPolicy::AllowV1.accepts(2));
+        for v in [0u8, 3, 0xff] {
+            assert!(!FormatPolicy::RequireV2.accepts(v));
+            assert!(!FormatPolicy::AllowV1.accepts(v));
+        }
     }
 
     #[test]
@@ -443,6 +501,10 @@ mod tests {
             "Padded key-wrap length out of range"
         );
         assert_eq!(format!("{}", AeadError::MalformedEncoding), "Malformed wrapped-key encoding");
+        assert_eq!(
+            format!("{}", AeadError::LegacyFormatRejected),
+            "Legacy format version 1 rejected by policy; format 2 is required"
+        );
 
         // `AeadError::WeakKey` Display — message includes both the diagnosis
         // ("likely uninitialised memory") and a remediation hint pointing

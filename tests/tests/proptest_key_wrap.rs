@@ -36,7 +36,7 @@ proptest! {
         let wrapped = wrap_key(&kek, &key, &context).unwrap();
         prop_assert_eq!(wrapped.len(), KEY_WRAP_OVERHEAD + key.len());
         let bytes = wrapped.to_bytes();
-        prop_assert_eq!(bytes[0], 1);
+        prop_assert_eq!(bytes[0], 2);
         let parsed = WrappedKey::from_bytes(&bytes).unwrap();
         prop_assert_eq!(parsed.to_bytes(), bytes);
         let unwrapped = unwrap_key(&kek, &parsed, &context).unwrap();

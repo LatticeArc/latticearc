@@ -2,10 +2,12 @@
 //!
 //! Roundtrip over random segment counts and sizes, then the failure
 //! properties: truncation, reordering, splicing from another stream (same key
-//! or different key), bit flips in the header or any segment, and wrong AAD.
+//! or different key), bit flips in the header or any segment, and wrong AAD
+//! (rejected at the header in format 2).
 
 #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::arithmetic_side_effects)]
 
+use latticearc::primitives::aead::FormatPolicy;
 use latticearc::primitives::aead::stream::{HEADER_LEN, StreamDecryptor, StreamEncryptor};
 use proptest::prelude::*;
 
@@ -197,9 +199,10 @@ proptest! {
         prop_assert!(dec.open_segment(idx, &bad, i + 1 == segments.len()).is_err());
     }
 
-    /// A different AAD derives a different segment key: every segment fails.
+    /// A different AAD is rejected by the format-2 commitment (CMT-4) before
+    /// any segment is read, under either format policy.
     #[test]
-    fn wrong_aad_fails(
+    fn wrong_aad_fails_at_header(
         key in key_strategy(),
         aad in aad_strategy(),
         other_aad in aad_strategy(),
@@ -207,13 +210,12 @@ proptest! {
         plaintext in prop::collection::vec(any::<u8>(), 0..1200),
     ) {
         prop_assume!(aad != other_aad);
-        let (header, segments) = seal_all(&key, &aad, segment_size, &plaintext);
-        let mut dec = StreamDecryptor::new(&key, &other_aad, &header).unwrap();
-        prop_assert!(open_all(&mut dec, &segments).is_err());
-        for (i, seg) in segments.iter().enumerate() {
-            let idx = u32::try_from(i).unwrap();
-            prop_assert!(dec.open_segment(idx, seg, i + 1 == segments.len()).is_err());
-        }
+        let (header, _segments) = seal_all(&key, &aad, segment_size, &plaintext);
+        prop_assert!(StreamDecryptor::new(&key, &other_aad, &header).is_err());
+        prop_assert!(
+            StreamDecryptor::new_with_policy(&key, &other_aad, &header, FormatPolicy::AllowV1)
+                .is_err()
+        );
     }
 
     /// A wrong key is rejected by the commitment before any segment is read.

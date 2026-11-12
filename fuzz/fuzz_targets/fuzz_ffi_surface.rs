@@ -17,8 +17,8 @@ use latticearc_ffi::{
     HybridSigPublicKey, HybridSigningKey, HybridSigningKeyParts, LatticeArcError,
     MlDsaParameterSet, MlDsaPublicKey, MlDsaSigningKey, MlKemSecurityLevel, PrehashAlgorithm,
     SecretBytes, StreamDecryptor, StreamEncryptor, argon2id, counter_kdf, decapsulate,
-    decrypt_hybrid, encapsulate, encrypt_hybrid, hkdf, memory_lock_status, unwrap_key, verify,
-    verify_prehashed, version, wrap_key, wrap_key_padded,
+    decrypt_hybrid, encapsulate, encrypt_hybrid, hkdf, memory_lock_status, unwrap_key,
+    unwrap_key_allowing_v1, verify, verify_prehashed, version, wrap_key, wrap_key_padded,
 };
 use libfuzzer_sys::fuzz_target;
 
@@ -106,6 +106,7 @@ fuzz_target!(|data: &[u8]| {
 
     // --- Key wrap: arbitrary bytes never unwrap; genuine records always do.
     let _ = unwrap_key(&key32, rest.to_vec(), context.clone());
+    let _ = unwrap_key_allowing_v1(&key32, rest.to_vec(), context.clone());
     let _ = wrap_key_padded(&key32, &short, context.clone(), u32::from(data[1]) * 16);
     if !context.is_empty() && rest.len() == 32 {
         let wrapped = wrap_key(&key32, &short, context.clone()).expect("wrap");
@@ -126,6 +127,7 @@ fuzz_target!(|data: &[u8]| {
 
     // --- Streaming AEAD: fuzzed headers and segments never open.
     let _ = StreamDecryptor::new(&key32, context.clone(), rest.to_vec());
+    let _ = StreamDecryptor::new_allowing_v1(&key32, context.clone(), rest.to_vec());
     if let Ok(enc) = StreamEncryptor::new(&key32, context.clone(), 64 + u32::from(sel) * 8) {
         assert!(!context.is_empty());
         let first_len = usize::try_from(enc.first_plaintext_segment_size()).unwrap();

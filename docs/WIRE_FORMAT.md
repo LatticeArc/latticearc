@@ -198,7 +198,9 @@ has exactly one encoding: `from_wire(x)` succeeding implies `to_wire()` returns
    v1 for at least one minor release, and by a CHANGELOG entry.
 5. **Reserved tags.** `0x06` is reserved for the `WrappedKey` encoding defined
    with `primitives::aead::key_wrap` in 0.13. That type's body begins with its
-   own version byte; the envelope rules above still apply. `0x00` is never
+   own version byte (`0x02` since 0.16.0, context-committing; `0x01` for the
+   legacy key-committing records of 0.13–0.15, read only under
+   `FormatPolicy::AllowV1`); the envelope rules above still apply. `0x00` is never
    assigned, so an all-zero record cannot decode.
 6. **Limits are part of the format.** Raising `MAX_SYMMETRIC_CIPHERTEXT_LEN` is
    a compatible change for decoders; lowering it is breaking.

@@ -4,15 +4,18 @@
 //! Fuzz testing for the streaming AEAD (`primitives::aead::stream`).
 //!
 //! Exercises three surfaces with attacker-controlled bytes:
-//! 1. `StreamDecryptor::new` on arbitrary header bytes under a fuzz-chosen key
-//!    and AAD must never panic and must reject anything but a genuine header.
+//! 1. `StreamDecryptor::new` / `new_with_policy` (both format policies) on
+//!    arbitrary header bytes under a fuzz-chosen key and AAD must never panic
+//!    and must reject anything but a genuine header.
 //! 2. `open_segment` / `open_next` on arbitrary segment bytes must never
 //!    panic and must reject anything but the genuine segment at its index.
 //! 3. A genuine encrypt/decrypt roundtrip with fuzz-chosen segment size, AAD
 //!    and plaintext must recover the plaintext.
 
+use latticearc::primitives::aead::FormatPolicy;
 use latticearc::primitives::aead::stream::{
-    HEADER_LEN, MAX_SEGMENT_SIZE, MIN_SEGMENT_SIZE, StreamDecryptor, StreamEncryptor,
+    HEADER_LEN, MAX_SEGMENT_SIZE, MIN_SEGMENT_SIZE, STREAM_FORMAT_VERSION, StreamDecryptor,
+    StreamEncryptor,
 };
 use libfuzzer_sys::fuzz_target;
 
@@ -37,6 +40,12 @@ fuzz_target!(|data: &[u8]| {
     // Surface 1: arbitrary header bytes.
     let _ = StreamDecryptor::new(&key, aad, rest);
     let _ = StreamDecryptor::new(&key, aad, &rest[..rest.len().min(HEADER_LEN)]);
+    let _ = StreamDecryptor::new_with_policy(
+        &key,
+        aad,
+        &rest[..rest.len().min(HEADER_LEN)],
+        FormatPolicy::AllowV1,
+    );
 
     if aad.is_empty() {
         assert!(StreamEncryptor::new(&key, aad, segment_size).is_err());
@@ -47,6 +56,7 @@ fuzz_target!(|data: &[u8]| {
     };
     let header = enc.header().to_vec();
     assert_eq!(header.len(), HEADER_LEN);
+    assert_eq!(header[0], STREAM_FORMAT_VERSION);
 
     // Surface 3: roundtrip over `rest`, split into Tink segments.
     let mut segments = Vec::new();
@@ -99,4 +109,18 @@ fuzz_target!(|data: &[u8]| {
     let mut bad_header = header.clone();
     bad_header[HEADER_LEN - 1] ^= 0x01;
     assert!(StreamDecryptor::new(&key, aad, &bad_header).is_err());
+
+    // CMT-4: a different AAD fails at construction under either policy, and
+    // relabelling the header as format 1 does not verify either.
+    let mut other_aad = aad.to_vec();
+    other_aad.push(0);
+    assert!(StreamDecryptor::new(&key, &other_aad, &header).is_err());
+    assert!(
+        StreamDecryptor::new_with_policy(&key, &other_aad, &header, FormatPolicy::AllowV1).is_err()
+    );
+    let mut relabelled = header.clone();
+    relabelled[0] = 1;
+    assert!(
+        StreamDecryptor::new_with_policy(&key, aad, &relabelled, FormatPolicy::AllowV1).is_err()
+    );
 });

@@ -445,7 +445,10 @@ pub use hybrid::sig_hybrid::{
     HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
     MAX_HYBRID_SIG_CONTEXT_LEN,
 };
-pub use primitives::aead::key_wrap::{WrappedKey, unwrap_key, wrap_key, wrap_key_padded};
+pub use primitives::aead::FormatPolicy;
+pub use primitives::aead::key_wrap::{
+    WrappedKey, unwrap_key, unwrap_key_with_policy, wrap_key, wrap_key_padded,
+};
 pub use primitives::aead::stream::{StreamDecryptor, StreamEncryptor};
 
 // Versioned binary wire format for hybrid public keys, ciphertexts and
