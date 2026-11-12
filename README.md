@@ -40,7 +40,7 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 
 ```toml
 [dependencies]
-latticearc = "0.15"
+latticearc = "0.16"
 ```
 
 **Hybrid encryption** — PQ + classical, both must fail for an attacker to succeed:

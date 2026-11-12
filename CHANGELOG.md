@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-12
+
 ### Security
 
 - **Streaming AEAD and key wrap now commit to the context (CMT-4).** The
