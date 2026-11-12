@@ -766,7 +766,9 @@ pub fn generate_keypair_from_seed(
     seed: &[u8; 32],
     parameter_set: MlDsaParameterSet,
 ) -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError> {
-    if seed.iter().all(|&b| b == 0) {
+    // Constant time in the seed bytes (fixed 32-byte length), like every
+    // other weak-key check in the crate.
+    if crate::primitives::ct::is_all_zero(seed) {
         return Err(HybridSignatureError::InvalidKeyMaterial(
             "seed must not be all zero".to_string(),
         ));
