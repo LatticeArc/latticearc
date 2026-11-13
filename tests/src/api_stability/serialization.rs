@@ -154,8 +154,7 @@ mod tests {
                 MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
             let bytes = sk.expose_secret().to_vec();
-            let restored =
-                MlKemSecretKey::new(level, bytes.clone()).expect("restoration should succeed");
+            let restored = MlKemSecretKey::new(level, bytes).expect("restoration should succeed");
 
             assert_eq!(
                 sk.expose_secret(),

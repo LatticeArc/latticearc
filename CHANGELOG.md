@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The development toolchain moves from Rust 1.99 to 1.100
+  (`rust-toolchain.toml`, the musl interoperability job and the mobile jobs).
+  The MSRV stays at 1.99 and the MSRV CI job keeps enforcing it.
+- `.cargo/config.toml` sets `registry.global-min-publish-age = "7 days"`, so
+  Cargo 1.100's resolver ignores crate versions published less than a week ago
+  unless they are already in `Cargo.lock`. Cargo 1.99 ignores the key with a
+  warning.
+- Cargo 1.100 moved test executables from `target/<profile>/deps/` to
+  `target/<profile>/build/<package>/<hash>/out/`; the pre-commit hook and the
+  Valgrind and profiling jobs that locate the `latticearc` test binary accept
+  both layouts.
+
 ## [0.16.0] - 2026-11-12
 
 ### Security

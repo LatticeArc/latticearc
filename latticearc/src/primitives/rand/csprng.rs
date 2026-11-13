@@ -162,7 +162,7 @@ mod tests {
         let mut seen = HashSet::new();
         for _ in 0..100 {
             let bytes = random_bytes(16);
-            assert!(seen.insert(bytes.clone()), "Generated duplicate random bytes");
+            assert!(seen.insert(bytes), "Generated duplicate random bytes");
         }
     }
 

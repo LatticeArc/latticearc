@@ -207,15 +207,10 @@ impl UtilityCavpTester {
 
         // Check hyphen positions
         let chars: Vec<char> = uuid_str.chars().collect();
-        if chars.get(8) != Some(&'-')
-            || chars.get(13) != Some(&'-')
-            || chars.get(18) != Some(&'-')
-            || chars.get(23) != Some(&'-')
-        {
-            return false;
-        }
-
-        true
+        chars.get(8) == Some(&'-')
+            && chars.get(13) == Some(&'-')
+            && chars.get(18) == Some(&'-')
+            && chars.get(23) == Some(&'-')
     }
 
     /// Test version constant.

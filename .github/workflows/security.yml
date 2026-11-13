@@ -117,7 +117,7 @@ jobs:
       env:
         RUST_MIN_STACK: 16777216
       run: |
-        TEST_BIN=$(find target/valgrind/deps -name 'latticearc-*' -type f -executable ! -name '*.d' | head -1)
+        TEST_BIN=$(find target/valgrind/build target/valgrind/deps -name 'latticearc-*' -type f -executable ! -name '*.d' 2>/dev/null | head -1)
         if [ -z "$TEST_BIN" ]; then
           echo "No test binary found"
           exit 1

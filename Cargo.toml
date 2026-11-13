@@ -15,7 +15,6 @@ edition = "2024"
 rust-version = "1.99"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
 license = "Apache-2.0"
-description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), and FIPS 140-3 backend — one crate. The latticearc library source forbids `unsafe`; cryptographic primitives are routed through audited dependencies (aws-lc-rs / RustCrypto) which carry their own unsafe FFI."
 readme = "README.md"
 homepage = "https://latticearc.com"
 documentation = "https://docs.rs/latticearc/latest/latticearc/"
@@ -285,8 +284,6 @@ hex = { version = "0.4.3" }
 # HTTP client - latest stable with rustls default (aligns with our TLS stack)
 # Note: rustls is now default in 0.13, "rustls-tls" renamed to "rustls"
 reqwest = { version = "0.13", features = ["json"] }
-# Async traits - latest stable
-async-trait = { version = "0.1.89" }
 # Zeroize for secure memory wiping - latest stable
 zeroize = { version = "1.8.2", features = ["derive"] }
 # Tracing for observability - latest stable
@@ -294,8 +291,6 @@ tracing = { version = "0.1.44", features = ["log"] }
 # Getrandom for entropy - latest stable (0.4 matches the error type produced
 # by `rand 0.10` / `rand_core 0.10` OS-RNG failures; see error conversions)
 getrandom = { version = "0.4" }
-# Array reference utilities - latest stable
-arrayref = { version = "0.3" }
 # Subtle constant-time operations - latest stable for crypto
 subtle = { version = "2.6.1" }
 # Cryptographic algorithms - latest stable versions
@@ -311,7 +306,6 @@ chacha20poly1305 = { version = "0.11.0", features = ["alloc"] }
 # workspace. Bump intentionally and re-run the trait-resolution sanity
 # tests when updating.
 sha2 = { version = "=0.11.1" }
-pbkdf2 = { version = "=0.13.0" }
 hmac = { version = "=0.13.0" }
 # Argon2id (RFC 9106) password KDF; raw-hash API only, no PHC string format.
 argon2 = { version = "=0.6.0", default-features = false, features = ["zeroize"] }
@@ -324,9 +318,7 @@ aes = { version = "=0.9.3" }
 # ML-KEM accumulated vectors are defined against, and 0.12 ships no in-crate
 # replacement. Revisit if upstream restores a XOF path.
 sha3 = { version = "=0.12.0" }
-ctr = { version = "=0.10.0" }
 hex-literal = { version = "1.1" }
-libfuzzer-sys = { version = "0.4.8" }
 # Elliptic curve cryptography — the EC 0.14 group and dalek 3.0, bumped as
 # one unit with the `rand` 0.9 -> 0.10 migration above (`elliptic-curve 0.14`
 # requires `rand_core ^0.10`, which is traits-only; OS entropy for EC keygen
@@ -382,8 +374,6 @@ fn-dsa = { version = "=0.4.0" }  # FN-DSA (FIPS 206) — unique implementation
 # Development and testing
 proptest = { version = "1.11" }
 criterion = { version = "0.8.2", features = ["html_reports"] }
-rayon = { version = "1.12" }
-test-case = { version = "3.0" }
 # `tempfile` is security-adjacent: it sets the perms (0o600 on Unix) on
 # the file holding key material during atomic-write operations
 # (`unified_api::atomic_write::AtomicWrite`). Pin with `=` per an earlier audit

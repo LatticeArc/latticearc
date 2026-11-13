@@ -119,7 +119,7 @@ jobs:
     - name: Run CPU profiling
       run: |
         # Find a test binary to profile (latticearc is a library, not a binary)
-        TEST_BIN=$(find target/release/deps -name 'latticearc-*' -type f -executable ! -name '*.d' | head -1)
+        TEST_BIN=$(find target/release/build target/release/deps -name 'latticearc-*' -type f -executable ! -name '*.d' 2>/dev/null | head -1)
         if [ -n "$TEST_BIN" ]; then
           echo "Profiling: $TEST_BIN"
           perf record --call-graph=dwarf "$TEST_BIN" --test || echo "Profiling completed"
@@ -168,7 +168,7 @@ jobs:
     - name: Run memory profiling
       run: |
         # Find a test binary to profile (latticearc is a library, not a binary)
-        TEST_BIN=$(find target/debug/deps -name 'latticearc-*' -type f -executable ! -name '*.d' | head -1)
+        TEST_BIN=$(find target/debug/build target/debug/deps -name 'latticearc-*' -type f -executable ! -name '*.d' 2>/dev/null | head -1)
         if [ -n "$TEST_BIN" ]; then
           echo "Memory profiling: $TEST_BIN"
           valgrind --tool=massif --massif-out-file=massif.out "$TEST_BIN" --test || echo "Memory profiling completed"

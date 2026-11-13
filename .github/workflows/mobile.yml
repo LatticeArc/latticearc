@@ -104,10 +104,10 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    - name: Install Rust 1.99 with iOS targets
+    - name: Install Rust 1.100 with iOS targets
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       with:
-        toolchain: '1.99'
+        toolchain: '1.100'
         targets: aarch64-apple-ios,aarch64-apple-ios-sim
 
     - name: Cache Cargo registry
@@ -182,10 +182,10 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    - name: Install Rust 1.99 with the iOS simulator target
+    - name: Install Rust 1.100 with the iOS simulator target
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       with:
-        toolchain: '1.99'
+        toolchain: '1.100'
         targets: aarch64-apple-ios-sim
 
     - name: Cache Cargo registry
@@ -235,10 +235,10 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    - name: Install Rust 1.99 with Android targets
+    - name: Install Rust 1.100 with Android targets
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       with:
-        toolchain: '1.99'
+        toolchain: '1.100'
         targets: aarch64-linux-android,x86_64-linux-android
 
     - name: Cache Cargo registry
@@ -317,10 +317,10 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    - name: Install Rust 1.99 with the Android x86_64 target
+    - name: Install Rust 1.100 with the Android x86_64 target
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       with:
-        toolchain: '1.99'
+        toolchain: '1.100'
         targets: x86_64-linux-android
 
     - name: Cache Cargo registry
@@ -399,10 +399,10 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    - name: Install Rust 1.99
+    - name: Install Rust 1.100
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       with:
-        toolchain: '1.99'
+        toolchain: '1.100'
 
     - name: Cache Cargo registry
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -431,10 +431,10 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    - name: Install Rust 1.99
+    - name: Install Rust 1.100
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       with:
-        toolchain: '1.99'
+        toolchain: '1.100'
 
     - name: Cache Cargo registry
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

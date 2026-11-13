@@ -490,16 +490,14 @@ pub fn init_with_config(config: &CoreConfig) -> Result<()> {
 /// collector must not be given.
 #[must_use]
 pub fn self_tests_passed() -> bool {
-    if !SELF_TESTS_PASSED.load(Ordering::SeqCst) {
-        return false;
-    }
     #[cfg(feature = "fips-self-test")]
     {
-        crate::primitives::self_test::is_module_operational()
+        SELF_TESTS_PASSED.load(Ordering::SeqCst)
+            && crate::primitives::self_test::is_module_operational()
     }
     #[cfg(not(feature = "fips-self-test"))]
     {
-        true
+        SELF_TESTS_PASSED.load(Ordering::SeqCst)
     }
 }
 

@@ -1573,7 +1573,7 @@ impl FileAuditStorage {
                     mismatch = Some(ChainMismatch {
                         file: file.clone(),
                         line: line_idx,
-                        event_id: event.id.clone(),
+                        event_id: event.id,
                         stored_hash: stored,
                         expected_hash: recomputed,
                     });
@@ -1628,8 +1628,8 @@ impl FileAuditStorage {
                             mismatch = Some(ChainMismatch {
                                 file: file.clone(),
                                 line: line_idx,
-                                event_id: event.id.clone(),
-                                stored_hash: stored.clone(),
+                                event_id: event.id,
+                                stored_hash: stored,
                                 expected_hash: format!(
                                     "expected chain-link from previous_file={prev_name:?} \
                                      previous_hash={prev_final_hash}"

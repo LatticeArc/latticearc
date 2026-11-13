@@ -778,7 +778,7 @@ mod cavp {
             if case.valid {
                 valid += 1;
                 // The same signature over a different message must fail.
-                let mut other = msg.clone();
+                let mut other = msg;
                 other[0] ^= 0x01;
                 assert_eq!(
                     verify_rsa_pkcs1_sha1(RsaPublicKeyEncoding::Pkcs1Der(&pkcs1), &other, &sig),

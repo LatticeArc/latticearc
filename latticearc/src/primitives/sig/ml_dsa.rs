@@ -1614,7 +1614,7 @@ mod tests {
             );
 
             // Test corrupted signature
-            let mut corrupted_sig = signature.clone();
+            let mut corrupted_sig = signature;
             corrupted_sig.data[0] ^= 0xFF;
             assert!(
                 !pk.verify(message, &corrupted_sig, context).expect("Verification should succeed")

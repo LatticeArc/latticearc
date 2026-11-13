@@ -312,7 +312,7 @@ jobs:
     - name: Install Rust and musl target
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       with:
-        toolchain: '1.99'
+        toolchain: '1.100'
         targets: ${{ matrix.target }}
 
     - name: Run detached interoperability fixtures

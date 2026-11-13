@@ -201,7 +201,7 @@ print_split_counts() {
     # used identically by `TEST_FAILED=$(... || true)` and friends below.
     local boundary_line
     boundary_line=$(printf '%s\n' "$output" \
-        | LC_ALL=C grep -an 'unittests src/lib\.rs (target/release/deps/latticearc-' \
+        | LC_ALL=C grep -aEn 'unittests src/lib\.rs \(target/release/(deps|build/latticearc/[0-9a-f]+/out)/latticearc-' \
         | sed -n '2p' | cut -d: -f1 || true)
     if [ -n "$boundary_line" ]; then
         local run1_passed
@@ -425,7 +425,7 @@ if ! BUILD_OUT=$(cargo build -p latticearc-cli --release 2>&1); then
 fi
 
 echo "Running CLI smoke tests..."
-CLI="$REPO_ROOT/target/release/latticearc-cli"
+CLI="${CARGO_TARGET_DIR:-$REPO_ROOT/target}/release/latticearc-cli"
 if [ ! -x "$CLI" ]; then
     echo "⚠️  CLI binary not found at $CLI (skipping smoke tests)"
     HOOK_OK=true
