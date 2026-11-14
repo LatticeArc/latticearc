@@ -264,17 +264,31 @@ jobs:
     # cargo-semver-checks can resolve from crates.io. Promote to
     # blocking once a baseline release lands. Tracked separately.
     continue-on-error: true
-    # The baseline is the newest latticearc release on crates.io, which is
-    # usually younger than the repository's 7-day registry cooldown
-    # (.cargo/config.toml, global-min-publish-age). The cooldown guards new
-    # third-party versions entering Cargo.lock; this job only resolves our
-    # own published baseline, so it may bypass the age check.
-    env:
-      CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE: allow
+    # The repository's 7-day registry cooldown (.cargo/config.toml,
+    # global-min-publish-age) stays fully enabled in this job: there is
+    # deliberately NO CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE override, because
+    # that variable would switch the age check off for every crate the job
+    # resolves, including third-party crates whose build scripts run here. A
+    # registry baseline ("the newest latticearc on crates.io") is refused for
+    # up to a week after each release ("version is too new"), so the baseline
+    # is built from the previous release's git tag instead: latticearc then
+    # enters the placeholder workspace as a path dependency (no registry age
+    # check), while every third-party crate is still resolved under the
+    # cooldown, exactly as for the current tree.
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         submodules: recursive
+        # Full history and tags, so the latest release tag can be resolved
+        # and read as the baseline revision.
+        fetch-depth: 0
+
+    - name: Find the previous release tag
+      id: baseline
+      run: |
+        tag="$(git describe --tags --abbrev=0 --match 'v*')"
+        echo "Baseline release tag: ${tag}"
+        echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
     - name: Install Rust (Edition 2024)
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
@@ -286,6 +300,9 @@ jobs:
       # owner — every other action in this file uses a 40-char SHA
       # with the tag in a trailing comment.
       uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
+      with:
+        # `baseline-rev` exists in the action's action.yml at this SHA.
+        baseline-rev: ${{ steps.baseline.outputs.tag }}
 
   # Execute the same independent wire-format fixtures natively on both musl architectures.
   detached-musl:
