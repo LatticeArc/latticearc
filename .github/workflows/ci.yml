@@ -264,6 +264,13 @@ jobs:
     # cargo-semver-checks can resolve from crates.io. Promote to
     # blocking once a baseline release lands. Tracked separately.
     continue-on-error: true
+    # The baseline is the newest latticearc release on crates.io, which is
+    # usually younger than the repository's 7-day registry cooldown
+    # (.cargo/config.toml, global-min-publish-age). The cooldown guards new
+    # third-party versions entering Cargo.lock; this job only resolves our
+    # own published baseline, so it may bypass the age check.
+    env:
+      CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE: allow
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
