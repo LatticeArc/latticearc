@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-13
+
 ### Changed
 
 - The development toolchain moves from Rust 1.99 to 1.100
@@ -22,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `target/<profile>/build/<package>/<hash>/out/`; the pre-commit hook and the
   Valgrind and profiling jobs that locate the `latticearc` test binary accept
   both layouts.
+- The SemVer CI job builds its baseline from the previous release's git tag
+  (`baseline-rev`) instead of resolving the newest `latticearc` release from
+  crates.io. The registry baseline was refused for a week after every release
+  ("version is too new") because of the 7-day cooldown; a git baseline enters
+  as a path dependency, so the cooldown stays enabled for every third-party
+  crate the job resolves.
+- Behaviour-preserving cleanups for the Rust 1.100 clippy lints (redundant
+  clones and boolean simplifications) and removal of seven unused
+  `[workspace.dependencies]` entries. No public API or behaviour change.
 
 ## [0.16.0] - 2026-11-12
 

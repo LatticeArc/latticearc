@@ -40,7 +40,7 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 
 ```toml
 [dependencies]
-latticearc = "0.16"
+latticearc = "0.17"
 ```
 
 **Hybrid encryption** — PQ + classical, both must fail for an attacker to succeed:
@@ -190,7 +190,7 @@ flowchart LR
 
 ### Algorithms & Backends
 
-Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-rs to its FIPS backend for the algorithms it covers. Module validation depends on the bundled AWS-LC version: the current 1.18+ line (LatticeArc 0.16 uses 1.19) bundles FIPS 4.x, whose certificate is in process; the earlier FIPS 3.x line holds issued certificates. See [FIPS Security Policy](docs/FIPS_SECURITY_POLICY.md). PQ signatures always use non-validated crates. LatticeArc itself is **not** a CMVP-certified module.
+Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-rs to its FIPS backend for the algorithms it covers. Module validation depends on the bundled AWS-LC version: the current 1.18+ line (LatticeArc 0.17 uses 1.19) bundles FIPS 4.x, whose certificate is in process; the earlier FIPS 3.x line holds issued certificates. See [FIPS Security Policy](docs/FIPS_SECURITY_POLICY.md). PQ signatures always use non-validated crates. LatticeArc itself is **not** a CMVP-certified module.
 
 | Category | Algorithms | Backend |
 |----------|-----------|---------|

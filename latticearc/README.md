@@ -12,7 +12,7 @@ Post-quantum cryptography for Rust. Implements all four NIST PQC standards (FIPS
 
 ```toml
 [dependencies]
-latticearc = "0.16"
+latticearc = "0.17"
 ```
 
 Requires Rust 1.99+ and a C/C++ compiler. For FIPS-validated routing also CMake + Go (`--features fips`).
@@ -58,7 +58,7 @@ latticearc-cli encrypt --use-case healthcare-records \
 | Classical | X25519, Ed25519, AES-256-GCM, SHA-2/3, BLAKE2, HKDF | aws-lc-rs / RustCrypto |
 | Password KDF | Argon2id (RFC 9106), PBKDF2 (SP 800-132) | RustCrypto `argon2` / aws-lc-rs HMAC |
 
-`--features fips` routes AES-GCM, ML-KEM, X25519, and HKDF through the aws-lc-rs FIPS backend. Module validation is version-dependent: the current 1.18+ line (LatticeArc 0.16 uses 1.19) bundles FIPS 4.x, whose certificate is in process; the earlier FIPS 3.x line holds issued certificates. See the repository's `docs/FIPS_SECURITY_POLICY.md`. SHA-2 stays on non-validated RustCrypto `sha2` in every build. PQ signatures use NIST-conformant but non-validated crates. LatticeArc itself is **not** a CMVP-certified cryptographic module.
+`--features fips` routes AES-GCM, ML-KEM, X25519, and HKDF through the aws-lc-rs FIPS backend. Module validation is version-dependent: the current 1.18+ line (LatticeArc 0.17 uses 1.19) bundles FIPS 4.x, whose certificate is in process; the earlier FIPS 3.x line holds issued certificates. See the repository's `docs/FIPS_SECURITY_POLICY.md`. SHA-2 stays on non-validated RustCrypto `sha2` in every build. PQ signatures use NIST-conformant but non-validated crates. LatticeArc itself is **not** a CMVP-certified cryptographic module.
 
 ## Security
 

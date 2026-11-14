@@ -1,7 +1,7 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.16.0
+**Module Version**: 0.17.0
 
 > CI gate `fips-policy-version` (`lint-extras.yml`) enforces that this
 > stamp matches `[workspace.package].version` in `Cargo.toml` exactly.
@@ -30,7 +30,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.16.0 |
+| Module Version | 0.17.0 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.99) |
@@ -322,6 +322,7 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.17.0 | 2026-11-13 | **No change to the power-up self-tests; no new algorithm; no change to any cryptographic algorithm or its behaviour.** Behaviour-preserving lint cleanups for Rust 1.100 (redundant clones, boolean simplifications). Development toolchain moves to Rust 1.100 (MSRV unchanged at 1.99) and the repository adopts a 7-day registry cooldown for newly resolved dependencies. |
 | 0.16.0 | 2026-11-12 | **No change to the power-up self-tests; no new algorithm.** The streaming AEAD and the committing key wrap gain a format 2 whose HMAC-SHA256 commitment also covers SHA-256 of the caller's context (CMT-4), composed from the approved HMAC-SHA256, SHA-256, HKDF-SHA256 and AES-256-GCM already inside the boundary; format 1 stays decodable on request. Hybrid KEM and signature public keys gain level-pinned wire decoding. |
 | 0.15.1 | 2026-10-29 | **No change to the power-up self-tests; no new algorithm.** The incremental SHA-256/SHA-512 hashers no longer refuse inputs whose total exceeds 1 GB; the one-shot hash input limits are unchanged. |
 | 0.15.0 | 2026-10-28 | **No change to the power-up self-tests; no new algorithm.** Adds a segmented AEAD (`primitives::aead::segmented`) composed from the existing AES-256-GCM and HKDF-SHA256 primitives, constant-time equality helpers (`primitives::ct`), incremental SHA-256/SHA-512 hashers, and a fallible RNG fill that returns an error instead of panicking when the OS entropy source fails. |
