@@ -10,7 +10,7 @@
 <a href=#10 id=10 data-nosnippet>10</a>};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::unified_api::error::{CoreError, <span class="prelude-ty">Result</span>};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::unified_api::serialization::decode_b64_opaque;
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>chrono::{DateTime, Utc};
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>std::time::SystemTime;
 <a href=#14 id=14 data-nosnippet>14</a>
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">impl </span>PortableKey {
 <a href=#16 id=16 data-nosnippet>16</a>    <span class="comment">// --- Validation ---
@@ -171,7 +171,7 @@
 <a href=#171 id=171 data-nosnippet>171</a>    ///
 <a href=#172 id=172 data-nosnippet>172</a>    /// `now` is passed explicitly so the call is testable without freezing
 <a href=#173 id=173 data-nosnippet>173</a>    /// the system clock and so determinism is preserved on the verify
-<a href=#174 id=174 data-nosnippet>174</a>    /// path. Pass `chrono::Utc::now()` from production callers.
+<a href=#174 id=174 data-nosnippet>174</a>    /// path. Pass `SystemTime::now()` from production callers.
 <a href=#175 id=175 data-nosnippet>175</a>    ///
 <a href=#176 id=176 data-nosnippet>176</a>    /// # Errors
 <a href=#177 id=177 data-nosnippet>177</a>    ///
@@ -180,7 +180,7 @@
 <a href=#180 id=180 data-nosnippet>180</a>    /// The "expired" error is intentionally opaque: an attacker who can
 <a href=#181 id=181 data-nosnippet>181</a>    /// see the error variant could otherwise binary-search the `not_after`
 <a href=#182 id=182 data-nosnippet>182</a>    /// timestamp off-line via repeated calls with different `now` values.
-<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="kw">pub fn </span>validate_with_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>, now: DateTime&lt;Utc&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="kw">pub fn </span>validate_with_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>, now: SystemTime) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
 <a href=#184 id=184 data-nosnippet>184</a>        <span class="self">self</span>.validate()<span class="question-mark">?</span>;
 <a href=#185 id=185 data-nosnippet>185</a>        <span class="kw">if </span><span class="self">self</span>.is_expired_at(now) {
 <a href=#186 id=186 data-nosnippet>186</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::InvalidKey(<span class="string">"key has expired"</span>.to_string()));
@@ -193,8 +193,8 @@
 <a href=#193 id=193 data-nosnippet>193</a>    /// `to_hybrid_secret_key`, `to_hybrid_sig_public_key`,
 <a href=#194 id=194 data-nosnippet>194</a>    /// `to_hybrid_sig_secret_key`) through the expiry gate before the
 <a href=#195 id=195 data-nosnippet>195</a>    /// returned typed key escapes into a sign / encrypt / agree path. Reads
-<a href=#196 id=196 data-nosnippet>196</a>    /// `Utc::now()` once at call time so the gate can't be bypassed by a
-<a href=#197 id=197 data-nosnippet>197</a>    /// caller that holds a stale `DateTime&lt;Utc&gt;`.
+<a href=#196 id=196 data-nosnippet>196</a>    /// `SystemTime::now()` once at call time so the gate can't be bypassed
+<a href=#197 id=197 data-nosnippet>197</a>    /// by a caller that holds a stale `SystemTime`.
 <a href=#198 id=198 data-nosnippet>198</a>    ///
 <a href=#199 id=199 data-nosnippet>199</a>    /// The expiry-aware gate is intentionally NOT folded into
 <a href=#200 id=200 data-nosnippet>200</a>    /// [`validate`](Self::validate): a tool inspecting an expired key for
@@ -210,7 +210,7 @@
 <a href=#210 id=210 data-nosnippet>210</a>    /// `CoreError::InvalidKey("key has expired")` if `not_after` is at or
 <a href=#211 id=211 data-nosnippet>211</a>    /// before the current wall clock.
 <a href=#212 id=212 data-nosnippet>212</a>    </span><span class="kw">pub fn </span>validate_with_expiry_now(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#213 id=213 data-nosnippet>213</a>        <span class="self">self</span>.validate_with_expiry(Utc::now())
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="self">self</span>.validate_with_expiry(SystemTime::now())
 <a href=#214 id=214 data-nosnippet>214</a>    }
 <a href=#215 id=215 data-nosnippet>215</a>
 <a href=#216 id=216 data-nosnippet>216</a>    <span class="doccomment">/// Validate an encrypted-envelope's metadata and base64-decodable sizes.

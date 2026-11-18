@@ -4,8 +4,8 @@
 <a href=#4 id=4 data-nosnippet>4</a>//! and cryptographic context. All types are pure Rust with zero FFI dependencies.
 <a href=#5 id=5 data-nosnippet>5</a>
 <a href=#6 id=6 data-nosnippet>6</a></span><span class="kw">use </span>std::fmt;
-<a href=#7 id=7 data-nosnippet>7</a>
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>chrono::{DateTime, Utc};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>std::time::SystemTime;
+<a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>subtle::{Choice, ConstantTimeEq};
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::types::secrets::SecretVec;
@@ -800,13 +800,13 @@
 <a href=#800 id=800 data-nosnippet>800</a>    <span class="doccomment">/// Timestamp when the context was created.
 <a href=#801 id=801 data-nosnippet>801</a>    ///
 <a href=#802 id=802 data-nosnippet>802</a>    /// Consumer: `unified_api::audit::AuditEvent` — operation timestamping
-<a href=#803 id=803 data-nosnippet>803</a>    </span><span class="kw">pub </span>timestamp: DateTime&lt;Utc&gt;,
+<a href=#803 id=803 data-nosnippet>803</a>    </span><span class="kw">pub </span>timestamp: SystemTime,
 <a href=#804 id=804 data-nosnippet>804</a>}
 <a href=#805 id=805 data-nosnippet>805</a>
 <a href=#806 id=806 data-nosnippet>806</a><span class="kw">impl </span>CryptoContext {
 <a href=#807 id=807 data-nosnippet>807</a>    <span class="doccomment">/// Constructor for external callers; required because the type is
 <a href=#808 id=808 data-nosnippet>808</a>    /// `#[non_exhaustive]`. Sets `hardware_acceleration = true` and
-<a href=#809 id=809 data-nosnippet>809</a>    /// `timestamp = Utc::now()`; use `with_*` methods to override.
+<a href=#809 id=809 data-nosnippet>809</a>    /// `timestamp = SystemTime::now()`; use `with_*` methods to override.
 <a href=#810 id=810 data-nosnippet>810</a>    </span><span class="attr">#[must_use]
 <a href=#811 id=811 data-nosnippet>811</a>    </span><span class="kw">pub fn </span>new(
 <a href=#812 id=812 data-nosnippet>812</a>        security_level: SecurityLevel,
@@ -818,13 +818,13 @@
 <a href=#818 id=818 data-nosnippet>818</a>            performance_preference,
 <a href=#819 id=819 data-nosnippet>819</a>            use_case,
 <a href=#820 id=820 data-nosnippet>820</a>            hardware_acceleration: <span class="bool-val">true</span>,
-<a href=#821 id=821 data-nosnippet>821</a>            timestamp: Utc::now(),
+<a href=#821 id=821 data-nosnippet>821</a>            timestamp: SystemTime::now(),
 <a href=#822 id=822 data-nosnippet>822</a>        }
 <a href=#823 id=823 data-nosnippet>823</a>    }
 <a href=#824 id=824 data-nosnippet>824</a>
 <a href=#825 id=825 data-nosnippet>825</a>    <span class="doccomment">/// Override the timestamp (mainly for replay-test reproducibility).
 <a href=#826 id=826 data-nosnippet>826</a>    </span><span class="attr">#[must_use]
-<a href=#827 id=827 data-nosnippet>827</a>    </span><span class="kw">pub fn </span>with_timestamp(<span class="kw-2">mut </span><span class="self">self</span>, timestamp: DateTime&lt;Utc&gt;) -&gt; <span class="self">Self </span>{
+<a href=#827 id=827 data-nosnippet>827</a>    </span><span class="kw">pub fn </span>with_timestamp(<span class="kw-2">mut </span><span class="self">self</span>, timestamp: SystemTime) -&gt; <span class="self">Self </span>{
 <a href=#828 id=828 data-nosnippet>828</a>        <span class="self">self</span>.timestamp = timestamp;
 <a href=#829 id=829 data-nosnippet>829</a>        <span class="self">self
 <a href=#830 id=830 data-nosnippet>830</a>    </span>}
