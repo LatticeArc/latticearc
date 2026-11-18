@@ -38,7 +38,7 @@ Source: [`latticearc/src/unified_api/audit.rs`](../latticearc/src/unified_api/au
 |-----|----------|--------|
 | Adding metadata to an `AuditEvent` | `AuditEvent::with_metadata(k, v)` or `AuditEventBuilder::metadata(k, v)` (which routes through `with_metadata`) | Enforces `MAX_METADATA_ENTRIES`, `MAX_METADATA_KEY_LEN`, `MAX_METADATA_VALUE_LEN`. Bypassing these via raw `HashMap::insert` is a DoS-amplification path. |
 | Creating an audit-log file | `OpenOptions::new().create(true).append(true).mode(0o600).open(...)` on Unix | Audit logs may contain operation context (key IDs, paths, actors). World-readable audit logs leak metadata to other users on the host. |
-| Computing the integrity hash of an event | `compute_integrity_hash(event, previous_hash)` with the length-prefixed format via `append_lenp_field` | Prefix-collision attacks (`"ab"+"c"` vs `"a"+"bc"`) become impossible — do not re-introduce undelimited concatenation. |
+| Computing the integrity hash of an event | `encode_line` (format 2): `compute_integrity_hash_v2(previous_hash, event_json)` over the exact stored event bytes, domain-separated and length-prefixed via `append_lenp_field`. `compute_integrity_hash_v1` exists only to verify lines written before format 2 | Verification must hash the stored bytes, never a re-encoding of parsed fields; length prefixes keep `"ab"+"c"` and `"a"+"bc"` distinct. |
 
 ### NEVER USE
 
@@ -109,7 +109,7 @@ Source: [`latticearc/src/unified_api/zero_trust.rs`](../latticearc/src/unified_a
 | Anti-pattern | Alternative |
 |--------------|-------------|
 | Calling `auth.verify_response(proof)` on a challenge that hasn't been age-checked | Always pair with `verify_challenge_age` first |
-| Constructing a `Challenge` directly with arbitrary `timestamp` for non-test code | Use `auth.create_challenge()` so timestamp is `SystemTime::now()` |
+| Constructing a `Challenge` directly with arbitrary `timestamp` for non-test code | Use `auth.create_challenge()` so timestamp is `Timestamp::now()` |
 
 ---
 

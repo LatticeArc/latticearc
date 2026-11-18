@@ -16,8 +16,8 @@
 
 use super::portable_key_core::{resolve_security_level_algorithm, resolve_use_case_algorithm};
 use super::*;
+use crate::types::timestamp::Timestamp;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
-use std::time::SystemTime;
 use subtle::ConstantTimeEq;
 
 // --- File I/O ---
@@ -851,7 +851,7 @@ fn test_all_security_levels_resolve_to_algorithm_is_correct() {
 
 // --- ConstantTimeEq regression tests (#49) ---
 
-fn ct_fixture_ts() -> SystemTime {
+fn ct_fixture_ts() -> Timestamp {
     rfc3339("2026-01-01T00:00:00Z")
 }
 
@@ -859,7 +859,7 @@ fn ct_fixture_key(
     algorithm: KeyAlgorithm,
     key_type: KeyType,
     raw: u8,
-    ts: SystemTime,
+    ts: Timestamp,
 ) -> PortableKey {
     PortableKey::with_created(algorithm, key_type, KeyData::from_raw(&[raw; 32]), ts)
 }
@@ -966,6 +966,6 @@ fn test_key_data_ct_eq_encrypted_different_envelope_params_returns_not_equal() {
 }
 
 /// Parse a fixed RFC 3339 test instant.
-fn rfc3339(text: &str) -> SystemTime {
-    crate::types::timestamp::parse_rfc3339(text).expect("valid RFC 3339 test instant")
+fn rfc3339(text: &str) -> Timestamp {
+    text.parse().expect("valid RFC 3339 test instant")
 }

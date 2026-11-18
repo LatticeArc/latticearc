@@ -274,7 +274,7 @@ rand_core_0_6 = { package = "rand_core", version = "0.6", features = ["getrandom
 thiserror = { version = "2.0.18" }
 anyhow = { version = "1.0.102" }
 # Calendar fields and RFC 3339 parsing behind `latticearc::types::timestamp`.
-# The public API exposes `std::time::SystemTime`, never a `time` type.
+# The public API exposes `latticearc::Timestamp`, never a `time` type.
 time = { version = "0.3.55", default-features = false, features = ["std", "large-dates"] }
 # UUID generation - latest stable
 uuid = { version = "1.23.1", features = ["v4", "serde"] }

@@ -18,10 +18,11 @@
 )]
 
 use super::*;
+use crate::types::timestamp::Timestamp;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 // ------------------------------------------------------------------
 // Passphrase-encrypted key roundtrip
@@ -558,7 +559,7 @@ fn test_secp256k1_keyalgorithm_classification_returns_classical() {
 fn test_expired_key_rejected_by_every_single_algorithm_extractor_fails() {
     use crate::types::types::UseCase;
 
-    let past = SystemTime::now() - Duration::from_secs(3_600);
+    let past = Timestamp::now().checked_sub(Duration::from_secs(3_600)).unwrap();
     let expire = |mut k: PortableKey| {
         k.set_not_after(Some(past));
         k
@@ -623,7 +624,7 @@ fn test_expired_key_rejected_by_every_single_algorithm_extractor_fails() {
 fn test_unexpired_key_still_extracts_through_every_extractor_succeeds() {
     use crate::types::types::UseCase;
 
-    let future = SystemTime::now() + Duration::from_secs(3_600);
+    let future = Timestamp::now().checked_add(Duration::from_secs(3_600)).unwrap();
 
     use crate::primitives::ec::traits::EcKeyPair as _;
     let ed_kp = crate::primitives::ec::ed25519::Ed25519KeyPair::generate().expect("ed25519 keygen");
@@ -683,19 +684,19 @@ fn test_not_after_default_is_none() {
 fn test_not_after_set_and_query() {
     let mut key =
         PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
-    let future = SystemTime::now() + Duration::from_secs(3_600);
-    let past = SystemTime::now() - Duration::from_secs(3_600);
+    let future = Timestamp::now().checked_add(Duration::from_secs(3_600)).unwrap();
+    let past = Timestamp::now().checked_sub(Duration::from_secs(3_600)).unwrap();
 
     key.set_not_after(Some(future));
     assert_eq!(key.not_after(), Some(future));
-    assert!(!key.is_expired_at(SystemTime::now()));
+    assert!(!key.is_expired_at(Timestamp::now()));
 
     key.set_not_after(Some(past));
-    assert!(key.is_expired_at(SystemTime::now()));
+    assert!(key.is_expired_at(Timestamp::now()));
 
     key.set_not_after(None);
     assert!(key.not_after().is_none());
-    assert!(!key.is_expired_at(SystemTime::now()));
+    assert!(!key.is_expired_at(Timestamp::now()));
 }
 
 #[test]
@@ -740,7 +741,7 @@ fn test_not_after_cbor_roundtrip() {
 fn test_clone_for_transmission_preserves_not_after() {
     let mut key =
         PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
-    let expiry = SystemTime::now() + Duration::from_secs(30 * 86_400);
+    let expiry = Timestamp::now().checked_add(Duration::from_secs(30 * 86_400)).unwrap();
     key.set_not_after(Some(expiry));
 
     let cloned = key.clone_for_transmission();
@@ -754,7 +755,7 @@ fn test_ct_eq_distinguishes_not_after() {
         PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
     let mut b = a.clone_for_transmission();
 
-    let expiry = SystemTime::now() + Duration::from_secs(30 * 86_400);
+    let expiry = Timestamp::now().checked_add(Duration::from_secs(30 * 86_400)).unwrap();
     a.set_not_after(Some(expiry));
     // b still has not_after = None; ct_eq must report inequality.
     assert!(!bool::from(a.ct_eq(&b)));
@@ -977,7 +978,7 @@ fn test_validate_bad_base64_fails() {
         algorithm: KeyAlgorithm::Aes256,
         key_type: KeyType::Symmetric,
         key_data: KeyData::Single { raw: "not-valid-base64!!!".to_string() },
-        created: SystemTime::now(),
+        created: Timestamp::now(),
         metadata: BTreeMap::new(),
         not_after: None,
     };
@@ -1032,6 +1033,6 @@ fn test_metadata_omitted_when_empty_in_json_succeeds() {
 }
 
 /// Parse a fixed RFC 3339 test instant.
-fn rfc3339(text: &str) -> SystemTime {
-    crate::types::timestamp::parse_rfc3339(text).expect("valid RFC 3339 test instant")
+fn rfc3339(text: &str) -> Timestamp {
+    text.parse().expect("valid RFC 3339 test instant")
 }

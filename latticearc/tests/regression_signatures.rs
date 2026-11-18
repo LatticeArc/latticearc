@@ -732,11 +732,12 @@ fn m3_pq_only_aad_mismatch_rejected() {
 /// helper.
 #[test]
 fn m4_validate_with_expiry_rejects_expired_key() {
+    use latticearc::Timestamp;
     use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
 
-    let now = SystemTime::now();
-    let past = now - Duration::from_secs(3_600);
+    let now = Timestamp::now();
+    let past = now.checked_sub(Duration::from_secs(3_600)).expect("in range");
     let mut key =
         PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
     key.set_not_after(Some(past));
@@ -753,11 +754,12 @@ fn m4_validate_with_expiry_rejects_expired_key() {
 
 #[test]
 fn m4_validate_with_expiry_accepts_unexpired_key() {
+    use latticearc::Timestamp;
     use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
 
-    let now = SystemTime::now();
-    let future = now + Duration::from_secs(3_600);
+    let now = Timestamp::now();
+    let future = now.checked_add(Duration::from_secs(3_600)).expect("in range");
     let mut key =
         PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
     key.set_not_after(Some(future));
@@ -769,14 +771,14 @@ fn m4_validate_with_expiry_accepts_unexpired_key() {
 
 #[test]
 fn m4_validate_with_expiry_accepts_key_without_not_after() {
+    use latticearc::Timestamp;
     use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
-    use std::time::SystemTime;
 
     // Keys without an explicit expiry must pass (legacy + most production keys).
     let key =
         PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
     assert!(
-        key.validate_with_expiry(SystemTime::now()).is_ok(),
+        key.validate_with_expiry(Timestamp::now()).is_ok(),
         "validate_with_expiry must accept keys with no not_after set"
     );
 }
@@ -1037,11 +1039,9 @@ fn m_a_pop_signature_not_a_valid_pure_ed25519_envelope() {
     // over the canonical PoP message text. Under correct scheme binding
     // the pure-Ed25519 verify path digests with SIG_CONTEXT_ED25519, not
     // SIG_CONTEXT_POP_ED25519, so verification must fail.
-    let ts_micros = pop
-        .timestamp()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("PoP timestamp after 1970")
-        .as_micros();
+    let ts = pop.timestamp();
+    let ts_micros =
+        i128::from(ts.unix_seconds()) * 1_000_000 + i128::from(ts.subsec_nanos() / 1_000);
     let pop_message = format!("proof-of-possession-{ts_micros}");
     let envelope = SignedData::new(
         pop_message.as_bytes().to_vec(),
@@ -1097,17 +1097,18 @@ fn m_a_pop_round_trips_post_fix() {
 #[test]
 fn m_b_to_hybrid_sig_public_key_rejects_expired() {
     use latticearc::SecurityMode;
+    use latticearc::Timestamp;
     use latticearc::generate_hybrid_signing_keypair;
     use latticearc::types::types::UseCase;
     use latticearc::unified_api::key_format::PortableKey;
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
 
     let (pk, sk) =
         generate_hybrid_signing_keypair(SecurityMode::Unverified).expect("hybrid signing keygen");
     let (mut pk_portable, _sk_portable) =
         PortableKey::from_hybrid_sig_keypair(UseCase::ApiSecurity, &pk, &sk)
             .expect("portable conversion");
-    let past = SystemTime::now() - Duration::from_secs(3_600);
+    let past = Timestamp::now().checked_sub(Duration::from_secs(3_600)).expect("in range");
     pk_portable.set_not_after(Some(past));
 
     let result = pk_portable.to_hybrid_sig_public_key();
@@ -1126,17 +1127,18 @@ fn m_b_to_hybrid_sig_public_key_rejects_expired() {
 #[test]
 fn m_b_to_hybrid_sig_secret_key_rejects_expired() {
     use latticearc::SecurityMode;
+    use latticearc::Timestamp;
     use latticearc::generate_hybrid_signing_keypair;
     use latticearc::types::types::UseCase;
     use latticearc::unified_api::key_format::PortableKey;
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
 
     let (pk, sk) =
         generate_hybrid_signing_keypair(SecurityMode::Unverified).expect("hybrid signing keygen");
     let (_pk_portable, mut sk_portable) =
         PortableKey::from_hybrid_sig_keypair(UseCase::ApiSecurity, &pk, &sk)
             .expect("portable conversion");
-    let past = SystemTime::now() - Duration::from_secs(3_600);
+    let past = Timestamp::now().checked_sub(Duration::from_secs(3_600)).expect("in range");
     sk_portable.set_not_after(Some(past));
 
     let result = sk_portable.to_hybrid_sig_secret_key();

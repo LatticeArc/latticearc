@@ -13,6 +13,17 @@
 //!   genesis anchor *and* write access to the log can recompute a
 //!   self-consistent chain. Tamper-evidence therefore rests on the genesis
 //!   anchor's `0o600` confidentiality, not on a secret key.
+//! - **Exact-bytes hashing**: each line is
+//!   `{"v":2,"event":{...},"integrity_hash":"<hex>"}` and the hash is
+//!   `SHA-256("latticearc-audit-event-v2" || len‖previous_hash || len‖event)`
+//!   over the `event` bytes exactly as stored, so verification never
+//!   re-encodes anything and gives the same answer on every platform.
+//!   Lines written before format 2 (no `"v"` key) still verify through the
+//!   field transcript they were hashed with; once a chain contains a
+//!   format-2 line, a later format-1 line is rejected.
+//! - **Restart continuity**: a new `FileAuditStorage` resumes from the last
+//!   stored hash and starts its first file with a chain-link anchor to the
+//!   previous file, so the chain verifies across process restarts.
 //! - **Automatic Rotation**: Files rotate based on size and age limits
 //! - **Retention Policies**: Configurable retention periods for compliance
 //! - **Thread-Safe**: All operations are safe for concurrent access
@@ -57,10 +68,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::SystemTime;
-
-use crate::types::timestamp::{self, UtcSuffix};
 use std::time::Duration;
+
+use crate::types::timestamp::{Timestamp, UtcSuffix};
 
 use crate::unified_api::error::{CoreError, Result};
 
@@ -92,10 +102,9 @@ pub struct AuditEvent {
     // would amplify the chain-payload size unboundedly.
     id: String,
     // Timestamp when the event occurred.
-    // Private — set internally by `new` via `SystemTime::now()`. Mutation
+    // Private — set internally by `new` via `Timestamp::now()`. Mutation
     // enables backdating after the chain hash has bound the value.
-    #[serde(with = "crate::types::timestamp::serde_rfc3339")]
-    timestamp: SystemTime,
+    timestamp: Timestamp,
     // Category of the audit event.
     // Private — set internally by `new`. Mutation flips event
     // semantics post-chain-hash.
@@ -119,8 +128,10 @@ pub struct AuditEvent {
     metadata: HashMap<String, String>,
     // SHA-256 hash for tamper detection (includes previous event hash).
     // Private — set internally by `FileAuditStorage::write_event_to_file`
-    // after `compute_integrity_hash`. External assignment would
-    // invalidate the on-disk chain.
+    // after the chain hash is computed. External assignment would
+    // invalidate the on-disk chain. Omitted from the JSON while empty:
+    // the format-2 line stores it beside the event bytes it covers.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     integrity_hash: String,
 }
 
@@ -146,7 +157,7 @@ impl AuditEvent {
         let action = sanitize_action_field(action.to_string());
         Self {
             id: generate_uuid(),
-            timestamp: SystemTime::now(),
+            timestamp: Timestamp::now(),
             event_type,
             actor: None,
             resource: None,
@@ -242,7 +253,7 @@ impl AuditEvent {
 
     /// Get the event timestamp.
     #[must_use]
-    pub fn timestamp(&self) -> SystemTime {
+    pub fn timestamp(&self) -> Timestamp {
         self.timestamp
     }
 
@@ -561,7 +572,7 @@ impl AuditConfig {
 /// `mtime`, which a privileged attacker can rewrite with `touch`.
 /// Anything that is not exactly one of the two fixed-width shapes is
 /// rejected, so the sweep skips (never deletes) foreign files.
-fn parse_audit_filename_timestamp(file_name: &str) -> Option<SystemTime> {
+fn parse_audit_filename_timestamp(file_name: &str) -> Option<Timestamp> {
     let stem = file_name.strip_prefix("audit-")?.strip_suffix(".jsonl")?;
     // `YYYY-MM-DDTHH-MM-SS` is 19 bytes; the current form appends
     // `-NNNNNN` (exactly six digits of microseconds).
@@ -591,7 +602,7 @@ fn parse_audit_filename_timestamp(file_name: &str) -> Option<SystemTime> {
         date_time.get(14..16)?,
         date_time.get(17..)?
     );
-    timestamp::parse_rfc3339(&rfc3339)
+    rfc3339.parse::<Timestamp>().ok()
 }
 
 /// Trait for audit storage implementations.
@@ -636,7 +647,7 @@ struct FileState {
     /// Size of the current file in bytes.
     current_size: u64,
     /// Timestamp when the current file was created.
-    created_at: SystemTime,
+    created_at: Timestamp,
 }
 
 /// Result of [`FileAuditStorage::verify_chain`].
@@ -649,6 +660,15 @@ pub struct ChainVerificationReport {
     /// `Some(_)` when the first divergence was found; `None` when the
     /// chain verifies end-to-end.
     pub mismatch: Option<ChainMismatch>,
+    /// Hash of the last verified event (the genesis anchor if there are
+    /// none). Record it externally to detect later tail truncation.
+    pub tail_hash: String,
+    /// `Some(file)` when the oldest remaining file starts with a chain-link
+    /// anchor to `file`, which no longer exists — normally removed by the
+    /// retention policy. Verification then starts from the hash that
+    /// anchor records instead of from genesis; compare `file`'s timestamp
+    /// with the retention window to tell retention from deletion.
+    pub retention_boundary: Option<String>,
 }
 
 impl ChainVerificationReport {
@@ -686,6 +706,11 @@ pub struct FileAuditStorage {
     file_state: Mutex<Option<FileState>>,
     /// Hash of the previous event for chain integrity.
     previous_hash: RwLock<String>,
+    /// Basename of the file the next new audit file must link back to
+    /// with a chain-link anchor: the outgoing file on rotation, or the
+    /// previous run's newest file after a restart. Cleared only once that
+    /// anchor is written, so a failed create or write retries the link.
+    pending_link: Mutex<Option<String>>,
 }
 
 /// Filename for the per-storage genesis anchor.
@@ -695,10 +720,15 @@ pub struct FileAuditStorage {
 /// random nonce, and the creation timestamp, and is persisted alongside
 /// the audit log so that:
 ///
-///   * a truncate-only attack (delete log entries, leave genesis intact)
-///     is detectable: the next event chains from `genesis`, not from the
-///     deleted entry's hash, and any verifier replaying the chain spots
-///     the gap.
+///   * entries cannot be removed from the start or middle of the chain
+///     without breaking it: every event's hash covers its predecessor's,
+///     back to `genesis`.
+///   * removing entries from the *end* (or whole newest files) leaves a
+///     shorter chain that still verifies — an unkeyed hash chain cannot
+///     detect tail truncation on its own. Pin the chain head externally:
+///     [`ChainVerificationReport::tail_hash`] and the startup log line
+///     emitted when a chain is resumed give the value to record in an
+///     append-only store.
 ///   * an attacker who deletes both the log and the genesis to fabricate
 ///     a "fresh storage" ends up with a different genesis on the next
 ///     create — an external pinning store (HSM, write-once log) can spot
@@ -734,6 +764,53 @@ pub(crate) const CHAIN_ANCHOR_PREV_FILE_KEY: &str = "previous_file";
 /// `pub(crate)` for the same reason as [`CHAIN_ANCHOR_ACTION`].
 pub(crate) const CHAIN_ANCHOR_PREV_HASH_KEY: &str = "previous_hash";
 
+/// Domain-separation label of the format-2 event hash.
+const AUDIT_EVENT_DOMAIN_V2: &[u8] = b"latticearc-audit-event-v2";
+
+/// `"v"` value of a format-2 audit line.
+const AUDIT_LINE_FORMAT_V2: u8 = 2;
+
+/// Defense-in-depth cap on a persisted JSONL line. A line is at worst the
+/// product of the in-memory caps (action 256 B + actor 256 B + resource
+/// 1 KiB + 32 metadata × 4 KiB ≈ 130 KiB) plus JSON overhead; 1 MiB is
+/// generously above that and small enough to defeat a tampered file
+/// dropping a 1 GiB string in front of the verifier.
+const MAX_AUDIT_LINE_LEN: usize = 1024 * 1024;
+
+/// A format-2 line as written: the event's JSON is embedded verbatim and
+/// the hash covers exactly those bytes.
+#[derive(Serialize)]
+struct AuditLineOut<'a> {
+    v: u8,
+    event: &'a serde_json::value::RawValue,
+    integrity_hash: &'a str,
+}
+
+/// A format-2 line as read: `event` borrows the stored bytes unchanged.
+#[derive(Deserialize)]
+struct AuditLineIn<'a> {
+    v: u8,
+    #[serde(borrow)]
+    event: &'a serde_json::value::RawValue,
+    integrity_hash: String,
+}
+
+/// Format probe: format-2 lines carry `"v"`, format-1 lines (bare
+/// `AuditEvent` objects) do not.
+#[derive(Deserialize)]
+struct AuditLineVersion {
+    #[serde(default)]
+    v: Option<u8>,
+}
+
+/// One stored line, decoded and with its hash recomputed.
+struct VerifiedLine {
+    event: AuditEvent,
+    stored_hash: String,
+    recomputed_hash: String,
+    format: u8,
+}
+
 impl FileAuditStorage {
     /// Create a new file-based audit storage.
     ///
@@ -763,10 +840,28 @@ impl FileAuditStorage {
             config,
             file_state: Mutex::new(None),
             previous_hash: RwLock::new(genesis),
+            pending_link: Mutex::new(None),
         });
 
-        // Clean up old files based on retention policy
+        // Apply the retention policy first, so the chain is resumed from
+        // files that still exist.
         storage.cleanup_old_files()?;
+
+        // Resume the existing chain: the next event chains from the last
+        // stored hash, and the first file this instance creates starts
+        // with a chain-link anchor naming the newest existing file.
+        if let Some((newest_file, tail_hash)) = Self::chain_tail(&storage.config.storage_path)? {
+            if let Some(tail_hash) = tail_hash {
+                *storage.previous_hash.write() = tail_hash;
+            }
+            tracing::info!(
+                target: "latticearc::audit",
+                file = %newest_file,
+                tail_hash = %storage.previous_hash.read(),
+                "resuming audit chain"
+            );
+            *storage.pending_link.lock() = Some(newest_file);
+        }
 
         Ok(storage)
     }
@@ -820,8 +915,8 @@ impl FileAuditStorage {
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 let nonce = crate::primitives::rand::csprng::random_bytes(32);
-                let timestamp = timestamp::to_rfc3339(SystemTime::now(), UtcSuffix::PlusZero)
-                    .ok_or_else(|| {
+                let timestamp =
+                    Timestamp::now().to_rfc3339(UtcSuffix::PlusZero).ok_or_else(|| {
                         CoreError::AuditError(
                             "System clock is outside the RFC 3339 year range".to_string(),
                         )
@@ -968,7 +1063,7 @@ impl FileAuditStorage {
     ///
     /// # Errors
     /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
-    pub(crate) fn compute_integrity_hash(
+    pub(crate) fn compute_integrity_hash_v1(
         event: &AuditEvent,
         previous_hash: &str,
     ) -> Result<String> {
@@ -983,7 +1078,7 @@ impl FileAuditStorage {
         Self::append_lenp_field(&mut buf, event.id.as_bytes())?;
         // `+00:00` suffix and chrono-compatible fraction digits: chains
         // written by earlier versions hash exactly these bytes.
-        let ts = timestamp::to_rfc3339(event.timestamp, UtcSuffix::PlusZero).ok_or_else(|| {
+        let ts = event.timestamp.to_rfc3339(UtcSuffix::PlusZero).ok_or_else(|| {
             CoreError::AuditError("Audit event timestamp outside the RFC 3339 range".to_string())
         })?;
         Self::append_lenp_field(&mut buf, ts.as_bytes())?;
@@ -1038,6 +1133,245 @@ impl FileAuditStorage {
         Ok(hex::encode(digest))
     }
 
+    /// Format-2 integrity hash: SHA-256 over the domain label, the previous
+    /// hash and the event JSON exactly as stored on the line, each
+    /// length-prefixed. Verification hashes the stored bytes directly, so
+    /// no field is ever re-encoded.
+    ///
+    /// # Errors
+    /// Returns an error if a field exceeds 2^32 bytes or SHA-256 fails.
+    fn compute_integrity_hash_v2(previous_hash: &str, event_json: &[u8]) -> Result<String> {
+        let mut buf = Vec::with_capacity(
+            AUDIT_EVENT_DOMAIN_V2
+                .len()
+                .saturating_add(8)
+                .saturating_add(previous_hash.len())
+                .saturating_add(event_json.len()),
+        );
+        buf.extend_from_slice(AUDIT_EVENT_DOMAIN_V2);
+        Self::append_lenp_field(&mut buf, previous_hash.as_bytes())?;
+        Self::append_lenp_field(&mut buf, event_json)?;
+        let digest = crate::primitives::hash::sha2::sha256(&buf)
+            .map_err(|e| CoreError::AuditError(format!("integrity hash failed: {e}")))?;
+        Ok(hex::encode(digest))
+    }
+
+    /// Encode `event` as a format-2 line chained from `previous_hash`
+    /// (newline included) and set `event.integrity_hash` to its hash.
+    ///
+    /// # Errors
+    /// Returns an error if serialization or hashing fails, or the line
+    /// would exceed [`MAX_AUDIT_LINE_LEN`] (the verifier would reject it).
+    fn encode_line(event: &mut AuditEvent, previous_hash: &str) -> Result<String> {
+        event.integrity_hash.clear();
+        let body = serde_json::to_string(&*event)
+            .map_err(|e| CoreError::AuditError(format!("Failed to serialize audit event: {e}")))?;
+        let hash = Self::compute_integrity_hash_v2(previous_hash, body.as_bytes())?;
+        let raw = serde_json::value::RawValue::from_string(body)
+            .map_err(|e| CoreError::AuditError(format!("Failed to embed audit event: {e}")))?;
+        let line = serde_json::to_string(&AuditLineOut {
+            v: AUDIT_LINE_FORMAT_V2,
+            event: &raw,
+            integrity_hash: &hash,
+        })
+        .map_err(|e| CoreError::AuditError(format!("Failed to serialize audit line: {e}")))?;
+        if line.len() > MAX_AUDIT_LINE_LEN {
+            return Err(CoreError::AuditError(format!(
+                "audit line of {} bytes exceeds maximum length {MAX_AUDIT_LINE_LEN}",
+                line.len()
+            )));
+        }
+        event.integrity_hash = hash;
+        Ok(format!("{line}\n"))
+    }
+
+    /// Decode one stored line (format 1 or 2) and recompute its hash from
+    /// `previous_hash`. `Ok(None)` when the line is not valid audit JSON;
+    /// the caller decides how to report that.
+    ///
+    /// # Errors
+    /// Returns an error for an unsupported format version or a hashing
+    /// failure.
+    fn decode_line(line: &str, previous_hash: &str) -> Result<Option<VerifiedLine>> {
+        let Ok(probe) = serde_json::from_str::<AuditLineVersion>(line) else {
+            return Ok(None);
+        };
+        match probe.v {
+            None => {
+                let Ok(event) = serde_json::from_str::<AuditEvent>(line) else {
+                    return Ok(None);
+                };
+                if event.integrity_hash.is_empty() {
+                    return Ok(None);
+                }
+                let recomputed_hash = Self::compute_integrity_hash_v1(&event, previous_hash)?;
+                let stored_hash = event.integrity_hash.clone();
+                Ok(Some(VerifiedLine { event, stored_hash, recomputed_hash, format: 1 }))
+            }
+            Some(AUDIT_LINE_FORMAT_V2) => {
+                let Ok(stored) = serde_json::from_str::<AuditLineIn<'_>>(line) else {
+                    return Ok(None);
+                };
+                // The line must be exactly what the writer produces for
+                // these values: no extra fields, whitespace or escapes
+                // outside the hashed event bytes can go unnoticed.
+                let canonical = serde_json::to_string(&AuditLineOut {
+                    v: stored.v,
+                    event: stored.event,
+                    integrity_hash: &stored.integrity_hash,
+                })
+                .map_err(|e| {
+                    CoreError::AuditError(format!("Failed to re-encode audit line: {e}"))
+                })?;
+                if canonical != line {
+                    return Ok(None);
+                }
+                let event_json = stored.event.get();
+                let recomputed_hash =
+                    Self::compute_integrity_hash_v2(previous_hash, event_json.as_bytes())?;
+                let Ok(mut event) = serde_json::from_str::<AuditEvent>(event_json) else {
+                    return Ok(None);
+                };
+                event.integrity_hash.clone_from(&stored.integrity_hash);
+                Ok(Some(VerifiedLine {
+                    event,
+                    stored_hash: stored.integrity_hash,
+                    recomputed_hash,
+                    format: stored.v,
+                }))
+            }
+            Some(other) => {
+                Err(CoreError::AuditError(format!("unsupported audit line format version {other}")))
+            }
+        }
+    }
+
+    /// The first non-empty line of `path`, reading at most
+    /// [`MAX_AUDIT_LINE_LEN`] bytes per line; `None` for an empty file.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be read, a line exceeds the cap,
+    /// or it is not UTF-8.
+    fn first_line(path: &std::path::Path) -> Result<Option<String>> {
+        use std::io::{BufRead as _, Read as _};
+        let f = File::open(path).map_err(|e| {
+            CoreError::AuditError(format!("Failed to open {}: {}", path.display(), e))
+        })?;
+        let cap = u64::try_from(MAX_AUDIT_LINE_LEN.saturating_add(1)).unwrap_or(u64::MAX);
+        let mut reader = std::io::BufReader::new(f);
+        loop {
+            let mut buf = Vec::new();
+            let n = (&mut reader)
+                .take(cap)
+                .read_until(b'\n', &mut buf)
+                .map_err(|e| CoreError::AuditError(format!("Failed to read audit file: {e}")))?;
+            if n == 0 {
+                return Ok(None);
+            }
+            if buf.last() == Some(&b'\n') {
+                buf.pop();
+            }
+            if buf.len() > MAX_AUDIT_LINE_LEN {
+                return Err(CoreError::AuditError(format!(
+                    "audit line of {} exceeds maximum length {MAX_AUDIT_LINE_LEN}",
+                    path.display()
+                )));
+            }
+            let line = String::from_utf8(buf).map_err(|_e| {
+                CoreError::AuditError(format!("audit line of {} is not UTF-8", path.display()))
+            })?;
+            if !line.trim().is_empty() {
+                return Ok(Some(line));
+            }
+        }
+    }
+
+    /// `audit-*.jsonl` files in `dir`, oldest first (the filename timestamp
+    /// is lexicographically chronological; sort by basename so path
+    /// normalisation differences cannot reorder them).
+    fn sorted_audit_files(dir: &std::path::Path) -> Result<Vec<PathBuf>> {
+        let mut log_files: Vec<PathBuf> = Vec::new();
+        let entries = fs::read_dir(dir)
+            .map_err(|e| CoreError::AuditError(format!("Failed to read audit dir: {e}")))?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
+            let lower = name.to_ascii_lowercase();
+            if lower.starts_with("audit-") && lower.ends_with(".jsonl") {
+                log_files.push(path);
+            }
+        }
+        log_files.sort_by(|a, b| {
+            a.file_name()
+                .unwrap_or_else(|| a.as_os_str())
+                .cmp(b.file_name().unwrap_or_else(|| b.as_os_str()))
+        });
+        Ok(log_files)
+    }
+
+    /// The existing chain's tail: the newest audit file's basename and the
+    /// last stored integrity hash (`None` if no file holds an event yet).
+    /// `Ok(None)` when the directory has no audit files.
+    ///
+    /// Reads at most the final `2 × MAX_AUDIT_LINE_LEN` bytes of a file. A
+    /// torn final line (crash mid-write) is skipped with a warning; it is
+    /// still reported by [`Self::verify_chain`].
+    ///
+    /// # Errors
+    /// Fails closed — and so does [`Self::new`] — when an audit file
+    /// cannot be opened or read: appending to a chain whose tail is
+    /// unknown would silently fork it.
+    fn chain_tail(dir: &std::path::Path) -> Result<Option<(String, Option<String>)>> {
+        use std::io::{Read as _, Seek as _, SeekFrom};
+        let files = Self::sorted_audit_files(dir)?;
+        let Some(newest) = files.last() else { return Ok(None) };
+        let newest_name = newest
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| CoreError::AuditError("non-UTF-8 audit filename".to_string()))?
+            .to_string();
+        for file in files.iter().rev() {
+            let mut f = File::open(file).map_err(|e| {
+                CoreError::AuditError(format!("Failed to open {}: {}", file.display(), e))
+            })?;
+            let len = f
+                .metadata()
+                .map_err(|e| CoreError::AuditError(format!("Failed to stat audit file: {e}")))?
+                .len();
+            let window = u64::try_from(MAX_AUDIT_LINE_LEN.saturating_mul(2)).unwrap_or(u64::MAX);
+            let start = len.saturating_sub(window);
+            f.seek(SeekFrom::Start(start))
+                .map_err(|e| CoreError::AuditError(format!("Failed to seek audit file: {e}")))?;
+            let mut tail = Vec::new();
+            f.take(window)
+                .read_to_end(&mut tail)
+                .map_err(|e| CoreError::AuditError(format!("Failed to read audit file: {e}")))?;
+            let mut lines: Vec<&[u8]> = tail.split(|&b| b == b'\n').collect();
+            if start > 0 && !lines.is_empty() {
+                // The window may begin mid-line; drop that fragment.
+                lines.remove(0);
+            }
+            for raw in lines.iter().rev() {
+                if raw.len() > MAX_AUDIT_LINE_LEN {
+                    continue;
+                }
+                let Ok(text) = std::str::from_utf8(raw) else { continue };
+                if text.trim().is_empty() {
+                    continue;
+                }
+                // Any previous hash works here: only the stored hash is read.
+                if let Ok(Some(decoded)) = Self::decode_line(text, "") {
+                    return Ok(Some((newest_name, Some(decoded.stored_hash))));
+                }
+                tracing::warn!(
+                    file = %file.display(),
+                    "audit chain resume: skipping an unreadable trailing line"
+                );
+            }
+        }
+        Ok(Some((newest_name, None)))
+    }
+
     /// Append `field.len() as u32 BE` followed by `field` to `buf`.
     ///
     /// Returns `Err(CoreError::AuditError)` if `field.len()` exceeds
@@ -1067,12 +1401,12 @@ impl FileAuditStorage {
             return true;
         }
 
-        // Check age limit. `duration_since` only errors when `created_at`
-        // is in the future (clock skew or a tampered timestamp). A
-        // future-dated file would otherwise read as 0 s old forever and
-        // never age-rotate; treat the anomaly as past the age limit so
-        // the file rotates.
-        let Ok(age) = SystemTime::now().duration_since(state.created_at) else {
+        // Check age limit. `duration_since` is `None` only when
+        // `created_at` is in the future (clock skew or a tampered
+        // timestamp). A future-dated file would otherwise read as 0 s old
+        // forever and never age-rotate; treat the anomaly as past the age
+        // limit so the file rotates.
+        let Some(age) = Timestamp::now().duration_since(state.created_at) else {
             return true;
         };
 
@@ -1092,46 +1426,42 @@ impl FileAuditStorage {
     /// recorded `previous_file` / `previous_hash` breaks the chain at
     /// verification time.
     fn rotate_if_needed(&self, state: &mut Option<FileState>) -> Result<()> {
-        let should_rotate = state.as_ref().is_some_and(|s| self.needs_rotation(s));
-
-        let mut rotation_link: Option<(String, String)> = None;
-        if should_rotate {
-            // Close current file and create new one. Capture the
-            // outgoing filename and chain hash BEFORE we drop the old
-            // state so the new file's chain-anchor can reference both.
-            if let Some(mut old_state) = state.take() {
+        if state.as_ref().is_some_and(|s| self.needs_rotation(s)) {
+            // Flush before letting go of the outgoing file, so a flush
+            // failure leaves it in place rather than half-closed.
+            if let Some(old_state) = state.as_mut() {
+                old_state.writer.flush().map_err(|e| {
+                    CoreError::AuditError(format!("Failed to flush audit file: {e}"))
+                })?;
+            }
+            if let Some(old_state) = state.take() {
+                tracing::info!(
+                    "Rotating audit file: {} (size: {} bytes)",
+                    old_state.current_path.display(),
+                    old_state.current_size
+                );
                 let old_filename = old_state
                     .current_path
                     .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("<unknown>")
                     .to_string();
-                let old_hash = self.previous_hash.read().clone();
-                tracing::info!(
-                    "Rotating audit file: {} (size: {} bytes)",
-                    old_state.current_path.display(),
-                    old_state.current_size
-                );
-                old_state.writer.flush().map_err(|e| {
-                    CoreError::AuditError(format!("Failed to flush audit file: {e}"))
-                })?;
-                rotation_link = Some((old_filename, old_hash));
+                *self.pending_link.lock() = Some(old_filename);
             }
         }
 
-        // Create new file if needed
         if state.is_none() {
-            *state = Some(self.create_new_file()?);
-        }
-
-        // Write chain-anchor as the first entry of the new file when we
-        // rotated from an existing file. (First-ever-file case has
-        // `rotation_link = None` and the genesis hash anchors the chain
-        // implicitly, as documented above.)
-        if let Some((prev_file, prev_hash)) = rotation_link
-            && let Some(new_state) = state.as_mut()
-        {
-            self.write_chain_anchor(new_state, &prev_file, &prev_hash)?;
+            let mut new_state = self.create_new_file()?;
+            // The new file starts with a chain-link anchor whenever it
+            // continues an existing file (rotation or restart). The very
+            // first file of a storage needs none: genesis anchors it.
+            let pending = self.pending_link.lock().clone();
+            if let Some(prev_file) = pending {
+                let prev_hash = self.previous_hash.read().clone();
+                self.write_chain_anchor(&mut new_state, &prev_file, &prev_hash)?;
+                *self.pending_link.lock() = None;
+            }
+            *state = Some(new_state);
         }
 
         Ok(())
@@ -1163,20 +1493,17 @@ impl FileAuditStorage {
         // (= current `previous_hash`), then advance the in-memory
         // chain pointer to the anchor's own hash.
         let chain_prev = self.previous_hash.read().clone();
-        anchor.integrity_hash = Self::compute_integrity_hash(&anchor, &chain_prev)?;
-        {
-            let mut prev = self.previous_hash.write();
-            prev.clone_from(&anchor.integrity_hash);
-        }
-
-        let json = serde_json::to_string(&anchor)
-            .map_err(|e| CoreError::AuditError(format!("Failed to serialize chain anchor: {e}")))?;
-        let line = format!("{json}\n");
+        let line = Self::encode_line(&mut anchor, &chain_prev)?;
         let line_bytes = line.as_bytes();
         state
             .writer
             .write_all(line_bytes)
             .map_err(|e| CoreError::AuditError(format!("Failed to write chain anchor: {e}")))?;
+        // Advance the chain only after the anchor is written, like events.
+        {
+            let mut prev = self.previous_hash.write();
+            prev.clone_from(&anchor.integrity_hash);
+        }
         let line_len_u64 = u64::try_from(line_bytes.len()).unwrap_or(u64::MAX);
         state.current_size = state.current_size.saturating_add(line_len_u64);
         Ok(())
@@ -1190,8 +1517,23 @@ impl FileAuditStorage {
     /// `create_new(true)` flag below would otherwise error on
     /// collisions and leave the rotation loop stuck.
     fn create_new_file(&self) -> Result<FileState> {
-        let now = SystemTime::now();
-        let fields = timestamp::utc_fields(now).ok_or_else(|| {
+        let now = Timestamp::now();
+        // Files are ordered by name, so a new file must sort after every
+        // existing one even if the clock stepped backwards (NTP, another
+        // host): name it 1 µs after the newest file in that case.
+        let newest_existing = Self::sorted_audit_files(&self.config.storage_path)?
+            .last()
+            .and_then(|p| p.file_name().and_then(|n| n.to_str()))
+            .and_then(parse_audit_filename_timestamp);
+        let name_time = match newest_existing {
+            Some(newest) if newest >= now => {
+                newest.checked_add(Duration::from_micros(1)).ok_or_else(|| {
+                    CoreError::AuditError("audit file timestamp overflow".to_string())
+                })?
+            }
+            _ => now,
+        };
+        let fields = name_time.utc_fields().ok_or_else(|| {
             CoreError::AuditError("System clock is outside the RFC 3339 year range".to_string())
         })?;
         let filename = format!(
@@ -1214,7 +1556,7 @@ impl FileAuditStorage {
             // `OpenOptions::new().create(..).open(..)` did.
             // `create_new(true)` (not `create(true)`): refuse to open a
             // pre-existing file. The rotation code generates the
-            // filename from `SystemTime::now()` to microsecond precision; if a
+            // filename from `Timestamp::now()` to microsecond precision; if a
             // file already exists at that path it means either (a) a
             // sub-second rotation race or (b) a stale file from a
             // prior process. In either case we MUST NOT silently
@@ -1293,7 +1635,7 @@ impl FileAuditStorage {
 
         let retention_duration =
             Duration::from_secs(u64::from(self.config.retention_days).saturating_mul(86_400));
-        let Some(cutoff) = SystemTime::now().checked_sub(retention_duration) else {
+        let Some(cutoff) = Timestamp::now().checked_sub(retention_duration) else {
             return Err(CoreError::AuditError(format!(
                 "Retention period of {} days overflows date arithmetic",
                 self.config.retention_days
@@ -1385,48 +1727,38 @@ impl FileAuditStorage {
                 .map_err(|e| CoreError::AuditError(format!("verify_chain flush failed: {e}")))?;
         }
 
-        let mut log_files: Vec<PathBuf> = Vec::new();
-        let entries = fs::read_dir(&self.config.storage_path)
-            .map_err(|e| CoreError::AuditError(format!("Failed to read audit dir: {e}")))?;
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
-            // Match `audit-*.jsonl` (case-insensitive on extension;
-            // for case-sensitive .jsonl bug).
-            let lower = name.to_ascii_lowercase();
-            if lower.starts_with("audit-") && lower.ends_with(".jsonl") {
-                log_files.push(path);
-            }
-        }
-        // Filename-timestamp ordering: `audit-YYYYMMDD-HHMMSS-NNN.jsonl`
-        // is lexicographically chronological. Sort by basename rather
-        // than the full `PathBuf` — the latter is byte-ordered, which
-        // on Windows can differ across drive-letter case (`C:\` vs
-        // `c:\`) or path-separator normalisation, producing an order
-        // that doesn't match the chronological intent.
-        log_files.sort_by(|a, b| {
-            a.file_name()
-                .unwrap_or_else(|| a.as_os_str())
-                .cmp(b.file_name().unwrap_or_else(|| b.as_os_str()))
-        });
+        let log_files = Self::sorted_audit_files(&self.config.storage_path)?;
 
         // Recompute from genesis. Reads the persisted genesis directly
         // rather than the in-memory `previous_hash` so verification
         // works on a freshly-mounted storage with no prior writes in
-        // this process.
+        // this process. If the oldest remaining file instead starts with
+        // a chain-link anchor, its predecessor has been removed (normally
+        // by retention): start from the hash that anchor records and
+        // report the boundary rather than failing every verification
+        // after the first retention sweep.
         let genesis = Self::load_or_create_genesis(&self.config.storage_path)?;
         let mut prev_hash = genesis;
+        let mut retention_boundary: Option<String> = None;
+        if let Some(oldest) = log_files.first()
+            && let Some(first_line) = Self::first_line(oldest)?
+            && let Some(decoded) = Self::decode_line(&first_line, "")?
+            && decoded.event.action == CHAIN_ANCHOR_ACTION
+            && let (Some(prev_file), Some(anchor_prev_hash)) = (
+                decoded.event.metadata.get(CHAIN_ANCHOR_PREV_FILE_KEY),
+                decoded.event.metadata.get(CHAIN_ANCHOR_PREV_HASH_KEY),
+            )
+        {
+            retention_boundary = Some(prev_file.clone());
+            prev_hash.clone_from(anchor_prev_hash);
+        }
         let mut events_checked: u64 = 0;
         let mut mismatch: Option<ChainMismatch> = None;
 
-        // Defense-in-depth pre-decode caps. A persisted JSONL line is at
-        // worst the product of in-memory caps (action 256 B + actor
-        // 256 B + resource 1 KiB + 32 metadata × 4 KiB ≈ 130 KiB),
-        // plus header / chain-marker fields and JSON encoding
-        // overhead. 1 MiB is generously above that ceiling but small
-        // enough to defeat a tampered file dropping a 1 GiB action
-        // string in front of the verifier.
-        const MAX_LINE_LEN: usize = 1024 * 1024;
+        // Once a format-2 line has been seen, the chain may not fall back
+        // to format 1: new writers never emit it, so a later format-1 line
+        // can only be a splice.
+        let mut seen_format_2 = false;
 
         // Cross-file chain back-reference state. After processing the
         // first file, every subsequent file's first event MUST be a
@@ -1456,11 +1788,11 @@ impl FileAuditStorage {
             // obvious `read_until(b'\n', &mut buf)` BOTH allocate the
             // whole line BEFORE returning, so a 1 GiB newline-free
             // file would OOM the verifier before any post-decode
-            // `MAX_LINE_LEN` check could fire.
+            // `MAX_AUDIT_LINE_LEN` check could fire.
             //
             // We use `BufRead::fill_buf` / `consume` to scan for
             // `b'\n'` in the buffered region and accumulate at most
-            // `MAX_LINE_LEN + 1` bytes into `line_buf` per line.
+            // `MAX_AUDIT_LINE_LEN + 1` bytes into `line_buf` per line.
             // The +1 byte lets us detect the over-cap case
             // unambiguously (the cap is exclusive). An earlier
             // implementation used per-byte `reader.read()` which was
@@ -1481,10 +1813,10 @@ impl FileAuditStorage {
                         break;
                     }
                     // How many bytes can we still accumulate before
-                    // crossing `MAX_LINE_LEN + 1`? Stop the moment
+                    // crossing `MAX_AUDIT_LINE_LEN + 1`? Stop the moment
                     // we'd cross — that's the cap-exceeded signal.
                     let remaining_room =
-                        MAX_LINE_LEN.saturating_add(1).saturating_sub(line_buf.len());
+                        MAX_AUDIT_LINE_LEN.saturating_add(1).saturating_sub(line_buf.len());
                     let scan_end = buf.len().min(remaining_room);
                     #[expect(
                         clippy::indexing_slicing,
@@ -1535,12 +1867,12 @@ impl FileAuditStorage {
                 if hit_eof && line_buf.is_empty() {
                     break;
                 }
-                if line_buf.len() > MAX_LINE_LEN {
+                if line_buf.len() > MAX_AUDIT_LINE_LEN {
                     return Err(CoreError::AuditError(format!(
                         "audit line {} of {} exceeds maximum length {}",
                         line_idx,
                         file.display(),
-                        MAX_LINE_LEN
+                        MAX_AUDIT_LINE_LEN
                     )));
                 }
                 let line = match std::str::from_utf8(&line_buf) {
@@ -1560,60 +1892,39 @@ impl FileAuditStorage {
                     continue;
                 }
                 let line_idx = saved_idx;
-                // Pre-pass: extract `integrity_hash` cheaply with
-                // `serde_json::Value` partial parsing so we can fail
-                // fast on a tampered chain marker before paying for
-                // the full `AuditEvent` deserialization (which
-                // allocates strings for every field). This still
-                // walks the whole line — `serde_json::from_str` is
-                // O(n) regardless — but skips the secondary
-                // allocation of a fully-typed event.
-                //
-                // Rejection here cannot leak which structural field
-                // failed: any pre-pass parse error collapses to a
-                // single "unparseable" outcome. `serde_json::Error::Display`
-                // includes line/column and offending tokens — route to
-                // tracing::debug! so the typed error stays opaque.
-                let bare: serde_json::Value = serde_json::from_str(&line).map_err(|e| {
+                // Decode either format and recompute its hash. Parse
+                // failures collapse to one opaque "unparseable" outcome so
+                // the error cannot leak which structural field failed.
+                let Some(VerifiedLine {
+                    event,
+                    stored_hash: stored,
+                    recomputed_hash: recomputed,
+                    format,
+                }) = Self::decode_line(&line, &prev_hash)?
+                else {
                     tracing::debug!(
-                        error = %e,
                         line = line_idx,
                         file = %file.display(),
-                        "audit chain pre-pass JSON parse rejected"
+                        "audit chain line rejected as unparseable"
                     );
-                    CoreError::AuditError(format!(
+                    return Err(CoreError::AuditError(format!(
                         "Failed to parse line {} of {}",
                         line_idx,
                         file.display()
-                    ))
-                })?;
-                let _stored_hash_seen =
-                    bare.get("integrity_hash").and_then(|v| v.as_str()).ok_or_else(|| {
-                        CoreError::AuditError(format!(
-                            "Audit line {} of {} missing integrity_hash",
-                            line_idx,
-                            file.display(),
-                        ))
-                    })?;
-                // Now do the full typed parse — guaranteed by the
-                // pre-pass to be a structurally valid event JSON
-                // with an `integrity_hash` field present.
-                let event: AuditEvent = serde_json::from_value(bare).map_err(|e| {
-                    tracing::debug!(
-                        error = %e,
-                        line = line_idx,
-                        file = %file.display(),
-                        "audit chain typed parse rejected"
-                    );
-                    CoreError::AuditError(format!(
-                        "Failed to typed-parse line {} of {}",
-                        line_idx,
-                        file.display()
-                    ))
-                })?;
-                let stored = event.integrity_hash.clone();
-                let recomputed = Self::compute_integrity_hash(&event, &prev_hash)?;
+                    )));
+                };
                 events_checked = events_checked.saturating_add(1);
+                if format == 1 && seen_format_2 {
+                    mismatch = Some(ChainMismatch {
+                        file: file.clone(),
+                        line: line_idx,
+                        event_id: event.id,
+                        stored_hash: stored,
+                        expected_hash: "a format-2 line (chain already uses format 2)".to_string(),
+                    });
+                    break;
+                }
+                seen_format_2 |= format == AUDIT_LINE_FORMAT_V2;
                 if stored != recomputed {
                     mismatch = Some(ChainMismatch {
                         file: file.clone(),
@@ -1697,7 +2008,13 @@ impl FileAuditStorage {
             previous_file_final_hash = Some(prev_hash.clone());
         }
 
-        Ok(ChainVerificationReport { files_checked: log_files.len(), events_checked, mismatch })
+        Ok(ChainVerificationReport {
+            files_checked: log_files.len(),
+            events_checked,
+            mismatch,
+            tail_hash: prev_hash,
+            retention_boundary,
+        })
     }
 
     /// Write an audit event to the current file.
@@ -1711,13 +2028,9 @@ impl FileAuditStorage {
             .as_mut()
             .ok_or_else(|| CoreError::AuditError("No active audit file".to_string()))?;
 
-        // Compute integrity hash with chain.
+        // Encode the format-2 line; its hash covers the exact event bytes.
         let previous_hash = self.previous_hash.read().clone();
-        event.integrity_hash = Self::compute_integrity_hash(event, &previous_hash)?;
-
-        // Serialize event to JSON.
-        let json = serde_json::to_string(event)
-            .map_err(|e| CoreError::AuditError(format!("Failed to serialize audit event: {e}")))?;
+        let line = Self::encode_line(event, &previous_hash)?;
 
         // Write JSON line BEFORE advancing the in-memory chain hash.
         // If `write_all` fails (ENOSPC, EIO, etc.), `previous_hash`
@@ -1726,7 +2039,6 @@ impl FileAuditStorage {
         // missing on disk, and a subsequent `verify_chain()` would
         // report it as tampering. Write-then-advance, not
         // advance-then-write.
-        let line = format!("{json}\n");
         let line_bytes = line.as_bytes();
 
         state
@@ -1817,9 +2129,300 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    /// An audit event as written by 0.17.0 (timestamps encoded by chrono
-    /// 0.4.45) with the integrity hash that version computed. Loading it
-    /// must reproduce both the hash and the JSON byte-for-byte, or every
+    fn write_one(storage: &FileAuditStorage, action: &str) {
+        storage
+            .write(&AuditEvent::new(AuditEventType::System, action, AuditOutcome::Success))
+            .unwrap();
+        storage.flush().unwrap();
+    }
+
+    #[test]
+    fn test_restart_after_all_files_expired_starts_fresh_chain_succeeds() {
+        let three_days_ago = Timestamp::now().checked_sub(Duration::from_secs(3 * 86_400)).unwrap();
+        let (dir, old) = legacy_dir_at(&["expired"], three_days_ago);
+        let config = AuditConfig::new(dir.path().to_path_buf()).with_retention_days(1).unwrap();
+        let storage = FileAuditStorage::new(config).unwrap();
+        assert!(!old.exists(), "retention must remove the expired file");
+        write_one(&storage, "fresh");
+        let report = storage.verify_chain().unwrap();
+        assert!(report.is_intact(), "{report:?}");
+        assert_eq!(report.events_checked, 1);
+        assert_eq!(report.retention_boundary, None);
+    }
+
+    #[test]
+    fn test_partial_retention_verifies_from_reported_boundary_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let config = AuditConfig::new(dir.path().to_path_buf());
+        {
+            let storage = FileAuditStorage::new(config.clone()).unwrap();
+            write_one(&storage, "run-1");
+        }
+        std::thread::sleep(Duration::from_millis(2));
+        let storage = FileAuditStorage::new(config).unwrap();
+        write_one(&storage, "run-2");
+        // Remove the oldest file, as a retention sweep would.
+        let oldest = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().remove(0);
+        let oldest_name = oldest.file_name().unwrap().to_str().unwrap().to_string();
+        fs::remove_file(&oldest).unwrap();
+        let report = storage.verify_chain().unwrap();
+        assert!(report.is_intact(), "{report:?}");
+        assert_eq!(report.retention_boundary.as_deref(), Some(oldest_name.as_str()));
+        assert_eq!(report.events_checked, 2); // anchor + run-2
+        assert_eq!(report.tail_hash, *storage.previous_hash.read());
+    }
+
+    #[test]
+    fn test_new_file_sorts_after_newest_even_if_clock_is_behind_succeeds() {
+        // The newest file is named an hour in the future (clock stepped
+        // back since it was written).
+        let hour_ahead = Timestamp::now().checked_add(Duration::from_secs(3_600)).unwrap();
+        let (dir, future_file) = legacy_dir_at(&["from-the-future"], hour_ahead);
+        let storage = FileAuditStorage::new(AuditConfig::new(dir.path().to_path_buf())).unwrap();
+        write_one(&storage, "now");
+        let files = FileAuditStorage::sorted_audit_files(dir.path()).unwrap();
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0], future_file, "the new file must sort after the existing one");
+        let report = storage.verify_chain().unwrap();
+        assert!(report.is_intact(), "{report:?}");
+    }
+
+    #[test]
+    fn test_restart_with_empty_newest_file_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let config = AuditConfig::new(dir.path().to_path_buf());
+        {
+            let storage = FileAuditStorage::new(config.clone()).unwrap();
+            write_one(&storage, "before");
+        }
+        // A crash right after creating a file leaves it empty.
+        std::thread::sleep(Duration::from_millis(2));
+        let empty = dir.path().join(audit_file_name(Timestamp::now()));
+        File::create(&empty).unwrap();
+        std::thread::sleep(Duration::from_millis(2));
+        let storage = FileAuditStorage::new(config).unwrap();
+        write_one(&storage, "after");
+        let report = storage.verify_chain().unwrap();
+        assert!(report.is_intact(), "{report:?}");
+        assert_eq!(report.files_checked, 3);
+    }
+
+    #[test]
+    fn test_non_canonical_format_2_lines_are_rejected_fails() {
+        for (from, to) in [
+            (r#""event":{"#, r#""event": {"#),  // whitespace outside the event
+            (r#"{"v":2,"#, r#"{"v":2,"x":1,"#), // unknown field
+        ] {
+            let dir = TempDir::new().unwrap();
+            let storage =
+                FileAuditStorage::new(AuditConfig::new(dir.path().to_path_buf())).unwrap();
+            write_one(&storage, "canonical");
+            let path = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().pop().unwrap();
+            let content = fs::read_to_string(&path).unwrap();
+            let edited = content.replacen(from, to, 1);
+            assert_ne!(edited, content, "{from:?}");
+            fs::write(&path, edited).unwrap();
+            assert!(storage.verify_chain().is_err(), "non-canonical edit {to:?} must be rejected");
+        }
+    }
+
+    #[test]
+    fn test_escaped_integrity_hash_is_rejected_fails() {
+        // Same hash value after JSON unescaping, different bytes: only the
+        // canonical-line check can catch it.
+        let dir = TempDir::new().unwrap();
+        let storage = FileAuditStorage::new(AuditConfig::new(dir.path().to_path_buf())).unwrap();
+        write_one(&storage, "escape");
+        let path = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().pop().unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+        let hash = storage.previous_hash.read().clone();
+        let first = hash.chars().next().unwrap();
+        let escaped = format!("\\u{:04x}{}", u32::from(first), &hash[1..]);
+        let edited = content.replacen(&hash, &escaped, 1);
+        assert_ne!(edited, content);
+        let reparsed: AuditLineIn<'_> = serde_json::from_str(edited.trim_end()).unwrap();
+        assert_eq!(reparsed.integrity_hash, hash, "escape must decode to the same value");
+        fs::write(&path, edited).unwrap();
+        assert!(storage.verify_chain().is_err());
+    }
+
+    /// Name an audit file for `at` the way `create_new_file` does.
+    fn audit_file_name(at: Timestamp) -> String {
+        let f = at.utc_fields().unwrap();
+        format!(
+            "audit-{:04}-{:02}-{:02}T{:02}-{:02}-{:02}-{:06}.jsonl",
+            f.year(),
+            u8::from(f.month()),
+            f.day(),
+            f.hour(),
+            f.minute(),
+            f.second(),
+            f.microsecond()
+        )
+    }
+
+    /// A format-1 line (bare event JSON with the field-transcript hash),
+    /// as every version before format 2 wrote it.
+    fn legacy_line(previous_hash: &str, action: &str) -> (String, String) {
+        let mut event = AuditEvent::new(AuditEventType::System, action, AuditOutcome::Success);
+        event.integrity_hash =
+            FileAuditStorage::compute_integrity_hash_v1(&event, previous_hash).unwrap();
+        (serde_json::to_string(&event).unwrap(), event.integrity_hash.clone())
+    }
+
+    /// Storage directory holding a genesis anchor and one format-1 file of
+    /// `actions.len()` events written an hour ago.
+    fn legacy_dir(actions: &[&str]) -> (TempDir, PathBuf) {
+        let hour_ago = Timestamp::now().checked_sub(Duration::from_secs(3_600)).unwrap();
+        legacy_dir_at(actions, hour_ago)
+    }
+
+    /// Like [`legacy_dir`], with the file named for `at`.
+    fn legacy_dir_at(actions: &[&str], at: Timestamp) -> (TempDir, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        let genesis = "ab".repeat(32);
+        fs::write(dir.path().join(AUDIT_GENESIS_FILENAME), format!("{genesis}\n")).unwrap();
+        let mut prev = genesis;
+        let mut content = String::new();
+        for action in actions {
+            let (line, hash) = legacy_line(&prev, action);
+            content.push_str(&line);
+            content.push('\n');
+            prev = hash;
+        }
+        let path = dir.path().join(audit_file_name(at));
+        fs::write(&path, content).unwrap();
+        (dir, path)
+    }
+
+    #[test]
+    fn test_legacy_format_1_chain_verifies_and_resumes_as_format_2_succeeds() {
+        let (dir, _legacy) = legacy_dir(&["old-1", "old-2"]);
+        let storage = FileAuditStorage::new(AuditConfig::new(dir.path().to_path_buf())).unwrap();
+        let report = storage.verify_chain().unwrap();
+        assert!(report.is_intact(), "{report:?}");
+        assert_eq!(report.events_checked, 2);
+
+        storage
+            .write(&AuditEvent::new(AuditEventType::System, "new-1", AuditOutcome::Success))
+            .unwrap();
+        storage.flush().unwrap();
+        let report = storage.verify_chain().unwrap();
+        assert!(report.is_intact(), "{report:?}");
+        // two legacy events + chain-link anchor + new event
+        assert_eq!(report.events_checked, 4);
+        assert_eq!(report.files_checked, 2);
+    }
+
+    #[test]
+    fn test_format_1_line_after_format_2_is_rejected_fails() {
+        let (dir, _legacy) = legacy_dir(&["old-1"]);
+        let storage = FileAuditStorage::new(AuditConfig::new(dir.path().to_path_buf())).unwrap();
+        storage
+            .write(&AuditEvent::new(AuditEventType::System, "new-1", AuditOutcome::Success))
+            .unwrap();
+        storage.flush().unwrap();
+        // Splice a correctly chained format-1 line after the format-2 tail.
+        let newest = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().pop().unwrap();
+        let tail = storage.previous_hash.read().clone();
+        let (line, _) = legacy_line(&tail, "spliced");
+        let mut file = OpenOptions::new().append(true).open(&newest).unwrap();
+        writeln!(file, "{line}").unwrap();
+        drop(file);
+        let report = storage.verify_chain().unwrap();
+        let mismatch = report.mismatch.expect("format downgrade must be reported");
+        assert!(mismatch.expected_hash.contains("format-2"), "{mismatch:?}");
+    }
+
+    #[test]
+    fn test_format_2_hash_covers_exact_stored_bytes_fails_on_whitespace_edit() {
+        let dir = TempDir::new().unwrap();
+        let storage = FileAuditStorage::new(AuditConfig::new(dir.path().to_path_buf())).unwrap();
+        storage
+            .write(&AuditEvent::new(AuditEventType::System, "exact", AuditOutcome::Success))
+            .unwrap();
+        storage.flush().unwrap();
+        assert!(storage.verify_chain().unwrap().is_intact());
+        // Insert insignificant whitespace inside the stored event object:
+        // semantically identical JSON, different bytes — must not verify.
+        let path = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().pop().unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+        let edited = content.replacen(r#""event":{"#, r#""event":{ "#, 1);
+        assert_ne!(edited, content);
+        fs::write(&path, edited).unwrap();
+        let report = storage.verify_chain().unwrap();
+        assert!(report.mismatch.is_some(), "whitespace edit must break the chain");
+    }
+
+    #[test]
+    fn test_unsupported_line_format_version_returns_error_fails() {
+        let dir = TempDir::new().unwrap();
+        let storage = FileAuditStorage::new(AuditConfig::new(dir.path().to_path_buf())).unwrap();
+        storage
+            .write(&AuditEvent::new(AuditEventType::System, "v", AuditOutcome::Success))
+            .unwrap();
+        storage.flush().unwrap();
+        let path = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().pop().unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+        fs::write(&path, content.replacen(r#"{"v":2,"#, r#"{"v":3,"#, 1)).unwrap();
+        let err = storage.verify_chain().unwrap_err();
+        assert!(err.to_string().contains("unsupported audit line format version 3"), "{err}");
+    }
+
+    #[test]
+    fn test_resume_skips_torn_final_line_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let config = AuditConfig::new(dir.path().to_path_buf());
+        let tail_before_crash = {
+            let storage = FileAuditStorage::new(config.clone()).unwrap();
+            storage
+                .write(&AuditEvent::new(AuditEventType::System, "pre-crash", AuditOutcome::Success))
+                .unwrap();
+            storage.flush().unwrap();
+            storage.previous_hash.read().clone()
+        };
+        // Simulate a crash mid-write: a truncated line with no newline.
+        let path = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().pop().unwrap();
+        let mut file = OpenOptions::new().append(true).open(&path).unwrap();
+        write!(file, r#"{{"v":2,"event":{{"id":"#).unwrap();
+        drop(file);
+        let storage = FileAuditStorage::new(config).unwrap();
+        assert_eq!(*storage.previous_hash.read(), tail_before_crash);
+        // Verification still reports the torn line.
+        assert!(storage.verify_chain().is_err());
+    }
+
+    /// A process restart must continue the existing chain: the new run's
+    /// file links to the previous file's tail, so `verify_chain` stays
+    /// intact across restarts.
+    #[test]
+    fn test_verify_chain_survives_process_restart_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let config = AuditConfig::new(dir.path().to_path_buf());
+        {
+            let storage = FileAuditStorage::new(config.clone()).unwrap();
+            storage
+                .write(&AuditEvent::new(AuditEventType::System, "first-run", AuditOutcome::Success))
+                .unwrap();
+            storage.flush().unwrap();
+        }
+        // Filenames carry microseconds; make sure the second run's differs.
+        std::thread::sleep(Duration::from_millis(2));
+        let storage = FileAuditStorage::new(config).unwrap();
+        storage
+            .write(&AuditEvent::new(AuditEventType::System, "second-run", AuditOutcome::Success))
+            .unwrap();
+        storage.flush().unwrap();
+        let report = storage.verify_chain().unwrap();
+        assert!(report.is_intact(), "{report:?}");
+        assert_eq!(report.files_checked, 2);
+        // first-run event + chain-link anchor + second-run event
+        assert_eq!(report.events_checked, 3);
+    }
+
+    /// A format-1 audit line as written by 0.17.0 (timestamps encoded by
+    /// chrono 0.4.45) with the integrity hash that version computed. Loading
+    /// it must reproduce both the hash and the JSON byte-for-byte, or every
     /// pre-existing audit chain would fail `verify_chain`.
     #[test]
     fn test_audit_event_from_chrono_era_rehashes_identically_succeeds() {
@@ -1831,22 +2434,19 @@ mod tests {
             r#""integrity_hash":"89ec1b2d1e0baa6a18f27b504c2169c32c35e46d9ac2a2eba02fa1f9f57bce30"}"#
         );
         let event: AuditEvent = serde_json::from_str(LINE).unwrap();
-        assert_eq!(
-            event.timestamp(),
-            std::time::UNIX_EPOCH + Duration::new(1_700_000_000, 123_456_000)
-        );
-        let rehash = FileAuditStorage::compute_integrity_hash(&event, "").unwrap();
+        assert_eq!(event.timestamp(), Timestamp::from_unix(1_700_000_000, 123_456_000).unwrap());
+        let rehash = FileAuditStorage::compute_integrity_hash_v1(&event, "").unwrap();
         assert_eq!(rehash, event.integrity_hash());
         assert_eq!(serde_json::to_string(&event).unwrap(), LINE);
     }
 
     #[test]
     fn test_parse_audit_filename_timestamp_shapes_succeeds() {
-        let base = std::time::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        let base = Timestamp::from_unix(1_700_000_000, 0).unwrap();
         assert_eq!(parse_audit_filename_timestamp("audit-2023-11-14T22-13-20.jsonl"), Some(base));
         assert_eq!(
             parse_audit_filename_timestamp("audit-2023-11-14T22-13-20-000042.jsonl"),
-            Some(base + Duration::from_micros(42))
+            base.checked_add(Duration::from_micros(42))
         );
         for bad in [
             "audit-2023-11-14T22-13-20-42.jsonl",
@@ -1976,19 +2576,19 @@ mod tests {
         let event2 =
             AuditEvent::new(AuditEventType::CryptoOperation, "operation2", AuditOutcome::Success);
 
-        let hash1 = FileAuditStorage::compute_integrity_hash(&event1, "").unwrap();
-        let hash2 = FileAuditStorage::compute_integrity_hash(&event2, &hash1).unwrap();
+        let hash1 = FileAuditStorage::compute_integrity_hash_v1(&event1, "").unwrap();
+        let hash2 = FileAuditStorage::compute_integrity_hash_v1(&event2, &hash1).unwrap();
 
         // Hashes should be different
         assert_ne!(hash1, hash2);
 
         // Same event with same previous hash should produce same result
-        let hash2_again = FileAuditStorage::compute_integrity_hash(&event2, &hash1).unwrap();
+        let hash2_again = FileAuditStorage::compute_integrity_hash_v1(&event2, &hash1).unwrap();
         assert_eq!(hash2, hash2_again);
 
         // Different previous hash should produce different result
         let hash2_different =
-            FileAuditStorage::compute_integrity_hash(&event2, "different").unwrap();
+            FileAuditStorage::compute_integrity_hash_v1(&event2, "different").unwrap();
         assert_ne!(hash2, hash2_different);
     }
 
@@ -2069,7 +2669,8 @@ mod tests {
         // integrity_hash is empty until written to storage
         assert!(event.integrity_hash().is_empty());
         // timestamp should be recent
-        let diff = timestamp::signed_seconds_between(event.timestamp(), SystemTime::now());
+        let diff =
+            crate::types::timestamp::signed_seconds_between(event.timestamp(), Timestamp::now());
         assert!((0..5).contains(&diff));
     }
 
@@ -2213,8 +2814,8 @@ mod tests {
 
         // Events with the same ID would need the same timestamp to produce
         // truly comparable hashes, but metadata inclusion means these differ
-        let hash1 = FileAuditStorage::compute_integrity_hash(&event_no_meta, "").unwrap();
-        let hash2 = FileAuditStorage::compute_integrity_hash(&event_with_meta, "").unwrap();
+        let hash1 = FileAuditStorage::compute_integrity_hash_v1(&event_no_meta, "").unwrap();
+        let hash2 = FileAuditStorage::compute_integrity_hash_v1(&event_with_meta, "").unwrap();
         assert_ne!(hash1, hash2, "Different metadata should produce different hashes");
     }
 
@@ -2397,13 +2998,24 @@ mod tests {
                     .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
                     .collect();
                 let content = fs::read_to_string(entries[0].path()).unwrap();
-                let events: Vec<AuditEvent> =
-                    content.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
-
-                assert_eq!(events.len(), 3);
-                // All hashes should be non-empty and unique
-                let hashes: Vec<&str> = events.iter().map(|e| e.integrity_hash.as_str()).collect();
-                assert!(hashes.iter().all(|h| !h.is_empty()));
+                let genesis = fs::read_to_string(temp_path.join(AUDIT_GENESIS_FILENAME)).unwrap();
+                // Each format-2 line's hash covers its stored event bytes
+                // and links to the previous line's hash, starting at genesis.
+                let mut prev = genesis.trim().to_string();
+                let mut hashes = Vec::new();
+                for line in content.lines() {
+                    let stored: AuditLineIn<'_> = serde_json::from_str(line).unwrap();
+                    assert_eq!(stored.v, AUDIT_LINE_FORMAT_V2);
+                    let expected = FileAuditStorage::compute_integrity_hash_v2(
+                        &prev,
+                        stored.event.get().as_bytes(),
+                    )
+                    .unwrap();
+                    assert_eq!(stored.integrity_hash, expected);
+                    prev = stored.integrity_hash;
+                    hashes.push(prev.clone());
+                }
+                assert_eq!(hashes.len(), 3);
                 assert_ne!(hashes[0], hashes[1]);
                 assert_ne!(hashes[1], hashes[2]);
             }
@@ -2416,11 +3028,11 @@ mod tests {
             .with_actor("user1")
             .with_resource("resource1");
 
-        let hash_with = FileAuditStorage::compute_integrity_hash(&event, "").unwrap();
+        let hash_with = FileAuditStorage::compute_integrity_hash_v1(&event, "").unwrap();
 
         // Same event without actor/resource should have different hash
         let event_without = AuditEvent::new(AuditEventType::System, "test", AuditOutcome::Success);
-        let hash_without = FileAuditStorage::compute_integrity_hash(&event_without, "").unwrap();
+        let hash_without = FileAuditStorage::compute_integrity_hash_v1(&event_without, "").unwrap();
 
         assert_ne!(hash_with, hash_without);
     }
@@ -2637,7 +3249,7 @@ mod tests {
         }
     }
 
-    /// A single audit JSONL line longer than `MAX_LINE_LEN` bytes with
+    /// A single audit JSONL line longer than `MAX_AUDIT_LINE_LEN` bytes with
     /// no early newline must return `AuditError` promptly rather than
     /// livelocking the inner `BufRead::fill_buf` loop in `verify_chain`.
     /// Asserts both correctness AND a wall-clock budget — a previous
@@ -2653,7 +3265,7 @@ mod tests {
         let storage_dir = temp_dir.path().join("audit");
         std::fs::create_dir_all(&storage_dir).unwrap();
 
-        // Write a synthetic JSONL with one line of `MAX_LINE_LEN + 1024`
+        // Write a synthetic JSONL with one line of `MAX_AUDIT_LINE_LEN + 1024`
         // bytes (no newline before that point) followed by a newline.
         // `1 MiB + 1 KiB` is comfortably over the cap (1 MiB) and small
         // enough not to balloon test memory.

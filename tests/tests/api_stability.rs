@@ -772,8 +772,8 @@ fn test_verified_session_method_return_types_are_stable() {
     let _: TrustLevel = session.trust_level();
     let _: &[u8; 32] = session.session_id();
     let _: &PublicKey = session.public_key();
-    let _: std::time::SystemTime = session.authenticated_at();
-    let _: std::time::SystemTime = session.expires_at();
+    let _: latticearc::Timestamp = session.authenticated_at();
+    let _: latticearc::Timestamp = session.expires_at();
     let _: Result<()> = session.verify_valid();
 }
 
@@ -1127,7 +1127,7 @@ fn test_crypto_context_api_is_stable() {
     let _pref: PerformancePreference = context.performance_preference;
     let _use_case: Option<UseCase> = context.use_case;
     let _hw: bool = context.hardware_acceleration;
-    let _ts: std::time::SystemTime = context.timestamp;
+    let _ts: latticearc::Timestamp = context.timestamp;
 }
 
 /// Test 5.4: DataCharacteristics structure is stable
@@ -1161,7 +1161,7 @@ fn test_challenge_structure_is_stable() {
 
     // Fields should be accessible via methods
     let _data: &[u8] = challenge.data();
-    let _timestamp: std::time::SystemTime = challenge.timestamp();
+    let _timestamp: latticearc::Timestamp = challenge.timestamp();
     let _complexity: &ProofComplexity = challenge.complexity();
     let _timeout: u64 = challenge.timeout_ms();
 }

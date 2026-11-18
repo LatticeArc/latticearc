@@ -459,6 +459,8 @@ pub use hybrid::wire::{WireEncode, WireError};
 // Memory-locking status for `SecretVec` (`secret-mlock` feature, invariant
 // I-10) so applications can display whether swap protection is active.
 pub use types::{MemoryLockStatus, memory_lock_status};
+// Platform-independent UTC instant used by every timestamp in the API.
+pub use types::{Timestamp, TimestampError};
 // Seed-based hybrid signing keygen (0.13): the module-level name is
 // `sig_hybrid::generate_keypair_from_seed`; the crate root exposes it under
 // the descriptive name the product spec uses, next to the other

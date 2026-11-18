@@ -39,6 +39,7 @@
     clippy::redundant_clone
 )]
 
+use latticearc::Timestamp;
 use latticearc::types::traits::{
     ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
 };
@@ -51,7 +52,6 @@ use latticearc::unified_api::{
 };
 use std::thread;
 use std::time::Duration as StdDuration;
-use std::time::SystemTime;
 
 // ============================================================================
 // Test 1: Session Lifecycle - Establishment and Basic Operations
@@ -79,7 +79,7 @@ fn test_verified_session_establishment_succeeds() {
     assert_eq!(session.session_id().len(), 32, "Session ID should be 32 bytes");
 
     // Verify authenticated timestamp is recent
-    let now = SystemTime::now();
+    let now = Timestamp::now();
     let auth_time = session.authenticated_at();
     let time_diff = now.duration_since(auth_time).unwrap_or_default();
     assert!(time_diff.as_secs() < 5, "Authentication timestamp should be within last 5 seconds");
@@ -92,7 +92,7 @@ fn test_verified_session_expiration_time_is_correct() {
         .expect("session establishment should succeed");
 
     // Verify expiration is set correctly (30 minutes from now)
-    let now = SystemTime::now();
+    let now = Timestamp::now();
     let expires = session.expires_at();
     let minutes_until_expiry =
         expires.duration_since(now).expect("session expiry is in the future").as_secs() / 60;
@@ -522,7 +522,7 @@ fn test_proof_of_possession_generation_succeeds() {
     // Verify PoP properties
     assert_eq!(pop.public_key(), &public_key, "PoP should contain correct public key");
     assert!(!pop.signature().is_empty(), "PoP signature should not be empty");
-    assert!(pop.timestamp() <= SystemTime::now(), "PoP timestamp should not be in the future");
+    assert!(pop.timestamp() <= Timestamp::now(), "PoP timestamp should not be in the future");
 }
 
 #[test]
@@ -722,7 +722,7 @@ fn test_proof_format_validation_has_correct_size() {
     let valid_proof = ZeroKnowledgeProof::new(
         vec![1, 2, 3],
         vec![4, 5, 6],
-        SystemTime::now(),
+        Timestamp::now(),
         ProofComplexity::Low,
     );
 
@@ -730,18 +730,19 @@ fn test_proof_format_validation_has_correct_size() {
 
     // Empty challenge
     let invalid_proof =
-        ZeroKnowledgeProof::new(vec![], vec![4, 5, 6], SystemTime::now(), ProofComplexity::Low);
+        ZeroKnowledgeProof::new(vec![], vec![4, 5, 6], Timestamp::now(), ProofComplexity::Low);
 
     assert!(!invalid_proof.is_valid_format(), "Proof with empty challenge should be invalid");
 
     // Empty proof data
     let invalid_proof =
-        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![], SystemTime::now(), ProofComplexity::Low);
+        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![], Timestamp::now(), ProofComplexity::Low);
 
     assert!(!invalid_proof.is_valid_format(), "Proof with empty data should be invalid");
 
     // Future timestamp
-    let future_time = SystemTime::now() + StdDuration::from_secs(3_600);
+    let future_time =
+        Timestamp::now().checked_add(StdDuration::from_secs(3_600)).expect("in range");
 
     let invalid_proof =
         ZeroKnowledgeProof::new(vec![1, 2, 3], vec![4, 5, 6], future_time, ProofComplexity::Low);

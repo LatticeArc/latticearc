@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-use crate::types::timestamp;
+use crate::types::Timestamp;
 
 /// Validate a 256-bit AEAD key length (32 bytes).
 ///
@@ -55,7 +55,7 @@ fn validate_aes256_key_length(k: &[u8]) -> Result<()> {
 /// is preferable to a panic in audit-record construction.
 #[inline]
 fn current_timestamp() -> u64 {
-    timestamp::unix_seconds(std::time::SystemTime::now()).max(0).unsigned_abs()
+    Timestamp::now().unix_seconds().max(0).unsigned_abs()
 }
 use zeroize::Zeroizing;
 

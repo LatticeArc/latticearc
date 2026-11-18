@@ -14,37 +14,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **BREAKING: `chrono` is removed; every public timestamp is now
-  `std::time::SystemTime`.** RUSTSEC-2026-0543 marks `chrono` unmaintained
+  `latticearc::Timestamp`.** RUSTSEC-2026-0543 marks `chrono` unmaintained
   with no patched release. Rather than ignoring the advisory, the dependency
-  is gone, and the public API no longer exposes any third-party date/time
-  type, so a future change of time library cannot break callers again.
-  Affected signatures (each `DateTime<Utc>` becomes `SystemTime`):
-  `KeyCustodian::{new, approved_until}`, `KeyLifecycleRecord::{generated_at,
-  activated_at, rotated_at, retired_at, destroyed_at}`,
-  `StateTransition::{new, timestamp}`, `CryptoContext::{timestamp,
-  with_timestamp}`, `AuditEvent::timestamp`,
-  `KeyLifecycleEvent::{Deprecated, deprecated}`, `PortableKey::{created,
-  with_created, not_after, set_not_after, is_expired_at}`,
-  `PortableKey::validate_with_expiry`, `Challenge::timestamp`,
-  `ZeroKnowledgeProof::{new, timestamp}`, `ProofOfPossessionData::{new,
-  timestamp}`, `ContinuousSession::last_verification` and
+  is gone and the API exposes no third-party date/time type, so a future
+  change of time library cannot break callers again. `Timestamp` is a UTC
+  instant held as nanoseconds since the Unix epoch, identical on every
+  platform (years ±999,999; `std::time::SystemTime` was not used because on
+  Windows it has 100 ns resolution and a 1601–60056 range, which would lose
+  digits of timestamps written elsewhere). It provides `now()`, `MIN` /
+  `MAX`, `from_unix()`, `from_unix_nanos()` / `unix_nanos()` (lossless),
+  `unix_seconds()`, `subsec_nanos()`, `checked_add` /
+  `checked_sub` / `duration_since` with `std::time::Duration`, RFC 3339
+  `Display` / `FromStr` / serde, and `TryFrom` conversions to and from
+  `SystemTime` (failures report `TimestampError`). Affected signatures (each
+  `DateTime<Utc>` becomes `Timestamp`): `KeyCustodian::{new,
+  approved_until}`, `KeyLifecycleRecord::{generated_at, activated_at,
+  rotated_at, retired_at, destroyed_at}`, `StateTransition::{new,
+  timestamp}`, `CryptoContext::{timestamp, with_timestamp}`,
+  `AuditEvent::timestamp`, `KeyLifecycleEvent::{Deprecated, deprecated}`,
+  `PortableKey::{created, with_created, not_after, set_not_after,
+  is_expired_at}`, `PortableKey::validate_with_expiry`,
+  `Challenge::timestamp`, `ZeroKnowledgeProof::{new, timestamp}`,
+  `ProofOfPossessionData::{new, timestamp}`,
+  `ContinuousSession::last_verification` and
   `VerifiedSession::{authenticated_at, expires_at}`.
-  `PortableKey::created()` now returns `SystemTime` by value instead of
-  `&DateTime<Utc>`. Convert with `SystemTime::from(chrono_value)` or
-  `chrono::DateTime::<Utc>::from(system_time)` if your code still uses
-  chrono.
-- **Wire formats are unchanged.** Timestamps still serialize as RFC 3339 UTC
-  strings with the same fractional-second rules and chrono's signed form for
+  `PortableKey::created()` now returns `Timestamp` by value instead of
+  `&DateTime<Utc>`.
+- **Timestamp encoding is unchanged.** Timestamps serialize as RFC 3339 UTC
+  strings with chrono's fractional-second rules and its signed form for
   years outside 0000–9999 (`+10000-…`, up to chrono's `MAX_UTC`), so every
-  timestamp 0.17.0 wrote into key files, key-lifecycle records and audit logs
-  loads unchanged. Audit-chain integrity hashes cover the encoded timestamp;
-  the new encoder reproduces chrono's bytes exactly, which golden tests
-  captured from chrono 0.4.45 pin, so existing audit chains still verify.
-- Timestamp parsing is now strict RFC 3339: `T`/`t`/space separators, `Z`/`z`,
+  timestamp 0.17.0 wrote into key files, key-lifecycle records and audit
+  logs loads unchanged and re-encodes identically. Golden values captured
+  from chrono 0.4.45 pin this.
+- Timestamp parsing is strict RFC 3339: `T`/`t`/space separators, `Z`/`z`,
   `±HH:MM` offsets, any number of fractional digits and second `60` are
   accepted. Hand-edited values in the non-RFC forms chrono also tolerated (a
   `UTC` suffix, `+HHMM` without a colon, single-digit fields, embedded
-  whitespace) are now rejected; this crate never wrote them.
+  whitespace) are rejected; this crate never wrote them.
+- **BREAKING (audit log line format): audit integrity hashes now cover the
+  exact stored bytes.** New lines are
+  `{"v":2,"event":{...},"integrity_hash":"<hex>"}` and the hash is
+  `SHA-256("latticearc-audit-event-v2" || len‖previous_hash || len‖event)`
+  over the `event` JSON exactly as written. `verify_chain` hashes those
+  stored bytes directly instead of re-encoding parsed fields, so its result
+  no longer depends on how values round-trip through types and is the same
+  on every platform. Lines written by earlier versions (bare event objects,
+  no `"v"`) still verify through their field transcript; once a chain
+  contains a format-2 line, a later format-1 line is reported as a
+  mismatch. A format-2 line must be byte-for-byte what the writer emits
+  (no extra fields, whitespace or escapes outside the hashed event), or it
+  is rejected. Tools that parse the JSONL files directly must read the
+  event from the `event` field of format-2 lines.
+- **Fixed: audit chains broke on every process restart.** A new
+  `FileAuditStorage` started a fresh chain from the genesis anchor, so
+  `verify_chain` reported the first event after a restart as tampering. It
+  now applies the retention policy, then resumes from the last stored hash
+  and starts its first file with a chain-link anchor to the newest existing
+  file (logging the resumed file and hash at `info`). A torn final line from
+  a crash is skipped when resuming (with a warning) and is still reported by
+  `verify_chain`. An unreadable audit file makes `FileAuditStorage::new`
+  fail rather than fork the chain.
+- **Fixed: `verify_chain` failed forever after the first retention sweep.**
+  It always replayed from genesis, so once retention deleted the oldest
+  file nothing verified. When the oldest remaining file starts with a
+  chain-link anchor to a file that no longer exists, verification now
+  starts from the hash that anchor records and reports the boundary in the
+  new `ChainVerificationReport::retention_boundary` field. The report also
+  gains `tail_hash`, the verified chain head: an unkeyed hash chain cannot
+  detect removal of its newest entries by itself, so record `tail_hash`
+  externally (the module docs no longer claim otherwise).
+- New audit files always sort after the newest existing one, even when the
+  clock has stepped backwards, and a rotation whose flush or file creation
+  fails keeps the pending chain link for the next attempt instead of
+  dropping it.
 - Audit retention cleanup only treats `audit-YYYY-MM-DDTHH-MM-SS[-NNNNNN].jsonl`
   (upper-case `T`) as audit files, so a foreign file with a similar name is
   skipped rather than deleted.
@@ -53,7 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crate-internal adapter encodes the 32/33-byte proof and commitment arrays
   in the same byte-string form. 28 packages leave `Cargo.lock`, including
   `chrono`, `iana-time-zone`, `serde_with`, `jiff` and `schemars`; `time`
-  (already a transitive dependency) is the only date/time crate left.
+  (already a transitive dependency) is the only date/time crate left, and it
+  is not part of the public API.
 
 ### Changed
 

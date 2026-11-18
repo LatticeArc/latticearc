@@ -1,7 +1,7 @@
 //! `VerifiedSession`: proof that Zero Trust authentication has completed.
 
 use super::{TrustLevel, ZeroTrustAuth, ZeroTrustSession};
-use crate::types::timestamp;
+use crate::types::timestamp::Timestamp;
 use crate::types::traits::ZeroTrustAuthenticable;
 use crate::unified_api::error::{CoreError, Result};
 use crate::{
@@ -9,7 +9,6 @@ use crate::{
     log_zero_trust_session_expired, log_zero_trust_session_verified,
     types::{PrivateKey, PublicKey},
 };
-use std::time::SystemTime;
 
 /// A verified session that proves Zero Trust authentication has been completed.
 ///
@@ -41,13 +40,13 @@ pub struct VerifiedSession {
     pub(super) session_id: [u8; 32],
     /// Timestamp when authentication was completed (wall-clock, for
     /// audit display only — never used for validity decisions).
-    pub(super) authenticated_at: SystemTime,
+    pub(super) authenticated_at: Timestamp,
     /// Current trust level.
     pub(super) trust_level: TrustLevel,
     /// Public key that was verified.
     pub(super) public_key: PublicKey,
     /// When this session expires (wall-clock, for audit display only).
-    pub(super) expires_at: SystemTime,
+    pub(super) expires_at: Timestamp,
     /// monotonic instant + lifetime drive `is_valid()`.
     /// NTP rollback can't extend a session past its policy lifetime.
     pub(super) issued_at_monotonic: std::time::Instant,
@@ -58,10 +57,10 @@ impl std::fmt::Debug for VerifiedSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VerifiedSession")
             .field("session_id", &"[REDACTED]")
-            .field("authenticated_at", &timestamp::display(self.authenticated_at))
+            .field("authenticated_at", &self.authenticated_at.to_string())
             .field("trust_level", &self.trust_level)
             .field("public_key", &"[REDACTED]")
-            .field("expires_at", &timestamp::display(self.expires_at))
+            .field("expires_at", &self.expires_at.to_string())
             .finish()
     }
 }
@@ -149,7 +148,7 @@ impl VerifiedSession {
         let mut session_id = [0u8; 32];
         session_id.copy_from_slice(&session_id_vec);
 
-        let now = SystemTime::now();
+        let now = Timestamp::now();
         let expires_at = now.checked_add(DEFAULT_SESSION_LIFETIME).ok_or_else(|| {
             CoreError::ConfigurationError(
                 "Cannot compute session expiry: timestamp overflow".to_string(),
@@ -160,11 +159,7 @@ impl VerifiedSession {
 
         // Log successful session creation
         let session_id_hex = hex::encode(session_id);
-        log_zero_trust_session_created!(
-            session_id_hex,
-            trust_level,
-            timestamp::display(expires_at)
-        );
+        log_zero_trust_session_created!(session_id_hex, trust_level, expires_at.to_string());
         log_zero_trust_auth_success!(session_id_hex, trust_level);
 
         // Capture a monotonic instant at construction. The wall-clock
@@ -255,13 +250,13 @@ impl VerifiedSession {
 
     /// Get the timestamp when this session was authenticated.
     #[must_use]
-    pub fn authenticated_at(&self) -> SystemTime {
+    pub fn authenticated_at(&self) -> Timestamp {
         self.authenticated_at
     }
 
     /// Get the timestamp when this session expires.
     #[must_use]
-    pub fn expires_at(&self) -> SystemTime {
+    pub fn expires_at(&self) -> Timestamp {
         self.expires_at
     }
 
@@ -297,7 +292,7 @@ impl VerifiedSession {
             authenticated_at: self.authenticated_at,
             trust_level: self.trust_level,
             public_key: self.public_key.clone(),
-            expires_at: SystemTime::UNIX_EPOCH,
+            expires_at: Timestamp::UNIX_EPOCH,
             issued_at_monotonic: std::time::Instant::now(),
             lifetime: std::time::Duration::from_nanos(0),
         }

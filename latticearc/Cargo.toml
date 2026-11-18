@@ -133,7 +133,7 @@ kat-replay = []
 # =============================================================================
 thiserror = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["raw_value"] }
 zeroize = { workspace = true }
 subtle = { workspace = true }
 time = { workspace = true }

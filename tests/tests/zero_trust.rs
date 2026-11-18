@@ -24,6 +24,7 @@
     unused_qualifications
 )]
 
+use latticearc::Timestamp;
 use latticearc::types::traits::{
     ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
 };
@@ -39,7 +40,6 @@ use latticearc::unified_api::{
 };
 use std::thread;
 use std::time::Duration as StdDuration;
-use std::time::SystemTime;
 
 // ============================================================================
 // Test 1.10.1: Session Establishment
@@ -96,7 +96,7 @@ fn test_session_establishment_timestamps_succeeds() {
     let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
-    let now = SystemTime::now();
+    let now = Timestamp::now();
     let auth_time = session.authenticated_at();
     let time_diff = now.duration_since(auth_time).unwrap_or_default();
 
@@ -140,7 +140,7 @@ fn test_session_expiration_time_set_succeeds() {
     let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
-    let now = SystemTime::now();
+    let now = Timestamp::now();
     let expires = session.expires_at();
     let minutes_until_expiry =
         expires.duration_since(now).expect("session expiry is in the future").as_secs() / 60;
@@ -450,23 +450,24 @@ fn test_zero_knowledge_proof_format_validation_succeeds() {
     let valid_proof = ZeroKnowledgeProof::new(
         vec![1, 2, 3],
         vec![4, 5, 6],
-        SystemTime::now(),
+        Timestamp::now(),
         ProofComplexity::Low,
     );
     assert!(valid_proof.is_valid_format());
 
     // Empty challenge
     let invalid_proof =
-        ZeroKnowledgeProof::new(vec![], vec![4, 5, 6], SystemTime::now(), ProofComplexity::Low);
+        ZeroKnowledgeProof::new(vec![], vec![4, 5, 6], Timestamp::now(), ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
 
     // Empty proof
     let invalid_proof =
-        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![], SystemTime::now(), ProofComplexity::Low);
+        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![], Timestamp::now(), ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
 
     // Future timestamp
-    let future_time = SystemTime::now() + StdDuration::from_secs(3_600);
+    let future_time =
+        Timestamp::now().checked_add(StdDuration::from_secs(3_600)).expect("in range");
     let invalid_proof =
         ZeroKnowledgeProof::new(vec![1, 2, 3], vec![4, 5, 6], future_time, ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
@@ -663,7 +664,7 @@ fn test_proof_of_possession_generation_succeeds() {
 
     assert_eq!(pop.public_key(), &public_key);
     assert!(!pop.signature().is_empty());
-    assert!(pop.timestamp() <= SystemTime::now());
+    assert!(pop.timestamp() <= Timestamp::now());
 }
 
 #[test]

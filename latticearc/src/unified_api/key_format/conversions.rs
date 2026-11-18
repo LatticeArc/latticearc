@@ -22,10 +22,10 @@
 //! checks shape, never lifetime.
 
 use super::{KeyAlgorithm, KeyData, KeyType, ML_KEM_PK_METADATA_KEY, PortableKey};
+use crate::types::timestamp::Timestamp;
 use crate::unified_api::error::{CoreError, Result};
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
 use std::collections::BTreeMap;
-use std::time::SystemTime;
 
 impl PortableKey {
     // --- Bridge: Hybrid KEM keypair ---
@@ -51,7 +51,7 @@ impl PortableKey {
             algorithm,
             key_type: KeyType::Public,
             key_data: KeyData::from_composite(pk.ml_kem_pk(), pk.ecdh_pk()),
-            created: SystemTime::now(),
+            created: Timestamp::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         };
@@ -81,7 +81,7 @@ impl PortableKey {
             algorithm,
             key_type: KeyType::Secret,
             key_data: KeyData::from_composite(&ml_kem_sk, &*ecdh_seed),
-            created: SystemTime::now(),
+            created: Timestamp::now(),
             metadata: sk_metadata,
             not_after: None,
         };
@@ -248,7 +248,7 @@ impl PortableKey {
             algorithm,
             key_type: KeyType::Public,
             key_data: KeyData::from_composite(pk.ml_dsa_pk(), pk.ed25519_pk()),
-            created: SystemTime::now(),
+            created: Timestamp::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         };
@@ -263,7 +263,7 @@ impl PortableKey {
                 sk.expose_ml_dsa_secret(),
                 sk.expose_ed25519_secret(),
             ),
-            created: SystemTime::now(),
+            created: Timestamp::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         };
@@ -364,7 +364,7 @@ impl PortableKey {
             algorithm,
             key_type: KeyType::Public,
             key_data: KeyData::from_raw(public_key),
-            created: SystemTime::now(),
+            created: Timestamp::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         };
@@ -376,7 +376,7 @@ impl PortableKey {
             algorithm,
             key_type: KeyType::Secret,
             key_data: KeyData::from_raw(private_key),
-            created: SystemTime::now(),
+            created: Timestamp::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         };
@@ -654,7 +654,7 @@ impl PortableKey {
             algorithm,
             key_type: KeyType::Symmetric,
             key_data: KeyData::from_raw(key),
-            created: SystemTime::now(),
+            created: Timestamp::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         })

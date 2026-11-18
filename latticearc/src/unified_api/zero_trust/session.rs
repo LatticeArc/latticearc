@@ -4,9 +4,9 @@
 use super::{Challenge, VerifiedSession, ZeroKnowledgeProof, ZeroTrustAuth};
 use crate::log_zero_trust_session_verification_failed;
 use crate::types::timestamp;
+use crate::types::timestamp::Timestamp;
 use crate::types::traits::ZeroTrustAuthenticable;
 use crate::unified_api::error::{CoreError, Result};
-use std::time::SystemTime;
 
 /// A zero-trust session managing the authentication flow.
 pub struct ZeroTrustSession {
@@ -17,14 +17,14 @@ pub struct ZeroTrustSession {
     /// Whether the session has been verified.
     verified: bool,
     /// When the session started.
-    session_start: SystemTime,
+    session_start: Timestamp,
 }
 
 impl ZeroTrustSession {
     /// Creates a new zero-trust session.
     #[must_use]
     pub fn new(auth: ZeroTrustAuth) -> Self {
-        Self { auth, challenge: None, verified: false, session_start: SystemTime::now() }
+        Self { auth, challenge: None, verified: false, session_start: Timestamp::now() }
     }
 
     /// Initiates the authentication flow by generating a new challenge.
@@ -128,7 +128,7 @@ impl ZeroTrustSession {
     /// API consistency and future extensibility.
     pub fn session_age_ms(&self) -> Result<u64> {
         // Negative elapsed times (clock skew) count as 0 (just started).
-        Ok(timestamp::elapsed_millis_saturating(self.session_start, SystemTime::now()))
+        Ok(timestamp::elapsed_millis_saturating(self.session_start, Timestamp::now()))
     }
 
     /// Convert this session into a `VerifiedSession` after successful authentication.

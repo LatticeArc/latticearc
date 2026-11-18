@@ -3,8 +3,8 @@
 //! Provides core data structures for keys, encrypted data, signed data,
 //! and cryptographic context. All types are pure Rust with zero FFI dependencies.
 
+use crate::types::timestamp::Timestamp;
 use std::fmt;
-use std::time::SystemTime;
 
 use subtle::{Choice, ConstantTimeEq};
 
@@ -800,13 +800,13 @@ pub struct CryptoContext {
     /// Timestamp when the context was created.
     ///
     /// Consumer: `unified_api::audit::AuditEvent` — operation timestamping
-    pub timestamp: SystemTime,
+    pub timestamp: Timestamp,
 }
 
 impl CryptoContext {
     /// Constructor for external callers; required because the type is
     /// `#[non_exhaustive]`. Sets `hardware_acceleration = true` and
-    /// `timestamp = SystemTime::now()`; use `with_*` methods to override.
+    /// `timestamp = Timestamp::now()`; use `with_*` methods to override.
     #[must_use]
     pub fn new(
         security_level: SecurityLevel,
@@ -818,13 +818,13 @@ impl CryptoContext {
             performance_preference,
             use_case,
             hardware_acceleration: true,
-            timestamp: SystemTime::now(),
+            timestamp: Timestamp::now(),
         }
     }
 
     /// Override the timestamp (mainly for replay-test reproducibility).
     #[must_use]
-    pub fn with_timestamp(mut self, timestamp: SystemTime) -> Self {
+    pub fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
         self.timestamp = timestamp;
         self
     }
