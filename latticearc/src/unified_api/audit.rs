@@ -24,6 +24,12 @@
 //! - **Restart continuity**: a new `FileAuditStorage` resumes from the last
 //!   stored hash and starts its first file with a chain-link anchor to the
 //!   previous file, so the chain verifies across process restarts.
+//! - **Verified retention**: the retention sweep removes only the oldest
+//!   contiguous run of expired files, only after that run verifies, and
+//!   records the new chain boundary in a protected `retention-checkpoint`
+//!   file (next to the genesis anchor) before each removal. Verification
+//!   accepts a chain whose oldest files are gone only at that recorded
+//!   boundary; files that do not verify are kept for inspection.
 //! - **Automatic Rotation**: Files rotate based on size and age limits
 //! - **Retention Policies**: Configurable retention periods for compliance
 //! - **Thread-Safe**: All operations are safe for concurrent access
@@ -663,11 +669,12 @@ pub struct ChainVerificationReport {
     /// Hash of the last verified event (the genesis anchor if there are
     /// none). Record it externally to detect later tail truncation.
     pub tail_hash: String,
-    /// `Some(file)` when the oldest remaining file starts with a chain-link
-    /// anchor to `file`, which no longer exists — normally removed by the
-    /// retention policy. Verification then starts from the hash that
-    /// anchor records instead of from genesis; compare `file`'s timestamp
-    /// with the retention window to tell retention from deletion.
+    /// `Some(file)` when the retention policy has removed the oldest files,
+    /// `file` being the newest one removed. Verification then starts from
+    /// the chain hash the retention sweep recorded for `file` in the
+    /// protected `retention-checkpoint` (written only after the removed
+    /// segment verified); a leading chain-link anchor that does not match
+    /// that record is reported as a mismatch, never accepted.
     pub retention_boundary: Option<String>,
 }
 
@@ -803,6 +810,31 @@ struct AuditLineVersion {
     v: Option<u8>,
 }
 
+/// Result of replaying the chain over a run of files.
+struct ChainWalk {
+    events_checked: u64,
+    mismatch: Option<ChainMismatch>,
+    /// Chain hash after the last event.
+    tail_hash: String,
+    /// Chain hash at the end of each file walked, in order (shorter than
+    /// the file list when the walk stopped at a mismatch).
+    file_tails: Vec<String>,
+}
+
+/// The chain boundary left by the retention sweep: the newest removed file
+/// and the chain hash at its end.
+struct RetentionCheckpoint {
+    file: String,
+    hash: String,
+}
+
+/// Filename of the retention checkpoint, kept next to the genesis anchor
+/// with the same protection. Written by the retention sweep *before* each
+/// file it removes, and only after the removed segment has verified; it is
+/// the sole evidence `verify_chain` accepts for a chain whose oldest files
+/// are gone.
+const AUDIT_RETENTION_CHECKPOINT_FILENAME: &str = "retention-checkpoint";
+
 /// One stored line, decoded and with its hash recomputed.
 struct VerifiedLine {
     event: AuditEvent,
@@ -850,7 +882,14 @@ impl FileAuditStorage {
         // Resume the existing chain: the next event chains from the last
         // stored hash, and the first file this instance creates starts
         // with a chain-link anchor naming the newest existing file.
-        if let Some((newest_file, tail_hash)) = Self::chain_tail(&storage.config.storage_path)? {
+        let resume = match Self::chain_tail(&storage.config.storage_path)? {
+            Some((newest_file, tail_hash)) => Some((newest_file, tail_hash)),
+            // Every file has been removed by retention: continue from the
+            // boundary the sweep recorded, so the chain stays continuous.
+            None => Self::load_retention_checkpoint(&storage.config.storage_path)?
+                .map(|cp| (cp.file, Some(cp.hash))),
+        };
+        if let Some((newest_file, tail_hash)) = resume {
             if let Some(tail_hash) = tail_hash {
                 *storage.previous_hash.write() = tail_hash;
             }
@@ -864,6 +903,120 @@ impl FileAuditStorage {
         }
 
         Ok(storage)
+    }
+
+    /// Read the retention checkpoint, `None` if no sweep has removed files.
+    ///
+    /// # Errors
+    /// Fails closed on a checkpoint that exists but is unreadable or
+    /// malformed: verification must not silently fall back to genesis.
+    fn load_retention_checkpoint(dir: &std::path::Path) -> Result<Option<RetentionCheckpoint>> {
+        use std::io::Read as _;
+        const CHECKPOINT_MAX_BYTES: u64 = 512;
+        let path = dir.join(AUDIT_RETENTION_CHECKPOINT_FILENAME);
+        let text = match File::open(&path) {
+            Ok(f) => {
+                let mut text = String::new();
+                f.take(CHECKPOINT_MAX_BYTES).read_to_string(&mut text).map_err(|e| {
+                    CoreError::AuditError(format!(
+                        "Failed to read retention checkpoint '{}': {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
+                text
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => {
+                return Err(CoreError::AuditError(format!(
+                    "Failed to open retention checkpoint '{}': {}",
+                    path.display(),
+                    e
+                )));
+            }
+        };
+        let malformed = || {
+            CoreError::AuditError(format!(
+                "Retention checkpoint '{}' is malformed; refusing to verify across it",
+                path.display()
+            ))
+        };
+        let (file, hash) = text.trim().split_once(' ').ok_or_else(malformed)?;
+        let file_ok = file.starts_with("audit-")
+            && file.ends_with(".jsonl")
+            && !file.contains(['/', '\\'])
+            && parse_audit_filename_timestamp(file).is_some();
+        let hash_ok = hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit());
+        if !file_ok || !hash_ok {
+            return Err(malformed());
+        }
+        Ok(Some(RetentionCheckpoint { file: file.to_string(), hash: hash.to_string() }))
+    }
+
+    /// Replace the retention checkpoint atomically (write a protected temp
+    /// file, fsync, rename), or remove it when `checkpoint` is `None`.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be written, synced or renamed.
+    fn store_retention_checkpoint(
+        dir: &std::path::Path,
+        checkpoint: Option<&RetentionCheckpoint>,
+    ) -> Result<()> {
+        use std::io::Write as _;
+        let path = dir.join(AUDIT_RETENTION_CHECKPOINT_FILENAME);
+        let Some(checkpoint) = checkpoint else {
+            return match fs::remove_file(&path) {
+                Ok(()) => Ok(()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(CoreError::AuditError(format!(
+                    "Failed to remove retention checkpoint '{}': {}",
+                    path.display(),
+                    e
+                ))),
+            };
+        };
+        let tmp = dir.join(format!(".{AUDIT_RETENTION_CHECKPOINT_FILENAME}.tmp"));
+        // A stale temp file from an interrupted sweep would block
+        // `create_new`; it carries no state, so remove it first.
+        match fs::remove_file(&tmp) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                return Err(CoreError::AuditError(format!(
+                    "Failed to clear stale checkpoint temp file '{}': {}",
+                    tmp.display(),
+                    e
+                )));
+            }
+        }
+        let io_err = |what: &str, e: std::io::Error| {
+            CoreError::AuditError(format!(
+                "Failed to {what} retention checkpoint '{}': {}",
+                path.display(),
+                e
+            ))
+        };
+        let mut options = OpenOptions::new();
+        options.create_new(true).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        #[cfg(not(unix))]
+        {
+            // Same exclusive-handle approximation of 0o600 as the genesis file.
+            use std::os::windows::fs::OpenOptionsExt as _;
+            options.share_mode(0);
+        }
+        // LINT-OK: mode set on the line(s) above per platform.
+        let mut f = options.open(&tmp).map_err(|e| io_err("create", e))?;
+        f.write_all(format!("{} {}\n", checkpoint.file, checkpoint.hash).as_bytes())
+            .map_err(|e| io_err("write", e))?;
+        f.sync_all().map_err(|e| io_err("fsync", e))?;
+        drop(f);
+        fs::rename(&tmp, &path).map_err(|e| io_err("install", e))?;
+        Ok(())
     }
 
     /// Read the on-disk genesis if it exists, otherwise create one.
@@ -1246,19 +1399,21 @@ impl FileAuditStorage {
         }
     }
 
-    /// The first non-empty line of `path`, reading at most
-    /// [`MAX_AUDIT_LINE_LEN`] bytes per line; `None` for an empty file.
+    /// The first non-empty line of `path` and its zero-based index, reading
+    /// at most [`MAX_AUDIT_LINE_LEN`] bytes per line; `None` for an empty
+    /// file.
     ///
     /// # Errors
     /// Returns an error if the file cannot be read, a line exceeds the cap,
     /// or it is not UTF-8.
-    fn first_line(path: &std::path::Path) -> Result<Option<String>> {
+    fn first_line(path: &std::path::Path) -> Result<Option<(usize, String)>> {
         use std::io::{BufRead as _, Read as _};
         let f = File::open(path).map_err(|e| {
             CoreError::AuditError(format!("Failed to open {}: {}", path.display(), e))
         })?;
         let cap = u64::try_from(MAX_AUDIT_LINE_LEN.saturating_add(1)).unwrap_or(u64::MAX);
         let mut reader = std::io::BufReader::new(f);
+        let mut idx: usize = 0;
         loop {
             let mut buf = Vec::new();
             let n = (&mut reader)
@@ -1281,8 +1436,9 @@ impl FileAuditStorage {
                 CoreError::AuditError(format!("audit line of {} is not UTF-8", path.display()))
             })?;
             if !line.trim().is_empty() {
-                return Ok(Some(line));
+                return Ok(Some((idx, line)));
             }
+            idx = idx.saturating_add(1);
         }
     }
 
@@ -1642,50 +1798,69 @@ impl FileAuditStorage {
             )));
         };
 
-        let entries = fs::read_dir(&self.config.storage_path).map_err(|e| {
-            CoreError::AuditError(format!(
-                "Failed to read audit directory '{}': {}",
-                self.config.storage_path.display(),
-                e
-            ))
-        })?;
+        // Retention removes only the oldest *contiguous* run of expired
+        // files (filenames sort chronologically), judged by the filename
+        // timestamp rather than the filesystem mtime, which a privileged
+        // attacker can rewrite with `touch`. Files whose names don't parse
+        // stop the run and are never deleted.
+        let dir = &self.config.storage_path;
+        let files = Self::sorted_audit_files(dir)?;
+        let expired = files
+            .iter()
+            .take_while(|path| {
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .and_then(parse_audit_filename_timestamp)
+                    .is_some_and(|created_at| created_at < cutoff)
+            })
+            .count();
+        let Some(segment) = files.get(..expired).filter(|s| !s.is_empty()) else {
+            return Ok(());
+        };
 
-        for entry in entries {
-            let Ok(entry) = entry else { continue };
-
-            let path = entry.path();
-
-            // Only process .jsonl files
-            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-                continue;
+        // Removing files moves the chain's starting point, so only a
+        // segment that verifies may go, and the new boundary is recorded
+        // first. An unverifiable segment is kept: deleting it would destroy
+        // the evidence of whatever happened to it.
+        let genesis = Self::load_or_create_genesis(dir)?;
+        let walk = match Self::chain_start(dir, &files, &genesis)? {
+            Ok((start_hash, _)) => Self::walk_chain(segment, start_hash),
+            Err(mismatch) => Ok(ChainWalk {
+                events_checked: 0,
+                mismatch: Some(mismatch),
+                tail_hash: String::new(),
+                file_tails: Vec::new(),
+            }),
+        };
+        let walk = match walk {
+            Ok(walk) if walk.mismatch.is_none() && walk.file_tails.len() == segment.len() => walk,
+            Ok(_) | Err(_) => {
+                tracing::warn!(
+                    target: "latticearc::audit",
+                    files = segment.len(),
+                    "audit retention: expired files do not verify; keeping them for inspection"
+                );
+                return Ok(());
             }
+        };
 
-            // Use the timestamp embedded in the filename
-            // (`audit-YYYY-MM-DDTHH-MM-SS.jsonl`, set by
-            // `create_new_file`) instead of the filesystem mtime,
-            // which a privileged attacker can rewrite with `touch`.
-            // The filename is set at file creation by this process and
-            // is not modifiable without also changing the file's name,
-            // which is observable in directory listings and recorded
-            // in the audit-genesis chain. Files whose names don't
-            // parse — including operator-imported logs from another
-            // tool — are skipped rather than deleted.
-            let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-            let Some(created_at) = parse_audit_filename_timestamp(file_name) else {
-                tracing::debug!("Audit cleanup: skipping non-conforming filename '{}'", file_name);
-                continue;
-            };
-
-            if created_at < cutoff {
-                // Delete old file
-                if let Err(e) = fs::remove_file(&path) {
-                    tracing::warn!("Failed to remove old audit file '{}': {}", path.display(), e);
-                } else {
-                    tracing::info!("Removed old audit file: {}", path.display());
-                }
+        let previous_checkpoint = Self::load_retention_checkpoint(dir)?;
+        let mut last_removed: Option<RetentionCheckpoint> = None;
+        for (path, tail_hash) in segment.iter().zip(&walk.file_tails) {
+            let Some(file) = path.file_name().and_then(|n| n.to_str()) else { break };
+            let boundary = RetentionCheckpoint { file: file.to_string(), hash: tail_hash.clone() };
+            Self::store_retention_checkpoint(dir, Some(&boundary))?;
+            if let Err(e) = fs::remove_file(path) {
+                tracing::warn!("Failed to remove old audit file '{}': {}", path.display(), e);
+                // Put the boundary back where the remaining files start.
+                Self::store_retention_checkpoint(
+                    dir,
+                    last_removed.as_ref().or(previous_checkpoint.as_ref()),
+                )?;
+                break;
             }
+            tracing::info!("Removed old audit file: {}", path.display());
+            last_removed = Some(boundary);
         }
 
         Ok(())
@@ -1729,29 +1904,44 @@ impl FileAuditStorage {
 
         let log_files = Self::sorted_audit_files(&self.config.storage_path)?;
 
-        // Recompute from genesis. Reads the persisted genesis directly
-        // rather than the in-memory `previous_hash` so verification
-        // works on a freshly-mounted storage with no prior writes in
-        // this process. If the oldest remaining file instead starts with
-        // a chain-link anchor, its predecessor has been removed (normally
-        // by retention): start from the hash that anchor records and
-        // report the boundary rather than failing every verification
-        // after the first retention sweep.
+        // Recompute from genesis — read from disk rather than the
+        // in-memory `previous_hash`, so verification works on storage
+        // this process never wrote to — or from the boundary the retention
+        // sweep recorded, when the oldest files have been removed.
         let genesis = Self::load_or_create_genesis(&self.config.storage_path)?;
-        let mut prev_hash = genesis;
-        let mut retention_boundary: Option<String> = None;
-        if let Some(oldest) = log_files.first()
-            && let Some(first_line) = Self::first_line(oldest)?
-            && let Some(decoded) = Self::decode_line(&first_line, "")?
-            && decoded.event.action == CHAIN_ANCHOR_ACTION
-            && let (Some(prev_file), Some(anchor_prev_hash)) = (
-                decoded.event.metadata.get(CHAIN_ANCHOR_PREV_FILE_KEY),
-                decoded.event.metadata.get(CHAIN_ANCHOR_PREV_HASH_KEY),
-            )
-        {
-            retention_boundary = Some(prev_file.clone());
-            prev_hash.clone_from(anchor_prev_hash);
-        }
+        let (start_hash, retention_boundary) =
+            match Self::chain_start(&self.config.storage_path, &log_files, &genesis)? {
+                Ok(start) => start,
+                Err(mismatch) => {
+                    return Ok(ChainVerificationReport {
+                        files_checked: log_files.len(),
+                        events_checked: 0,
+                        mismatch: Some(mismatch),
+                        tail_hash: genesis,
+                        retention_boundary: None,
+                    });
+                }
+            };
+        let walk = Self::walk_chain(&log_files, start_hash)?;
+        Ok(ChainVerificationReport {
+            files_checked: log_files.len(),
+            events_checked: walk.events_checked,
+            mismatch: walk.mismatch,
+            tail_hash: walk.tail_hash,
+            retention_boundary,
+        })
+    }
+
+    /// Replay the hash chain over `files` (oldest first) starting from
+    /// `start_hash`, checking each line's hash, the format-downgrade rule
+    /// and every cross-file chain-link anchor.
+    ///
+    /// # Errors
+    /// Returns an error if a file cannot be read, a line exceeds the cap,
+    /// is not UTF-8 or cannot be parsed, or hashing fails.
+    fn walk_chain(files: &[PathBuf], start_hash: String) -> Result<ChainWalk> {
+        let mut prev_hash = start_hash;
+        let mut file_tails: Vec<String> = Vec::with_capacity(files.len());
         let mut events_checked: u64 = 0;
         let mut mismatch: Option<ChainMismatch> = None;
 
@@ -1774,7 +1964,7 @@ impl FileAuditStorage {
         let mut previous_file_name: Option<String> = None;
         let mut previous_file_final_hash: Option<String> = None;
 
-        for file in &log_files {
+        for file in files {
             use std::io::BufRead;
             let f = File::open(file).map_err(|e| {
                 CoreError::AuditError(format!("Failed to open {}: {}", file.display(), e))
@@ -2006,15 +2196,57 @@ impl FileAuditStorage {
             // validate its chain-link anchor.
             previous_file_name = file.file_name().and_then(|n| n.to_str()).map(str::to_string);
             previous_file_final_hash = Some(prev_hash.clone());
+            file_tails.push(prev_hash.clone());
         }
 
-        Ok(ChainVerificationReport {
-            files_checked: log_files.len(),
-            events_checked,
-            mismatch,
-            tail_hash: prev_hash,
-            retention_boundary,
-        })
+        Ok(ChainWalk { events_checked, mismatch, tail_hash: prev_hash, file_tails })
+    }
+
+    /// Where verification of `files` starts.
+    ///
+    /// From `genesis`, unless the oldest file begins with a chain-link
+    /// anchor — meaning its predecessor has been removed. That is accepted
+    /// only when the anchor names exactly the file and hash the retention
+    /// sweep recorded in the protected checkpoint before deleting; an
+    /// anchor that merely claims a predecessor (e.g. a fabricated file
+    /// written after deleting the real log) is reported as a mismatch.
+    ///
+    /// # Errors
+    /// Returns an error if the oldest file or the checkpoint cannot be read.
+    fn chain_start(
+        dir: &std::path::Path,
+        files: &[PathBuf],
+        genesis: &str,
+    ) -> Result<std::result::Result<(String, Option<String>), ChainMismatch>> {
+        let from_genesis = Ok(Ok((genesis.to_string(), None)));
+        let Some(oldest) = files.first() else { return from_genesis };
+        let Some((line_idx, first_line)) = Self::first_line(oldest)? else { return from_genesis };
+        // An unparseable first line is reported by the walk itself.
+        let Some(decoded) = Self::decode_line(&first_line, genesis)? else { return from_genesis };
+        if decoded.event.action != CHAIN_ANCHOR_ACTION {
+            return from_genesis;
+        }
+        if let (Some(checkpoint), Some(prev_file), Some(prev_hash)) = (
+            Self::load_retention_checkpoint(dir)?,
+            decoded.event.metadata.get(CHAIN_ANCHOR_PREV_FILE_KEY),
+            decoded.event.metadata.get(CHAIN_ANCHOR_PREV_HASH_KEY),
+        ) {
+            use subtle::ConstantTimeEq;
+            let matches: bool = (prev_file.as_bytes().ct_eq(checkpoint.file.as_bytes())
+                & prev_hash.as_bytes().ct_eq(checkpoint.hash.as_bytes()))
+            .into();
+            if matches {
+                return Ok(Ok((checkpoint.hash, Some(checkpoint.file))));
+            }
+        }
+        Ok(Err(ChainMismatch {
+            file: oldest.clone(),
+            line: line_idx,
+            event_id: decoded.event.id,
+            stored_hash: decoded.stored_hash,
+            expected_hash: "a link to a removed file recorded in the retention checkpoint"
+                .to_string(),
+        }))
     }
 
     /// Write an audit event to the current file.
@@ -2129,29 +2361,58 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn write_one(storage: &FileAuditStorage, action: &str) {
-        storage
-            .write(&AuditEvent::new(AuditEventType::System, action, AuditOutcome::Success))
-            .unwrap();
-        storage.flush().unwrap();
+    /// Rename the oldest audit file so its filename says `days` days ago
+    /// (retention judges age by filename). Must run before any later file
+    /// links to it by name.
+    fn age_oldest_file(dir: &std::path::Path, days: u64) -> String {
+        let oldest = FileAuditStorage::sorted_audit_files(dir).unwrap().remove(0);
+        let then =
+            Timestamp::now().checked_sub(Duration::from_secs(days.saturating_mul(86_400))).unwrap();
+        let name = audit_file_name(then);
+        fs::rename(&oldest, dir.join(&name)).unwrap();
+        name
     }
 
     #[test]
-    fn test_restart_after_all_files_expired_starts_fresh_chain_succeeds() {
+    fn test_restart_after_all_files_expired_continues_from_checkpoint_succeeds() {
         let three_days_ago = Timestamp::now().checked_sub(Duration::from_secs(3 * 86_400)).unwrap();
         let (dir, old) = legacy_dir_at(&["expired"], three_days_ago);
+        let old_name = old.file_name().unwrap().to_str().unwrap().to_string();
         let config = AuditConfig::new(dir.path().to_path_buf()).with_retention_days(1).unwrap();
         let storage = FileAuditStorage::new(config).unwrap();
-        assert!(!old.exists(), "retention must remove the expired file");
+        assert!(!old.exists(), "retention must remove the expired, verified file");
         write_one(&storage, "fresh");
         let report = storage.verify_chain().unwrap();
         assert!(report.is_intact(), "{report:?}");
-        assert_eq!(report.events_checked, 1);
-        assert_eq!(report.retention_boundary, None);
+        assert_eq!(report.retention_boundary.as_deref(), Some(old_name.as_str()));
+        assert_eq!(report.events_checked, 2); // chain-link anchor + fresh
     }
 
     #[test]
-    fn test_partial_retention_verifies_from_reported_boundary_succeeds() {
+    fn test_retention_sweep_records_boundary_and_chain_verifies_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().to_path_buf();
+        {
+            let storage = FileAuditStorage::new(AuditConfig::new(path.clone())).unwrap();
+            write_one(&storage, "run-1");
+        }
+        let aged = age_oldest_file(&path, 3);
+        {
+            let storage = FileAuditStorage::new(AuditConfig::new(path.clone())).unwrap();
+            write_one(&storage, "run-2");
+        }
+        let config = AuditConfig::new(path.clone()).with_retention_days(1).unwrap();
+        let storage = FileAuditStorage::new(config).unwrap();
+        assert!(!path.join(&aged).exists());
+        write_one(&storage, "run-3");
+        let report = storage.verify_chain().unwrap();
+        assert!(report.is_intact(), "{report:?}");
+        assert_eq!(report.retention_boundary.as_deref(), Some(aged.as_str()));
+        assert_eq!(report.tail_hash, *storage.previous_hash.read());
+    }
+
+    #[test]
+    fn test_manual_removal_without_checkpoint_is_reported_fails() {
         let dir = TempDir::new().unwrap();
         let config = AuditConfig::new(dir.path().to_path_buf());
         {
@@ -2161,15 +2422,99 @@ mod tests {
         std::thread::sleep(Duration::from_millis(2));
         let storage = FileAuditStorage::new(config).unwrap();
         write_one(&storage, "run-2");
-        // Remove the oldest file, as a retention sweep would.
         let oldest = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().remove(0);
-        let oldest_name = oldest.file_name().unwrap().to_str().unwrap().to_string();
         fs::remove_file(&oldest).unwrap();
         let report = storage.verify_chain().unwrap();
-        assert!(report.is_intact(), "{report:?}");
-        assert_eq!(report.retention_boundary.as_deref(), Some(oldest_name.as_str()));
-        assert_eq!(report.events_checked, 2); // anchor + run-2
-        assert_eq!(report.tail_hash, *storage.previous_hash.read());
+        assert!(!report.is_intact(), "removal not recorded by retention must not verify");
+        assert_eq!(report.retention_boundary, None);
+    }
+
+    /// The automated-review attack: wipe the log, then write a file that
+    /// starts with a chain-link anchor claiming an arbitrary predecessor.
+    #[test]
+    fn test_forged_leading_anchor_is_rejected_fails() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().to_path_buf();
+        {
+            let storage = FileAuditStorage::new(AuditConfig::new(path.clone())).unwrap();
+            write_one(&storage, "genuine");
+        }
+        let forge = |claimed_file: &str, claimed_hash: &str| {
+            for f in FileAuditStorage::sorted_audit_files(&path).unwrap() {
+                fs::remove_file(f).unwrap();
+            }
+            let mut anchor =
+                AuditEvent::new(AuditEventType::System, CHAIN_ANCHOR_ACTION, AuditOutcome::Success)
+                    .with_metadata(CHAIN_ANCHOR_PREV_FILE_KEY, claimed_file)
+                    .with_metadata(CHAIN_ANCHOR_PREV_HASH_KEY, claimed_hash);
+            let mut content = FileAuditStorage::encode_line(&mut anchor, claimed_hash).unwrap();
+            let mut fake = AuditEvent::new(AuditEventType::System, "forged", AuditOutcome::Success);
+            content.push_str(
+                &FileAuditStorage::encode_line(&mut fake, &anchor.integrity_hash).unwrap(),
+            );
+            fs::write(path.join(audit_file_name(Timestamp::now())), content).unwrap();
+        };
+        let claimed = audit_file_name(Timestamp::from_unix(1_700_000_000, 0).unwrap());
+
+        // No retention checkpoint at all.
+        forge(&claimed, &"cd".repeat(32));
+        let storage = FileAuditStorage::new(AuditConfig::new(path.clone())).unwrap();
+        let report = storage.verify_chain().unwrap();
+        assert!(!report.is_intact(), "{report:?}");
+        drop(storage);
+
+        // A genuine checkpoint exists, but the forged anchor does not match it.
+        FileAuditStorage::store_retention_checkpoint(
+            &path,
+            Some(&RetentionCheckpoint { file: claimed.clone(), hash: "ef".repeat(32) }),
+        )
+        .unwrap();
+        forge(&claimed, &"cd".repeat(32));
+        let storage = FileAuditStorage::new(AuditConfig::new(path.clone())).unwrap();
+        assert!(!storage.verify_chain().unwrap().is_intact());
+    }
+
+    #[test]
+    fn test_retention_keeps_expired_files_that_do_not_verify_succeeds() {
+        let three_days_ago = Timestamp::now().checked_sub(Duration::from_secs(3 * 86_400)).unwrap();
+        let (dir, old) = legacy_dir_at(&["one", "two"], three_days_ago);
+        // Tamper with the expired file: retention must keep it as evidence.
+        let content = fs::read_to_string(&old).unwrap();
+        fs::write(&old, content.replacen("\"one\"", "\"0ne\"", 1)).unwrap();
+        let config = AuditConfig::new(dir.path().to_path_buf()).with_retention_days(1).unwrap();
+        let storage = FileAuditStorage::new(config).unwrap();
+        assert!(old.exists(), "an unverifiable expired file must not be deleted");
+        assert!(!dir.path().join(AUDIT_RETENTION_CHECKPOINT_FILENAME).exists());
+        assert!(!storage.verify_chain().unwrap().is_intact());
+    }
+
+    #[test]
+    fn test_malformed_retention_checkpoint_fails_closed() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().to_path_buf();
+        {
+            let storage = FileAuditStorage::new(AuditConfig::new(path.clone())).unwrap();
+            write_one(&storage, "run-1");
+        }
+        let aged = age_oldest_file(&path, 3);
+        {
+            let storage = FileAuditStorage::new(AuditConfig::new(path.clone())).unwrap();
+            write_one(&storage, "run-2");
+        }
+        let storage =
+            FileAuditStorage::new(AuditConfig::new(path.clone()).with_retention_days(1).unwrap())
+                .unwrap();
+        assert!(!path.join(&aged).exists());
+        fs::write(path.join(AUDIT_RETENTION_CHECKPOINT_FILENAME), "not a checkpoint\n").unwrap();
+        // Verification relies on the checkpoint, so it fails closed.
+        assert!(storage.verify_chain().is_err());
+    }
+
+    fn write_one(storage: &FileAuditStorage, action: &str) {
+        storage
+            .write(&AuditEvent::new(AuditEventType::System, action, AuditOutcome::Success))
+            .unwrap();
+        storage.flush().unwrap();
     }
 
     #[test]
@@ -2326,6 +2671,7 @@ mod tests {
         let newest = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().pop().unwrap();
         let tail = storage.previous_hash.read().clone();
         let (line, _) = legacy_line(&tail, "spliced");
+        // LINT-OK: test appends to an existing log file; mode applies only at creation.
         let mut file = OpenOptions::new().append(true).open(&newest).unwrap();
         writeln!(file, "{line}").unwrap();
         drop(file);
@@ -2383,6 +2729,7 @@ mod tests {
         };
         // Simulate a crash mid-write: a truncated line with no newline.
         let path = FileAuditStorage::sorted_audit_files(dir.path()).unwrap().pop().unwrap();
+        // LINT-OK: test appends to an existing log file; mode applies only at creation.
         let mut file = OpenOptions::new().append(true).open(&path).unwrap();
         write!(file, r#"{{"v":2,"event":{{"id":"#).unwrap();
         drop(file);

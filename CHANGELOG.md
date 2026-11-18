@@ -76,13 +76,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fail rather than fork the chain.
 - **Fixed: `verify_chain` failed forever after the first retention sweep.**
   It always replayed from genesis, so once retention deleted the oldest
-  file nothing verified. When the oldest remaining file starts with a
-  chain-link anchor to a file that no longer exists, verification now
-  starts from the hash that anchor records and reports the boundary in the
-  new `ChainVerificationReport::retention_boundary` field. The report also
-  gains `tail_hash`, the verified chain head: an unkeyed hash chain cannot
-  detect removal of its newest entries by itself, so record `tail_hash`
-  externally (the module docs no longer claim otherwise).
+  file nothing verified. The retention sweep now removes only the oldest
+  contiguous run of expired files, only after that run verifies, and
+  before each removal records the new boundary (file and chain hash) in a
+  `retention-checkpoint` file next to the genesis anchor, with the same
+  protection. `verify_chain` accepts a chain whose oldest files are gone
+  only when its first chain-link anchor matches that checkpoint, and
+  reports the boundary in the new `ChainVerificationReport::retention_boundary`
+  field; any other leading anchor (e.g. a fabricated file written after
+  deleting the log) is a mismatch. Expired files that do not verify are
+  kept for inspection instead of deleted. A restart after every file has
+  expired continues the chain from the checkpoint. The report also gains
+  `tail_hash`, the verified chain head: an unkeyed hash chain cannot detect
+  removal of its newest entries by itself, so record `tail_hash` externally
+  (the module docs no longer claim otherwise). Chains whose oldest files
+  were removed by earlier versions (no checkpoint) report a mismatch at the
+  boundary, as they already did.
 - New audit files always sort after the newest existing one, even when the
   clock has stepped backwards, and a rotation whose flush or file creation
   fails keeps the pending chain link for the next attempt instead of
