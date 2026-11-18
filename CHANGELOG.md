@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-18
+
 ### Security
 
 - **BREAKING: `chrono` is removed; every public timestamp is now
