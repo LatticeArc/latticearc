@@ -255,13 +255,13 @@ CBOR is the recommended format for:
 | `algorithm` | `KeyAlgorithm` | Yes (auto-derived) | Resolved algorithm. Auto-populated from `use_case`/`security_level`. Stored for version-stability. |
 | `key_type` | `KeyType` | Yes | `"public"`, `"secret"`, or `"symmetric"`. |
 | `key_data` | `KeyData` | Yes | Key material — single (`raw`) or composite (`pq` + `classical`). |
-| `created` | `DateTime<Utc>` | Yes | ISO 8601 creation timestamp. |
+| `created` | `SystemTime` | Yes | Creation timestamp, serialized as an RFC 3339 UTC string (e.g. `"2026-03-19T10:15:30.123456Z"`). |
 
 ### Extension Fields (optional, omitted when empty)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `not_after` | `DateTime<Utc>` | **Informational** expiry timestamp (v0.8.4+). Accessors: `not_after()`, `set_not_after()`, `is_expired_at(now)`, `is_expired()`. **Not a security gate** — see [Key Lifecycle](#key-lifecycle-not_after) below. Serialized with `skip_serializing_if = "Option::is_none"` so absence keeps the pre-0.8.4 wire shape. |
+| `not_after` | `SystemTime` | **Informational** expiry timestamp (v0.8.4+). Accessors: `not_after()`, `set_not_after()`, `is_expired_at(now)`, `is_expired()`. **Not a security gate** — see [Key Lifecycle](#key-lifecycle-not_after) below. Serialized with `skip_serializing_if = "Option::is_none"` so absence keeps the pre-0.8.4 wire shape. |
 | `metadata` | `Map<String, Value>` | Open map for enterprise extensions. Enterprise crates store additional fields (hardware binding, dimension components, etc.) here via typed accessor traits. The base library preserves all entries during roundtrips. |
 
 ## Algorithm Resolution
@@ -382,12 +382,14 @@ For large hybrid keys (ML-DSA-87 + Ed25519, 4,928 raw bytes SK):
 
 ## Key Lifecycle (`not_after`)
 
-`PortableKey` carries an optional `not_after: Option<DateTime<Utc>>` expiry
-timestamp (v0.8.4+). Accessors:
+`PortableKey` carries an optional `not_after: Option<SystemTime>` expiry
+timestamp (v0.8.4+). It was `chrono::DateTime<Utc>` through 0.17.0 and is
+`std::time::SystemTime` after it; the RFC 3339 wire encoding is unchanged.
+Accessors:
 
 ```rust
 key.set_not_after(Some(expiry));   // None clears
-let exp: Option<DateTime<Utc>> = key.not_after();
+let exp: Option<SystemTime> = key.not_after();
 let expired_now: bool = key.is_expired();
 let expired_at_t: bool = key.is_expired_at(t);
 ```
@@ -417,10 +419,10 @@ let expired_at_t: bool = key.is_expired_at(t);
 ### `validate_with_expiry`
 
 ```rust
-use chrono::Utc;
+use std::time::SystemTime;
 
 let key = PortableKey::from_json(&keyfile)?;
-key.validate_with_expiry(Utc::now())?; // structural + expiry gate
+key.validate_with_expiry(SystemTime::now())?; // structural + expiry gate
 ```
 
 Returns `Err(CoreError::InvalidKey("key has expired"))` if `now >=

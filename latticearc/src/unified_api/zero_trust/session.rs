@@ -3,9 +3,10 @@
 
 use super::{Challenge, VerifiedSession, ZeroKnowledgeProof, ZeroTrustAuth};
 use crate::log_zero_trust_session_verification_failed;
+use crate::types::timestamp;
 use crate::types::traits::ZeroTrustAuthenticable;
 use crate::unified_api::error::{CoreError, Result};
-use chrono::{DateTime, Utc};
+use std::time::SystemTime;
 
 /// A zero-trust session managing the authentication flow.
 pub struct ZeroTrustSession {
@@ -16,14 +17,14 @@ pub struct ZeroTrustSession {
     /// Whether the session has been verified.
     verified: bool,
     /// When the session started.
-    session_start: DateTime<Utc>,
+    session_start: SystemTime,
 }
 
 impl ZeroTrustSession {
     /// Creates a new zero-trust session.
     #[must_use]
     pub fn new(auth: ZeroTrustAuth) -> Self {
-        Self { auth, challenge: None, verified: false, session_start: Utc::now() }
+        Self { auth, challenge: None, verified: false, session_start: SystemTime::now() }
     }
 
     /// Initiates the authentication flow by generating a new challenge.
@@ -126,10 +127,8 @@ impl ZeroTrustSession {
     /// This function does not currently return errors, but returns `Result` for
     /// API consistency and future extensibility.
     pub fn session_age_ms(&self) -> Result<u64> {
-        let elapsed = Utc::now().signed_duration_since(self.session_start);
-        // Convert safely: negative elapsed times treated as 0 (just started)
-        let elapsed_u64 = u64::try_from(elapsed.num_milliseconds()).unwrap_or(0);
-        Ok(elapsed_u64)
+        // Negative elapsed times (clock skew) count as 0 (just started).
+        Ok(timestamp::elapsed_millis_saturating(self.session_start, SystemTime::now()))
     }
 
     /// Convert this session into a `VerifiedSession` after successful authentication.

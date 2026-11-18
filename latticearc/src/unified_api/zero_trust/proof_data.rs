@@ -3,11 +3,12 @@
 //! `ZeroTrustAuth::verify_proof`.
 
 use super::ZeroTrustAuth;
+use crate::types::timestamp::unix_millis;
 use crate::unified_api::{
     ProofComplexity,
     error::{CoreError, Result},
 };
-use chrono::Utc;
+use std::time::SystemTime;
 
 /// `pub(super)`: called from `zero_trust::auth::ZeroTrustAuth::generate_challenge`.
 pub(super) fn generate_challenge_data(complexity: &ProofComplexity) -> Result<Vec<u8>> {
@@ -48,7 +49,7 @@ impl ZeroTrustAuth {
     /// unconditional; see the comment on the `match` below for why they must
     /// not be complexity-dependent.
     pub(super) fn compute_proof_data(&self, challenge: &[u8]) -> Result<Vec<u8>> {
-        let timestamp = Utc::now().timestamp_millis().to_le_bytes();
+        let timestamp = unix_millis(SystemTime::now()).to_le_bytes();
 
         // All complexity levels bind the timestamp into the signed
         // message so the verifier can enforce a freshness window. The
@@ -173,7 +174,7 @@ impl ZeroTrustAuth {
                 // Timestamp is now authenticated — freshness check is
                 // safe to run on `timestamp_bytes`.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
-                let now_ms = Utc::now().timestamp_millis();
+                let now_ms = unix_millis(SystemTime::now());
                 // tighten the future-skew cap
                 // to match the sibling `verify_pop` path. `abs_diff(...)
                 // > 300_000` accepted proofs up to 5 min in the future,
@@ -235,9 +236,9 @@ impl ZeroTrustAuth {
                 }
 
                 // Reject stale proofs (>5 min drift).
-                // Timestamp is encoded as chrono milliseconds in little-endian.
+                // Timestamp is encoded as Unix milliseconds in little-endian.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
-                let now_ms = Utc::now().timestamp_millis();
+                let now_ms = unix_millis(SystemTime::now());
                 // tighten the future-skew cap
                 // to match the sibling `verify_pop` path. `abs_diff(...)
                 // > 300_000` accepted proofs up to 5 min in the future,
@@ -299,9 +300,9 @@ impl ZeroTrustAuth {
                 }
 
                 // Reject stale proofs (>5 min drift).
-                // Timestamp is encoded as chrono milliseconds in little-endian.
+                // Timestamp is encoded as Unix milliseconds in little-endian.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
-                let now_ms = Utc::now().timestamp_millis();
+                let now_ms = unix_millis(SystemTime::now());
                 // tighten the future-skew cap
                 // to match the sibling `verify_pop` path. `abs_diff(...)
                 // > 300_000` accepted proofs up to 5 min in the future,

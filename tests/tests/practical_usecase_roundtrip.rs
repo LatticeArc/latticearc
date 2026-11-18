@@ -144,7 +144,10 @@ impl SerializableHybridEncrypted {
                 STANDARD.decode(&self.kem_ciphertext).unwrap(),
                 STANDARD.decode(&self.ecdh_ephemeral_pk).unwrap(),
             )),
-            chrono::Utc::now().timestamp().unsigned_abs(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock after 1970")
+                .as_secs(),
             None,
         )
         .expect("hybrid scheme + populated hybrid_data is a valid shape")

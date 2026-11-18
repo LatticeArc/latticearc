@@ -125,11 +125,11 @@ fn fiat_shamir_challenge(
 pub struct SchnorrProof {
     /// Commitment point R = k*G
     /// Consumer: verify(), commitment()
-    #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
+    #[cfg_attr(feature = "zkp-serde", serde(with = "crate::zkp::serde_byte_array"))]
     commitment: [u8; 33],
     /// Response s = k + c*x
     /// Consumer: verify(), response()
-    #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
+    #[cfg_attr(feature = "zkp-serde", serde(with = "crate::zkp::serde_byte_array"))]
     response: [u8; 32],
 }
 

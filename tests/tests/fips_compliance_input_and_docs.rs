@@ -17,7 +17,6 @@ mod documentation {
 
     //! Coverage tests for `NistDocumentationGenerator` in cavp/documentation.rs.
 
-    use chrono::Utc;
     use latticearc_tests::validation::cavp::compliance::{
         CavpComplianceReport, ComplianceCriteria, ComplianceStatus, ComplianceTestResult,
         MemoryUsageMetrics, PerformanceMetrics, SecurityRequirement, TestCategory, TestResult,
@@ -26,6 +25,7 @@ mod documentation {
     use latticearc_tests::validation::cavp::documentation::NistDocumentationGenerator;
     use latticearc_tests::validation::cavp::types::CavpAlgorithm;
     use std::collections::HashMap;
+    use time::OffsetDateTime;
 
     // ============================================================================
     // Helper: build a CavpComplianceReport with configurable fields
@@ -46,7 +46,7 @@ mod documentation {
         CavpComplianceReport {
             report_id: "CAVP-TEST-001".to_string(),
             algorithm,
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             compliance_status: status,
             summary: TestSummary {
                 total_tests: total,

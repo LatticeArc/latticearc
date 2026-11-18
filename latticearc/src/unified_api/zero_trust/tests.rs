@@ -11,12 +11,13 @@
 
 use super::*;
 use crate::types::PublicKey;
+use crate::types::timestamp::unix_millis;
 use crate::types::traits::{
     ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
 };
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::{ProofComplexity, ZeroTrustConfig, generate_keypair};
-use chrono::{Duration, Utc};
+use std::time::{Duration, SystemTime};
 
 /// Test helper: drive `auth` through a successful challenge-response
 /// so subsequent calls to `start_continuous_verification` clear the
@@ -464,8 +465,12 @@ fn test_zero_trust_session_verify_response_returns_error_without_challenge_fails
     let mut session = ZeroTrustSession::new(auth);
 
     // Try verify without initiating authentication
-    let fake_proof =
-        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![0u8; 64], Utc::now(), ProofComplexity::Low);
+    let fake_proof = ZeroKnowledgeProof::new(
+        vec![1, 2, 3],
+        vec![0u8; 64],
+        SystemTime::now(),
+        ProofComplexity::Low,
+    );
     let result = session.verify_response(&fake_proof);
     assert!(result.is_err());
     Ok(())
@@ -545,17 +550,22 @@ fn test_continuous_session_refresh_via_reauthenticate() -> Result<()> {
 #[test]
 fn test_zero_knowledge_proof_has_valid_format_has_correct_size() {
     // Valid format
-    let valid =
-        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![0u8; 64], Utc::now(), ProofComplexity::Low);
+    let valid = ZeroKnowledgeProof::new(
+        vec![1, 2, 3],
+        vec![0u8; 64],
+        SystemTime::now(),
+        ProofComplexity::Low,
+    );
     assert!(valid.is_valid_format());
 
     // Empty challenge
     let empty_challenge =
-        ZeroKnowledgeProof::new(vec![], vec![0u8; 64], Utc::now(), ProofComplexity::Low);
+        ZeroKnowledgeProof::new(vec![], vec![0u8; 64], SystemTime::now(), ProofComplexity::Low);
     assert!(!empty_challenge.is_valid_format());
 
     // Empty proof
-    let empty_proof = ZeroKnowledgeProof::new(vec![1], vec![], Utc::now(), ProofComplexity::Low);
+    let empty_proof =
+        ZeroKnowledgeProof::new(vec![1], vec![], SystemTime::now(), ProofComplexity::Low);
     assert!(!empty_proof.is_valid_format());
 }
 
@@ -649,7 +659,7 @@ fn test_verify_proof_returns_error_for_short_proof_data_fails() -> Result<()> {
     let short_proof = ZeroKnowledgeProof::new(
         challenge_data.clone(),
         vec![0u8; 10], // Too short (< 64 bytes)
-        Utc::now(),
+        SystemTime::now(),
         ProofComplexity::Low,
     );
     let result = auth.verify_proof(&short_proof, &challenge_data)?;
@@ -788,7 +798,7 @@ fn test_verified_session_expired_verify_valid_fails() -> Result<()> {
         authenticated_at: session.authenticated_at(),
         trust_level: session.trust_level(),
         public_key: session.public_key().clone(),
-        expires_at: Utc::now() - Duration::seconds(1),
+        expires_at: SystemTime::now() - Duration::from_secs(1),
         issued_at_monotonic: std::time::Instant::now(),
         lifetime: std::time::Duration::from_nanos(0),
     };
@@ -818,7 +828,7 @@ fn test_security_mode_validate_expired_session_fails() -> Result<()> {
         authenticated_at: session.authenticated_at(),
         trust_level: session.trust_level(),
         public_key: session.public_key().clone(),
-        expires_at: Utc::now() - Duration::seconds(1),
+        expires_at: SystemTime::now() - Duration::from_secs(1),
         issued_at_monotonic: std::time::Instant::now(),
         lifetime: std::time::Duration::from_nanos(0),
     };
@@ -882,7 +892,7 @@ fn test_verify_proof_medium_short_proof_rejects_fails() -> Result<()> {
     let short_proof = ZeroKnowledgeProof::new(
         challenge_data.clone(),
         vec![0u8; 64],
-        Utc::now(),
+        SystemTime::now(),
         ProofComplexity::Medium,
     );
     let result = auth.verify_proof(&short_proof, &challenge_data)?;
@@ -901,7 +911,7 @@ fn test_verify_proof_high_short_proof_rejects_fails() -> Result<()> {
     let short_proof = ZeroKnowledgeProof::new(
         challenge_data.clone(),
         vec![0u8; 70],
-        Utc::now(),
+        SystemTime::now(),
         ProofComplexity::High,
     );
     let result = auth.verify_proof(&short_proof, &challenge_data)?;
@@ -926,12 +936,12 @@ fn test_verify_proof_high_short_proof_rejects_fails() -> Result<()> {
 // signature verification, so the test asserts `Ok(false)`
 // regardless of signature validity.
 fn forge_future_skewed_proof(skew_ms: i64, complexity: ProofComplexity) -> ZeroKnowledgeProof {
-    let now_ms = Utc::now().timestamp_millis();
+    let now_ms = unix_millis(SystemTime::now());
     let future_ts = now_ms.saturating_add(skew_ms);
     let timestamp_bytes = future_ts.to_le_bytes();
     let mut proof_data = vec![0u8; 64]; // dummy 64-byte signature
     proof_data.extend_from_slice(&timestamp_bytes);
-    ZeroKnowledgeProof::new(vec![1u8; 32], proof_data, Utc::now(), complexity)
+    ZeroKnowledgeProof::new(vec![1u8; 32], proof_data, SystemTime::now(), complexity)
 }
 
 #[test]
@@ -972,8 +982,12 @@ fn test_verify_proof_high_rejects_31s_future_timestamp() -> Result<()> {
 
 #[test]
 fn test_zero_knowledge_proof_debug_and_clone_succeeds() {
-    let proof =
-        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![0u8; 64], Utc::now(), ProofComplexity::Low);
+    let proof = ZeroKnowledgeProof::new(
+        vec![1, 2, 3],
+        vec![0u8; 64],
+        SystemTime::now(),
+        ProofComplexity::Low,
+    );
     let cloned = proof.clone();
     assert_eq!(cloned.challenge(), proof.challenge());
     assert_eq!(cloned.proof_data(), proof.proof_data());
@@ -983,7 +997,8 @@ fn test_zero_knowledge_proof_debug_and_clone_succeeds() {
 
 #[test]
 fn test_proof_of_possession_data_debug_and_clone_succeeds() {
-    let pop = ProofOfPossessionData::new(PublicKey::new(vec![1, 2, 3]), vec![0u8; 64], Utc::now());
+    let pop =
+        ProofOfPossessionData::new(PublicKey::new(vec![1, 2, 3]), vec![0u8; 64], SystemTime::now());
     let cloned = pop.clone();
     assert_eq!(cloned.public_key(), pop.public_key());
     let debug = format!("{:?}", pop);

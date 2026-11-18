@@ -37,6 +37,8 @@ pub mod key_lifecycle;
 /// Primitive secret-byte containers (`SecretBytes<N>`, `SecretVec`). See
 /// `docs/SECRET_TYPE_INVARIANTS.md` for the normative spec.
 pub mod secrets;
+/// `SystemTime` arithmetic and RFC 3339 encoding (crate-internal).
+pub(crate) mod timestamp;
 /// Core traits for cryptographic operations.
 pub mod traits;
 /// Fundamental cryptographic types.

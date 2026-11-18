@@ -62,8 +62,8 @@ tracing-init = ["dep:tracing-subscriber", "dep:tracing-appender"]
 # itself with these types — they back `benches/benchmarks.rs` and the
 # perf integration tests, and downstream perf tooling opts in explicitly.
 perf = []
-# ZKP serialization support (enables serde_with for ZKP types)
-zkp-serde = ["dep:serde_with"]
+# ZKP serialization support (serde derives on the Schnorr/Sigma/commitment types)
+zkp-serde = []
 # Compilation marker: enables formal-verification harness code (Kani
 # proofs). Does not run proofs — use `cargo kani` separately.
 formal-verification = []
@@ -136,7 +136,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 zeroize = { workspace = true }
 subtle = { workspace = true }
-chrono = { workspace = true }
+time = { workspace = true }
 uuid = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
@@ -198,12 +198,6 @@ tracing-appender = { workspace = true, optional = true }
 # =============================================================================
 parking_lot = { workspace = true }
 
-# =============================================================================
-# ZKP
-# =============================================================================
-# Optional: ZKP serialization
-serde_with = { version = "3.20", optional = true }
-
 # Backed atomic-write helper (`unified_api::atomic_write::AtomicWrite`).
 # Used by `KeyFile::write_to_file_with_overwrite` and the CLI's
 # encrypt/decrypt/sign output paths to refuse silent clobber + give
@@ -236,6 +230,8 @@ windows-permissions = "=0.2.4"
 
 [dev-dependencies]
 proptest = { workspace = true }
+# Independent RFC 3339 parser/encoder that `types::timestamp` cross-validates against.
+time = { workspace = true, features = ["parsing", "formatting"] }
 criterion = { workspace = true }
 hex-literal = { workspace = true }
 tempfile = { workspace = true }

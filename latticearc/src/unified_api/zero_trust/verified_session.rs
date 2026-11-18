@@ -1,6 +1,7 @@
 //! `VerifiedSession`: proof that Zero Trust authentication has completed.
 
 use super::{TrustLevel, ZeroTrustAuth, ZeroTrustSession};
+use crate::types::timestamp;
 use crate::types::traits::ZeroTrustAuthenticable;
 use crate::unified_api::error::{CoreError, Result};
 use crate::{
@@ -8,7 +9,7 @@ use crate::{
     log_zero_trust_session_expired, log_zero_trust_session_verified,
     types::{PrivateKey, PublicKey},
 };
-use chrono::{DateTime, Duration, Utc};
+use std::time::SystemTime;
 
 /// A verified session that proves Zero Trust authentication has been completed.
 ///
@@ -40,13 +41,13 @@ pub struct VerifiedSession {
     pub(super) session_id: [u8; 32],
     /// Timestamp when authentication was completed (wall-clock, for
     /// audit display only — never used for validity decisions).
-    pub(super) authenticated_at: DateTime<Utc>,
+    pub(super) authenticated_at: SystemTime,
     /// Current trust level.
     pub(super) trust_level: TrustLevel,
     /// Public key that was verified.
     pub(super) public_key: PublicKey,
     /// When this session expires (wall-clock, for audit display only).
-    pub(super) expires_at: DateTime<Utc>,
+    pub(super) expires_at: SystemTime,
     /// monotonic instant + lifetime drive `is_valid()`.
     /// NTP rollback can't extend a session past its policy lifetime.
     pub(super) issued_at_monotonic: std::time::Instant,
@@ -57,22 +58,20 @@ impl std::fmt::Debug for VerifiedSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VerifiedSession")
             .field("session_id", &"[REDACTED]")
-            .field("authenticated_at", &self.authenticated_at)
+            .field("authenticated_at", &timestamp::display(self.authenticated_at))
             .field("trust_level", &self.trust_level)
             .field("public_key", &"[REDACTED]")
-            .field("expires_at", &self.expires_at)
+            .field("expires_at", &timestamp::display(self.expires_at))
             .finish()
     }
 }
 
-/// Default session lifetime in seconds (30 minutes).
-const DEFAULT_SESSION_LIFETIME_SECS: i64 = 30 * 60;
+/// Default session lifetime (30 minutes).
+const DEFAULT_SESSION_LIFETIME: std::time::Duration = std::time::Duration::from_secs(30 * 60);
 
-// A zero or negative lifetime would silently become `u64::MAX`
-// (i.e. non-expiring) after the i64→u64 cast in `from_authenticated`.
-// Pin the invariant at compile time.
-const _: () =
-    assert!(DEFAULT_SESSION_LIFETIME_SECS > 0, "DEFAULT_SESSION_LIFETIME_SECS must be > 0",);
+// A zero lifetime would make every session expire on creation. Pin the
+// invariant at compile time.
+const _: () = assert!(!DEFAULT_SESSION_LIFETIME.is_zero(), "DEFAULT_SESSION_LIFETIME must be > 0");
 
 impl VerifiedSession {
     /// Quick session establishment for the common case.
@@ -150,10 +149,8 @@ impl VerifiedSession {
         let mut session_id = [0u8; 32];
         session_id.copy_from_slice(&session_id_vec);
 
-        let now = Utc::now();
-        let expires_at = now
-            .checked_add_signed(Duration::seconds(DEFAULT_SESSION_LIFETIME_SECS))
-            .ok_or_else(|| {
+        let now = SystemTime::now();
+        let expires_at = now.checked_add(DEFAULT_SESSION_LIFETIME).ok_or_else(|| {
             CoreError::ConfigurationError(
                 "Cannot compute session expiry: timestamp overflow".to_string(),
             )
@@ -163,15 +160,17 @@ impl VerifiedSession {
 
         // Log successful session creation
         let session_id_hex = hex::encode(session_id);
-        log_zero_trust_session_created!(session_id_hex, trust_level, expires_at);
+        log_zero_trust_session_created!(
+            session_id_hex,
+            trust_level,
+            timestamp::display(expires_at)
+        );
         log_zero_trust_auth_success!(session_id_hex, trust_level);
 
         // Capture a monotonic instant at construction. The wall-clock
         // `expires_at` above remains for audit display, but `is_valid`
-        // consults `Instant::elapsed()` instead. The const_assert above
-        // pins the constant > 0, so `as u64` produces the same numeric
-        // value with no saturation surprise.
-        let lifetime = std::time::Duration::from_secs(DEFAULT_SESSION_LIFETIME_SECS as u64);
+        // consults `Instant::elapsed()` instead.
+        let lifetime = DEFAULT_SESSION_LIFETIME;
         Ok(Self {
             session_id,
             authenticated_at: now,
@@ -256,13 +255,13 @@ impl VerifiedSession {
 
     /// Get the timestamp when this session was authenticated.
     #[must_use]
-    pub fn authenticated_at(&self) -> DateTime<Utc> {
+    pub fn authenticated_at(&self) -> SystemTime {
         self.authenticated_at
     }
 
     /// Get the timestamp when this session expires.
     #[must_use]
-    pub fn expires_at(&self) -> DateTime<Utc> {
+    pub fn expires_at(&self) -> SystemTime {
         self.expires_at
     }
 
@@ -298,7 +297,7 @@ impl VerifiedSession {
             authenticated_at: self.authenticated_at,
             trust_level: self.trust_level,
             public_key: self.public_key.clone(),
-            expires_at: DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_else(Utc::now),
+            expires_at: SystemTime::UNIX_EPOCH,
             issued_at_monotonic: std::time::Instant::now(),
             lifetime: std::time::Duration::from_nanos(0),
         }

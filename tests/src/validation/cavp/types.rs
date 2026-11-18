@@ -9,9 +9,9 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::cast_precision_loss)]
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use time::OffsetDateTime;
 
 /// CAVP test result with comprehensive metadata
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,7 +27,8 @@ pub struct CavpTestResult {
     /// Execution time
     pub execution_time: Duration,
     /// Test timestamp
-    pub timestamp: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
     /// Actual result produced
     pub actual_result: Vec<u8>,
     /// Expected result from CAVP
@@ -240,7 +241,8 @@ pub struct CavpVectorMetadata {
     /// Test type
     pub test_type: CavpTestType,
     /// Creation date
-    pub created_at: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
     /// Security classification
     pub security_level: usize,
     /// Additional notes
@@ -276,7 +278,8 @@ pub struct CavpBatchResult {
     /// Total execution time
     pub total_execution_time: Duration,
     /// Batch timestamp
-    pub timestamp: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
 }
 
 impl CavpBatchResult {
@@ -289,7 +292,7 @@ impl CavpBatchResult {
             status: CavpValidationStatus::Incomplete,
             pass_rate: 0.0,
             total_execution_time: Duration::ZERO,
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
         }
     }
 
@@ -337,7 +340,7 @@ impl CavpTestResult {
             vector_id,
             passed,
             execution_time,
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             actual_result,
             expected_result,
             error_message: None,
@@ -363,7 +366,7 @@ impl CavpTestResult {
             vector_id,
             passed: false,
             execution_time,
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             actual_result,
             expected_result,
             error_message: Some(error_message),

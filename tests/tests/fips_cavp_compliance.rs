@@ -13,11 +13,11 @@ mod compliance_coverage {
 
     #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::redundant_clone)]
 
-    use chrono::Utc;
     use latticearc_tests::validation::cavp::compliance::*;
     use latticearc_tests::validation::cavp::types::*;
     use std::collections::HashMap;
     use std::time::Duration;
+    use time::OffsetDateTime;
 
     fn make_passing_result(id: &str, algorithm: CavpAlgorithm) -> CavpTestResult {
         CavpTestResult {
@@ -26,7 +26,7 @@ mod compliance_coverage {
             vector_id: format!("{}-vec", id),
             passed: true,
             execution_time: Duration::from_millis(10),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             actual_result: vec![1],
             expected_result: vec![1],
             error_message: None,
@@ -41,7 +41,7 @@ mod compliance_coverage {
             vector_id: format!("{}-vec", id),
             passed: false,
             execution_time: Duration::from_millis(5),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             actual_result: vec![0],
             expected_result: vec![1],
             error_message: Some("Mismatch in test vector".to_string()),
@@ -56,7 +56,7 @@ mod compliance_coverage {
             vector_id: format!("{}-vec", id),
             passed: false,
             execution_time: Duration::from_millis(3),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             actual_result: vec![0],
             expected_result: vec![1],
             error_message: None,
@@ -598,7 +598,6 @@ mod enhanced {
         clippy::useless_vec
     )]
 
-    use chrono::{Duration, Utc};
     use latticearc_tests::validation::cavp::compliance::{
         ComplianceCriteria, ComplianceStatus, SecurityRequirement, TestCategory, TestResult,
     };
@@ -613,6 +612,7 @@ mod enhanced {
     };
     use std::collections::HashMap;
     use std::time::Duration as StdDuration;
+    use time::{Duration, OffsetDateTime};
 
     // ============================================================================
     // Test Helper Functions
@@ -648,7 +648,7 @@ mod enhanced {
                 version: "1.0".to_string(),
                 source: "NIST".to_string(),
                 test_type: CavpTestType::KeyGen,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: Some("Test vector for enhanced framework testing".to_string()),
             },
@@ -685,7 +685,7 @@ mod enhanced {
                 version: "1.0".to_string(),
                 source: "NIST".to_string(),
                 test_type: CavpTestType::Signature,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: Some("ML-DSA signature test vector".to_string()),
             },
@@ -722,7 +722,7 @@ mod enhanced {
                 version: "1.0".to_string(),
                 source: "NIST".to_string(),
                 test_type: CavpTestType::Signature,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: Some("SLH-DSA signature test vector".to_string()),
             },
@@ -759,7 +759,7 @@ mod enhanced {
                 version: "1.0".to_string(),
                 source: "NIST".to_string(),
                 test_type: CavpTestType::Signature,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: Some("FN-DSA signature test vector".to_string()),
             },
@@ -796,7 +796,7 @@ mod enhanced {
                 version: "1.0".to_string(),
                 source: "Internal".to_string(),
                 test_type: CavpTestType::KeyGen,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 256,
                 notes: Some("Hybrid KEM test vector".to_string()),
             },
@@ -840,7 +840,7 @@ mod enhanced {
                 version: "1.0".to_string(),
                 source: "Test".to_string(),
                 test_type: CavpTestType::KeyGen, // KeyGen requires seed
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: None,
             },
@@ -853,7 +853,8 @@ mod enhanced {
         passed: usize,
         failed: usize,
     ) -> CavpBatchResult {
-        let batch_id = format!("BATCH-{}", Utc::now().timestamp_micros());
+        let batch_id =
+            format!("BATCH-{}", OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000);
         let mut batch = CavpBatchResult::new(batch_id, algorithm.clone());
 
         for i in 0..passed {
@@ -1358,7 +1359,7 @@ mod enhanced {
 
             assert!(config.parallel_execution);
             assert!(config.max_threads > 0);
-            assert!(config.timeout_per_test > Duration::zero());
+            assert!(config.timeout_per_test > Duration::ZERO);
             assert!(config.retry_failed_tests > 0);
             assert!(config.generate_reports);
             assert!(matches!(config.storage_backend, StorageBackend::Memory));
@@ -2109,7 +2110,7 @@ mod enhanced {
         #[test]
         fn test_result_timestamp_is_set_succeeds() {
             let algorithm = CavpAlgorithm::FnDsa { variant: "512".to_string() };
-            let before = Utc::now();
+            let before = OffsetDateTime::now_utc();
 
             let result = CavpTestResult::new(
                 "TEST-TIME".to_string(),
@@ -2121,7 +2122,7 @@ mod enhanced {
                 CavpTestMetadata::default(),
             );
 
-            let after = Utc::now();
+            let after = OffsetDateTime::now_utc();
 
             assert!(result.timestamp >= before);
             assert!(result.timestamp <= after);

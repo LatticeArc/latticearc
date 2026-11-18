@@ -71,6 +71,16 @@ jobs:
             --lib -- --test-threads=1
         env:
           ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1:check_initialization_order=1
+          # cc >= 1.11 adds -fsanitize=address to every C/C++/ASM build when
+          # CARGO_CFG_SANITIZE contains `address` (x86_64 Linux only). The
+          # aws-lc-fips-sys build then fails: the FIPS `delocate` step rejects
+          # the .data sections ASan emits for instrumented globals (".data
+          # section found in module"). cc appends CFLAGS/CXXFLAGS after its own
+          # flags, so -fno-sanitize=address here turns the C instrumentation
+          # back off. ASan keeps covering the Rust code; the C side was never
+          # instrumented before cc 1.11 either (aws-lc runs its own ASan CI).
+          CFLAGS: -fno-sanitize=address
+          CXXFLAGS: -fno-sanitize=address
         timeout-minutes: 90
 
       - name: ASan Summary

@@ -50,7 +50,6 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-use chrono::{DateTime, Utc};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -58,6 +57,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::SystemTime;
+
+use crate::types::timestamp::{self, UtcSuffix};
 use std::time::Duration;
 
 use crate::unified_api::error::{CoreError, Result};
@@ -90,9 +92,10 @@ pub struct AuditEvent {
     // would amplify the chain-payload size unboundedly.
     id: String,
     // Timestamp when the event occurred.
-    // Private — set internally by `new` via `Utc::now()`. Mutation
+    // Private — set internally by `new` via `SystemTime::now()`. Mutation
     // enables backdating after the chain hash has bound the value.
-    timestamp: DateTime<Utc>,
+    #[serde(with = "crate::types::timestamp::serde_rfc3339")]
+    timestamp: SystemTime,
     // Category of the audit event.
     // Private — set internally by `new`. Mutation flips event
     // semantics post-chain-hash.
@@ -143,7 +146,7 @@ impl AuditEvent {
         let action = sanitize_action_field(action.to_string());
         Self {
             id: generate_uuid(),
-            timestamp: Utc::now(),
+            timestamp: SystemTime::now(),
             event_type,
             actor: None,
             resource: None,
@@ -239,7 +242,7 @@ impl AuditEvent {
 
     /// Get the event timestamp.
     #[must_use]
-    pub fn timestamp(&self) -> DateTime<Utc> {
+    pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 
@@ -553,22 +556,42 @@ impl AuditConfig {
 ///   `NNNNNN` = microseconds since the second, added to defeat
 ///   sub-second rotation collisions under `create_new(true)`)
 ///
-/// Both shapes parse to the same chronological key — microseconds
-/// are stripped at parse time because retention is second-grained.
-/// Treat the parsed `NaiveDateTime` as UTC since the producer writes
-/// UTC clock readings. Used by the retention sweep so cleanup
-/// decisions don't depend on filesystem `mtime`, which a privileged
-/// attacker can rewrite with `touch`.
-fn parse_audit_filename_timestamp(file_name: &str) -> Option<DateTime<Utc>> {
+/// The clock reading is UTC (the producer writes UTC). Used by the
+/// retention sweep so cleanup decisions don't depend on filesystem
+/// `mtime`, which a privileged attacker can rewrite with `touch`.
+/// Anything that is not exactly one of the two fixed-width shapes is
+/// rejected, so the sweep skips (never deletes) foreign files.
+fn parse_audit_filename_timestamp(file_name: &str) -> Option<SystemTime> {
     let stem = file_name.strip_prefix("audit-")?.strip_suffix(".jsonl")?;
-    // Try the current micro-precision form first (`SS-NNNNNN`), then
-    // fall back to the legacy second-only form. The micro suffix is
-    // exactly six digits; chrono's `%6f` matches.
-    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(stem, "%Y-%m-%dT%H-%M-%S-%6f") {
-        return Some(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
+    // `YYYY-MM-DDTHH-MM-SS` is 19 bytes; the current form appends
+    // `-NNNNNN` (exactly six digits of microseconds).
+    let (date_time, fraction) = match stem.len() {
+        19 => (stem, String::new()),
+        26 => {
+            let micros = stem.get(19..)?.strip_prefix('-')?;
+            if !micros.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            (stem.get(..19)?, format!(".{micros}"))
+        }
+        _ => return None,
+    };
+    // The producer always writes an upper-case `T` and `-` time separators.
+    // Check those bytes here (the RFC 3339 parser would also accept `t` or a
+    // space), rewrite `HH-MM-SS` → `HH:MM:SS`, and let the parser validate
+    // every numeric field.
+    let shape = date_time.as_bytes();
+    if shape.get(10) != Some(&b'T') || shape.get(13) != Some(&b'-') || shape.get(16) != Some(&b'-')
+    {
+        return None;
     }
-    let naive = chrono::NaiveDateTime::parse_from_str(stem, "%Y-%m-%dT%H-%M-%S").ok()?;
-    Some(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc))
+    let rfc3339 = format!(
+        "{}:{}:{}{fraction}Z",
+        date_time.get(..13)?,
+        date_time.get(14..16)?,
+        date_time.get(17..)?
+    );
+    timestamp::parse_rfc3339(&rfc3339)
 }
 
 /// Trait for audit storage implementations.
@@ -613,7 +636,7 @@ struct FileState {
     /// Size of the current file in bytes.
     current_size: u64,
     /// Timestamp when the current file was created.
-    created_at: DateTime<Utc>,
+    created_at: SystemTime,
 }
 
 /// Result of [`FileAuditStorage::verify_chain`].
@@ -797,7 +820,12 @@ impl FileAuditStorage {
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 let nonce = crate::primitives::rand::csprng::random_bytes(32);
-                let timestamp = Utc::now().to_rfc3339();
+                let timestamp = timestamp::to_rfc3339(SystemTime::now(), UtcSuffix::PlusZero)
+                    .ok_or_else(|| {
+                        CoreError::AuditError(
+                            "System clock is outside the RFC 3339 year range".to_string(),
+                        )
+                    })?;
                 let mut buf = Vec::with_capacity(
                     AUDIT_GENESIS_DOMAIN_LABEL
                         .len()
@@ -953,7 +981,12 @@ impl FileAuditStorage {
         let mut buf = Vec::new();
         Self::append_lenp_field(&mut buf, previous_hash.as_bytes())?;
         Self::append_lenp_field(&mut buf, event.id.as_bytes())?;
-        Self::append_lenp_field(&mut buf, event.timestamp.to_rfc3339().as_bytes())?;
+        // `+00:00` suffix and chrono-compatible fraction digits: chains
+        // written by earlier versions hash exactly these bytes.
+        let ts = timestamp::to_rfc3339(event.timestamp, UtcSuffix::PlusZero).ok_or_else(|| {
+            CoreError::AuditError("Audit event timestamp outside the RFC 3339 range".to_string())
+        })?;
+        Self::append_lenp_field(&mut buf, ts.as_bytes())?;
         Self::append_lenp_field(&mut buf, event.event_type.to_string().as_bytes())?;
 
         // Optional fields are encoded as a discriminator byte followed by
@@ -1034,12 +1067,12 @@ impl FileAuditStorage {
             return true;
         }
 
-        // Check age limit. `to_std` only errors on a negative duration,
-        // i.e. `created_at` is in the future (clock skew or a tampered
-        // timestamp). A future-dated file would otherwise read as 0 s old
-        // forever and never age-rotate; treat the anomaly as past the age
-        // limit so the file rotates.
-        let Ok(age) = Utc::now().signed_duration_since(state.created_at).to_std() else {
+        // Check age limit. `duration_since` only errors when `created_at`
+        // is in the future (clock skew or a tampered timestamp). A
+        // future-dated file would otherwise read as 0 s old forever and
+        // never age-rotate; treat the anomaly as past the age limit so
+        // the file rotates.
+        let Ok(age) = SystemTime::now().duration_since(state.created_at) else {
             return true;
         };
 
@@ -1157,9 +1190,20 @@ impl FileAuditStorage {
     /// `create_new(true)` flag below would otherwise error on
     /// collisions and leave the rotation loop stuck.
     fn create_new_file(&self) -> Result<FileState> {
-        let now = Utc::now();
-        let micros = now.timestamp_subsec_micros();
-        let filename = format!("audit-{}-{:06}.jsonl", now.format("%Y-%m-%dT%H-%M-%S"), micros);
+        let now = SystemTime::now();
+        let fields = timestamp::utc_fields(now).ok_or_else(|| {
+            CoreError::AuditError("System clock is outside the RFC 3339 year range".to_string())
+        })?;
+        let filename = format!(
+            "audit-{:04}-{:02}-{:02}T{:02}-{:02}-{:02}-{:06}.jsonl",
+            fields.year(),
+            u8::from(fields.month()),
+            fields.day(),
+            fields.hour(),
+            fields.minute(),
+            fields.second(),
+            fields.microsecond()
+        );
         let path = self.config.storage_path.join(&filename);
 
         let file = {
@@ -1170,7 +1214,7 @@ impl FileAuditStorage {
             // `OpenOptions::new().create(..).open(..)` did.
             // `create_new(true)` (not `create(true)`): refuse to open a
             // pre-existing file. The rotation code generates the
-            // filename from `Utc::now()` to second precision; if a
+            // filename from `SystemTime::now()` to microsecond precision; if a
             // file already exists at that path it means either (a) a
             // sub-second rotation race or (b) a stale file from a
             // prior process. In either case we MUST NOT silently
@@ -1247,8 +1291,9 @@ impl FileAuditStorage {
             ));
         }
 
-        let retention_duration = chrono::Duration::days(i64::from(self.config.retention_days));
-        let Some(cutoff) = Utc::now().checked_sub_signed(retention_duration) else {
+        let retention_duration =
+            Duration::from_secs(u64::from(self.config.retention_days).saturating_mul(86_400));
+        let Some(cutoff) = SystemTime::now().checked_sub(retention_duration) else {
             return Err(CoreError::AuditError(format!(
                 "Retention period of {} days overflows date arithmetic",
                 self.config.retention_days
@@ -1772,6 +1817,54 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    /// An audit event as written by 0.17.0 (timestamps encoded by chrono
+    /// 0.4.45) with the integrity hash that version computed. Loading it
+    /// must reproduce both the hash and the JSON byte-for-byte, or every
+    /// pre-existing audit chain would fail `verify_chain`.
+    #[test]
+    fn test_audit_event_from_chrono_era_rehashes_identically_succeeds() {
+        const LINE: &str = concat!(
+            r#"{"id":"00000000-0000-4000-8000-000000000001","#,
+            r#""timestamp":"2023-11-14T22:13:20.123456Z","event_type":"KeyOperation","#,
+            r#""actor":"user@example.com","resource":"key-001","action":"generate_keypair","#,
+            r#""outcome":"Success","metadata":{"algorithm":"ML-KEM-768"},"#,
+            r#""integrity_hash":"89ec1b2d1e0baa6a18f27b504c2169c32c35e46d9ac2a2eba02fa1f9f57bce30"}"#
+        );
+        let event: AuditEvent = serde_json::from_str(LINE).unwrap();
+        assert_eq!(
+            event.timestamp(),
+            std::time::UNIX_EPOCH + Duration::new(1_700_000_000, 123_456_000)
+        );
+        let rehash = FileAuditStorage::compute_integrity_hash(&event, "").unwrap();
+        assert_eq!(rehash, event.integrity_hash());
+        assert_eq!(serde_json::to_string(&event).unwrap(), LINE);
+    }
+
+    #[test]
+    fn test_parse_audit_filename_timestamp_shapes_succeeds() {
+        let base = std::time::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        assert_eq!(parse_audit_filename_timestamp("audit-2023-11-14T22-13-20.jsonl"), Some(base));
+        assert_eq!(
+            parse_audit_filename_timestamp("audit-2023-11-14T22-13-20-000042.jsonl"),
+            Some(base + Duration::from_micros(42))
+        );
+        for bad in [
+            "audit-2023-11-14T22-13-20-42.jsonl",
+            "audit-2023-11-14T22-13-20-00004x.jsonl",
+            "audit-2023-11-14T22:13:20.jsonl",
+            "audit-2023-11-14t22-13-20.jsonl",
+            "audit-2023-11-14 22-13-20.jsonl",
+            "audit-2023-11-14_22-13-20.jsonl",
+            "audit-+2023-11-14T22-13-20.jsonl",
+            "audit-2023-11-14T25-13-20.jsonl",
+            "audit-2023-11-14T22-13-20.log",
+            "other-2023-11-14T22-13-20.jsonl",
+            "audit-.jsonl",
+        ] {
+            assert_eq!(parse_audit_filename_timestamp(bad), None, "{bad:?} must be rejected");
+        }
+    }
+
     #[test]
     fn test_audit_event_creation_has_correct_defaults_succeeds() {
         let event =
@@ -1976,9 +2069,8 @@ mod tests {
         // integrity_hash is empty until written to storage
         assert!(event.integrity_hash().is_empty());
         // timestamp should be recent
-        let now = Utc::now();
-        let diff = now.signed_duration_since(event.timestamp());
-        assert!(diff.num_seconds() < 5);
+        let diff = timestamp::signed_seconds_between(event.timestamp(), SystemTime::now());
+        assert!((0..5).contains(&diff));
     }
 
     #[test]

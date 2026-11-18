@@ -35,9 +35,9 @@
 
 use crate::validation::cavp::types::*;
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use serde_json;
 use std::collections::HashMap;
+use time::OffsetDateTime;
 
 /// Compliance report for CAVP testing
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -47,7 +47,8 @@ pub struct CavpComplianceReport {
     /// Algorithm covered
     pub algorithm: CavpAlgorithm,
     /// Report generation timestamp
-    pub timestamp: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
     /// Overall compliance status
     pub compliance_status: ComplianceStatus,
     /// Test summary
@@ -292,9 +293,9 @@ impl CavpComplianceGenerator {
         let nist_standards = vec![algorithm.fips_standard()];
 
         Ok(CavpComplianceReport {
-            report_id: format!("CAVP-REPORT-{}", Utc::now().timestamp()),
+            report_id: format!("CAVP-REPORT-{}", OffsetDateTime::now_utc().unix_timestamp()),
             algorithm: algorithm.clone(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             compliance_status,
             summary,
             detailed_results,
@@ -323,7 +324,13 @@ impl CavpComplianceGenerator {
         xml.push_str("<cavp_compliance_report>\n");
         xml.push_str(&format!("  <report_id>{}</report_id>\n", report.report_id));
         xml.push_str(&format!("  <algorithm>{}</algorithm>\n", report.algorithm.name()));
-        xml.push_str(&format!("  <timestamp>{}</timestamp>\n", report.timestamp.to_rfc3339()));
+        xml.push_str(&format!(
+            "  <timestamp>{}</timestamp>\n",
+            report
+                .timestamp
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default()
+        ));
         xml.push_str(&format!(
             "  <compliance_status>{:?}</compliance_status>\n",
             report.compliance_status

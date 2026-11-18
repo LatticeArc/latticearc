@@ -287,10 +287,10 @@ mod impl_validator {
     //! Targets: `run_power_up_tests()`, `run_conditional_tests()`, `generate_compliance_certificate()`,
     //! `is_power_up_completed()`, `should_run_conditional_tests()`, `test_vectors()`, and `Default`.
 
-    use chrono::Utc;
     use latticearc_tests::validation::fips_validation_impl::{
         Fips140_3ValidationResult, Fips140_3Validator, SelfTestResult, SelfTestType,
     };
+    use time::OffsetDateTime;
 
     // ============================================================================
     // Fips140_3Validator::run_power_up_tests
@@ -474,7 +474,7 @@ mod impl_validator {
         let validator = Fips140_3Validator::new("cert-empty".to_string(), 1);
         let result = Fips140_3ValidationResult {
             validation_id: "VR-EMPTY".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             power_up_tests: vec![],
             conditional_tests: vec![],
             overall_passed: true,
@@ -496,14 +496,14 @@ mod impl_validator {
         let validator = Fips140_3Validator::new("cert-fail".to_string(), 1);
         let result = Fips140_3ValidationResult {
             validation_id: "VR-FAIL".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             power_up_tests: vec![SelfTestResult {
                 test_type: SelfTestType::PowerUp,
                 test_name: "FailingTest".to_string(),
                 algorithm: "TEST".to_string(),
                 passed: false,
                 execution_time: std::time::Duration::from_millis(1),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 details: serde_json::json!({}),
                 error_message: Some("intentional failure".to_string()),
             }],

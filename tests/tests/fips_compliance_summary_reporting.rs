@@ -762,7 +762,7 @@ mod validation_summary {
             // Create a mock FIPS validation result directly to avoid internal validator issues
             let fips_validation = Some(Fips140_3ValidationResult {
                 validation_id: "FIPS-MOCK-123".to_string(),
-                timestamp: chrono::Utc::now(),
+                timestamp: time::OffsetDateTime::now_utc(),
                 power_up_tests: vec![],
                 conditional_tests: vec![],
                 overall_passed: true,
@@ -811,9 +811,9 @@ mod validation_summary {
             let reporter = ComplianceReporter::new(0.01);
             let kat_results = create_ml_kem_results(5, 5);
 
-            let before = chrono::Utc::now();
+            let before = time::OffsetDateTime::now_utc();
             let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
-            let after = chrono::Utc::now();
+            let after = time::OffsetDateTime::now_utc();
 
             assert!(report.timestamp >= before);
             assert!(report.timestamp <= after);
@@ -1526,7 +1526,7 @@ mod validation_summary {
             // Create a mock FIPS validation result
             let fips_result = Fips140_3ValidationResult {
                 validation_id: "FIPS-TEST-123".to_string(),
-                timestamp: chrono::Utc::now(),
+                timestamp: time::OffsetDateTime::now_utc(),
                 power_up_tests: vec![],
                 conditional_tests: vec![],
                 overall_passed: true,
@@ -1552,7 +1552,7 @@ mod validation_summary {
 
             let fips_result = Fips140_3ValidationResult {
                 validation_id: "FIPS-FAIL-456".to_string(),
-                timestamp: chrono::Utc::now(),
+                timestamp: time::OffsetDateTime::now_utc(),
                 power_up_tests: vec![],
                 conditional_tests: vec![],
                 overall_passed: false,

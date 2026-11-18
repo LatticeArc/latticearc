@@ -1,8 +1,8 @@
 //! FIPS validation types and data structures
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use time::OffsetDateTime;
 
 /// FIPS validation scope
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,7 +68,8 @@ pub struct ValidationResult {
     /// Validation run identifier
     pub validation_id: String,
     /// Validation timestamp
-    pub timestamp: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
     /// Validation scope used
     pub scope: ValidationScope,
     /// Overall validation status
@@ -110,9 +111,11 @@ pub struct ValidationCertificate {
     /// FIPS security level
     pub security_level: FIPSLevel,
     /// Validation date
-    pub validation_date: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub validation_date: OffsetDateTime,
     /// Certificate expiry date
-    pub expiry_date: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub expiry_date: OffsetDateTime,
     /// Validation lab identifier
     pub lab_id: String,
     /// Certificate details

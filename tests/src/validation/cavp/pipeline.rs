@@ -15,11 +15,11 @@ use crate::validation::cavp::compliance::CavpComplianceGenerator;
 use crate::validation::cavp::storage::CavpStorage;
 use crate::validation::cavp::types::*;
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use rand_core_0_6::OsRng;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use time::OffsetDateTime;
 use tracing::{error, info};
 
 // Import PQ cryptographic primitives
@@ -98,7 +98,7 @@ impl CavpTestExecutor {
         &self,
         vectors: Vec<CavpTestVector>,
     ) -> Result<CavpBatchResult> {
-        let batch_id = format!("CAVP-BATCH-{}", Utc::now().timestamp());
+        let batch_id = format!("CAVP-BATCH-{}", OffsetDateTime::now_utc().unix_timestamp());
         let algorithm = vectors
             .first()
             .map(|v| v.algorithm.clone())
@@ -137,8 +137,11 @@ impl CavpTestExecutor {
         &self,
         vector: &CavpTestVector,
     ) -> Result<CavpTestResult> {
-        let test_id =
-            format!("CAVP-TEST-{}-{}", vector.algorithm.name(), Utc::now().timestamp_micros());
+        let test_id = format!(
+            "CAVP-TEST-{}-{}",
+            vector.algorithm.name(),
+            OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000
+        );
         let start_time = Instant::now();
 
         let metadata = CavpTestMetadata {
@@ -1271,7 +1274,7 @@ impl CavpValidationPipeline {
                     version: "1.0".to_string(),
                     source: "Sample".to_string(),
                     test_type: CavpTestType::KeyGen,
-                    created_at: Utc::now(),
+                    created_at: OffsetDateTime::now_utc(),
                     security_level: 128,
                     notes: Some("Sample test vector for testing".to_string()),
                 },

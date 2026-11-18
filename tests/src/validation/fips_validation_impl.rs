@@ -16,12 +16,12 @@
 use crate::validation::kat_tests::types::*;
 use crate::validation::nist_sp800_22::NistSp800_22Tester;
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use hmac::Mac;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use time::OffsetDateTime;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SelfTestType {
@@ -37,7 +37,8 @@ pub struct SelfTestResult {
     pub algorithm: String,
     pub passed: bool,
     pub execution_time: Duration,
-    pub timestamp: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
     pub details: serde_json::Value,
     pub error_message: Option<String>,
 }
@@ -45,7 +46,8 @@ pub struct SelfTestResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fips140_3ValidationResult {
     pub validation_id: String,
-    pub timestamp: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
     pub power_up_tests: Vec<SelfTestResult>,
     pub conditional_tests: Vec<SelfTestResult>,
     pub overall_passed: bool,
@@ -59,7 +61,7 @@ pub struct Fips140_3Validator {
     nist_tester: NistSp800_22Tester,
     module_name: String,
     power_up_completed: bool,
-    last_conditional_test: DateTime<Utc>,
+    last_conditional_test: OffsetDateTime,
     test_vectors_matches_expected: HashMap<String, Vec<KatResult>>,
 }
 
@@ -69,7 +71,7 @@ impl Default for Fips140_3Validator {
             nist_tester: NistSp800_22Tester::default(),
             module_name: "LatticeArc-Crypto".to_string(),
             power_up_completed: false,
-            last_conditional_test: Utc::now(),
+            last_conditional_test: OffsetDateTime::now_utc(),
             test_vectors_matches_expected: HashMap::new(),
         }
     }
@@ -82,7 +84,7 @@ impl Fips140_3Validator {
             nist_tester: NistSp800_22Tester::new(0.01, 1000),
             module_name,
             power_up_completed: false,
-            last_conditional_test: Utc::now(),
+            last_conditional_test: OffsetDateTime::now_utc(),
             test_vectors_matches_expected: HashMap::new(),
         }
     }
@@ -99,8 +101,8 @@ impl Fips140_3Validator {
     /// Returns an error if AES key wrapping or signature algorithm tests fail.
     pub fn run_power_up_tests(&mut self) -> Result<Fips140_3ValidationResult> {
         let start_time = Instant::now();
-        let timestamp = Utc::now();
-        let validation_id = format!("FIPS140-3-{}", timestamp.timestamp());
+        let timestamp = OffsetDateTime::now_utc();
+        let validation_id = format!("FIPS140-3-{}", timestamp.unix_timestamp());
 
         let mut power_up_tests = Vec::new();
 
@@ -142,8 +144,8 @@ impl Fips140_3Validator {
     /// Returns an error if key integrity or operational environment tests fail.
     pub fn run_conditional_tests(&mut self) -> Result<Fips140_3ValidationResult> {
         let start_time = Instant::now();
-        let timestamp = Utc::now();
-        let validation_id = format!("FIPS140-3-COND-{}", timestamp.timestamp());
+        let timestamp = OffsetDateTime::now_utc();
+        let validation_id = format!("FIPS140-3-COND-{}", timestamp.unix_timestamp());
 
         let mut conditional_tests = Vec::new();
 
@@ -222,7 +224,7 @@ impl Fips140_3Validator {
             algorithm: "AES-256-GCM".to_string(),
             passed,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "key_length": test_key.len(),
                 "kek_length": kek.len(),
@@ -269,7 +271,7 @@ impl Fips140_3Validator {
             algorithm: "SHA-256, SHA3-256".to_string(),
             passed,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "sha256_test": sha256_passed,
                 "sha3_256_test": sha3_256_passed,
@@ -306,7 +308,7 @@ impl Fips140_3Validator {
             algorithm: "Ed25519".to_string(),
             passed,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "message_length": test_message.len(),
                 "signature_length": signature.to_bytes().len(),
@@ -337,7 +339,7 @@ impl Fips140_3Validator {
             algorithm: "ML-KEM-1024".to_string(),
             passed,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "entropy_estimate": rng_results.entropy_estimate,
                 "statistical_tests_passed": statistical_passed,
@@ -373,7 +375,7 @@ impl Fips140_3Validator {
             algorithm: "DRBG".to_string(),
             passed,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "sample_size": test_data.len() * 8,
                 "entropy_estimate": rng_results.entropy_estimate,
@@ -411,7 +413,7 @@ impl Fips140_3Validator {
             algorithm: "HMAC-SHA256".to_string(),
             passed,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "message_length": test_message.len(),
                 "key_length": key.len(),
@@ -443,7 +445,7 @@ impl Fips140_3Validator {
             algorithm: "Zeroization".to_string(),
             passed: all_zeroed,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "data_size": sensitive_data.len(),
                 "zeroization_complete": all_zeroed,
@@ -481,7 +483,7 @@ impl Fips140_3Validator {
             algorithm: "HMAC-SHA256".to_string(),
             passed: integrity_detected,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "key_corruption_detected": integrity_detected,
                 "original_mac": hex::encode(mac_result),
@@ -519,7 +521,7 @@ impl Fips140_3Validator {
             algorithm: "HMAC-SHA256".to_string(),
             passed: environment_stable,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "environment_consistency": environment_stable,
                 "test_cases": 2,
@@ -554,7 +556,7 @@ impl Fips140_3Validator {
             algorithm: "Error Injection".to_string(),
             passed: error_detected,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "error_injection_successful": error_injection,
                 "error_detected": error_detected,
@@ -587,7 +589,7 @@ impl Fips140_3Validator {
             algorithm: "SHA-256".to_string(),
             passed: within_limits,
             execution_time: start_time.elapsed(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({
                 "execution_time_ms": execution_time_ms,
                 "threshold_ms": performance_threshold_ms,
@@ -608,7 +610,7 @@ impl Fips140_3Validator {
 
     #[must_use]
     pub fn should_run_conditional_tests(&self) -> bool {
-        Utc::now().signed_duration_since(self.last_conditional_test).num_minutes() >= 60
+        (OffsetDateTime::now_utc() - self.last_conditional_test).whole_minutes() >= 60
     }
 
     #[must_use]
@@ -619,8 +621,15 @@ impl Fips140_3Validator {
         certificate.push_str("====================================\n\n");
         certificate.push_str(&format!("Module: {}\n", result.module_name));
         certificate.push_str(&format!("Validation ID: {}\n", result.validation_id));
-        certificate
-            .push_str(&format!("Date: {}\n", result.timestamp.format("%Y-%m-%d %H:%M:%S UTC")));
+        certificate.push_str(&format!(
+            "Date: {}\n",
+            result
+                .timestamp
+                .format(time::macros::format_description!(
+                    "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
+                ))
+                .unwrap_or_default()
+        ));
         certificate.push_str(&format!("Compliance Level: {}\n", result.compliance_level));
         certificate.push_str(&format!(
             "Overall Status: {}\n\n",

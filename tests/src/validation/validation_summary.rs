@@ -21,14 +21,15 @@ use crate::validation::fips_validation_impl::*;
 use crate::validation::kat_tests::types::*;
 use crate::validation::nist_sp800_22::NistSp800_22Tester;
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use time::OffsetDateTime;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplianceReport {
     pub report_id: String,
-    pub timestamp: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
     pub validation_scope: ValidationScope,
     pub algorithm_results: HashMap<String, AlgorithmComplianceResult>,
     pub statistical_results: Option<StatisticalComplianceResult>,
@@ -125,8 +126,8 @@ impl ComplianceReporter {
         kat_results: &[KatResult],
         validation_result: &Option<Fips140_3ValidationResult>,
     ) -> Result<ComplianceReport> {
-        let timestamp = Utc::now();
-        let report_id = format!("QS-COMPLIANCE-{}", timestamp.timestamp());
+        let timestamp = OffsetDateTime::now_utc();
+        let report_id = format!("QS-COMPLIANCE-{}", timestamp.unix_timestamp());
 
         let mut algorithm_results = HashMap::new();
 
@@ -525,7 +526,12 @@ impl ComplianceReporter {
         html.push_str(&format!("        <p>Report ID: {}</p>\n", report.report_id));
         html.push_str(&format!(
             "        <p>Generated: {}</p>\n",
-            report.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
+            report
+                .timestamp
+                .format(time::macros::format_description!(
+                    "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
+                ))
+                .unwrap_or_default()
         ));
         html.push_str("    </div>\n");
 

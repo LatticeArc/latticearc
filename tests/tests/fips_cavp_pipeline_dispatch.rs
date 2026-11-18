@@ -54,7 +54,7 @@ mod pipeline_sign_verify_roundtrip {
                 version: "1.0".to_string(),
                 source: "Test".to_string(),
                 test_type: CavpTestType::KeyGen,
-                created_at: chrono::Utc::now(),
+                created_at: time::OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: None,
             },
@@ -95,7 +95,7 @@ mod pipeline_sign_verify_roundtrip {
                 version: "1.0".to_string(),
                 source: "Test".to_string(),
                 test_type: CavpTestType::Signature,
-                created_at: chrono::Utc::now(),
+                created_at: time::OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: None,
             },
@@ -137,7 +137,7 @@ mod pipeline_sign_verify_roundtrip {
                 version: "1.0".to_string(),
                 source: "Test".to_string(),
                 test_type: CavpTestType::Verification,
-                created_at: chrono::Utc::now(),
+                created_at: time::OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: None,
             },
@@ -450,7 +450,7 @@ mod pipeline_sign_verify_roundtrip {
                 version: "1.0".to_string(),
                 source: "Test".to_string(),
                 test_type: CavpTestType::Encapsulation,
-                created_at: chrono::Utc::now(),
+                created_at: time::OffsetDateTime::now_utc(),
                 security_level: 192,
                 notes: None,
             },
@@ -492,7 +492,7 @@ mod pipeline_sign_verify_roundtrip {
                 version: "1.0".to_string(),
                 source: "Test".to_string(),
                 test_type: CavpTestType::Decapsulation,
-                created_at: chrono::Utc::now(),
+                created_at: time::OffsetDateTime::now_utc(),
                 security_level: 192,
                 notes: None,
             },
@@ -516,7 +516,6 @@ mod pipeline_dispatch {
 
     #![allow(clippy::unwrap_used, clippy::field_reassign_with_default)]
 
-    use chrono::Utc;
     use latticearc_tests::validation::cavp::pipeline::{
         CavpTestExecutor, CavpValidationPipeline, PipelineConfig,
     };
@@ -524,6 +523,7 @@ mod pipeline_dispatch {
     use latticearc_tests::validation::cavp::types::*;
     use std::collections::HashMap;
     use std::sync::Arc;
+    use time::OffsetDateTime;
     fn make_storage() -> Arc<MemoryCavpStorage> {
         Arc::new(MemoryCavpStorage::new())
     }
@@ -565,7 +565,7 @@ mod pipeline_dispatch {
                 version: "1.0".to_string(),
                 source: "test".to_string(),
                 test_type,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: None,
             },
@@ -951,7 +951,7 @@ mod pipeline_dispatch {
                 version: "1.0".to_string(),
                 source: "test".to_string(),
                 test_type,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 128,
                 notes: None,
             },

@@ -456,7 +456,7 @@ flowchart LR
 |---------|-------------|---------|
 | `fips` | FIPS 140-3 validated aws-lc-rs backend (requires CMake + Go) | No |
 | `fips-self-test` | Power-up KAT self-tests for FIPS-boundary algorithms | No |
-| `zkp-serde` | ZKP serialization support (enables `serde_with`) | No |
+| `zkp-serde` | ZKP serialization support (serde derives for ZKP types) | No |
 | `formal-verification` | Compilation marker for formal-verification harness code (Kani proofs; run via `cargo kani` separately) | No |
 | `kani` | Kani bounded model checking proofs | No |
 | `saw` | SAW formal verification integration | No |

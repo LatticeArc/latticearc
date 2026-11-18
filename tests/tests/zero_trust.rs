@@ -24,7 +24,6 @@
     unused_qualifications
 )]
 
-use chrono::{Duration, Utc};
 use latticearc::types::traits::{
     ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
 };
@@ -40,6 +39,7 @@ use latticearc::unified_api::{
 };
 use std::thread;
 use std::time::Duration as StdDuration;
+use std::time::SystemTime;
 
 // ============================================================================
 // Test 1.10.1: Session Establishment
@@ -96,14 +96,11 @@ fn test_session_establishment_timestamps_succeeds() {
     let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
-    let now = Utc::now();
+    let now = SystemTime::now();
     let auth_time = session.authenticated_at();
-    let time_diff = now.signed_duration_since(auth_time);
+    let time_diff = now.duration_since(auth_time).unwrap_or_default();
 
-    assert!(
-        time_diff.num_seconds() < 5,
-        "Authentication timestamp should be within last 5 seconds"
-    );
+    assert!(time_diff.as_secs() < 5, "Authentication timestamp should be within last 5 seconds");
 }
 
 #[test]
@@ -143,13 +140,14 @@ fn test_session_expiration_time_set_succeeds() {
     let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
-    let now = Utc::now();
+    let now = SystemTime::now();
     let expires = session.expires_at();
-    let time_until_expiry = expires.signed_duration_since(now);
+    let minutes_until_expiry =
+        expires.duration_since(now).expect("session expiry is in the future").as_secs() / 60;
 
     // Should expire in approximately 30 minutes
     assert!(
-        time_until_expiry.num_minutes() >= 29 && time_until_expiry.num_minutes() <= 30,
+        (29..=30).contains(&minutes_until_expiry),
         "Session should expire in approximately 30 minutes"
     );
 }
@@ -449,22 +447,26 @@ fn test_tampered_pop_fails() {
 #[test]
 fn test_zero_knowledge_proof_format_validation_succeeds() {
     // Valid proof
-    let valid_proof =
-        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![4, 5, 6], Utc::now(), ProofComplexity::Low);
+    let valid_proof = ZeroKnowledgeProof::new(
+        vec![1, 2, 3],
+        vec![4, 5, 6],
+        SystemTime::now(),
+        ProofComplexity::Low,
+    );
     assert!(valid_proof.is_valid_format());
 
     // Empty challenge
     let invalid_proof =
-        ZeroKnowledgeProof::new(vec![], vec![4, 5, 6], Utc::now(), ProofComplexity::Low);
+        ZeroKnowledgeProof::new(vec![], vec![4, 5, 6], SystemTime::now(), ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
 
     // Empty proof
     let invalid_proof =
-        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![], Utc::now(), ProofComplexity::Low);
+        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![], SystemTime::now(), ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
 
     // Future timestamp
-    let future_time = Utc::now().checked_add_signed(Duration::hours(1)).unwrap_or_else(Utc::now);
+    let future_time = SystemTime::now() + StdDuration::from_secs(3_600);
     let invalid_proof =
         ZeroKnowledgeProof::new(vec![1, 2, 3], vec![4, 5, 6], future_time, ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
@@ -661,7 +663,7 @@ fn test_proof_of_possession_generation_succeeds() {
 
     assert_eq!(pop.public_key(), &public_key);
     assert!(!pop.signature().is_empty());
-    assert!(pop.timestamp() <= Utc::now());
+    assert!(pop.timestamp() <= SystemTime::now());
 }
 
 #[test]

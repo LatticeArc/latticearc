@@ -38,8 +38,12 @@
 //! # }
 //! ```
 
-use crate::types::error::{Result, TypeError};
+use std::time::SystemTime;
+
 use serde::{Deserialize, Serialize};
+
+use crate::types::error::{Result, TypeError};
+use crate::types::timestamp;
 
 /// Maximum length (in bytes) for a single audit-trail string field.
 /// Keeps state_history bounded and JSONL audit consumers happy.
@@ -188,7 +192,8 @@ pub struct KeyCustodian {
     name: String,
     role: CustodianRole,
     responsibilities: Vec<String>,
-    approved_until: chrono::DateTime<chrono::Utc>,
+    #[serde(with = "crate::types::timestamp::serde_rfc3339")]
+    approved_until: SystemTime,
 }
 
 impl KeyCustodian {
@@ -201,7 +206,7 @@ impl KeyCustodian {
         name: String,
         role: CustodianRole,
         responsibilities: Vec<String>,
-        approved_until: chrono::DateTime<chrono::Utc>,
+        approved_until: SystemTime,
     ) -> Self {
         Self { custodian_id, name, role, responsibilities, approved_until }
     }
@@ -234,7 +239,7 @@ impl KeyCustodian {
     /// validates "currently authorized" must read this through the
     /// accessor (mutation is closed by the privatized field).
     #[must_use]
-    pub fn approved_until(&self) -> chrono::DateTime<chrono::Utc> {
+    pub fn approved_until(&self) -> SystemTime {
         self.approved_until
     }
 }
@@ -284,14 +289,19 @@ pub struct KeyLifecycleRecord {
     destroyer: Option<String>,
 
     // When the key was generated.
-    generated_at: chrono::DateTime<chrono::Utc>,
+    #[serde(with = "crate::types::timestamp::serde_rfc3339")]
+    generated_at: SystemTime,
 
     // Per-state timestamps — private so they can only be set by
     // `transition()`
-    activated_at: Option<chrono::DateTime<chrono::Utc>>,
-    rotated_at: Option<chrono::DateTime<chrono::Utc>>,
-    retired_at: Option<chrono::DateTime<chrono::Utc>>,
-    destroyed_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, with = "crate::types::timestamp::serde_rfc3339_option")]
+    activated_at: Option<SystemTime>,
+    #[serde(default, with = "crate::types::timestamp::serde_rfc3339_option")]
+    rotated_at: Option<SystemTime>,
+    #[serde(default, with = "crate::types::timestamp::serde_rfc3339_option")]
+    retired_at: Option<SystemTime>,
+    #[serde(default, with = "crate::types::timestamp::serde_rfc3339_option")]
+    destroyed_at: Option<SystemTime>,
 
     // SP 800-57 rotation policy (private — the numeric-bound
     // validators would otherwise be bypassable via direct field
@@ -318,11 +328,16 @@ struct KeyLifecycleRecordRaw {
     generator: Option<String>,
     approvers: Vec<String>,
     destroyer: Option<String>,
-    generated_at: chrono::DateTime<chrono::Utc>,
-    activated_at: Option<chrono::DateTime<chrono::Utc>>,
-    rotated_at: Option<chrono::DateTime<chrono::Utc>>,
-    retired_at: Option<chrono::DateTime<chrono::Utc>>,
-    destroyed_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(with = "crate::types::timestamp::serde_rfc3339")]
+    generated_at: SystemTime,
+    #[serde(default, with = "crate::types::timestamp::serde_rfc3339_option")]
+    activated_at: Option<SystemTime>,
+    #[serde(default, with = "crate::types::timestamp::serde_rfc3339_option")]
+    rotated_at: Option<SystemTime>,
+    #[serde(default, with = "crate::types::timestamp::serde_rfc3339_option")]
+    retired_at: Option<SystemTime>,
+    #[serde(default, with = "crate::types::timestamp::serde_rfc3339_option")]
+    destroyed_at: Option<SystemTime>,
     rotation_interval_days: u32,
     overlap_period_days: u32,
 }
@@ -436,7 +451,7 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
         //     persisted record with `state_history[i].timestamp >
         //     state_history[i+1].timestamp` is a tamper signal — the
         //     in-memory `transition()` path always appends with
-        //     `Utc::now()`, which is monotone in practice and forbids
+        //     `SystemTime::now()`, which is monotone in practice and forbids
         //     out-of-order entries by construction.
         for pair in raw.state_history.windows(2) {
             // `windows(2)` always yields 2-element slices; pattern-
@@ -446,7 +461,10 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
             if curr.timestamp < prev.timestamp {
                 return Err(TypeError::InvalidAuditInput(format!(
                     "state_history timestamps decrease between {:?} ({}) and {:?} ({})",
-                    prev.to_state, prev.timestamp, curr.to_state, curr.timestamp
+                    prev.to_state,
+                    timestamp::display(prev.timestamp),
+                    curr.to_state,
+                    timestamp::display(curr.timestamp)
                 )));
             }
         }
@@ -493,15 +511,10 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
         //     fields and could otherwise carry impossible orderings
         //     (e.g. `retired_at < activated_at`). The in-memory
         //     `transition()` path always assigns these via
-        //     `Utc::now()` after the monotonicity-enforced state
+        //     `SystemTime::now()` after the monotonicity-enforced state
         //     change, so the relationship holds by construction
         //     there; deserialization needs an explicit gate.
-        type TsPair = (
-            &'static str,
-            Option<chrono::DateTime<chrono::Utc>>,
-            &'static str,
-            Option<chrono::DateTime<chrono::Utc>>,
-        );
+        type TsPair = (&'static str, Option<SystemTime>, &'static str, Option<SystemTime>);
         let pairs: [TsPair; 5] = [
             ("generated_at", Some(raw.generated_at), "activated_at", raw.activated_at),
             ("activated_at", raw.activated_at, "rotated_at", raw.rotated_at),
@@ -514,7 +527,9 @@ impl TryFrom<KeyLifecycleRecordRaw> for KeyLifecycleRecord {
                 && l < e
             {
                 return Err(TypeError::InvalidAuditInput(format!(
-                    "{later_name} ({l}) precedes {earlier_name} ({e}) — state-machine ordering violated"
+                    "{later_name} ({}) precedes {earlier_name} ({}) — state-machine ordering violated",
+                    timestamp::display(l),
+                    timestamp::display(e)
                 )));
             }
         }
@@ -586,7 +601,8 @@ fn validate_rotation_interval(rotation_interval_days: u32) -> Result<()> {
 pub struct StateTransition {
     from_state: Option<KeyLifecycleState>,
     to_state: KeyLifecycleState,
-    timestamp: chrono::DateTime<chrono::Utc>,
+    #[serde(with = "crate::types::timestamp::serde_rfc3339")]
+    timestamp: SystemTime,
     custodian_id: String,
     justification: String,
     approval_id: Option<String>,
@@ -600,7 +616,7 @@ impl StateTransition {
     pub fn new(
         from_state: Option<KeyLifecycleState>,
         to_state: KeyLifecycleState,
-        timestamp: chrono::DateTime<chrono::Utc>,
+        timestamp: SystemTime,
         custodian_id: String,
         justification: String,
         approval_id: Option<String>,
@@ -622,7 +638,7 @@ impl StateTransition {
 
     /// When the transition occurred.
     #[must_use]
-    pub fn timestamp(&self) -> chrono::DateTime<chrono::Utc> {
+    pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 
@@ -681,7 +697,7 @@ impl KeyLifecycleRecord {
             generator: None,
             approvers: Vec::new(),
             destroyer: None,
-            generated_at: chrono::Utc::now(),
+            generated_at: SystemTime::now(),
             activated_at: None,
             rotated_at: None,
             retired_at: None,
@@ -732,7 +748,7 @@ impl KeyLifecycleRecord {
         // per-state timestamp below match exactly. An auditor comparing
         // `state_history[i].timestamp` against `activated_at` (etc.)
         // would otherwise see sub-tick skew on every transition.
-        let now = chrono::Utc::now();
+        let now = SystemTime::now();
         let transition = StateTransition::new(
             Some(self.current_state),
             to_state,
@@ -779,10 +795,10 @@ impl KeyLifecycleRecord {
     /// Days elapsed since `activated`, signed (negative for future
     /// activation due to clock skew). Internal helper backing
     /// [`Self::requires_rotation`] and [`Self::age_days`] so the
-    /// `Utc::now().signed_duration_since(...).num_days()` chain lives
-    /// in one place.
-    fn days_since_activation(activated: chrono::DateTime<chrono::Utc>) -> i64 {
-        chrono::Utc::now().signed_duration_since(activated).num_days()
+    /// "now minus activation, in whole days" computation lives in one
+    /// place.
+    fn days_since_activation(activated: SystemTime) -> i64 {
+        timestamp::signed_days_between(activated, SystemTime::now())
     }
 
     /// Check if key is due for rotation per SP 800-57
@@ -864,7 +880,7 @@ impl KeyLifecycleRecord {
 
     /// Timestamp the record was generated.
     #[must_use]
-    pub fn generated_at(&self) -> chrono::DateTime<chrono::Utc> {
+    pub fn generated_at(&self) -> SystemTime {
         self.generated_at
     }
 
@@ -912,25 +928,25 @@ impl KeyLifecycleRecord {
 
     /// When the key was activated.
     #[must_use]
-    pub fn activated_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+    pub fn activated_at(&self) -> Option<SystemTime> {
         self.activated_at
     }
 
     /// When key rotation was initiated.
     #[must_use]
-    pub fn rotated_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+    pub fn rotated_at(&self) -> Option<SystemTime> {
         self.rotated_at
     }
 
     /// When the key was retired.
     #[must_use]
-    pub fn retired_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+    pub fn retired_at(&self) -> Option<SystemTime> {
         self.retired_at
     }
 
     /// When the key was destroyed.
     #[must_use]
-    pub fn destroyed_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+    pub fn destroyed_at(&self) -> Option<SystemTime> {
         self.destroyed_at
     }
 }
@@ -1301,7 +1317,8 @@ mod tests {
                 None,
             )
             .unwrap();
-        record.activated_at = Some(chrono::Utc::now() - chrono::Duration::days(100));
+        record.activated_at =
+            Some(SystemTime::now() - std::time::Duration::from_secs(100 * 86_400));
 
         assert!(record.requires_rotation());
         assert_eq!(record.age_days(), Some(100));

@@ -17,7 +17,6 @@ mod fips_140_3 {
     //!
     //! Run with: `cargo test --package arc-validation --test fips_140_3_compliance_tests --all-features --release -- --nocapture`
 
-    use chrono::Utc;
     use latticearc_tests::validation::fips_validation::{
         FIPSLevel, FIPSValidator, IssueSeverity, TestResult, ValidationCertificate,
         ValidationIssue, ValidationResult, ValidationScope,
@@ -26,6 +25,7 @@ mod fips_140_3 {
         Fips140_3ValidationResult, Fips140_3Validator, SelfTestResult, SelfTestType,
     };
     use std::collections::HashMap;
+    use time::OffsetDateTime;
 
     // ============================================================================
     // FIPS Validator Initialization (via FIPSValidator, avoids global abort path)
@@ -100,7 +100,7 @@ mod fips_140_3 {
     fn test_validation_result_construction_succeeds() {
         let result = ValidationResult {
             validation_id: "VR-001".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             scope: ValidationScope::AlgorithmsOnly,
             is_valid: true,
             level: Some(FIPSLevel::Level1),
@@ -127,7 +127,7 @@ mod fips_140_3 {
 
         let result = ValidationResult {
             validation_id: "VR-002".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             scope: ValidationScope::FullModule,
             is_valid: false,
             level: None,
@@ -144,7 +144,7 @@ mod fips_140_3 {
     fn test_validation_result_serialization_succeeds() {
         let result = ValidationResult {
             validation_id: "VR-003".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             scope: ValidationScope::AlgorithmsOnly,
             is_valid: true,
             level: Some(FIPSLevel::Level2),
@@ -307,7 +307,7 @@ mod fips_140_3 {
             algorithm: "AES-256-GCM".to_string(),
             passed: true,
             execution_time: std::time::Duration::from_millis(10),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({"note": "test"}),
             error_message: None,
         };
@@ -323,7 +323,7 @@ mod fips_140_3 {
             algorithm: "SHA3-256".to_string(),
             passed: false,
             execution_time: std::time::Duration::from_millis(5),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             details: serde_json::json!({}),
             error_message: Some("Hash mismatch".to_string()),
         };
@@ -344,7 +344,7 @@ mod fips_140_3 {
         // Test Fips140_3ValidationResult serialization using a manually constructed value
         let result = Fips140_3ValidationResult {
             validation_id: "VR-TEST-001".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             power_up_tests: vec![],
             conditional_tests: vec![],
             overall_passed: true,
@@ -400,8 +400,8 @@ mod fips_140_3 {
             module_name: "arc-primitives".to_string(),
             module_version: "0.1.0".to_string(),
             security_level: FIPSLevel::Level1,
-            validation_date: Utc::now(),
-            expiry_date: Utc::now(),
+            validation_date: OffsetDateTime::now_utc(),
+            expiry_date: OffsetDateTime::now_utc(),
             lab_id: "LAB-001".to_string(),
             details: HashMap::new(),
         };
@@ -417,8 +417,8 @@ mod fips_140_3 {
             module_name: "arc-core".to_string(),
             module_version: "0.2.0".to_string(),
             security_level: FIPSLevel::Level2,
-            validation_date: Utc::now(),
-            expiry_date: Utc::now(),
+            validation_date: OffsetDateTime::now_utc(),
+            expiry_date: OffsetDateTime::now_utc(),
             lab_id: "LAB-002".to_string(),
             details: HashMap::new(),
         };
@@ -446,7 +446,6 @@ mod validation {
         clippy::useless_vec
     )]
 
-    use chrono::Utc;
     use latticearc_tests::validation::fips_validation::{
         FIPSLevel, FIPSValidator, IssueSeverity, TestResult, ValidationCertificate,
         ValidationIssue, ValidationResult, ValidationScope, continuous_rng_test,
@@ -457,6 +456,7 @@ mod validation {
     };
     use std::collections::HashMap;
     use std::time::Duration;
+    use time::OffsetDateTime;
 
     // ============================================================================
     // Type Construction Tests
@@ -566,7 +566,7 @@ mod validation {
         fn test_validation_result_construction_passes_validation() {
             let result = ValidationResult {
                 validation_id: "val-001".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::FullModule,
                 is_valid: true,
                 level: Some(FIPSLevel::Level2),
@@ -613,7 +613,7 @@ mod validation {
 
             let result = ValidationResult {
                 validation_id: "val-002".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::FullModule,
                 is_valid: false,
                 level: None,
@@ -635,8 +635,8 @@ mod validation {
                 module_name: "Test Module".to_string(),
                 module_version: "1.0.0".to_string(),
                 security_level: FIPSLevel::Level3,
-                validation_date: Utc::now(),
-                expiry_date: Utc::now() + chrono::Duration::days(365),
+                validation_date: OffsetDateTime::now_utc(),
+                expiry_date: OffsetDateTime::now_utc() + time::Duration::days(365),
                 lab_id: "test-lab".to_string(),
                 details: HashMap::new(),
             };
@@ -672,7 +672,7 @@ mod validation {
                 algorithm: "AES-256".to_string(),
                 passed: true,
                 execution_time: Duration::from_millis(10),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 details: serde_json::json!({"key": "value"}),
                 error_message: None,
             };
@@ -685,7 +685,7 @@ mod validation {
         fn test_fips140_3_validation_result_construction_passes_validation() {
             let result = Fips140_3ValidationResult {
                 validation_id: "FIPS-001".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 power_up_tests: vec![],
                 conditional_tests: vec![],
                 overall_passed: true,
@@ -783,7 +783,7 @@ mod validation {
             // Create a failed validation result
             let failed_result = ValidationResult {
                 validation_id: "val-fail".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::FullModule,
                 is_valid: false,
                 level: None,
@@ -810,7 +810,7 @@ mod validation {
         fn test_fips_validator_remediation_guidance_with_issues_passes_validation() {
             let result = ValidationResult {
                 validation_id: "val-issues".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::FullModule,
                 is_valid: false,
                 level: Some(FIPSLevel::Level1),
@@ -850,7 +850,7 @@ mod validation {
         fn test_fips_validator_remediation_guidance_no_issues_passes_validation() {
             let result = ValidationResult {
                 validation_id: "val-ok".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::FullModule,
                 is_valid: true,
                 level: Some(FIPSLevel::Level2),
@@ -985,7 +985,7 @@ mod validation {
                     // Test certificate generation with mock data instead
                     let mock_result = Fips140_3ValidationResult {
                         validation_id: "MOCK-TEST".to_string(),
-                        timestamp: Utc::now(),
+                        timestamp: OffsetDateTime::now_utc(),
                         power_up_tests: vec![],
                         conditional_tests: vec![],
                         overall_passed: true,
@@ -1009,7 +1009,7 @@ mod validation {
                 algorithm: "AES".to_string(),
                 passed: true,
                 execution_time: Duration::from_millis(10),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 details: serde_json::json!({}),
                 error_message: None,
             };
@@ -1020,14 +1020,14 @@ mod validation {
                 algorithm: "SHA".to_string(),
                 passed: true,
                 execution_time: Duration::from_millis(5),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 details: serde_json::json!({}),
                 error_message: None,
             };
 
             let result = Fips140_3ValidationResult {
                 validation_id: "TEST-123".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 power_up_tests: vec![power_up_test],
                 conditional_tests: vec![conditional_test],
                 overall_passed: true,
@@ -1054,14 +1054,14 @@ mod validation {
                 algorithm: "AES".to_string(),
                 passed: false,
                 execution_time: Duration::from_millis(10),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 details: serde_json::json!({}),
                 error_message: Some("Test failed".to_string()),
             };
 
             let result = Fips140_3ValidationResult {
                 validation_id: "TEST-FAIL".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 power_up_tests: vec![failed_test],
                 conditional_tests: vec![],
                 overall_passed: false,
@@ -1136,7 +1136,7 @@ mod validation {
         fn test_validation_result_with_no_level_passes_validation() {
             let result = ValidationResult {
                 validation_id: "no-level".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::AlgorithmsOnly,
                 is_valid: true,
                 level: None,
@@ -1155,7 +1155,7 @@ mod validation {
         fn test_validation_result_invalid_with_level_passes_validation() {
             let result = ValidationResult {
                 validation_id: "invalid-with-level".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::AlgorithmsOnly,
                 is_valid: false,
                 level: Some(FIPSLevel::Level1),
@@ -1192,7 +1192,7 @@ mod validation {
                 algorithm: "TEST".to_string(),
                 passed: false,
                 execution_time: Duration::from_millis(10),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 details: serde_json::json!({"error_code": 42}),
                 error_message: Some("Test failed with error code 42".to_string()),
             };
@@ -1228,7 +1228,7 @@ mod validation {
 
             let result = ValidationResult {
                 validation_id: "ser-test".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::FullModule,
                 is_valid: true,
                 level: Some(FIPSLevel::Level2),
@@ -1249,7 +1249,7 @@ mod validation {
         fn test_fips140_3_validation_result_serialization_passes_validation() {
             let result = Fips140_3ValidationResult {
                 validation_id: "FIPS-SER".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 power_up_tests: vec![],
                 conditional_tests: vec![],
                 overall_passed: true,
@@ -1274,7 +1274,7 @@ mod validation {
                 algorithm: "AES".to_string(),
                 passed: true,
                 execution_time: Duration::from_millis(100),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 details: serde_json::json!({"detail": "value"}),
                 error_message: None,
             };
@@ -1296,8 +1296,8 @@ mod validation {
                 module_name: "Module".to_string(),
                 module_version: "1.0".to_string(),
                 security_level: FIPSLevel::Level3,
-                validation_date: Utc::now(),
-                expiry_date: Utc::now() + chrono::Duration::days(365),
+                validation_date: OffsetDateTime::now_utc(),
+                expiry_date: OffsetDateTime::now_utc() + time::Duration::days(365),
                 lab_id: "lab".to_string(),
                 details,
             };
@@ -1321,7 +1321,7 @@ mod validation {
         fn test_empty_validation_result_passes_validation() {
             let result = ValidationResult {
                 validation_id: String::new(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::AlgorithmsOnly,
                 is_valid: true,
                 level: Some(FIPSLevel::Level1),
@@ -1357,7 +1357,7 @@ mod validation {
 
             let result = ValidationResult {
                 validation_id: "many-issues".to_string(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::FullModule,
                 is_valid: false,
                 level: None,
@@ -1379,7 +1379,7 @@ mod validation {
             let long_id = "x".repeat(10000);
             let result = ValidationResult {
                 validation_id: long_id.clone(),
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 scope: ValidationScope::AlgorithmsOnly,
                 is_valid: true,
                 level: Some(FIPSLevel::Level1),
@@ -1430,7 +1430,7 @@ mod validation {
                 algorithm: "ALG".to_string(),
                 passed: true,
                 execution_time: Duration::ZERO,
-                timestamp: Utc::now(),
+                timestamp: OffsetDateTime::now_utc(),
                 details: serde_json::json!({}),
                 error_message: None,
             };

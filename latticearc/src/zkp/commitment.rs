@@ -181,7 +181,7 @@ impl HashCommitment {
 pub struct PedersenCommitment {
     /// The commitment point (compressed)
     /// Consumer: verify(), add(), commitment()
-    #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
+    #[cfg_attr(feature = "zkp-serde", serde(with = "crate::zkp::serde_byte_array"))]
     commitment: [u8; 33],
 }
 

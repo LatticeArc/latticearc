@@ -168,7 +168,7 @@ impl<'a> CryptoConfig<'a> {
     ///
     /// Defence-in-depth replay protection at the convenience-API layer.
     /// `EncryptedOutput.timestamp` is set on encrypt to the current
-    /// `Utc::now().timestamp()` (seconds since epoch); when this option
+    /// wall clock in whole seconds since the Unix epoch; when this option
     /// is set, [`decrypt`](crate::unified_api::convenience::api::decrypt)
     /// rejects ciphertexts whose timestamp is more than `seconds` behind
     /// the receiver's wall-clock as

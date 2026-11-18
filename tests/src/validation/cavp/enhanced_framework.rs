@@ -16,8 +16,8 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
 use std::collections::HashMap;
+use time::{Duration, OffsetDateTime};
 
 #[expect(unused_imports, reason = "import retained for re-export or feature-gated visibility")]
 // Import types from the same module
@@ -325,8 +325,8 @@ impl NistComplianceValidator {
             .unwrap_or(0);
 
         Ok(CavpComplianceReport {
-            report_id: format!("CAVP-REPORT-{}", Utc::now().timestamp()),
-            timestamp: Utc::now(),
+            report_id: format!("CAVP-REPORT-{}", OffsetDateTime::now_utc().unix_timestamp()),
+            timestamp: OffsetDateTime::now_utc(),
             algorithm: batch_result.algorithm.clone(),
             summary: TestSummary {
                 total_tests,
@@ -490,7 +490,7 @@ impl CavpTestExecutor {
             Ok(actual_result) => {
                 let expected_result = Self::get_expected_output(vector);
                 Ok(CavpTestResult::new(
-                    format!("TEST-{}", Utc::now().timestamp_micros()),
+                    format!("TEST-{}", OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000),
                     vector.algorithm.clone(),
                     vector.id.clone(),
                     actual_result,
@@ -500,7 +500,7 @@ impl CavpTestExecutor {
                 ))
             }
             Err(e) => Ok(CavpTestResult::failed(
-                format!("TEST-FAILED-{}", Utc::now().timestamp_micros()),
+                format!("TEST-FAILED-{}", OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000),
                 vector.algorithm.clone(),
                 vector.id.clone(),
                 vec![],
@@ -623,7 +623,11 @@ impl CavpValidationOrchestrator {
 
         // Process each algorithm group
         for (algorithm, vectors) in algorithm_groups {
-            let batch_id = format!("BATCH-{}-{}", algorithm.name(), Utc::now().timestamp());
+            let batch_id = format!(
+                "BATCH-{}-{}",
+                algorithm.name(),
+                OffsetDateTime::now_utc().unix_timestamp()
+            );
             let mut batch_result = CavpBatchResult::new(batch_id, algorithm);
 
             for vector in vectors {

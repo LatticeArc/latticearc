@@ -17,7 +17,7 @@
 use super::portable_key_core::{resolve_security_level_algorithm, resolve_use_case_algorithm};
 use super::*;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
-use chrono::{DateTime, Utc};
+use std::time::SystemTime;
 use subtle::ConstantTimeEq;
 
 // --- File I/O ---
@@ -235,14 +235,14 @@ fn test_version_is_current_format_has_correct_size() {
 
 #[test]
 fn test_with_created_sets_timestamp_succeeds() {
-    let ts = DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z").unwrap().with_timezone(&Utc);
+    let ts = rfc3339("2026-01-01T00:00:00Z");
     let key = PortableKey::with_created(
         KeyAlgorithm::Ed25519,
         KeyType::Public,
         KeyData::from_raw(&[0u8; 32]),
         ts,
     );
-    assert_eq!(*key.created(), ts);
+    assert_eq!(key.created(), ts);
 }
 
 #[test]
@@ -851,15 +851,15 @@ fn test_all_security_levels_resolve_to_algorithm_is_correct() {
 
 // --- ConstantTimeEq regression tests (#49) ---
 
-fn ct_fixture_ts() -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z").unwrap().with_timezone(&Utc)
+fn ct_fixture_ts() -> SystemTime {
+    rfc3339("2026-01-01T00:00:00Z")
 }
 
 fn ct_fixture_key(
     algorithm: KeyAlgorithm,
     key_type: KeyType,
     raw: u8,
-    ts: DateTime<Utc>,
+    ts: SystemTime,
 ) -> PortableKey {
     PortableKey::with_created(algorithm, key_type, KeyData::from_raw(&[raw; 32]), ts)
 }
@@ -911,7 +911,7 @@ fn test_portable_key_ct_eq_different_key_type_returns_not_equal() {
 #[test]
 fn test_portable_key_ct_eq_different_created_returns_not_equal() {
     let ts_a = ct_fixture_ts();
-    let ts_b = DateTime::parse_from_rfc3339("2026-02-01T00:00:00Z").unwrap().with_timezone(&Utc);
+    let ts_b = rfc3339("2026-02-01T00:00:00Z");
     let a = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts_a);
     let b = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts_b);
     assert!(!bool::from(a.ct_eq(&b)));
@@ -963,4 +963,9 @@ fn test_key_data_ct_eq_encrypted_different_envelope_params_returns_not_equal() {
         ciphertext: BASE64_ENGINE.encode([0xEE; 64]),
     };
     assert!(!bool::from(a.ct_eq(&b)));
+}
+
+/// Parse a fixed RFC 3339 test instant.
+fn rfc3339(text: &str) -> SystemTime {
+    crate::types::timestamp::parse_rfc3339(text).expect("valid RFC 3339 test instant")
 }

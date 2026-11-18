@@ -13,9 +13,9 @@
 
 //! FIPSValidator - Main FIPS validation orchestrator
 
-use chrono::Utc;
 use latticearc::prelude::error::LatticeArcError;
 use std::collections::HashMap;
+use time::OffsetDateTime;
 
 use super::algorithm_tests::{
     test_aes_algorithm_succeeds, test_mlkem_algorithm_succeeds, test_sha3_algorithm_succeeds,
@@ -76,7 +76,7 @@ impl FIPSValidator {
 
         let result = ValidationResult {
             validation_id,
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             scope: self.scope,
             is_valid,
             level,
@@ -121,7 +121,7 @@ impl FIPSValidator {
             module_version: env!("CARGO_PKG_VERSION").to_string(),
             security_level: level,
             validation_date: result.timestamp,
-            expiry_date: result.timestamp + chrono::Duration::days(365),
+            expiry_date: result.timestamp + time::Duration::days(365),
             lab_id: "latticearc-lab".to_string(),
             details: HashMap::from([
                 ("validation_id".to_string(), result.validation_id.clone()),
@@ -468,7 +468,7 @@ mod tests {
         // Create a fake invalid result
         let fake_result = ValidationResult {
             validation_id: "test-invalid".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             scope: ValidationScope::AlgorithmsOnly,
             is_valid: false,
             level: None,
@@ -525,7 +525,7 @@ mod tests {
         // Create a result with issues to test remediation path
         let result_with_issues = ValidationResult {
             validation_id: "test-guidance".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             scope: ValidationScope::AlgorithmsOnly,
             is_valid: true,
             level: Some(FIPSLevel::Level1),

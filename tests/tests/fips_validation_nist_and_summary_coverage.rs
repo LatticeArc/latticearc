@@ -818,7 +818,6 @@ mod validation_summary {
 
     #![allow(clippy::unwrap_used, clippy::float_cmp, clippy::redundant_clone)]
 
-    use chrono::Utc;
     use latticearc_tests::validation::fips_validation_impl::Fips140_3ValidationResult;
     use latticearc_tests::validation::kat_tests::types::KatResult;
     use latticearc_tests::validation::validation_summary::{
@@ -826,6 +825,7 @@ mod validation_summary {
         SecurityCoverage, StatisticalComplianceResult, ValidationScope,
     };
     use std::time::Duration;
+    use time::OffsetDateTime;
 
     // Helper to create a passing KatResult
     fn passing_kat(test_case: &str) -> KatResult {
@@ -931,7 +931,7 @@ mod validation_summary {
 
         let fips_result = Fips140_3ValidationResult {
             validation_id: "test-123".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             power_up_tests: vec![],
             conditional_tests: vec![],
             overall_passed: true,
@@ -1206,7 +1206,7 @@ mod validation_summary {
 
         let fips_result = Fips140_3ValidationResult {
             validation_id: "full-compliance-test".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             power_up_tests: vec![],
             conditional_tests: vec![],
             overall_passed: true,
@@ -1236,7 +1236,7 @@ mod validation_summary {
 
         let fips_result = Fips140_3ValidationResult {
             validation_id: "fips-html-test".to_string(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             power_up_tests: vec![],
             conditional_tests: vec![],
             overall_passed: true,

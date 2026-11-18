@@ -273,8 +273,9 @@ rand_core_0_6 = { package = "rand_core", version = "0.6", features = ["getrandom
 # Error handling - latest stable for structured errors
 thiserror = { version = "2.0.18" }
 anyhow = { version = "1.0.102" }
-# Time handling - consistent version across repos
-chrono = { version = "0.4.44", features = ["serde"] }
+# Calendar fields and RFC 3339 parsing behind `latticearc::types::timestamp`.
+# The public API exposes `std::time::SystemTime`, never a `time` type.
+time = { version = "0.3.55", default-features = false, features = ["std", "large-dates"] }
 # UUID generation - latest stable
 uuid = { version = "1.23.1", features = ["v4", "serde"] }
 # Base64 encoding - latest stable for crypto operations

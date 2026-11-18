@@ -109,7 +109,7 @@ Source: [`latticearc/src/unified_api/zero_trust.rs`](../latticearc/src/unified_a
 | Anti-pattern | Alternative |
 |--------------|-------------|
 | Calling `auth.verify_response(proof)` on a challenge that hasn't been age-checked | Always pair with `verify_challenge_age` first |
-| Constructing a `Challenge` directly with arbitrary `timestamp` for non-test code | Use `auth.create_challenge()` so timestamp is `Utc::now()` |
+| Constructing a `Challenge` directly with arbitrary `timestamp` for non-test code | Use `auth.create_challenge()` so timestamp is `SystemTime::now()` |
 
 ---
 

@@ -59,6 +59,9 @@ mod ec_utils;
 pub mod error;
 /// Schnorr proof system for discrete-log knowledge proofs.
 pub mod schnorr;
+/// `[u8; N]` serde adapter for the `zkp-serde` wire types.
+#[cfg(feature = "zkp-serde")]
+mod serde_byte_array;
 /// Sigma protocols and Fiat-Shamir transform.
 pub mod sigma;
 

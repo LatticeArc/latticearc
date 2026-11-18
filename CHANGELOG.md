@@ -9,6 +9,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **BREAKING: `chrono` is removed; every public timestamp is now
+  `std::time::SystemTime`.** RUSTSEC-2026-0543 marks `chrono` unmaintained
+  with no patched release. Rather than ignoring the advisory, the dependency
+  is gone, and the public API no longer exposes any third-party date/time
+  type, so a future change of time library cannot break callers again.
+  Affected signatures (each `DateTime<Utc>` becomes `SystemTime`):
+  `KeyCustodian::{new, approved_until}`, `KeyLifecycleRecord::{generated_at,
+  activated_at, rotated_at, retired_at, destroyed_at}`,
+  `StateTransition::{new, timestamp}`, `CryptoContext::{timestamp,
+  with_timestamp}`, `AuditEvent::timestamp`,
+  `KeyLifecycleEvent::{Deprecated, deprecated}`, `PortableKey::{created,
+  with_created, not_after, set_not_after, is_expired_at}`,
+  `PortableKey::validate_with_expiry`, `Challenge::timestamp`,
+  `ZeroKnowledgeProof::{new, timestamp}`, `ProofOfPossessionData::{new,
+  timestamp}`, `ContinuousSession::last_verification` and
+  `VerifiedSession::{authenticated_at, expires_at}`.
+  `PortableKey::created()` now returns `SystemTime` by value instead of
+  `&DateTime<Utc>`. Convert with `SystemTime::from(chrono_value)` or
+  `chrono::DateTime::<Utc>::from(system_time)` if your code still uses
+  chrono.
+- **Wire formats are unchanged.** Timestamps still serialize as RFC 3339 UTC
+  strings with the same fractional-second rules and chrono's signed form for
+  years outside 0000–9999 (`+10000-…`, up to chrono's `MAX_UTC`), so every
+  timestamp 0.17.0 wrote into key files, key-lifecycle records and audit logs
+  loads unchanged. Audit-chain integrity hashes cover the encoded timestamp;
+  the new encoder reproduces chrono's bytes exactly, which golden tests
+  captured from chrono 0.4.45 pin, so existing audit chains still verify.
+- Timestamp parsing is now strict RFC 3339: `T`/`t`/space separators, `Z`/`z`,
+  `±HH:MM` offsets, any number of fractional digits and second `60` are
+  accepted. Hand-edited values in the non-RFC forms chrono also tolerated (a
+  `UTC` suffix, `+HHMM` without a colon, single-digit fields, embedded
+  whitespace) are now rejected; this crate never wrote them.
+- Audit retention cleanup only treats `audit-YYYY-MM-DDTHH-MM-SS[-NNNNNN].jsonl`
+  (upper-case `T`) as audit files, so a foreign file with a similar name is
+  skipped rather than deleted.
+- The `zkp-serde` feature no longer depends on `serde_with` (its lockfile
+  entry pulled `chrono` back in through an unused optional dependency). A
+  crate-internal adapter encodes the 32/33-byte proof and commitment arrays
+  in the same byte-string form. 28 packages leave `Cargo.lock`, including
+  `chrono`, `iana-time-zone`, `serde_with`, `jiff` and `schemars`; `time`
+  (already a transitive dependency) is the only date/time crate left.
+
+### Changed
+
+- The AddressSanitizer CI job sets `CFLAGS`/`CXXFLAGS=-fno-sanitize=address`.
+  cc 1.11 began instrumenting C code whenever rustc builds with ASan, and the
+  aws-lc-fips-sys FIPS `delocate` step rejects the resulting ASan data
+  sections, so the job failed before any test ran. ASan still covers the Rust
+  code, as it did before.
+
 ## [0.17.0] - 2026-11-13
 
 ### Changed

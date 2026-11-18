@@ -51,7 +51,7 @@
 //! // Enterprise crate — typed accessors over the metadata map (pseudocode)
 //! impl EnterpriseKeyExt for PortableKey {
 //!     fn dimensions(&self) -> Option<Vec<String>> { ... }
-//!     fn key_expiry(&self) -> Option<DateTime<Utc>> { ... }
+//!     fn key_expiry(&self) -> Option<SystemTime> { ... }
 //!     fn hsm_binding(&self) -> Option<HsmSlot> { ... }
 //! }
 //! ```

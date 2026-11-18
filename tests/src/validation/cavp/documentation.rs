@@ -13,7 +13,7 @@
 
 use crate::validation::cavp::compliance::{CavpComplianceReport, ComplianceStatus};
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use time::OffsetDateTime;
 
 /// NIST compliance documentation generator
 pub struct NistDocumentationGenerator {
@@ -54,7 +54,13 @@ impl NistDocumentationGenerator {
         certificate.push_str(&format!("Algorithm: {}\n", report.algorithm.name()));
         certificate.push_str(&format!("FIPS Standard: {}\n", report.algorithm.fips_standard()));
         certificate.push_str(&format!("Certificate ID: {}\n", report.report_id));
-        certificate.push_str(&format!("Issue Date: {}\n", report.timestamp.format("%Y-%m-%d")));
+        certificate.push_str(&format!(
+            "Issue Date: {}\n",
+            report
+                .timestamp
+                .format(time::macros::format_description!("[year]-[month]-[day]"))
+                .unwrap_or_default()
+        ));
         certificate.push_str(&format!(
             "Status: {}\n\n",
             Self::format_compliance_status(&report.compliance_status)
@@ -154,7 +160,12 @@ impl NistDocumentationGenerator {
         technical_report.push_str(&format!("Report ID: {}\n", report.report_id));
         technical_report.push_str(&format!(
             "Generated: {}\n",
-            report.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
+            report
+                .timestamp
+                .format(time::macros::format_description!(
+                    "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
+                ))
+                .unwrap_or_default()
         ));
         technical_report.push_str(&format!(
             "Algorithm: {} ({})\n",
@@ -325,7 +336,11 @@ impl NistDocumentationGenerator {
         audit_trail.push_str(&format!("Organization: {}\n", self.organization));
         audit_trail.push_str(&format!(
             "Audit Generated: {}\n\n",
-            Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+            OffsetDateTime::now_utc()
+                .format(time::macros::format_description!(
+                    "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
+                ))
+                .unwrap_or_default()
         ));
 
         audit_trail.push_str("VALIDATION HISTORY\n");
@@ -340,7 +355,12 @@ impl NistDocumentationGenerator {
             audit_trail.push_str(&format!("   Report ID: {}\n", report.report_id));
             audit_trail.push_str(&format!(
                 "   Date: {}\n",
-                report.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
+                report
+                    .timestamp
+                    .format(time::macros::format_description!(
+                        "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
+                    ))
+                    .unwrap_or_default()
             ));
             audit_trail.push_str(&format!(
                 "   Status: {}\n",

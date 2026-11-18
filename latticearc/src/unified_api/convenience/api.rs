@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-use chrono::Utc;
+use crate::types::timestamp;
 
 /// Validate a 256-bit AEAD key length (32 bytes).
 ///
@@ -48,15 +48,14 @@ fn validate_aes256_key_length(k: &[u8]) -> Result<()> {
 /// Current Unix timestamp clamped to non-negative `u64`.
 ///
 /// Centralises the timestamp idiom that previously appeared at four call
-/// sites in this module. `chrono` returns `i64` seconds-since-epoch;
-/// `max(0)` clamps any pre-1970 system clock to 0, and `unsigned_abs`
-/// then widens the proven-non-negative value to `u64` — a total
-/// conversion with no fallible `try_from` and no `as`-cast. A
-/// wrong-but-bounded timestamp is preferable to a panic in audit-record
-/// construction.
+/// sites in this module. Seconds since the epoch are signed; `max(0)`
+/// clamps any pre-1970 system clock to 0, and `unsigned_abs` then widens
+/// the proven-non-negative value to `u64` — a total conversion with no
+/// fallible `try_from` and no `as`-cast. A wrong-but-bounded timestamp
+/// is preferable to a panic in audit-record construction.
 #[inline]
 fn current_timestamp() -> u64 {
-    Utc::now().timestamp().max(0).unsigned_abs()
+    timestamp::unix_seconds(std::time::SystemTime::now()).max(0).unsigned_abs()
 }
 use zeroize::Zeroizing;
 

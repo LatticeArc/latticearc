@@ -4,6 +4,7 @@
 use super::proof_data::generate_challenge_data;
 use super::{Challenge, ContinuousSession, ProofOfPossessionData, ZeroKnowledgeProof};
 use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN;
+use crate::types::timestamp;
 use crate::types::traits::{
     ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
 };
@@ -15,8 +16,8 @@ use crate::{
     log_zero_trust_challenge_generated, log_zero_trust_proof_verified,
     types::{PrivateKey, PublicKey},
 };
-use chrono::{DateTime, Utc};
 use std::sync::Mutex;
+use std::time::SystemTime;
 use subtle::ConstantTimeEq;
 
 // ============================================================================
@@ -41,7 +42,7 @@ pub struct ZeroTrustAuth {
     /// dispatch) in addition to this module's own trait impls.
     pub(super) config: ZeroTrustConfig,
     /// Session start timestamp.
-    session_start: DateTime<Utc>,
+    session_start: SystemTime,
     /// Timestamp of the most recent successful proof verification, or
     /// `None` if no proof has yet been verified for this auth instance.
     ///
@@ -53,7 +54,7 @@ pub struct ZeroTrustAuth {
     /// `Mutex` (not `RefCell`) so the type stays `Sync` for use across
     /// async tasks and multi-threaded callers; an `Arc<ZeroTrustAuth>`
     /// shared between Tokio workers must compile.
-    last_verification: Mutex<Option<DateTime<Utc>>>,
+    last_verification: Mutex<Option<SystemTime>>,
     /// Replay cache for proofs-of-possession.
     ///
     /// Keyed on `pk || sig || ts_micros_be` (microsecond precision —
@@ -187,7 +188,7 @@ impl ZeroTrustAuth {
         let config = ZeroTrustConfig::default();
         config.validate()?;
 
-        let now = Utc::now();
+        let now = SystemTime::now();
         Ok(Self {
             public_key,
             private_key,
@@ -216,7 +217,7 @@ impl ZeroTrustAuth {
     ) -> Result<Self> {
         config.validate()?;
 
-        let now = Utc::now();
+        let now = SystemTime::now();
         Ok(Self {
             public_key,
             private_key,
@@ -236,7 +237,7 @@ impl ZeroTrustAuth {
         log_zero_trust_challenge_generated!(self.config.proof_complexity);
         Ok(Challenge {
             data: challenge_data,
-            timestamp: Utc::now(),
+            timestamp: SystemTime::now(),
             complexity: self.config.proof_complexity.clone(),
             timeout_ms: self.config.challenge_timeout_ms,
         })
@@ -249,8 +250,7 @@ impl ZeroTrustAuth {
     /// This function does not currently return errors, but returns `Result` for
     /// API consistency and future extensibility.
     pub fn verify_challenge_age(&self, challenge: &Challenge) -> Result<bool> {
-        let elapsed = Utc::now().signed_duration_since(challenge.timestamp());
-        let elapsed_ms = elapsed.num_milliseconds();
+        let elapsed_ms = timestamp::signed_millis_between(challenge.timestamp(), SystemTime::now());
 
         // Negative elapsed time means the challenge is from the future, which is invalid
         // Convert safely: negative values are treated as invalid (elapsed > timeout)
@@ -291,7 +291,7 @@ impl ZeroTrustAuth {
         })?;
         Ok(ContinuousSession {
             auth_public_key: self.public_key.clone(),
-            start_time: Utc::now(),
+            start_time: SystemTime::now(),
             verification_interval_ms: self.config.verification_interval_ms,
             last_verification: last_verified,
         })
@@ -318,7 +318,7 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
         }
 
         let proof_data = self.compute_proof_data(challenge)?;
-        let timestamp = Utc::now();
+        let timestamp = SystemTime::now();
 
         Ok(ZeroKnowledgeProof {
             challenge: challenge.to_vec(),
@@ -380,7 +380,7 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
             // gate in `maybe_continuous_verification` observe a real
             // handshake rather than a fresh `None`. Recover from
             // poison: a panicked writer would only have been writing
-            // a `Utc::now()` value; the cached timestamp is still
+            // a `SystemTime::now()` value; the cached timestamp is still
             // valid.
             let mut guard = match self.last_verification.lock() {
                 Ok(g) => g,
@@ -394,7 +394,7 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
                     poisoned.into_inner()
                 }
             };
-            *guard = Some(Utc::now());
+            *guard = Some(SystemTime::now());
         }
         log_zero_trust_proof_verified!(result);
         Ok(result)
@@ -476,13 +476,13 @@ impl ProofOfPossession for ZeroTrustAuth {
                  verify_pop will refuse to accept an empty challenge."
             );
         }
-        let timestamp = Utc::now();
+        let pop_timestamp = SystemTime::now();
         // Microsecond precision: Ed25519 sigs are deterministic, so two
         // PoPs in the same second from the same key produce identical
         // wire bytes and trip the replay cache against a legitimate
         // client regenerating in a tight loop. Microseconds also fit
         // comfortably inside the 5-minute freshness window.
-        let ts_micros = timestamp.timestamp_micros();
+        let ts_micros = timestamp::unix_micros(pop_timestamp);
         let pop_digest = pop_transcript_digest(self.public_key.as_slice(), ts_micros, challenge);
 
         let signature = crate::unified_api::convenience::ed25519::sign_ed25519_internal(
@@ -490,7 +490,11 @@ impl ProofOfPossession for ZeroTrustAuth {
             self.private_key.expose_secret(),
         )?;
 
-        Ok(ProofOfPossessionData { public_key: self.public_key.clone(), signature, timestamp })
+        Ok(ProofOfPossessionData {
+            public_key: self.public_key.clone(),
+            signature,
+            timestamp: pop_timestamp,
+        })
     }
 
     /// Verifies a proof of possession against `self.public_key` and the
@@ -541,27 +545,27 @@ impl ProofOfPossession for ZeroTrustAuth {
         }
         // Freshness check: reject proofs older than PROOF_OF_POSSESSION_MAX_AGE.
         // This prevents replay of stale PoPs captured from prior sessions (P5.2 C4).
-        // Using chrono::Duration so the bound is expressed in seconds regardless
-        // of timezone or DST quirks.
+        // Elapsed seconds are computed on Unix time, so the bound is
+        // independent of timezone or DST quirks.
         const PROOF_OF_POSSESSION_MAX_AGE_SECS: i64 = 5 * 60; // 5 minutes
-        let elapsed = Utc::now().signed_duration_since(pop.timestamp());
-        if elapsed.num_seconds() > PROOF_OF_POSSESSION_MAX_AGE_SECS {
+        let elapsed_secs = timestamp::signed_seconds_between(pop.timestamp(), SystemTime::now());
+        if elapsed_secs > PROOF_OF_POSSESSION_MAX_AGE_SECS {
             // Pattern-6: do not leak elapsed seconds or the configured
             // max age via the error string. An adversary with a PoP-
             // generation oracle could otherwise narrow server clock
             // skew to seconds. Cause logged at tracing::debug! for
             // operators.
             tracing::debug!(
-                elapsed_secs = elapsed.num_seconds(),
+                elapsed_secs,
                 max_age_secs = PROOF_OF_POSSESSION_MAX_AGE_SECS,
                 "verify_pop rejected: proof-of-possession too old"
             );
             return Ok(false);
         }
         // Also reject proofs dated more than 30 seconds in the future (clock skew tolerance).
-        if elapsed.num_seconds() < -30 {
+        if elapsed_secs < -30 {
             tracing::debug!(
-                elapsed_secs = elapsed.num_seconds(),
+                elapsed_secs,
                 "verify_pop rejected: proof-of-possession timestamp is in the future"
             );
             return Ok(false);
@@ -601,7 +605,7 @@ impl ProofOfPossession for ZeroTrustAuth {
         // and dispatch against the verifier identity. A captured PoP
         // for a different verifier-id OR a different challenge round
         // produces a different digest and the crypto verify rejects.
-        let ts_micros = pop.timestamp().timestamp_micros();
+        let ts_micros = timestamp::unix_micros(pop.timestamp());
         let pop_digest = pop_transcript_digest(verifier_pk, ts_micros, expected_challenge);
 
         let valid = crate::unified_api::convenience::ed25519::verify_ed25519_internal(
@@ -639,7 +643,7 @@ impl ProofOfPossession for ZeroTrustAuth {
             // decremented in lockstep so they stay exact. `pk_len` is
             // owned by the cache (locked at construction) so this call
             // no longer carries it as a parameter.
-            let now_secs = Utc::now().timestamp();
+            let now_secs = timestamp::unix_seconds(SystemTime::now());
             cache.expire_older_than(now_secs, PROOF_OF_POSSESSION_MAX_AGE_SECS);
             // Cache key combines PK + signature + microsecond timestamp;
             // collisions require either a cryptographic break or a
@@ -726,12 +730,11 @@ impl ContinuousVerifiable for ZeroTrustAuth {
     /// This function does not currently return errors, but returns `Result` for
     /// API consistency and future extensibility.
     fn verify_continuously(&self) -> Result<VerificationStatus> {
-        let session_elapsed = Utc::now().signed_duration_since(self.session_start);
-
         let max_session_time: u64 = 30 * 60 * 1000;
 
-        // Convert safely: negative elapsed times treated as 0 (just started)
-        let session_elapsed_u64 = u64::try_from(session_elapsed.num_milliseconds()).unwrap_or(0);
+        // Negative elapsed times (clock skew) count as 0 (just started).
+        let session_elapsed_u64 =
+            timestamp::elapsed_millis_saturating(self.session_start, SystemTime::now());
         if session_elapsed_u64 > max_session_time {
             return Ok(VerificationStatus::Expired);
         }
@@ -741,7 +744,7 @@ impl ContinuousVerifiable for ZeroTrustAuth {
         }
 
         // Recover from poison: a panicked write would only have been a
-        // failed `Utc::now()` assignment; the cached timestamp is still
+        // failed timestamp assignment; the cached timestamp is still
         // valid. Treating poison as fatal would lock callers out of an
         // otherwise healthy auth session.
         let last_verification_at = match self.last_verification.lock() {
@@ -763,11 +766,9 @@ impl ContinuousVerifiable for ZeroTrustAuth {
         let Some(last_verification_at) = last_verification_at else {
             return Ok(VerificationStatus::Pending);
         };
-        let verification_elapsed = Utc::now().signed_duration_since(last_verification_at);
-
-        // Convert safely: negative elapsed times treated as 0 (just verified)
+        // Negative elapsed times count as 0 (just verified).
         let verification_elapsed_u64 =
-            u64::try_from(verification_elapsed.num_milliseconds()).unwrap_or(0);
+            timestamp::elapsed_millis_saturating(last_verification_at, SystemTime::now());
         if verification_elapsed_u64 > self.config.verification_interval_ms {
             return Ok(VerificationStatus::Pending);
         }
@@ -817,7 +818,7 @@ impl ContinuousVerifiable for ZeroTrustAuth {
                 poisoned.into_inner()
             }
         };
-        *guard = Some(Utc::now());
+        *guard = Some(SystemTime::now());
         Ok(())
     }
 }

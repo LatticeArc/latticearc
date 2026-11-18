@@ -33,12 +33,12 @@
 //! tracing::info!("Key operation completed: {}", sanitize_data(key_data));
 //! ```
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::SystemTime;
 // `tracing::info` is only used inside the `init_tracing*` helpers, which
 // are themselves gated behind the `tracing-init` feature. The subscriber
 // wiring (and its tracing-subscriber + tracing-appender deps) is the
@@ -395,7 +395,8 @@ pub enum KeyLifecycleEvent {
         /// ID of the deprecated key
         key_id: String,
         /// When the deprecation takes effect
-        deprecation_date: DateTime<Utc>,
+        #[serde(with = "crate::types::timestamp::serde_rfc3339")]
+        deprecation_date: SystemTime,
         /// Human-readable reason for deprecation
         reason: String,
     },
@@ -563,7 +564,7 @@ impl KeyLifecycleEvent {
     #[must_use]
     pub fn deprecated(
         key_id: impl Into<String>,
-        deprecation_date: DateTime<Utc>,
+        deprecation_date: SystemTime,
         reason: impl Into<String>,
     ) -> Self {
         Self::Deprecated { key_id: key_id.into(), deprecation_date, reason: reason.into() }
@@ -2547,7 +2548,7 @@ mod tests {
 
     #[test]
     fn test_key_lifecycle_event_deprecated_has_correct_format() {
-        let deprecation_date = Utc::now();
+        let deprecation_date = SystemTime::now();
         let event = KeyLifecycleEvent::deprecated("key-001", deprecation_date, "End of life");
 
         assert_eq!(event.key_id(), "key-001");

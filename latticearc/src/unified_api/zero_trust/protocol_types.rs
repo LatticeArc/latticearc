@@ -2,8 +2,9 @@
 //! `Challenge`, `ZeroKnowledgeProof`, `ProofOfPossessionData`, `ContinuousSession`.
 
 use crate::types::PublicKey;
+use crate::types::timestamp;
 use crate::unified_api::{ProofComplexity, error::Result};
-use chrono::{DateTime, Utc};
+use std::time::SystemTime;
 
 /// A cryptographic challenge for zero-trust authentication.
 #[derive(Debug, Clone)]
@@ -14,7 +15,7 @@ pub struct Challenge {
     /// `zero_trust::auth::ZeroTrustAuth::generate_challenge`.
     pub(super) data: Vec<u8>,
     /// When the challenge was created.
-    pub(super) timestamp: DateTime<Utc>,
+    pub(super) timestamp: SystemTime,
     /// Required proof complexity.
     pub(super) complexity: ProofComplexity,
     /// Timeout in milliseconds.
@@ -30,7 +31,7 @@ impl Challenge {
 
     /// Returns the timestamp when the challenge was created.
     #[must_use]
-    pub fn timestamp(&self) -> DateTime<Utc> {
+    pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 
@@ -56,8 +57,8 @@ impl Challenge {
     /// "future-stamped challenges live forever" footgun.
     #[must_use]
     pub fn is_expired(&self) -> bool {
-        let elapsed = Utc::now().signed_duration_since(self.timestamp);
-        let elapsed_u64 = u64::try_from(elapsed.num_milliseconds()).unwrap_or(u64::MAX);
+        let elapsed = timestamp::signed_millis_between(self.timestamp, SystemTime::now());
+        let elapsed_u64 = u64::try_from(elapsed).unwrap_or(u64::MAX);
         elapsed_u64 > self.timeout_ms
     }
 }
@@ -73,7 +74,7 @@ pub struct ZeroKnowledgeProof {
     /// The cryptographic proof data.
     pub(super) proof: Vec<u8>,
     /// When the proof was generated.
-    pub(super) timestamp: DateTime<Utc>,
+    pub(super) timestamp: SystemTime,
     /// Complexity level of the proof.
     pub(super) complexity: ProofComplexity,
 }
@@ -84,7 +85,7 @@ impl ZeroKnowledgeProof {
     pub fn new(
         challenge: Vec<u8>,
         proof: Vec<u8>,
-        timestamp: DateTime<Utc>,
+        timestamp: SystemTime,
         complexity: ProofComplexity,
     ) -> Self {
         Self { challenge, proof, timestamp, complexity }
@@ -110,7 +111,7 @@ impl ZeroKnowledgeProof {
 
     /// Returns the timestamp when the proof was generated.
     #[must_use]
-    pub fn timestamp(&self) -> DateTime<Utc> {
+    pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 
@@ -123,7 +124,7 @@ impl ZeroKnowledgeProof {
     /// Returns `true` if the proof has a valid format.
     #[must_use]
     pub fn is_valid_format(&self) -> bool {
-        !self.challenge.is_empty() && !self.proof.is_empty() && self.timestamp <= Utc::now()
+        !self.challenge.is_empty() && !self.proof.is_empty() && self.timestamp <= SystemTime::now()
     }
 }
 
@@ -138,13 +139,13 @@ pub struct ProofOfPossessionData {
     /// Signature proving possession.
     pub(super) signature: Vec<u8>,
     /// When the proof was generated.
-    pub(super) timestamp: DateTime<Utc>,
+    pub(super) timestamp: SystemTime,
 }
 
 impl ProofOfPossessionData {
     /// Creates a new `ProofOfPossessionData` with the given fields.
     #[must_use]
-    pub fn new(public_key: PublicKey, signature: Vec<u8>, timestamp: DateTime<Utc>) -> Self {
+    pub fn new(public_key: PublicKey, signature: Vec<u8>, timestamp: SystemTime) -> Self {
         Self { public_key, signature, timestamp }
     }
 
@@ -168,7 +169,7 @@ impl ProofOfPossessionData {
 
     /// Returns the timestamp when the proof was generated.
     #[must_use]
-    pub fn timestamp(&self) -> DateTime<Utc> {
+    pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 }
@@ -182,11 +183,11 @@ pub struct ContinuousSession {
     /// `zero_trust::auth::ZeroTrustAuth::start_continuous_verification`.
     pub(super) auth_public_key: PublicKey,
     /// When the session started.
-    pub(super) start_time: DateTime<Utc>,
+    pub(super) start_time: SystemTime,
     /// Verification interval in milliseconds.
     pub(super) verification_interval_ms: u64,
     /// Last successful verification timestamp.
-    pub(super) last_verification: DateTime<Utc>,
+    pub(super) last_verification: SystemTime,
 }
 
 impl ContinuousSession {
@@ -202,7 +203,7 @@ impl ContinuousSession {
     /// `update_verification` mutator was removed — see the module note —
     /// so this value only advances through real re-verification.)
     #[must_use]
-    pub fn last_verification(&self) -> DateTime<Utc> {
+    pub fn last_verification(&self) -> SystemTime {
         self.last_verification
     }
 
@@ -214,26 +215,23 @@ impl ContinuousSession {
     /// API consistency and future extensibility.
     #[must_use = "session validity check should not be discarded — act on the boolean"]
     pub fn is_valid(&self) -> Result<bool> {
-        let elapsed = Utc::now().signed_duration_since(self.start_time);
-
+        let now = SystemTime::now();
         let max_duration: u64 = 60 * 60 * 1000;
 
-        // Convert safely: negative elapsed times treated as 0 (just started)
-        let elapsed_u64 = u64::try_from(elapsed.num_milliseconds()).unwrap_or(0);
+        // Negative elapsed times (clock skew) count as 0 (just started).
+        let elapsed_u64 = timestamp::elapsed_millis_saturating(self.start_time, now);
         if elapsed_u64 > max_duration {
             return Ok(false);
         }
 
-        let verification_elapsed = Utc::now().signed_duration_since(self.last_verification);
-
-        // Convert safely: negative elapsed times treated as 0 (just verified)
+        // Negative elapsed times count as 0 (just verified).
         let verification_elapsed_u64 =
-            u64::try_from(verification_elapsed.num_milliseconds()).unwrap_or(0);
+            timestamp::elapsed_millis_saturating(self.last_verification, now);
         Ok(verification_elapsed_u64 <= self.verification_interval_ms)
     }
 
     // M-update_verification: the pre-fix `pub fn update_verification`
-    // bumped `self.last_verification` to `Utc::now()` with no proof —
+    // bumped `self.last_verification` to the wall clock with no proof —
     // equivalent to "extend my session forever" from anyone holding
     // `&mut ContinuousSession`. There were zero in-crate non-test
     // callers (verify_continuously / reauthenticate operate on

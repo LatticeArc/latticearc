@@ -12,8 +12,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::{KeyAlgorithm, KeyData, KeyType};
+use crate::types::timestamp;
 use crate::unified_api::error::{CoreError, Result};
-use chrono::{DateTime, Utc};
+use std::time::SystemTime;
 
 // ============================================================================
 // PortableKey
@@ -127,8 +128,9 @@ pub struct PortableKey {
     pub(super) key_type: KeyType,
     /// Key material (single or composite).
     pub(super) key_data: KeyData,
-    /// Creation timestamp (UTC, ISO 8601).
-    pub(super) created: DateTime<Utc>,
+    /// Creation timestamp, serialized as RFC 3339 UTC.
+    #[serde(with = "crate::types::timestamp::serde_rfc3339")]
+    pub(super) created: SystemTime,
 
     /// Optional informational expiry timestamp.
     ///
@@ -142,8 +144,12 @@ pub struct PortableKey {
     /// `ENCRYPTED_ENVELOPE_VERSION` bumped — an attacker who already holds
     /// the encrypted envelope can otherwise edit a plaintext `not_after`
     /// field freely (it isn't part of the AEAD-authenticated data today).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) not_after: Option<DateTime<Utc>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "crate::types::timestamp::serde_rfc3339_option"
+    )]
+    pub(super) not_after: Option<SystemTime>,
 
     /// Open metadata map for enterprise extensions.
     /// Enterprise crates store additional fields (expiry, hardware binding,
@@ -167,8 +173,8 @@ impl std::fmt::Debug for PortableKey {
             .field("algorithm", &self.algorithm)
             .field("key_type", &self.key_type)
             .field("key_data", &key_data_display)
-            .field("created", &self.created)
-            .field("not_after", &self.not_after)
+            .field("created", &timestamp::display(self.created))
+            .field("not_after", &self.not_after.map(timestamp::display))
             .field("metadata", &self.metadata)
             .finish()
     }
@@ -285,7 +291,7 @@ impl PortableKey {
     /// **This field is a convention, not a security gate.** See the
     /// field documentation on [`PortableKey`] for the rationale.
     #[must_use]
-    pub const fn not_after(&self) -> Option<DateTime<Utc>> {
+    pub const fn not_after(&self) -> Option<SystemTime> {
         self.not_after
     }
 
@@ -294,25 +300,25 @@ impl PortableKey {
     /// **Informational only** — `validate()` does not refuse a key past
     /// `not_after`. Callers requiring enforcement must check
     /// [`is_expired`](Self::is_expired) before using the key.
-    pub const fn set_not_after(&mut self, not_after: Option<DateTime<Utc>>) {
+    pub const fn set_not_after(&mut self, not_after: Option<SystemTime>) {
         self.not_after = not_after;
     }
 
     /// Returns `true` when `not_after` is set and is less than or equal to
     /// the supplied `now` instant.
     ///
-    /// Pass [`Utc::now()`] for the typical wall-clock check, or a fixed
+    /// Pass [`SystemTime::now()`] for the typical wall-clock check, or a fixed
     /// instant for deterministic tests. Returns `false` when `not_after`
     /// is `None` (no declared expiry).
     #[must_use]
-    pub fn is_expired_at(&self, now: DateTime<Utc>) -> bool {
+    pub fn is_expired_at(&self, now: SystemTime) -> bool {
         self.not_after.is_some_and(|t| t <= now)
     }
 
-    /// Convenience: [`is_expired_at`](Self::is_expired_at) using `Utc::now()`.
+    /// Convenience: [`is_expired_at`](Self::is_expired_at) using `SystemTime::now()`.
     #[must_use]
     pub fn is_expired(&self) -> bool {
-        self.is_expired_at(Utc::now())
+        self.is_expired_at(SystemTime::now())
     }
 
     /// Create a key identified by use case. Algorithm is auto-derived.
@@ -334,7 +340,7 @@ impl PortableKey {
             algorithm,
             key_type,
             key_data,
-            created: Utc::now(),
+            created: SystemTime::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         }
@@ -355,7 +361,7 @@ impl PortableKey {
             algorithm,
             key_type,
             key_data,
-            created: Utc::now(),
+            created: SystemTime::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         }
@@ -378,7 +384,7 @@ impl PortableKey {
             algorithm,
             key_type,
             key_data,
-            created: Utc::now(),
+            created: SystemTime::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         }
@@ -401,7 +407,7 @@ impl PortableKey {
             algorithm,
             key_type,
             key_data,
-            created: Utc::now(),
+            created: SystemTime::now(),
             metadata: BTreeMap::new(),
             not_after: None,
         }
@@ -413,7 +419,7 @@ impl PortableKey {
         algorithm: KeyAlgorithm,
         key_type: KeyType,
         key_data: KeyData,
-        created: DateTime<Utc>,
+        created: SystemTime,
     ) -> Self {
         // Same default-security_level treatment as `Self::new` so this
         // constructor satisfies the same struct invariant.
@@ -470,8 +476,8 @@ impl PortableKey {
 
     /// Creation timestamp.
     #[must_use]
-    pub fn created(&self) -> &DateTime<Utc> {
-        &self.created
+    pub const fn created(&self) -> SystemTime {
+        self.created
     }
 
     // --- Metadata accessors ---

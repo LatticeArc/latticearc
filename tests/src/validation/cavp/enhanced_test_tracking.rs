@@ -15,7 +15,7 @@
 
 use crate::validation::cavp::*;
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use time::OffsetDateTime;
 use std::collections::HashMap;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -326,7 +326,7 @@ mod enhanced_cavp_result_tracking_tests {
                     version: "1.0".to_string(),
                     source: "legacy_migration".to_string(),
                     test_type: CavpTestType::KeyGen,
-                    created_at: Utc::now(),
+                    created_at: OffsetDateTime::now_utc(),
                     security_level: 128,
                     notes: Some("Migrated from legacy test suite".to_string()),
                 },
@@ -359,7 +359,7 @@ mod enhanced_cavp_result_tracking_tests {
                     version: "1.0".to_string(),
                     source: "legacy_migration".to_string(),
                     test_type: CavpTestType::Signature,
-                    created_at: Utc::now(),
+                    created_at: OffsetDateTime::now_utc(),
                     security_level: 128,
                     notes: Some("Signature test from legacy system".to_string()),
                 },
@@ -431,7 +431,7 @@ mod enhanced_cavp_result_tracking_tests {
                 version: "".to_string(), // Empty version
                 source: "test".to_string(),
                 test_type: CavpTestType::KeyGen,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 0, // Invalid security level
                 notes: None,
             },
@@ -506,7 +506,7 @@ mod enhanced_cavp_result_tracking_tests {
                 version: "1.0".to_string(),
                 source: "timeout_test".to_string(),
                 test_type: CavpTestType::Signature,
-                created_at: Utc::now(),
+                created_at: OffsetDateTime::now_utc(),
                 security_level: 256,
                 notes: Some("Test timeout handling".to_string()),
             },

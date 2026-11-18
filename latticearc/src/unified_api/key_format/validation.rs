@@ -10,7 +10,7 @@ use super::{
 };
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::serialization::decode_b64_opaque;
-use chrono::{DateTime, Utc};
+use std::time::SystemTime;
 
 impl PortableKey {
     // --- Validation ---
@@ -171,7 +171,7 @@ impl PortableKey {
     ///
     /// `now` is passed explicitly so the call is testable without freezing
     /// the system clock and so determinism is preserved on the verify
-    /// path. Pass `chrono::Utc::now()` from production callers.
+    /// path. Pass `SystemTime::now()` from production callers.
     ///
     /// # Errors
     ///
@@ -180,7 +180,7 @@ impl PortableKey {
     /// The "expired" error is intentionally opaque: an attacker who can
     /// see the error variant could otherwise binary-search the `not_after`
     /// timestamp off-line via repeated calls with different `now` values.
-    pub fn validate_with_expiry(&self, now: DateTime<Utc>) -> Result<()> {
+    pub fn validate_with_expiry(&self, now: SystemTime) -> Result<()> {
         self.validate()?;
         if self.is_expired_at(now) {
             return Err(CoreError::InvalidKey("key has expired".to_string()));
@@ -193,8 +193,8 @@ impl PortableKey {
     /// `to_hybrid_secret_key`, `to_hybrid_sig_public_key`,
     /// `to_hybrid_sig_secret_key`) through the expiry gate before the
     /// returned typed key escapes into a sign / encrypt / agree path. Reads
-    /// `Utc::now()` once at call time so the gate can't be bypassed by a
-    /// caller that holds a stale `DateTime<Utc>`.
+    /// `SystemTime::now()` once at call time so the gate can't be bypassed
+    /// by a caller that holds a stale `SystemTime`.
     ///
     /// The expiry-aware gate is intentionally NOT folded into
     /// [`validate`](Self::validate): a tool inspecting an expired key for
@@ -210,7 +210,7 @@ impl PortableKey {
     /// `CoreError::InvalidKey("key has expired")` if `not_after` is at or
     /// before the current wall clock.
     pub fn validate_with_expiry_now(&self) -> Result<()> {
-        self.validate_with_expiry(Utc::now())
+        self.validate_with_expiry(SystemTime::now())
     }
 
     /// Validate an encrypted-envelope's metadata and base64-decodable sizes.

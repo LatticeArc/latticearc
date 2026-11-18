@@ -60,8 +60,8 @@ serde_json = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
 
-# Time handling
-chrono = { workspace = true }
+# Report timestamps (RFC 3339 serde); the library API itself uses SystemTime.
+time = { workspace = true, features = ["serde", "formatting", "macros"] }
 uuid = { workspace = true }
 
 # Concurrency / async

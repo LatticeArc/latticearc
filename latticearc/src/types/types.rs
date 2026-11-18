@@ -4,8 +4,8 @@
 //! and cryptographic context. All types are pure Rust with zero FFI dependencies.
 
 use std::fmt;
+use std::time::SystemTime;
 
-use chrono::{DateTime, Utc};
 use subtle::{Choice, ConstantTimeEq};
 
 use crate::types::secrets::SecretVec;
@@ -800,13 +800,13 @@ pub struct CryptoContext {
     /// Timestamp when the context was created.
     ///
     /// Consumer: `unified_api::audit::AuditEvent` — operation timestamping
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: SystemTime,
 }
 
 impl CryptoContext {
     /// Constructor for external callers; required because the type is
     /// `#[non_exhaustive]`. Sets `hardware_acceleration = true` and
-    /// `timestamp = Utc::now()`; use `with_*` methods to override.
+    /// `timestamp = SystemTime::now()`; use `with_*` methods to override.
     #[must_use]
     pub fn new(
         security_level: SecurityLevel,
@@ -818,13 +818,13 @@ impl CryptoContext {
             performance_preference,
             use_case,
             hardware_acceleration: true,
-            timestamp: Utc::now(),
+            timestamp: SystemTime::now(),
         }
     }
 
     /// Override the timestamp (mainly for replay-test reproducibility).
     #[must_use]
-    pub fn with_timestamp(mut self, timestamp: DateTime<Utc>) -> Self {
+    pub fn with_timestamp(mut self, timestamp: SystemTime) -> Self {
         self.timestamp = timestamp;
         self
     }
