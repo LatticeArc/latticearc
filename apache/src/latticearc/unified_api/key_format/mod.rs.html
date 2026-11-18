@@ -51,7 +51,7 @@
 <a href=#51 id=51 data-nosnippet>51</a>//! // Enterprise crate — typed accessors over the metadata map (pseudocode)
 <a href=#52 id=52 data-nosnippet>52</a>//! impl EnterpriseKeyExt for PortableKey {
 <a href=#53 id=53 data-nosnippet>53</a>//!     fn dimensions(&amp;self) -&gt; Option&lt;Vec&lt;String&gt;&gt; { ... }
-<a href=#54 id=54 data-nosnippet>54</a>//!     fn key_expiry(&amp;self) -&gt; Option&lt;DateTime&lt;Utc&gt;&gt; { ... }
+<a href=#54 id=54 data-nosnippet>54</a>//!     fn key_expiry(&amp;self) -&gt; Option&lt;SystemTime&gt; { ... }
 <a href=#55 id=55 data-nosnippet>55</a>//!     fn hsm_binding(&amp;self) -&gt; Option&lt;HsmSlot&gt; { ... }
 <a href=#56 id=56 data-nosnippet>56</a>//! }
 <a href=#57 id=57 data-nosnippet>57</a>//! ```
