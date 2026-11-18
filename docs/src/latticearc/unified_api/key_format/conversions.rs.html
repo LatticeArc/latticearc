@@ -22,10 +22,10 @@
 <a href=#22 id=22 data-nosnippet>22</a>//! checks shape, never lifetime.
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">use super</span>::{KeyAlgorithm, KeyData, KeyType, ML_KEM_PK_METADATA_KEY, PortableKey};
-<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::unified_api::error::{CoreError, <span class="prelude-ty">Result</span>};
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>base64::{Engine, engine::general_purpose::STANDARD <span class="kw">as </span>BASE64_ENGINE};
-<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>std::collections::BTreeMap;
-<a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span>std::time::SystemTime;
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::types::timestamp::Timestamp;
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span><span class="kw">crate</span>::unified_api::error::{CoreError, <span class="prelude-ty">Result</span>};
+<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>base64::{Engine, engine::general_purpose::STANDARD <span class="kw">as </span>BASE64_ENGINE};
+<a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span>std::collections::BTreeMap;
 <a href=#29 id=29 data-nosnippet>29</a>
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">impl </span>PortableKey {
 <a href=#31 id=31 data-nosnippet>31</a>    <span class="comment">// --- Bridge: Hybrid KEM keypair ---
@@ -51,7 +51,7 @@
 <a href=#51 id=51 data-nosnippet>51</a>            algorithm,
 <a href=#52 id=52 data-nosnippet>52</a>            key_type: KeyType::Public,
 <a href=#53 id=53 data-nosnippet>53</a>            key_data: KeyData::from_composite(pk.ml_kem_pk(), pk.ecdh_pk()),
-<a href=#54 id=54 data-nosnippet>54</a>            created: SystemTime::now(),
+<a href=#54 id=54 data-nosnippet>54</a>            created: Timestamp::now(),
 <a href=#55 id=55 data-nosnippet>55</a>            metadata: BTreeMap::new(),
 <a href=#56 id=56 data-nosnippet>56</a>            not_after: <span class="prelude-val">None</span>,
 <a href=#57 id=57 data-nosnippet>57</a>        };
@@ -81,7 +81,7 @@
 <a href=#81 id=81 data-nosnippet>81</a>            algorithm,
 <a href=#82 id=82 data-nosnippet>82</a>            key_type: KeyType::Secret,
 <a href=#83 id=83 data-nosnippet>83</a>            key_data: KeyData::from_composite(<span class="kw-2">&amp;</span>ml_kem_sk, <span class="kw-2">&amp;*</span>ecdh_seed),
-<a href=#84 id=84 data-nosnippet>84</a>            created: SystemTime::now(),
+<a href=#84 id=84 data-nosnippet>84</a>            created: Timestamp::now(),
 <a href=#85 id=85 data-nosnippet>85</a>            metadata: sk_metadata,
 <a href=#86 id=86 data-nosnippet>86</a>            not_after: <span class="prelude-val">None</span>,
 <a href=#87 id=87 data-nosnippet>87</a>        };
@@ -248,7 +248,7 @@
 <a href=#248 id=248 data-nosnippet>248</a>            algorithm,
 <a href=#249 id=249 data-nosnippet>249</a>            key_type: KeyType::Public,
 <a href=#250 id=250 data-nosnippet>250</a>            key_data: KeyData::from_composite(pk.ml_dsa_pk(), pk.ed25519_pk()),
-<a href=#251 id=251 data-nosnippet>251</a>            created: SystemTime::now(),
+<a href=#251 id=251 data-nosnippet>251</a>            created: Timestamp::now(),
 <a href=#252 id=252 data-nosnippet>252</a>            metadata: BTreeMap::new(),
 <a href=#253 id=253 data-nosnippet>253</a>            not_after: <span class="prelude-val">None</span>,
 <a href=#254 id=254 data-nosnippet>254</a>        };
@@ -263,7 +263,7 @@
 <a href=#263 id=263 data-nosnippet>263</a>                sk.expose_ml_dsa_secret(),
 <a href=#264 id=264 data-nosnippet>264</a>                sk.expose_ed25519_secret(),
 <a href=#265 id=265 data-nosnippet>265</a>            ),
-<a href=#266 id=266 data-nosnippet>266</a>            created: SystemTime::now(),
+<a href=#266 id=266 data-nosnippet>266</a>            created: Timestamp::now(),
 <a href=#267 id=267 data-nosnippet>267</a>            metadata: BTreeMap::new(),
 <a href=#268 id=268 data-nosnippet>268</a>            not_after: <span class="prelude-val">None</span>,
 <a href=#269 id=269 data-nosnippet>269</a>        };
@@ -364,7 +364,7 @@
 <a href=#364 id=364 data-nosnippet>364</a>            algorithm,
 <a href=#365 id=365 data-nosnippet>365</a>            key_type: KeyType::Public,
 <a href=#366 id=366 data-nosnippet>366</a>            key_data: KeyData::from_raw(public_key),
-<a href=#367 id=367 data-nosnippet>367</a>            created: SystemTime::now(),
+<a href=#367 id=367 data-nosnippet>367</a>            created: Timestamp::now(),
 <a href=#368 id=368 data-nosnippet>368</a>            metadata: BTreeMap::new(),
 <a href=#369 id=369 data-nosnippet>369</a>            not_after: <span class="prelude-val">None</span>,
 <a href=#370 id=370 data-nosnippet>370</a>        };
@@ -376,7 +376,7 @@
 <a href=#376 id=376 data-nosnippet>376</a>            algorithm,
 <a href=#377 id=377 data-nosnippet>377</a>            key_type: KeyType::Secret,
 <a href=#378 id=378 data-nosnippet>378</a>            key_data: KeyData::from_raw(private_key),
-<a href=#379 id=379 data-nosnippet>379</a>            created: SystemTime::now(),
+<a href=#379 id=379 data-nosnippet>379</a>            created: Timestamp::now(),
 <a href=#380 id=380 data-nosnippet>380</a>            metadata: BTreeMap::new(),
 <a href=#381 id=381 data-nosnippet>381</a>            not_after: <span class="prelude-val">None</span>,
 <a href=#382 id=382 data-nosnippet>382</a>        };
@@ -654,7 +654,7 @@
 <a href=#654 id=654 data-nosnippet>654</a>            algorithm,
 <a href=#655 id=655 data-nosnippet>655</a>            key_type: KeyType::Symmetric,
 <a href=#656 id=656 data-nosnippet>656</a>            key_data: KeyData::from_raw(key),
-<a href=#657 id=657 data-nosnippet>657</a>            created: SystemTime::now(),
+<a href=#657 id=657 data-nosnippet>657</a>            created: Timestamp::now(),
 <a href=#658 id=658 data-nosnippet>658</a>            metadata: BTreeMap::new(),
 <a href=#659 id=659 data-nosnippet>659</a>            not_after: <span class="prelude-val">None</span>,
 <a href=#660 id=660 data-nosnippet>660</a>        })

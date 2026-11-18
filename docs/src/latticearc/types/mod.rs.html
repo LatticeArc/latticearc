@@ -37,8 +37,8 @@
 <a href=#37 id=37 data-nosnippet>37</a><span class="doccomment">/// Primitive secret-byte containers (`SecretBytes&lt;N&gt;`, `SecretVec`). See
 <a href=#38 id=38 data-nosnippet>38</a>/// `docs/SECRET_TYPE_INVARIANTS.md` for the normative spec.
 <a href=#39 id=39 data-nosnippet>39</a></span><span class="kw">pub mod </span>secrets;
-<a href=#40 id=40 data-nosnippet>40</a><span class="doccomment">/// `SystemTime` arithmetic and RFC 3339 encoding (crate-internal).
-<a href=#41 id=41 data-nosnippet>41</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>timestamp;
+<a href=#40 id=40 data-nosnippet>40</a><span class="doccomment">/// Platform-independent UTC timestamps (`Timestamp`) and their RFC 3339 form.
+<a href=#41 id=41 data-nosnippet>41</a></span><span class="kw">pub mod </span>timestamp;
 <a href=#42 id=42 data-nosnippet>42</a><span class="doccomment">/// Core traits for cryptographic operations.
 <a href=#43 id=43 data-nosnippet>43</a></span><span class="kw">pub mod </span>traits;
 <a href=#44 id=44 data-nosnippet>44</a><span class="doccomment">/// Fundamental cryptographic types.
@@ -60,14 +60,15 @@
 <a href=#60 id=60 data-nosnippet>60</a>    StateTransition,
 <a href=#61 id=61 data-nosnippet>61</a>};
 <a href=#62 id=62 data-nosnippet>62</a><span class="kw">pub use </span>secrets::{MemoryLockStatus, SecretBytes, SecretVec, memory_lock_status};
-<a href=#63 id=63 data-nosnippet>63</a><span class="kw">pub use </span>traits::{
-<a href=#64 id=64 data-nosnippet>64</a>    ContinuousVerifiable, DataCharacteristics, PatternType, ProofOfPossession, SchemeSelector,
-<a href=#65 id=65 data-nosnippet>65</a>    VerificationStatus, ZeroTrustAuthenticable,
-<a href=#66 id=66 data-nosnippet>66</a>};
-<a href=#67 id=67 data-nosnippet>67</a><span class="kw">pub use </span>types::{
-<a href=#68 id=68 data-nosnippet>68</a>    AlgorithmSelection, ComplianceMode, CryptoContext, CryptoPayload, CryptoScheme, EncryptedData,
-<a href=#69 id=69 data-nosnippet>69</a>    EncryptedMetadata, HashOutput, KeyPair, PerformancePreference, PrivateKey, PublicKey,
-<a href=#70 id=70 data-nosnippet>70</a>    SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, fips_available,
-<a href=#71 id=71 data-nosnippet>71</a>};
-<a href=#72 id=72 data-nosnippet>72</a><span class="kw">pub use </span>zero_trust::TrustLevel;
+<a href=#63 id=63 data-nosnippet>63</a><span class="kw">pub use </span>timestamp::{Timestamp, TimestampError};
+<a href=#64 id=64 data-nosnippet>64</a><span class="kw">pub use </span>traits::{
+<a href=#65 id=65 data-nosnippet>65</a>    ContinuousVerifiable, DataCharacteristics, PatternType, ProofOfPossession, SchemeSelector,
+<a href=#66 id=66 data-nosnippet>66</a>    VerificationStatus, ZeroTrustAuthenticable,
+<a href=#67 id=67 data-nosnippet>67</a>};
+<a href=#68 id=68 data-nosnippet>68</a><span class="kw">pub use </span>types::{
+<a href=#69 id=69 data-nosnippet>69</a>    AlgorithmSelection, ComplianceMode, CryptoContext, CryptoPayload, CryptoScheme, EncryptedData,
+<a href=#70 id=70 data-nosnippet>70</a>    EncryptedMetadata, HashOutput, KeyPair, PerformancePreference, PrivateKey, PublicKey,
+<a href=#71 id=71 data-nosnippet>71</a>    SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, fips_available,
+<a href=#72 id=72 data-nosnippet>72</a>};
+<a href=#73 id=73 data-nosnippet>73</a><span class="kw">pub use </span>zero_trust::TrustLevel;
 </code></pre></div></section></main></body></html>

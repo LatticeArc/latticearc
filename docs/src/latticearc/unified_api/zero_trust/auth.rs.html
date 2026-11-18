@@ -5,19 +5,19 @@
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use super</span>::{Challenge, ContinuousSession, ProofOfPossessionData, ZeroKnowledgeProof};
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::types::timestamp;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::types::traits::{
-<a href=#9 id=9 data-nosnippet>9</a>    ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
-<a href=#10 id=10 data-nosnippet>10</a>};
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::unified_api::{
-<a href=#12 id=12 data-nosnippet>12</a>    ZeroTrustConfig,
-<a href=#13 id=13 data-nosnippet>13</a>    error::{CoreError, <span class="prelude-ty">Result</span>},
-<a href=#14 id=14 data-nosnippet>14</a>};
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use crate</span>::{
-<a href=#16 id=16 data-nosnippet>16</a>    log_zero_trust_challenge_generated, log_zero_trust_proof_verified,
-<a href=#17 id=17 data-nosnippet>17</a>    types::{PrivateKey, PublicKey},
-<a href=#18 id=18 data-nosnippet>18</a>};
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>std::sync::Mutex;
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>std::time::SystemTime;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::types::timestamp::Timestamp;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::types::traits::{
+<a href=#10 id=10 data-nosnippet>10</a>    ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
+<a href=#11 id=11 data-nosnippet>11</a>};
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::unified_api::{
+<a href=#13 id=13 data-nosnippet>13</a>    ZeroTrustConfig,
+<a href=#14 id=14 data-nosnippet>14</a>    error::{CoreError, <span class="prelude-ty">Result</span>},
+<a href=#15 id=15 data-nosnippet>15</a>};
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use crate</span>::{
+<a href=#17 id=17 data-nosnippet>17</a>    log_zero_trust_challenge_generated, log_zero_trust_proof_verified,
+<a href=#18 id=18 data-nosnippet>18</a>    types::{PrivateKey, PublicKey},
+<a href=#19 id=19 data-nosnippet>19</a>};
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>std::sync::Mutex;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>subtle::ConstantTimeEq;
 <a href=#22 id=22 data-nosnippet>22</a>
 <a href=#23 id=23 data-nosnippet>23</a><span class="comment">// ============================================================================
@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>    /// dispatch) in addition to this module's own trait impls.
 <a href=#43 id=43 data-nosnippet>43</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) config: ZeroTrustConfig,
 <a href=#44 id=44 data-nosnippet>44</a>    <span class="doccomment">/// Session start timestamp.
-<a href=#45 id=45 data-nosnippet>45</a>    </span>session_start: SystemTime,
+<a href=#45 id=45 data-nosnippet>45</a>    </span>session_start: Timestamp,
 <a href=#46 id=46 data-nosnippet>46</a>    <span class="doccomment">/// Timestamp of the most recent successful proof verification, or
 <a href=#47 id=47 data-nosnippet>47</a>    /// `None` if no proof has yet been verified for this auth instance.
 <a href=#48 id=48 data-nosnippet>48</a>    ///
@@ -54,7 +54,7 @@
 <a href=#54 id=54 data-nosnippet>54</a>    /// `Mutex` (not `RefCell`) so the type stays `Sync` for use across
 <a href=#55 id=55 data-nosnippet>55</a>    /// async tasks and multi-threaded callers; an `Arc&lt;ZeroTrustAuth&gt;`
 <a href=#56 id=56 data-nosnippet>56</a>    /// shared between Tokio workers must compile.
-<a href=#57 id=57 data-nosnippet>57</a>    </span>last_verification: Mutex&lt;<span class="prelude-ty">Option</span>&lt;SystemTime&gt;&gt;,
+<a href=#57 id=57 data-nosnippet>57</a>    </span>last_verification: Mutex&lt;<span class="prelude-ty">Option</span>&lt;Timestamp&gt;&gt;,
 <a href=#58 id=58 data-nosnippet>58</a>    <span class="doccomment">/// Replay cache for proofs-of-possession.
 <a href=#59 id=59 data-nosnippet>59</a>    ///
 <a href=#60 id=60 data-nosnippet>60</a>    /// Keyed on `pk || sig || ts_micros_be` (microsecond precision —
@@ -188,7 +188,7 @@
 <a href=#188 id=188 data-nosnippet>188</a>        <span class="kw">let </span>config = ZeroTrustConfig::default();
 <a href=#189 id=189 data-nosnippet>189</a>        config.validate()<span class="question-mark">?</span>;
 <a href=#190 id=190 data-nosnippet>190</a>
-<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span>now = SystemTime::now();
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span>now = Timestamp::now();
 <a href=#192 id=192 data-nosnippet>192</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
 <a href=#193 id=193 data-nosnippet>193</a>            public_key,
 <a href=#194 id=194 data-nosnippet>194</a>            private_key,
@@ -217,7 +217,7 @@
 <a href=#217 id=217 data-nosnippet>217</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
 <a href=#218 id=218 data-nosnippet>218</a>        config.validate()<span class="question-mark">?</span>;
 <a href=#219 id=219 data-nosnippet>219</a>
-<a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">let </span>now = SystemTime::now();
+<a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">let </span>now = Timestamp::now();
 <a href=#221 id=221 data-nosnippet>221</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
 <a href=#222 id=222 data-nosnippet>222</a>            public_key,
 <a href=#223 id=223 data-nosnippet>223</a>            private_key,
@@ -237,7 +237,7 @@
 <a href=#237 id=237 data-nosnippet>237</a>        <span class="macro">log_zero_trust_challenge_generated!</span>(<span class="self">self</span>.config.proof_complexity);
 <a href=#238 id=238 data-nosnippet>238</a>        <span class="prelude-val">Ok</span>(Challenge {
 <a href=#239 id=239 data-nosnippet>239</a>            data: challenge_data,
-<a href=#240 id=240 data-nosnippet>240</a>            timestamp: SystemTime::now(),
+<a href=#240 id=240 data-nosnippet>240</a>            timestamp: Timestamp::now(),
 <a href=#241 id=241 data-nosnippet>241</a>            complexity: <span class="self">self</span>.config.proof_complexity.clone(),
 <a href=#242 id=242 data-nosnippet>242</a>            timeout_ms: <span class="self">self</span>.config.challenge_timeout_ms,
 <a href=#243 id=243 data-nosnippet>243</a>        })
@@ -250,7 +250,7 @@
 <a href=#250 id=250 data-nosnippet>250</a>    /// This function does not currently return errors, but returns `Result` for
 <a href=#251 id=251 data-nosnippet>251</a>    /// API consistency and future extensibility.
 <a href=#252 id=252 data-nosnippet>252</a>    </span><span class="kw">pub fn </span>verify_challenge_age(<span class="kw-2">&amp;</span><span class="self">self</span>, challenge: <span class="kw-2">&amp;</span>Challenge) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
-<a href=#253 id=253 data-nosnippet>253</a>        <span class="kw">let </span>elapsed_ms = timestamp::signed_millis_between(challenge.timestamp(), SystemTime::now());
+<a href=#253 id=253 data-nosnippet>253</a>        <span class="kw">let </span>elapsed_ms = timestamp::signed_millis_between(challenge.timestamp(), Timestamp::now());
 <a href=#254 id=254 data-nosnippet>254</a>
 <a href=#255 id=255 data-nosnippet>255</a>        <span class="comment">// Negative elapsed time means the challenge is from the future, which is invalid
 <a href=#256 id=256 data-nosnippet>256</a>        // Convert safely: negative values are treated as invalid (elapsed &gt; timeout)
@@ -291,7 +291,7 @@
 <a href=#291 id=291 data-nosnippet>291</a>        })<span class="question-mark">?</span>;
 <a href=#292 id=292 data-nosnippet>292</a>        <span class="prelude-val">Ok</span>(ContinuousSession {
 <a href=#293 id=293 data-nosnippet>293</a>            auth_public_key: <span class="self">self</span>.public_key.clone(),
-<a href=#294 id=294 data-nosnippet>294</a>            start_time: SystemTime::now(),
+<a href=#294 id=294 data-nosnippet>294</a>            start_time: Timestamp::now(),
 <a href=#295 id=295 data-nosnippet>295</a>            verification_interval_ms: <span class="self">self</span>.config.verification_interval_ms,
 <a href=#296 id=296 data-nosnippet>296</a>            last_verification: last_verified,
 <a href=#297 id=297 data-nosnippet>297</a>        })
@@ -318,7 +318,7 @@
 <a href=#318 id=318 data-nosnippet>318</a>        }
 <a href=#319 id=319 data-nosnippet>319</a>
 <a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">let </span>proof_data = <span class="self">self</span>.compute_proof_data(challenge)<span class="question-mark">?</span>;
-<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">let </span>timestamp = SystemTime::now();
+<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">let </span>timestamp = Timestamp::now();
 <a href=#322 id=322 data-nosnippet>322</a>
 <a href=#323 id=323 data-nosnippet>323</a>        <span class="prelude-val">Ok</span>(ZeroKnowledgeProof {
 <a href=#324 id=324 data-nosnippet>324</a>            challenge: challenge.to_vec(),
@@ -380,7 +380,7 @@
 <a href=#380 id=380 data-nosnippet>380</a>            // gate in `maybe_continuous_verification` observe a real
 <a href=#381 id=381 data-nosnippet>381</a>            // handshake rather than a fresh `None`. Recover from
 <a href=#382 id=382 data-nosnippet>382</a>            // poison: a panicked writer would only have been writing
-<a href=#383 id=383 data-nosnippet>383</a>            // a `SystemTime::now()` value; the cached timestamp is still
+<a href=#383 id=383 data-nosnippet>383</a>            // a `Timestamp::now()` value; the cached timestamp is still
 <a href=#384 id=384 data-nosnippet>384</a>            // valid.
 <a href=#385 id=385 data-nosnippet>385</a>            </span><span class="kw">let </span><span class="kw-2">mut </span>guard = <span class="kw">match </span><span class="self">self</span>.last_verification.lock() {
 <a href=#386 id=386 data-nosnippet>386</a>                <span class="prelude-val">Ok</span>(g) =&gt; g,
@@ -394,7 +394,7 @@
 <a href=#394 id=394 data-nosnippet>394</a>                    poisoned.into_inner()
 <a href=#395 id=395 data-nosnippet>395</a>                }
 <a href=#396 id=396 data-nosnippet>396</a>            };
-<a href=#397 id=397 data-nosnippet>397</a>            <span class="kw-2">*</span>guard = <span class="prelude-val">Some</span>(SystemTime::now());
+<a href=#397 id=397 data-nosnippet>397</a>            <span class="kw-2">*</span>guard = <span class="prelude-val">Some</span>(Timestamp::now());
 <a href=#398 id=398 data-nosnippet>398</a>        }
 <a href=#399 id=399 data-nosnippet>399</a>        <span class="macro">log_zero_trust_proof_verified!</span>(result);
 <a href=#400 id=400 data-nosnippet>400</a>        <span class="prelude-val">Ok</span>(result)
@@ -476,13 +476,13 @@
 <a href=#476 id=476 data-nosnippet>476</a>                 verify_pop will refuse to accept an empty challenge."
 <a href=#477 id=477 data-nosnippet>477</a>            </span>);
 <a href=#478 id=478 data-nosnippet>478</a>        }
-<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>pop_timestamp = SystemTime::now();
+<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>pop_timestamp = Timestamp::now();
 <a href=#480 id=480 data-nosnippet>480</a>        <span class="comment">// Microsecond precision: Ed25519 sigs are deterministic, so two
 <a href=#481 id=481 data-nosnippet>481</a>        // PoPs in the same second from the same key produce identical
 <a href=#482 id=482 data-nosnippet>482</a>        // wire bytes and trip the replay cache against a legitimate
 <a href=#483 id=483 data-nosnippet>483</a>        // client regenerating in a tight loop. Microseconds also fit
 <a href=#484 id=484 data-nosnippet>484</a>        // comfortably inside the 5-minute freshness window.
-<a href=#485 id=485 data-nosnippet>485</a>        </span><span class="kw">let </span>ts_micros = timestamp::unix_micros(pop_timestamp);
+<a href=#485 id=485 data-nosnippet>485</a>        </span><span class="kw">let </span>ts_micros = pop_timestamp.unix_micros();
 <a href=#486 id=486 data-nosnippet>486</a>        <span class="kw">let </span>pop_digest = pop_transcript_digest(<span class="self">self</span>.public_key.as_slice(), ts_micros, challenge);
 <a href=#487 id=487 data-nosnippet>487</a>
 <a href=#488 id=488 data-nosnippet>488</a>        <span class="kw">let </span>signature = <span class="kw">crate</span>::unified_api::convenience::ed25519::sign_ed25519_internal(
@@ -548,7 +548,7 @@
 <a href=#548 id=548 data-nosnippet>548</a>        // Elapsed seconds are computed on Unix time, so the bound is
 <a href=#549 id=549 data-nosnippet>549</a>        // independent of timezone or DST quirks.
 <a href=#550 id=550 data-nosnippet>550</a>        </span><span class="kw">const </span>PROOF_OF_POSSESSION_MAX_AGE_SECS: i64 = <span class="number">5 </span>* <span class="number">60</span>; <span class="comment">// 5 minutes
-<a href=#551 id=551 data-nosnippet>551</a>        </span><span class="kw">let </span>elapsed_secs = timestamp::signed_seconds_between(pop.timestamp(), SystemTime::now());
+<a href=#551 id=551 data-nosnippet>551</a>        </span><span class="kw">let </span>elapsed_secs = timestamp::signed_seconds_between(pop.timestamp(), Timestamp::now());
 <a href=#552 id=552 data-nosnippet>552</a>        <span class="kw">if </span>elapsed_secs &gt; PROOF_OF_POSSESSION_MAX_AGE_SECS {
 <a href=#553 id=553 data-nosnippet>553</a>            <span class="comment">// Pattern-6: do not leak elapsed seconds or the configured
 <a href=#554 id=554 data-nosnippet>554</a>            // max age via the error string. An adversary with a PoP-
@@ -605,7 +605,7 @@
 <a href=#605 id=605 data-nosnippet>605</a>        // and dispatch against the verifier identity. A captured PoP
 <a href=#606 id=606 data-nosnippet>606</a>        // for a different verifier-id OR a different challenge round
 <a href=#607 id=607 data-nosnippet>607</a>        // produces a different digest and the crypto verify rejects.
-<a href=#608 id=608 data-nosnippet>608</a>        </span><span class="kw">let </span>ts_micros = timestamp::unix_micros(pop.timestamp());
+<a href=#608 id=608 data-nosnippet>608</a>        </span><span class="kw">let </span>ts_micros = pop.timestamp().unix_micros();
 <a href=#609 id=609 data-nosnippet>609</a>        <span class="kw">let </span>pop_digest = pop_transcript_digest(verifier_pk, ts_micros, expected_challenge);
 <a href=#610 id=610 data-nosnippet>610</a>
 <a href=#611 id=611 data-nosnippet>611</a>        <span class="kw">let </span>valid = <span class="kw">crate</span>::unified_api::convenience::ed25519::verify_ed25519_internal(
@@ -643,7 +643,7 @@
 <a href=#643 id=643 data-nosnippet>643</a>            // decremented in lockstep so they stay exact. `pk_len` is
 <a href=#644 id=644 data-nosnippet>644</a>            // owned by the cache (locked at construction) so this call
 <a href=#645 id=645 data-nosnippet>645</a>            // no longer carries it as a parameter.
-<a href=#646 id=646 data-nosnippet>646</a>            </span><span class="kw">let </span>now_secs = timestamp::unix_seconds(SystemTime::now());
+<a href=#646 id=646 data-nosnippet>646</a>            </span><span class="kw">let </span>now_secs = Timestamp::now().unix_seconds();
 <a href=#647 id=647 data-nosnippet>647</a>            cache.expire_older_than(now_secs, PROOF_OF_POSSESSION_MAX_AGE_SECS);
 <a href=#648 id=648 data-nosnippet>648</a>            <span class="comment">// Cache key combines PK + signature + microsecond timestamp;
 <a href=#649 id=649 data-nosnippet>649</a>            // collisions require either a cryptographic break or a
@@ -734,7 +734,7 @@
 <a href=#734 id=734 data-nosnippet>734</a>
 <a href=#735 id=735 data-nosnippet>735</a>        <span class="comment">// Negative elapsed times (clock skew) count as 0 (just started).
 <a href=#736 id=736 data-nosnippet>736</a>        </span><span class="kw">let </span>session_elapsed_u64 =
-<a href=#737 id=737 data-nosnippet>737</a>            timestamp::elapsed_millis_saturating(<span class="self">self</span>.session_start, SystemTime::now());
+<a href=#737 id=737 data-nosnippet>737</a>            timestamp::elapsed_millis_saturating(<span class="self">self</span>.session_start, Timestamp::now());
 <a href=#738 id=738 data-nosnippet>738</a>        <span class="kw">if </span>session_elapsed_u64 &gt; max_session_time {
 <a href=#739 id=739 data-nosnippet>739</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(VerificationStatus::Expired);
 <a href=#740 id=740 data-nosnippet>740</a>        }
@@ -768,7 +768,7 @@
 <a href=#768 id=768 data-nosnippet>768</a>        };
 <a href=#769 id=769 data-nosnippet>769</a>        <span class="comment">// Negative elapsed times count as 0 (just verified).
 <a href=#770 id=770 data-nosnippet>770</a>        </span><span class="kw">let </span>verification_elapsed_u64 =
-<a href=#771 id=771 data-nosnippet>771</a>            timestamp::elapsed_millis_saturating(last_verification_at, SystemTime::now());
+<a href=#771 id=771 data-nosnippet>771</a>            timestamp::elapsed_millis_saturating(last_verification_at, Timestamp::now());
 <a href=#772 id=772 data-nosnippet>772</a>        <span class="kw">if </span>verification_elapsed_u64 &gt; <span class="self">self</span>.config.verification_interval_ms {
 <a href=#773 id=773 data-nosnippet>773</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(VerificationStatus::Pending);
 <a href=#774 id=774 data-nosnippet>774</a>        }
@@ -818,7 +818,7 @@
 <a href=#818 id=818 data-nosnippet>818</a>                poisoned.into_inner()
 <a href=#819 id=819 data-nosnippet>819</a>            }
 <a href=#820 id=820 data-nosnippet>820</a>        };
-<a href=#821 id=821 data-nosnippet>821</a>        <span class="kw-2">*</span>guard = <span class="prelude-val">Some</span>(SystemTime::now());
+<a href=#821 id=821 data-nosnippet>821</a>        <span class="kw-2">*</span>guard = <span class="prelude-val">Some</span>(Timestamp::now());
 <a href=#822 id=822 data-nosnippet>822</a>        <span class="prelude-val">Ok</span>(())
 <a href=#823 id=823 data-nosnippet>823</a>    }
 <a href=#824 id=824 data-nosnippet>824</a>}

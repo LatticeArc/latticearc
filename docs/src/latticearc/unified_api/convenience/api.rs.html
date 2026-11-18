@@ -28,7 +28,7 @@
 <a href=#28 id=28 data-nosnippet>28</a>//! # }
 <a href=#29 id=29 data-nosnippet>29</a>//! ```
 <a href=#30 id=30 data-nosnippet>30</a>
-<a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">use </span><span class="kw">crate</span>::types::timestamp;
+<a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">use </span><span class="kw">crate</span>::types::Timestamp;
 <a href=#32 id=32 data-nosnippet>32</a>
 <a href=#33 id=33 data-nosnippet>33</a><span class="doccomment">/// Validate a 256-bit AEAD key length (32 bytes).
 <a href=#34 id=34 data-nosnippet>34</a>///
@@ -55,7 +55,7 @@
 <a href=#55 id=55 data-nosnippet>55</a>/// is preferable to a panic in audit-record construction.
 <a href=#56 id=56 data-nosnippet>56</a></span><span class="attr">#[inline]
 <a href=#57 id=57 data-nosnippet>57</a></span><span class="kw">fn </span>current_timestamp() -&gt; u64 {
-<a href=#58 id=58 data-nosnippet>58</a>    timestamp::unix_seconds(std::time::SystemTime::now()).max(<span class="number">0</span>).unsigned_abs()
+<a href=#58 id=58 data-nosnippet>58</a>    Timestamp::now().unix_seconds().max(<span class="number">0</span>).unsigned_abs()
 <a href=#59 id=59 data-nosnippet>59</a>}
 <a href=#60 id=60 data-nosnippet>60</a><span class="kw">use </span>zeroize::Zeroizing;
 <a href=#61 id=61 data-nosnippet>61</a>

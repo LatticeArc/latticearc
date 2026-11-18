@@ -4,9 +4,9 @@
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use super</span>::{Challenge, VerifiedSession, ZeroKnowledgeProof, ZeroTrustAuth};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::log_zero_trust_session_verification_failed;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::types::timestamp;
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::types::traits::ZeroTrustAuthenticable;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::unified_api::error::{CoreError, <span class="prelude-ty">Result</span>};
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>std::time::SystemTime;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::types::timestamp::Timestamp;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::types::traits::ZeroTrustAuthenticable;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::unified_api::error::{CoreError, <span class="prelude-ty">Result</span>};
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="doccomment">/// A zero-trust session managing the authentication flow.
 <a href=#12 id=12 data-nosnippet>12</a></span><span class="kw">pub struct </span>ZeroTrustSession {
@@ -17,14 +17,14 @@
 <a href=#17 id=17 data-nosnippet>17</a>    <span class="doccomment">/// Whether the session has been verified.
 <a href=#18 id=18 data-nosnippet>18</a>    </span>verified: bool,
 <a href=#19 id=19 data-nosnippet>19</a>    <span class="doccomment">/// When the session started.
-<a href=#20 id=20 data-nosnippet>20</a>    </span>session_start: SystemTime,
+<a href=#20 id=20 data-nosnippet>20</a>    </span>session_start: Timestamp,
 <a href=#21 id=21 data-nosnippet>21</a>}
 <a href=#22 id=22 data-nosnippet>22</a>
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">impl </span>ZeroTrustSession {
 <a href=#24 id=24 data-nosnippet>24</a>    <span class="doccomment">/// Creates a new zero-trust session.
 <a href=#25 id=25 data-nosnippet>25</a>    </span><span class="attr">#[must_use]
 <a href=#26 id=26 data-nosnippet>26</a>    </span><span class="kw">pub fn </span>new(auth: ZeroTrustAuth) -&gt; <span class="self">Self </span>{
-<a href=#27 id=27 data-nosnippet>27</a>        <span class="self">Self </span>{ auth, challenge: <span class="prelude-val">None</span>, verified: <span class="bool-val">false</span>, session_start: SystemTime::now() }
+<a href=#27 id=27 data-nosnippet>27</a>        <span class="self">Self </span>{ auth, challenge: <span class="prelude-val">None</span>, verified: <span class="bool-val">false</span>, session_start: Timestamp::now() }
 <a href=#28 id=28 data-nosnippet>28</a>    }
 <a href=#29 id=29 data-nosnippet>29</a>
 <a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// Initiates the authentication flow by generating a new challenge.
@@ -128,7 +128,7 @@
 <a href=#128 id=128 data-nosnippet>128</a>    /// API consistency and future extensibility.
 <a href=#129 id=129 data-nosnippet>129</a>    </span><span class="kw">pub fn </span>session_age_ms(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;u64&gt; {
 <a href=#130 id=130 data-nosnippet>130</a>        <span class="comment">// Negative elapsed times (clock skew) count as 0 (just started).
-<a href=#131 id=131 data-nosnippet>131</a>        </span><span class="prelude-val">Ok</span>(timestamp::elapsed_millis_saturating(<span class="self">self</span>.session_start, SystemTime::now()))
+<a href=#131 id=131 data-nosnippet>131</a>        </span><span class="prelude-val">Ok</span>(timestamp::elapsed_millis_saturating(<span class="self">self</span>.session_start, Timestamp::now()))
 <a href=#132 id=132 data-nosnippet>132</a>    }
 <a href=#133 id=133 data-nosnippet>133</a>
 <a href=#134 id=134 data-nosnippet>134</a>    <span class="doccomment">/// Convert this session into a `VerifiedSession` after successful authentication.
