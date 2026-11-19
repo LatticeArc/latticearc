@@ -1,7 +1,7 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.18.0
+**Module Version**: 0.19.0
 
 > CI gate `fips-policy-version` (`lint-extras.yml`) enforces that this
 > stamp matches `[workspace.package].version` in `Cargo.toml` exactly.
@@ -30,7 +30,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.18.0 |
+| Module Version | 0.19.0 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.100) |
@@ -322,6 +322,7 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.19.0 | 2026-11-18 | **No change to the power-up self-tests; no new algorithm; no change to any cryptographic algorithm or its behaviour.** Minimum supported Rust version raised from 1.99 to 1.100 (the development toolchain since 0.17.0). |
 | 0.18.0 | 2026-11-18 | **No change to the power-up self-tests; no new algorithm; no change to any cryptographic algorithm or its behaviour.** Public timestamps move from `chrono::DateTime<Utc>` to the crate's platform-independent `Timestamp` (chrono is unmaintained, RUSTSEC-2026-0543); serialized timestamps are byte-identical to 0.17.0. New audit-log lines (format 2) hash the exact stored event bytes; format-1 lines still verify, and audit chains now continue across process restarts. The `zkp-serde` feature (non-FIPS ZKP module) drops `serde_with` for an internal adapter with the same encoding. |
 | 0.17.0 | 2026-11-13 | **No change to the power-up self-tests; no new algorithm; no change to any cryptographic algorithm or its behaviour.** Behaviour-preserving lint cleanups for Rust 1.100 (redundant clones, boolean simplifications). Development toolchain moves to Rust 1.100 (MSRV unchanged at 1.99) and the repository adopts a 7-day registry cooldown for newly resolved dependencies. |
 | 0.16.0 | 2026-11-12 | **No change to the power-up self-tests; no new algorithm.** The streaming AEAD and the committing key wrap gain a format 2 whose HMAC-SHA256 commitment also covers SHA-256 of the caller's context (CMT-4), composed from the approved HMAC-SHA256, SHA-256, HKDF-SHA256 and AES-256-GCM already inside the boundary; format 1 stays decodable on request. Hybrid KEM and signature public keys gain level-pinned wire decoding. |

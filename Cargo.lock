@@ -1831,7 +1831,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aes",
  "argon2",
@@ -1879,7 +1879,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc-cli"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -1898,7 +1898,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc-ffi"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "hex",
  "latticearc",
@@ -1912,7 +1912,7 @@ dependencies = [
 
 [[package]]
 name = "latticearc-tests"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
