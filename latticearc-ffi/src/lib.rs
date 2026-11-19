@@ -118,12 +118,15 @@ mod tests {
     #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn locked_buffer_count_tracks_live_secrets() {
-        let before = memory_lock_status().locked_buffers;
         let s = SecretBytes::import(vec![1u8; 64]);
         let during = memory_lock_status();
         assert!(during.supported);
+        // The counter is process-wide and other tests run in parallel: they
+        // can drop their own locked buffers at any moment (so comparing with
+        // a reading taken before `import` races), but never ours. While `s`
+        // is alive and locked it is always counted.
         if s.is_locked() {
-            assert!(during.locked_buffers > before);
+            assert!(during.locked_buffers >= 1);
         }
         drop(s);
     }
