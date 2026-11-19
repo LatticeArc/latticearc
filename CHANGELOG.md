@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** Minimum supported Rust version raised from 1.99 to 1.100
+  (`rust-version`, the MSRV CI job and the documented requirements). The
+  development toolchain was already 1.100; Cargo 1.100 is also the first
+  release that reads the 7-day `global-min-publish-age` cooldown in
+  `.cargo/config.toml`, so every supported toolchain now honours it.
+
 ## [0.18.0] - 2026-11-18
 
 ### Security

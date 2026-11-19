@@ -38,7 +38,7 @@ env:
   # Kani is built from source at a pinned commit instead of installed from
   # crates.io. The newest release, 0.68.0, ICEs on any crate reaching
   # `catch_unwind` (model-checking/kani#4813, fixed by #4819), and 0.67.0
-  # bundles a nightly older than this workspace's 1.99 MSRV. The commit below
+  # bundles a nightly older than this workspace's 1.100 MSRV. The commit below
   # is the first toolchain upgrade after the fix; it builds this crate and
   # verifies every harness. Switch back to `cargo install kani-verifier` once a
   # release newer than 0.68.0 ships. The commit is part of the cache keys so a

@@ -195,7 +195,7 @@ This is a critical security property — if any two domain constants collide, di
 ```bash
 # Until a Kani release newer than 0.68.0 ships, build Kani from the commit CI
 # pins (`KANI_GIT_REV` in .github/workflows/kani.yml): 0.67.0 bundles a nightly
-# older than the 1.99 MSRV and 0.68.0 ICEs on crates that reach `catch_unwind`
+# older than the 1.100 MSRV and 0.68.0 ICEs on crates that reach `catch_unwind`
 # (model-checking/kani#4813). Afterwards `cargo install --locked kani-verifier`
 # and `cargo kani setup` are enough again.
 git clone https://github.com/model-checking/kani /path/to/kani

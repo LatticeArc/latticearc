@@ -15,7 +15,7 @@ Post-quantum cryptography for Rust. Implements all four NIST PQC standards (FIPS
 latticearc = "0.18"
 ```
 
-Requires Rust 1.99+ and a C/C++ compiler. For FIPS-validated routing also CMake + Go (`--features fips`).
+Requires Rust 1.100+ and a C/C++ compiler. For FIPS-validated routing also CMake + Go (`--features fips`).
 
 ## Quick Start
 
