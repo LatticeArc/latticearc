@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The published crate now contains the Apache-2.0 `LICENSE` file. Cargo
+  packages only files under the crate's own directory, so the copy at the
+  repository root was not included. The license itself is unchanged.
+
 ## [0.19.0] - 2026-11-18
 
 ### Changed
