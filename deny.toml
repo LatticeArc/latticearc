@@ -69,6 +69,13 @@ ignore = [
     "RUSTSEC-2026-0160", # pqcrypto-sphincsplus
     "RUSTSEC-2026-0162", # pqcrypto-traits
     "RUSTSEC-2026-0374", # basic-toml via askama_derive, bindgen feature only
+    # pqcrypto-mldsa 0.1.2: its AVX2 ML-DSA verifier accepts some
+    # non-conforming signatures and rejects some valid ones. No fixed version
+    # exists. Dev-dep of `latticearc-tests` only (cross-implementation tests);
+    # tests/Cargo.toml turns the `avx2` feature off, so the affected code is
+    # not compiled. The advisory matches by version, hence this entry. Remove
+    # it when a fixed version or a maintained replacement is adopted.
+    "RUSTSEC-2026-0586", # pqcrypto-mldsa, avx2 off
 ]
 
 [bans]

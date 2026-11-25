@@ -61,6 +61,14 @@ ignore = [
     # linked into the published crate or the shipped FFI library. Revisit
     # when askama moves off basic-toml or UniFFI ships a newer bindgen.
     "RUSTSEC-2026-0374",
+    # pqcrypto-mldsa 0.1.2 — its AVX2 ML-DSA verifier accepts some
+    # non-conforming signatures and rejects some valid ones. No fixed version
+    # exists. Dev-dep of `latticearc-tests` only (cross-implementation tests);
+    # `tests/Cargo.toml` turns the `avx2` feature off, so the affected code is
+    # not compiled, and the published crate never depends on it. The advisory
+    # matches by version, hence this entry. Revisit when a fixed version or a
+    # maintained replacement is adopted; keep `avx2` off until then.
+    "RUSTSEC-2026-0586",
 ]
 
 # Treat informational advisories as warnings (not errors). Combined with
